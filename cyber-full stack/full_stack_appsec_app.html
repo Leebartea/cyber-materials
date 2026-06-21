@@ -823,6 +823,45 @@ app.post("/delete-account", requireAuth, (req, res) =&gt; {
   res.json({ remaining: accounts });
 });</code></pre>
 <p><strong>False-confidence traps:</strong> "The frontend only allows valid actions, so the backend can relax" (the attacker bypasses the frontend); "the endpoint is only called by our own app" (it's a public URL the moment it's deployed); "we check <code>isAdmin</code> on login, so we're covered" (you must check authorization *per action*, not just at login).</p>
+<h4 id="the-same-backend-the-same-bug-and-fix-in-python-flask">💻 The same backend, the same bug and fix in Python (Flask)</h4>
+<p>The lesson here is <em>framework-independent</em>: a backend is "more trusted" because of where it runs, not what language it's written in. Here is the identical naive route and its fix in Flask, so you recognize the pattern no matter which server you build. If you're a Python developer, this is the version you'll reach for; the bug and the defense are exactly the same as the Node version above.</p>
+<pre><code data-lang="python"># tiny_server.py
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+accounts = {1: "alice", 2: "bob", 3: "carol"}
+
+# ❌ THE BUG: the server trusts that whoever calls this is allowed to.
+# No check of who the caller is, or whether they own/admin this id.
+@app.post("/delete-account")
+def delete_account():
+    account_id = request.get_json()["id"]
+    del accounts[account_id]
+    return jsonify(remaining=accounts)
+
+if __name__ == "__main__":
+    app.run(port=3000)</code></pre>
+<p>Run it and attack it directly, skipping the (nonexistent) frontend entirely — the same <code>curl</code> that deleted Alice from the Node server works here, for the same reason:</p>
+<pre><code data-lang="bash">python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install flask
+python3 tiny_server.py        # in one terminal
+# in another terminal — the request the UI would "never let you make":
+curl -i -X POST http://localhost:3000/delete-account \
+  -H 'Content-Type: application/json' \
+  -d '{"id": 1}'</code></pre>
+<p>Alice is gone again. Different language, identical <strong>Broken Access Control (OWASP A01)</strong> — proving the bug lives in the <em>missing decision</em>, not the framework. The fix is also identical in shape: the server establishes identity itself (never from the request body) and authorizes the specific action on the specific object.</p>
+<pre><code data-lang="python"># ✅ The server makes its OWN decision about identity and permission.
+@app.post("/delete-account")
+@require_auth                       # sets request.user from a verified session/token
+def delete_account():
+    caller = request.user           # established by auth, NOT from the request body
+    target_id = request.get_json()["id"]
+    # Authorize the ACTION on the OBJECT: only an admin, or the owner themselves.
+    if not caller.is_admin and caller.id != target_id:
+        return jsonify(error="Forbidden"), 403
+    accounts.pop(target_id, None)
+    return jsonify(remaining=accounts)</code></pre>
+<blockquote><p><strong>Why this matters in both languages.</strong> Whether you write <code>req.user.id</code> (Express) or <code>request.user.id</code> (Flask), the rule is the same: trust identity the <em>server</em> derived from a verified credential, never the <code>id</code> the caller put in the body. The framework changes the syntax; it never changes who is allowed to decide.</p></blockquote>
 <h4 id="knowledge-check-what-a-backend-is">Knowledge check: What a Backend Is</h4>
 <ol><li>Why is the backend considered "more trusted" than the frontend — what's the actual reason?</li><li>In the lab, what security check was missing, and what OWASP category does it fall under?</li><li>Why is <code>req.user.id</code> (set by auth middleware) safe to trust, while <code>req.body.id</code> is not?</li><li>What's the difference between *authentication* and *authorization*, in one sentence each?</li><li>Give the general rule for how much the backend should trust the frontend.</li></ol>
 <details>
@@ -860,6 +899,17 @@ console.log("attack :", buildQueryUNSAFE("'\'' OR '\''1'\''='\''1"));
 <h4 id="defense-separate-data-from-code-and-starve-the-breach">🛡️ Defense: separate data from code, and starve the breach</h4>
 <ul><li><strong>Never build SQL by string concatenation with user input.</strong> Use <strong>parameterized queries</strong> (placeholders like <code>$1</code> with the values passed separately) so the database always knows which part is data. (Full treatment: Phase 3, Module 3.2.)</li><li><strong>Give the app a least-privilege database user.</strong> Read/write only the tables it needs; no <code>DROP</code>, no ownership of everything; a separate admin/migration user for schema changes.</li><li><strong>Protect the data at rest and in transit.</strong> Use SSL between app and database in production; never expose the database directly to the internet; back it up.</li><li><strong>Store secrets (like the DB password) in environment variables or a secrets manager,</strong> never hard-coded in source (where they leak via Git — Phase 1, Module 1.4).</li></ul>
 <p><strong>False-confidence traps:</strong> "I validated the email format, so injection is impossible" (validation reduces but does not replace parameterization — the real fix is separating data from code); "the database is behind a firewall, so injection doesn't matter" (the injection comes *through your app*, which is allowed through the firewall); "we use an ORM, so we're safe from SQL injection" (mostly true, but ORMs have raw-query escape hatches and their own pitfalls — Phase 3).</p>
+<h4 id="the-same-string-injection-footgun-in-python-f-strings">💻 The same string-injection footgun in Python (f-strings)</h4>
+<p>The "glue user input into the query string" mistake is <em>language-independent</em> — and in Python the most common way to commit it is the <strong>f-string</strong>, which is so convenient that it's the single most recognizable Python SQL-injection pattern. Feel the same trust failure in your Python REPL before you touch a real database (the live psycopg2/SQLAlchemy fix is in <strong>Module 3.2</strong>):</p>
+<pre><code data-lang="python">python3 -c '
+def build_query_UNSAFE(email):
+    # ❌ f-string glues user input straight into the SQL TEXT — data becomes code.
+    return f"SELECT id, email FROM users WHERE email = '"'"'{email}'"'"'"
+print("normal :", build_query_UNSAFE("ada@example.com"))
+print("attack :", build_query_UNSAFE("'"'"' OR '"'"'1'"'"'='"'"'1"))
+'</code></pre>
+<p><strong>Expected observation:</strong> identical to the Node version — the "attack" line's <code>WHERE</code> clause collapses to <code>... OR '1'='1'</code>, true for every row. The f-string was the weapon: it merged <em>data</em> (the email) into <em>code</em> (the SQL) with no boundary, exactly as Node's template literal did.</p>
+<blockquote><p><strong>Why this matters in both languages.</strong> Template literals in JS and f-strings (<code>f"...{x}..."</code>) in Python are <em>string-building</em> tools — wonderful for log lines, dangerous for SQL. The fix in both worlds is never to put input into the query <em>text</em>: pass placeholders to the driver (<code>$1</code>/<code>%s</code> with values supplied separately) so the database is told "this part is data, never code." That's the whole point of parameterized queries, covered live in Module 3.2.</p></blockquote>
 <h4 id="knowledge-check-what-a-database-is">Knowledge check: What a Database Is</h4>
 <ol><li>In a relational database, what are tables, columns, and rows — in everyday terms?</li><li>What is the *root cause* of SQL injection (name the thing that gets mixed)?</li><li>Why can't the database itself tell your intended SQL from an attacker's injected SQL?</li><li>How does a least-privilege database user limit the damage of a successful injection?</li><li>Why is leaked data often a worse outcome than an app crash?</li></ol>
 <details>
@@ -1187,6 +1237,43 @@ app.get("/search", (req, res) =&gt; {
 <h4 id="defense-encode-for-context-let-frameworks-help-sanitize-rich-html-layer-csp">🛡️ Defense: encode for context, let frameworks help, sanitize rich HTML, layer CSP</h4>
 <ul><li><strong>Encode output for its exact context</strong> — HTML body, attribute, JS, URL, CSS each need the right encoding. This is the primary, reliable defense.</li><li><strong>Let your framework escape by default.</strong> React, Vue, Angular, and modern template engines auto-escape interpolated values. <strong>Do not reach for the escape hatches</strong> (<code>dangerouslySetInnerHTML</code>, <code>v-html</code>, <code>innerHTML</code>) unless you've sanitized the content.</li><li><strong>Prefer safe DOM APIs:</strong> <code>textContent</code>/<code>innerText</code> over <code>innerHTML</code>; <code>setAttribute</code> over building attribute strings; never <code>eval</code>/<code>new Function</code> on input.</li><li><strong>Sanitize rich HTML with a vetted library (DOMPurify)</strong> when users legitimately submit formatting; never write your own sanitizer.</li><li><strong>Validate the URL scheme</strong> before putting user input in <code>href</code>/<code>src</code> (allow only <code>http</code>/<code>https</code>/<code>mailto</code>); block <code>javascript:</code>.</li><li><strong>Add a strict CSP</strong> (Module 2.1) so injected scripts are refused even if one slips through — defense-in-depth.</li></ul>
 <p><strong>False-confidence traps:</strong> "I escaped <code>&lt;</code> and <code>&gt;</code>, so I'm safe" (wrong if the data lands in an attribute, a <code>javascript:</code> URL, or a script context — encode for the *context*); "input validation blocks XSS" (the same input is safe/dangerous by output context; validation is secondary); "React is immune to XSS" (until someone uses <code>dangerouslySetInnerHTML</code> or builds a <code>javascript:</code> href — the escape hatches are the bugs); "CSP has it covered" (misconfigured or <code>unsafe-inline</code> CSPs are common; mitigation isn't prevention).</p>
+<h4 id="the-same-reflected-xss-and-fix-in-python-flask-jinja2">💻 The same reflected XSS and fix in Python (Flask + Jinja2)</h4>
+<p>The reflected-XSS bug is the server writing user input into the HTML response without context-appropriate encoding — and in Python the trap and the fix both center on <strong>Jinja2 autoescaping</strong>. Here is the same vulnerable <code>/search</code> route in Flask. The DOM-XSS portion above is pure browser JavaScript with no server involved, so it has no Python counterpart — but the reflected case is squarely a backend concern.</p>
+<pre><code data-lang="python"># ❌ VULNERABLE: building the HTML string by hand bypasses Jinja2 entirely.
+from flask import Flask, request
+app = Flask(__name__)
+
+@app.get("/search")
+def search():
+    q = request.args.get("q", "")
+    # f-string concatenation into HTML — the browser parses q as markup.
+    return f"&lt;h1&gt;Results for {q}&lt;/h1&gt;"
+
+app.run(port=3000)</code></pre>
+<pre><code data-lang="bash">python3 -m venv .venv &amp;&amp; source .venv/bin/activate &amp;&amp; pip install flask
+python3 app.py
+open "http://localhost:3000/search?q=&lt;script&gt;alert('reflected')&lt;/script&gt;"</code></pre>
+<p>The script runs — same bug as Express. Note the root cause: hand-building HTML with an f-string is the XSS twin of the SQL f-string footgun from Module 0.5 (data merged into code). <strong>Fix: render through a template so Jinja2 auto-escapes the value for the HTML context.</strong></p>
+<pre><code data-lang="python">from flask import render_template_string
+# ✅ FIX: Jinja2 autoescaping is ON by default for .html templates and
+# render_template[_string]. It encodes &lt; &gt; &amp; " ' for the HTML context automatically.
+@app.get("/search")
+def search():
+    q = request.args.get("q", "")
+    # {{ q }} is auto-escaped -&gt; &amp;lt;script&amp;gt; renders as inert text.
+    return render_template_string("&lt;h1&gt;Results for {{ q }}&lt;/h1&gt;", q=q)</code></pre>
+<p>Two Python-specific pitfalls worth memorizing:</p>
+<pre><code data-lang="python">from markupsafe import escape, Markup
+# If you genuinely must build a fragment outside a template, escape explicitly —
+# this is the Python equivalent of Express's htmlEscape():
+return f"&lt;h1&gt;Results for {escape(q)}&lt;/h1&gt;"      # ✅ escape() encodes for HTML context
+
+# ❌ NEVER wrap untrusted input in Markup(...) or use |safe in a template —
+# both tell Jinja2 "this is already safe, don't escape it" and re-open the XSS:
+Markup(f"&lt;h1&gt;{q}&lt;/h1&gt;")                          # ❌ marks attacker input as trusted
+# {{ q|safe }}  &lt;-- the |safe filter is Jinja2's dangerouslySetInnerHTML</code></pre>
+<p>For rich-text that must allow <em>some</em> HTML (a comment with bold/links), sanitize with a vetted library rather than escaping — in Python that's <strong><code>nh3</code></strong> (Rust-backed, the modern choice) or <code>bleach</code> (now maintenance-mode): <code>import nh3; safe_html = nh3.clean(user_html)</code>. Never hand-roll a sanitizer in any language.</p>
+<blockquote><p><strong>Why this matters in both languages.</strong> React/Vue auto-escape by default and Jinja2 auto-escapes by default — and in <em>both</em> the bugs cluster around the escape hatches (<code>dangerouslySetInnerHTML</code> / <code>v-html</code> / <code>Markup</code> / <code>|safe</code>). The discipline is identical: render through the template, encode for the context, and reach for a sanitizer only when you deliberately allow HTML.</p></blockquote>
 <h4 id="knowledge-check-xss-deep-dive">Knowledge check: XSS Deep Dive</h4>
 <ol><li>State the root cause of XSS in one sentence, and name the database-layer bug it mirrors.</li><li>Distinguish reflected, stored, and DOM-based XSS by *where the malicious input lives*.</li><li>Why is "I HTML-escaped the value" not always sufficient? Give a context where it fails.</li><li>What's the difference between output encoding and sanitization, and when do you need the latter?</li><li>In the DOM-XSS lab, which one-word API change fixed the bug, and why?</li></ol>
 <details>
@@ -1276,6 +1363,49 @@ app.post("/account/email", (req, res) =&gt; {
 <h4 id="defense-prove-the-request-came-from-your-own-site">🛡️ Defense: prove the request came from your own site</h4>
 <ul><li><strong>Set <code>SameSite</code> on session cookies</strong> (<code>Lax</code> as a sane default; <code>Strict</code> for the most sensitive). This alone defeats classic cross-site form/<code>fetch</code> POST CSRF.</li><li><strong>Use CSRF tokens for state-changing requests</strong> (synchronizer token pattern), especially when you need <code>SameSite=None</code>, support old browsers, or want defense-in-depth. The attacker can't read the token because SOP blocks them reading your page.</li><li><strong>Never make state-changing GETs.</strong> A GET that mutates can be triggered by an <code>&lt;img&gt;</code> tag and isn't covered by <code>SameSite=Lax</code>'s POST protection.</li><li><strong>Validate <code>Origin</code>/<code>Referer</code></strong> on sensitive requests as an extra check.</li><li><strong>Don't rely on "it's a JSON API."</strong> Combine <code>SameSite</code> + tokens; verify your CORS config (Module 2.4) isn't reopening the door.</li></ul>
 <p><strong>False-confidence traps:</strong> "My API uses JSON, so CSRF can't happen" (CORS misconfig, form-encoded fallbacks, or GET state-changes can reopen it); "<code>SameSite=Lax</code> is set, so I don't need tokens" (state-changing GETs and <code>SameSite=None</code> widgets still need them — defense-in-depth); "the user has to be logged in for it to work, so it's low risk" (CSRF *targets* logged-in users — that's the whole point); "we check the cookie is valid" (the cookie *is* valid — it's the victim's; you must prove same-site origin, not cookie validity).</p>
+<h4 id="the-same-csrf-and-two-layer-fix-in-python-flask-flask-wtf">💻 The same CSRF and two-layer fix in Python (Flask + Flask-WTF)</h4>
+<p>The attacker page from the lab above is origin-agnostic — it doesn't care whether the victim app is Express or Flask, because the bug is the <em>server trusting a cookie without proving same-site origin</em>. Here is the vulnerable Flask victim and both defense layers.</p>
+<pre><code data-lang="python"># csrf_victim.py
+from flask import Flask, request, make_response
+app = Flask(__name__)
+email = "victim@example.com"
+
+@app.get("/login")
+def login():
+    resp = make_response("logged in")
+    resp.set_cookie("session", "valid-session-for-victim", httponly=True)  # note: no SameSite yet
+    return resp
+
+# ❌ VULNERABLE: trusts the cookie, but does NOT prove the request came from our site.
+@app.post("/account/email")
+def change_email():
+    global email
+    if request.cookies.get("session") != "valid-session-for-victim":
+        return "no", 401
+    email = request.form["email"]            # accepts an HTML form POST
+    return "email changed to " + email
+
+@app.get("/account")
+def account():
+    return "current email: " + email
+
+app.run(port=3000)</code></pre>
+<p>The same <code>attacker.html</code> auto-submitting form (served on :8000) silently changes the email — the browser attaches the victim's session cookie to the cross-site POST. <strong>Layer 1: set <code>SameSite=Lax</code>, which stops the cookie from riding cross-site POSTs:</strong></p>
+<pre><code data-lang="python"># ✅ Layer 1 — SameSite kills the classic cross-site form POST.
+resp.set_cookie("session", "valid-session-for-victim",
+                httponly=True, samesite="Lax", secure=False)  # secure=True in production</code></pre>
+<p><strong>Layer 2: the synchronizer-token pattern.</strong> You <em>can</em> hand-roll it (<code>secrets.token_hex(32)</code> stored per session, compared with <code>hmac.compare_digest</code>), but in real Flask apps you use <strong>Flask-WTF</strong>, which wires CSRF protection into every form and <code>POST</code> automatically:</p>
+<pre><code data-lang="python"># ✅ Layer 2 — Flask-WTF: app-wide CSRF tokens, the idiomatic defense.
+from flask_wtf import CSRFProtect
+app.secret_key = "load-from-env-not-source"   # required to sign tokens
+csrf = CSRFProtect(app)                        # now every state-changing request needs a valid token</code></pre>
+<p>In your Jinja2 template you emit the token into your own form — a page on <code>evil.com</code> can't read it (SOP blocks cross-origin reads), so its forged POST is rejected with <code>400 Bad Request</code>:</p>
+<pre><code data-lang="html">&lt;form method="POST" action="/account/email"&gt;
+  &lt;input type="hidden" name="csrf_token" value="{{ csrf_token() }}"&gt;
+  &lt;input name="email"&gt;&lt;button&gt;Save&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+<p>For a JSON/SPA API, Flask-WTF reads the token from the <code>X-CSRFToken</code> header instead; pair it with <code>SameSite</code> exactly as in the Node guidance. (Django ships the same protection built in via its <code>CsrfViewMiddleware</code> + <code>{% csrf_token %}</code> tag.)</p>
+<blockquote><p><strong>Why this matters in both languages.</strong> Express needs <code>cookie-parser</code> + a token store you assemble; Flask gives you <code>CSRFProtect</code> and Django gives you middleware out of the box — but all three defend the <em>identical</em> gap: the cookie proves the user, never the origin. SameSite + a per-session token that <code>evil.com</code> cannot read is the universal answer.</p></blockquote>
 <h4 id="knowledge-check-csrf">Knowledge check: CSRF</h4>
 <ol><li>Which gap in the Same-Origin Policy makes CSRF possible?</li><li>Why can't the server distinguish a CSRF request from a legitimate one just by checking the session cookie?</li><li>Explain why an attacker on <code>evil.com</code> cannot read or forge a correct CSRF token.</li><li>What does <code>SameSite=Lax</code> protect against, and what does it *not* protect against?</li><li>Why is "my API is JSON" not a sufficient CSRF defense?</li></ol>
 <details>
@@ -1342,6 +1472,48 @@ app.use(cors({
 <h4 id="defense-allow-list-exact-origins-never-reflect-mind-credentials">🛡️ Defense: allow-list exact origins, never reflect, mind credentials</h4>
 <ul><li><strong>Maintain an explicit allow-list of exact origins</strong> (full scheme+host+port). Never reflect the request's <code>Origin</code> blindly; never use <code>origin: true</code> with credentials.</li><li><strong>Never combine <code>Access-Control-Allow-Origin: *</code> with credentials</strong> (the browser blocks it — and wanting to is a signal you've designed the auth wrong).</li><li><strong>Match origins exactly</strong>, not with <code>endsWith</code>/<code>includes</code> (which match attacker-controlled lookalikes like <code>evilexample.com</code> or <code>app.example.com.evil.com</code>).</li><li><strong>Don't trust the <code>null</code> origin.</strong></li><li><strong>Only enable CORS where you actually need cross-origin access</strong>, and scope credentials to the minimum endpoints.</li><li><strong>Remember CORS is not authorization.</strong> CORS decides who can *read responses in a browser*; it does nothing for non-browser clients (<code>curl</code> ignores it) and is not a substitute for server-side authentication/authorization (Phase 6).</li></ul>
 <p><strong>False-confidence traps:</strong> "<code>origin: true</code> just means 'allow my frontend'" (no — it reflects *any* origin; with credentials that's full cross-origin data theft); "CORS protects my API" (CORS is a *relaxation* of protection for browsers, and ignored entirely by non-browser clients — it's not access control); "I only allow <code>*</code>, no credentials, so it's safe" (then any site can read that endpoint's responses — fine for truly public data, a leak for anything sensitive); "I match with <code>endsWith('example.com')</code>" (matches <code>notexample.com</code>/<code>example.com.evil.com</code> — use exact equality).</p>
+<h4 id="the-same-reflected-origin-bug-and-fix-in-python-flask-flask-cors">💻 The same reflected-origin bug and fix in Python (Flask + flask-cors)</h4>
+<p>The catastrophic config — <em>reflect any origin + allow credentials</em> — is just as easy to write in Flask, and just as dangerous. The <code>cors-attacker.html</code> page from the lab reads the victim's private API response identically; only the server code changes.</p>
+<pre><code data-lang="python"># cors_victim.py
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS
+app = Flask(__name__)
+
+# ❌ THE BUG: supports_credentials + reflecting any origin.
+# "*" cannot be combined with credentials, so developers reach for this:
+CORS(app, supports_credentials=True)   # default origins="*" gets REFLECTED per-origin when credentials are on
+
+@app.get("/login")
+def login():
+    resp = make_response("ok")
+    resp.set_cookie("session", "v")
+    return resp
+
+@app.get("/api/me")
+def me():
+    if request.cookies.get("session") != "v":
+        return jsonify(error="no"), 401
+    return jsonify(email="victim@example.com", ssn="PRETEND-PRIVATE-DATA")  # private!
+
+app.run(port=3000)</code></pre>
+<pre><code data-lang="bash">pip install flask flask-cors
+python3 cors_victim.py
+open "http://localhost:3000/login"
+( cd "$(dirname cors-attacker.html)"; python3 -m http.server 8000 &gt;/dev/null 2&gt;&amp;1 &amp; )
+open "http://localhost:8000/cors-attacker.html"   # reads the victim's private data cross-origin</code></pre>
+<p>The attacker page on :8000 prints the victim's <code>email</code>/<code>ssn</code> — because flask-cors echoed back its origin and permitted credentials, exactly the catastrophe <code>cors({ origin: true, credentials: true })</code> produced in Node. <strong>Fix: pass an explicit allow-list of exact origins; never reflect.</strong></p>
+<pre><code data-lang="python"># ✅ FIX: enumerate exact origins (scheme+host+port). flask-cors will only
+# emit Access-Control-Allow-Origin for an exact match; nothing else is reflected.
+CORS(
+    app,
+    resources={r"/api/*": {"origins": [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]}},
+    supports_credentials=True,
+)</code></pre>
+<p>Two Python-specific pitfalls: do <strong>not</strong> pass <code>origins="*"</code> (or omit <code>origins</code>) while <code>supports_credentials=True</code> — the browser forbids <code>*</code>+credentials, which is the very reason people fall back to reflection. And flask-cors does exact-origin matching by default; if you ever supply a regex for <code>origins</code>, anchor it (<code>r"^https://app\.example\.com$"</code>) so <code>app.example.com.evil.com</code> can't slip through — the regex twin of the Node <code>endsWith</code> trap.</p>
+<blockquote><p><strong>Why this matters in both languages.</strong> <code>cors({ origin: true, credentials: true })</code> in Express and <code>CORS(app, supports_credentials=True)</code> with a wildcard in Flask are the <em>same</em> bug wearing different syntax: reflecting the caller's origin while allowing cookies hands every website on the internet your logged-in users' data. The fix in both is an explicit, exact allow-list — and remembering that CORS is never a substitute for server-side authorization.</p></blockquote>
 <h4 id="knowledge-check-cors-misconfiguration">Knowledge check: CORS Misconfiguration</h4>
 <ol><li>What does CORS actually grant, and who enforces it vs. who configures it?</li><li>Why does the browser forbid <code>Access-Control-Allow-Origin: *</code> together with credentials <code>true</code>?</li><li>Explain precisely why <code>cors({ origin: true, credentials: true })</code> is a critical vulnerability.</li><li>Is CORS a form of access control / authorization? Why or why not?</li><li>What's wrong with validating origins using <code>origin.endsWith("example.com")</code>?</li></ol>
 <details>
