@@ -5540,6 +5540,26 @@ All three report the `lodash@4.17.4` prototype-pollution advisory (and likely a 
 
 You have now reproduced, on your own machine, the three checks that catch the overwhelming majority of "easy" vulnerabilities before they ever reach production.
 
+**💻 The same SCA on the Python side (`pip-audit` and `safety`).** SCA is language-specific because each ecosystem has its own package manager and lockfile, so a Node-only `npm audit` step silently skips the Python half of a polyglot repo. `pip-audit` (maintained by the PyPA / Google) is the direct counterpart to `npm audit`: it reads your installed environment or a `requirements.txt`/lockfile and checks it against the PyPI Advisory Database and OSV. `safety` is the second source you run alongside it — same role osv-scanner plays for Node — because (as on the JS side) two databases disagree and you want both.
+
+```bash
+# native arm64 — install both via pipx so they live in isolated venvs
+pipx install pip-audit
+pipx install safety
+
+# audit a project's pinned dependencies (the SCA scan)
+pip-audit -r requirements.txt          # reads the lockfile, not the live env
+pip-audit                              # or audit the currently-installed venv
+safety check -r requirements.txt       # second source, different advisory DB
+
+# pip-audit can also auto-suggest the fixed versions (npm-audit-fix equivalent)
+pip-audit -r requirements.txt --fix --dry-run   # shows the bumps WITHOUT applying
+```
+
+The Python lockfile story differs from npm's, and it matters for SCA. A bare `requirements.txt` with ranges (`flask>=2.0`) is *not* a lockfile — two installs on two days can resolve different trees, exactly the drift `npm ci` prevents. The modern fix is a real lockfile with hashes: `pip-compile` (from `pip-tools`) produces a fully-pinned `requirements.txt` with `--generate-hashes`, and `poetry`/`uv`/`pipenv` keep their own hashed lockfiles. Install with `pip install --require-hashes -r requirements.txt` so a tampered PyPI tarball *fails* the install — the Python analogue of npm's integrity-hash verification.
+
+> **Why this matters:** a polyglot repo (a React/Express frontend plus a Python data or ML service) needs an SCA step *per ecosystem*. A green `npm audit` says nothing about the Flask service's `requirements.txt`. Wire `pip-audit` into the same CI gate (below) as a parallel job, and block the build on High/Critical there too.
+
 #### 🛡️ Defense: turn the scanners into a gate, not a suggestion
 
 A scanner you run "when you remember" provides almost no security, because the failure mode of human memory is *forgetting precisely when you're busy* — which is when bugs ship. The defense is to make the checks **mandatory and automatic**, with three escalating layers of defense-in-depth:
@@ -5644,6 +5664,29 @@ jobs:
 ```
 
 The fix that actually matters is **not in the YAML** — it is in the repository settings: enable **branch protection** on `main`, mark this `security` job as a **required status check**, and require pull-request review. Without that, the world's best workflow file is just a suggestion. The YAML produces the signal; branch protection makes the signal binding.
+
+**💻 The Python equivalent CI step (drop into the same workflow for a polyglot repo).** The gate principles are identical — pin actions to a SHA, no `|| true`, fail on High/Critical — only the SCA tool changes:
+
+```yaml
+      # ... same security job as above; add these steps for the Python service ...
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+        with:
+          python-version: "3.12"
+
+      - run: pip install --require-hashes -r requirements.txt   # WHY: hashed install
+                                    # is the integrity-hash equivalent of 'npm ci'
+
+      - run: pip-audit -r requirements.txt    # WHY: SCA against the PyPI/OSV advisory
+                                    # DBs; non-zero exit on a finding fails the job —
+                                    # the Python counterpart of 'npm audit --audit-level=high'
+
+      - run: pip install safety && safety check -r requirements.txt   # second SCA source
+
+      - run: pipx run semgrep scan --error --config p/python .   # SAST: Python ruleset
+                                    # (Semgrep is language-agnostic; swap the config pack)
+```
+
+> **Why this matters:** scanners are only as good as their coverage. A repo with both Node and Python services needs *both* SCA tools wired into the gate — `npm audit` will never look at `requirements.txt`, and `pip-audit` will never look at `package-lock.json`. Same gate, same branch protection, one job per ecosystem.
 
 #### ⚠️ Common pitfalls and false-confidence traps
 
@@ -6225,6 +6268,91 @@ app.listen(4000);
 
 Set `NODE_ENV=production` so the framework itself switches to its production behavior (caching, no debug output), run behind HTTPS (terminate TLS at your platform/load balancer), and confirm the headers with `curl -D -`.
 
+#### 💻 The same hardening in Python (Flask + flask-talisman)
+
+`helmet` is the Express convention for "set all the security headers sensibly." In Flask the direct counterpart is **flask-talisman**: it sets HSTS, `nosniff`, `Referrer-Policy`, frame-options, and a Content-Security-Policy in one wrapper — and, crucially, it supports the same **per-request CSP nonce** pattern, which is the only way CSP is real XSS defense (a CSP with `unsafe-inline` allowed for scripts protects against almost nothing, because inline injection is exactly what XSS produces).
+
+```bash
+pip install flask flask-talisman flask-limiter
+```
+
+```python
+# INSECURE baseline
+from flask import Flask
+app = Flask(__name__)
+
+@app.get("/")
+def index():
+    return "hi"
+
+@app.get("/boom")
+def boom():
+    raise RuntimeError("db password is hunter2 at /app/db.py:42")
+# WHY BAD: no security headers at all; with debug=True (a common dev default) Flask's
+# interactive debugger echoes the full traceback — INCLUDING that leaked string, and an
+# attacker can even execute code in the debugger console. Server leaks its own internals.
+```
+
+```python
+# SECURE baseline
+import os, uuid
+from flask import Flask, g, jsonify
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+app = Flask(__name__)
+
+# per-request CSP nonce so we can forbid unsafe-inline and still allow our own scripts
+@app.before_request
+def set_csp_nonce():
+    g.csp_nonce = os.urandom(16).hex()   # WHY: fresh nonce per response = real XSS defense
+
+csp = {
+    "default-src": "'self'",
+    "script-src": "'self'",              # nonce is appended automatically (see below)
+    "object-src": "'none'",
+    "base-uri": "'self'",
+}
+Talisman(
+    app,
+    content_security_policy=csp,
+    content_security_policy_nonce_in=["script-src"],   # WHY: Talisman injects 'nonce-...'
+    force_https=True,                    # WHY: redirect http->https + drives HSTS
+    strict_transport_security=True,
+    strict_transport_security_max_age=31536000,
+    strict_transport_security_include_subdomains=True,
+)
+# Talisman also sets X-Content-Type-Options: nosniff, Referrer-Policy, frame-options, etc.
+# In templates, tag your own scripts with the nonce: <script nonce="{{ csp_nonce() }}">
+
+limiter = Limiter(get_remote_address, app=app)
+
+@app.get("/")
+def index():
+    return "hi"
+
+@app.get("/login", endpoint="login")
+@limiter.limit("20 per 15 minutes")      # WHY: blunt credential stuffing on auth routes
+def login():
+    return "form"
+
+@app.get("/boom")
+def boom():
+    raise RuntimeError("internal detail that must NOT reach the client")
+
+# production error handler: generic message + correlation id to client, full detail to logs
+@app.errorhandler(Exception)
+def handle(err):
+    cid = str(uuid.uuid4())
+    app.logger.exception("unhandled error %s", cid)   # WHY: full detail server-side only
+    return jsonify(error="Internal error", correlationId=cid), 500   # WHY: quiet to client
+```
+
+Run with `debug=False` (the Flask analogue of `NODE_ENV=production`: it disables the interactive debugger and the verbose traceback page), behind HTTPS, and confirm the headers with `curl -D -`. Note Flask hides `X-Powered-By` by default, but a reverse proxy or WSGI server (gunicorn, nginx) may add a `Server:` banner — strip that at the proxy, the same recon-denial reason you `app.disable("x-powered-by")` in Express.
+
+> **Why this matters:** the header set and the *reason* for each is identical across stacks — the browser is the enforcer and your header is the policy. flask-talisman is the one-line "set them all" wrapper, but the load-bearing detail in both Express and Flask is the same: CSP only stops XSS if it uses a **per-request nonce and forbids `unsafe-inline`**. Everything else Talisman/helmet gives you for free; the nonce is the part you must wire deliberately.
+
 #### ⚠️ Pitfalls
 
 - **CSP with `unsafe-inline` on scripts.** Provides near-zero XSS protection — it allows exactly what XSS injects. Use nonces/hashes.
@@ -6308,6 +6436,8 @@ curl "http://localhost:7000/preview?url=http://localhost:8169/latest/meta-data/i
 
 Now the patched app resolves the hostname to an IP, sees it's in a blocked range, and returns `403 blocked: internal address` — the metadata fetch never happens. Note the *important subtlety*: we filter on the **resolved IP**, not the hostname string, because an attacker can register a domain whose DNS resolves to `169.254.169.254` to bypass naive string checks (this is "DNS rebinding"; production-grade fixes also re-check the IP at connection time). Clean up: `kill %1 %2 2>/dev/null`.
 </details>
+
+> **💻 Python (Flask) version of this egress filter — already built in Module 4.2.** The IMDS chain here is the *cloud-specific* instance of the same SSRF bug you fixed in Module 4.2, so the Python defense is identical and is already written out there: a Flask `/preview` endpoint that enforces `https`, resolves the hostname, and rejects the IP using the standard-library `ipaddress` module — `ip.is_private`, `ip.is_loopback`, and critically `ip.is_link_local` (which covers `169.254.0.0/16`, *the IMDS range*), with `allow_redirects=False` so a `302` to `169.254.169.254` can't slip past. Prefer `ipaddress` over the hand-rolled prefix checks in the Node snippet above: it's exhaustive and IPv6-aware for free. See Module 4.2's "same SSRF and fix in Python" block — that exact classifier rejects the IMDS URL with no new code needed here.
 
 #### 🛡️ Defense: cloud posture checklist (root-cause oriented)
 
@@ -6500,6 +6630,59 @@ app.post("/login", (req, res) => {
   res.status(ok ? 200 : 401).json({ ok });
 });
 ```
+
+**💻 The same structured logging in Python (stdlib `logging` + a JSON formatter).** Python's `logging` module defaults to free-text output, so the naive Python version has the *exact* same disease as the naive Node one. The fix is to attach a formatter that emits one JSON object per line, with a stable event taxonomy — then the credential-stuffing detection query from the lab is again a one-line aggregation rather than a fragile grep.
+
+```python
+# INSECURE
+import logging
+log = logging.getLogger("app")
+
+def login(email, password):
+    ok = check(email, password)
+    log.info("login attempt: %s / %s -> %s", email, password, ok)
+    # WHY BAD: logs the PASSWORD (often the user's REAL password, mistyped) and raw email
+    # as unstructured text. The log is now a plaintext credential dump and unqueryable.
+    return ok
+```
+
+```python
+# SECURE
+import json, logging, hashlib
+
+def sha256_12(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()[:12]   # correlate without storing PII
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        # record.__dict__ carries any extra={...} fields we passed at the call site
+        payload = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname.lower(),
+            "event": getattr(record, "event", record.getMessage()),
+        }
+        for k in ("email_hash", "ip", "ua", "trace_id", "user_id"):
+            if hasattr(record, k):
+                payload[k] = getattr(record, k)
+        return json.dumps(payload)   # WHY: one JSON object per line = queryable data
+
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+log = logging.getLogger("security")
+log.addHandler(handler)
+log.setLevel(logging.INFO)
+
+def login(email, password, ip, ua, trace_id):
+    ok = check(email, password)
+    log.info("", extra={                     # structured JSON, queryable
+        "event": "auth.login.success" if ok else "auth.login.failure",
+        "email_hash": sha256_12(email),      # never the raw email
+        "ip": ip, "ua": ua, "trace_id": trace_id,
+    })                                       # WHY: no password, no raw email/token; detectable
+    return ok
+```
+
+> **Why this matters:** structured logging is a cross-language discipline, not a library — the property you want ("each security event is a JSON object with a stable `event` name and no secrets") holds whether you use Node's `console.log(JSON.stringify(...))`, Python's `logging` with a JSON formatter, or a library like `structlog`/`python-json-logger`. The same two rules carry across both stacks: emit *queryable* JSON with a stable event taxonomy, and **hash/redact at the source** so a password or raw email never reaches the log in the first place. The detection query in the lab works identically against either app's output.
 
 #### ⚠️ Pitfalls
 
