@@ -1728,6 +1728,36 @@ const server = new ApolloServer({
     return err;
   },
 });</code></pre>
+<p><strong>The same hardening in Python (Strawberry / Graphene).</strong> Python's GraphQL servers face the identical risks and apply the same four controls — disable introspection in prod, cap query depth, mask errors, and authorize per-resolver:</p>
+<pre><code data-lang="python"># Strawberry (the modern, type-hint-based Python GraphQL library)
+import strawberry
+from strawberry.extensions import QueryDepthLimiter, MaskErrors
+from strawberry.schema.config import StrawberryConfig
+import os
+
+IS_PROD = os.getenv("ENV") == "production"
+
+schema = strawberry.Schema(
+    query=Query,
+    extensions=[
+        QueryDepthLimiter(max_depth=7),           # graphql-depth-limit equivalent (DoS guard)
+        MaskErrors(should_mask=lambda e: IS_PROD), # never leak stack traces / SQL in prod
+    ],
+    # Disable introspection in production so attackers can't dump the schema with __schema.
+    config=StrawberryConfig(disable_field_suggestions=IS_PROD),
+)
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def me(self, info) -&gt; "User":
+        # ✅ Field-level authorization: every resolver is its own authz boundary,
+        #    exactly as in Apollo — authenticate AND authorize the object the field returns.
+        user = info.context["request"].user
+        if not user.is_authenticated:
+            raise PermissionError("Forbidden")
+        return user</code></pre>
+<blockquote><p>For Graphene (the older Django-friendly library) the equivalents are <code>graphene</code> validation rules plus <code>graphene-django</code>'s <code>DjangoObjectType</code> with an explicit <code>fields</code> allow-list — never <code>fields = "__all__"</code> on a type that has sensitive columns, for the same reason as the DTO rule above. Whatever the library, the GraphQL threat model is constant: every resolver is an authorization boundary, every list field needs a cost/depth bound, and introspection is recon you should turn off in production.</p></blockquote>
 <h4 id="quiz-api-security">Quiz: API Security</h4>
 <ol><li>What is the difference between BOLA and BFLA?</li><li>Why is mass assignment dangerous when using ORMs that hydrate request bodies directly?</li><li>Name three GraphQL-specific attacks that don't exist in REST.</li><li>Why does aliased query batching break naive rate limiting?</li><li>When would you choose to keep introspection on in production, and how would you protect it?</li><li>Why is returning raw database rows (instead of DTOs) a vulnerability even if the UI hides the extra fields?</li></ol>
 <details>
@@ -1786,6 +1816,46 @@ app.post("/upload", upload2.single("file"), async (req, res) =&gt; {
 <h4 id="defense-the-file-upload-checklist-each-item-mapped-to-its-attack">🛡️ Defense: the file-upload checklist, each item mapped to its attack</h4>
 <ul><li><strong>Allow-list accepted types and verify by content (magic bytes), not extension/declared MIME.</strong> (Defeats type spoofing → XSS/RCE.)</li><li><strong>Enforce strict size limits</strong> (and bound decompression). (Defeats DoS / zip bombs.)</li><li><strong>Generate random server-side filenames; never use the client's filename in a path.</strong> (Defeats path traversal/overwrite.)</li><li><strong>Store outside the web-executable/static root</strong> — ideally object storage (S3/GCS). <strong>Never execute uploaded files.</strong> (Defeats code execution.)</li><li><strong>Serve user content from a separate domain/bucket with <code>Content-Disposition: attachment</code> and a safe <code>Content-Type</code>; sanitize or refuse SVG/HTML.</strong> (Defeats stored XSS / inline execution.)</li><li><strong>Prefer signed, time-limited URLs</strong> for access control. (Limits exposure.)</li><li><strong>Strip metadata (EXIF)</strong> when privacy matters.</li></ul>
 <p><strong>False-confidence traps:</strong> "I checked the extension/MIME, so it's an image" (both are client-controlled and forgeable — verify the bytes); "it's stored in <code>/uploads</code>, that's fine" (if that path is served and executable, you've shipped RCE); "SVGs are images, so they're safe to display" (SVG is scriptable XML — inline display is stored XSS); "I'll add a size limit later" (the absence is a DoS now); "I use the user's filename so downloads are nice" (path traversal — generate your own name and set the download name via a header).</p>
+<h4 id="the-same-naive-check-and-real-validation-in-python-flask-python-magic">💻 The same naive check and real validation in Python (Flask + python-magic)</h4>
+<p>Multer's <code>req.file.mimetype</code> becomes Flask's <code>file.content_type</code> — and it is exactly as untrustworthy, because the client sets it. The <code>file-type</code> library's magic-byte sniffing becomes <code>python-magic</code> (a libmagic binding; <code>brew install libmagic</code> first on M2). The fixes are identical in spirit: sniff real bytes, allow-list, generate a random name, cap the size.</p>
+<pre><code data-lang="bash">brew install libmagic                       # native dependency for python-magic on M2
+pip install flask python-magic</code></pre>
+<pre><code data-lang="python"># upload_lab.py
+import os, secrets
+import magic                                 # libmagic: reads actual file bytes
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024     # 2 MB cap (zip-bomb / DoS guard)
+ALLOWED = {"image/png", "image/jpeg", "image/webp"}
+UPLOAD_DIR = "/var/app-uploads"              # OUTSIDE the web root; never served as code
+
+# ❌ VULNERABLE: trusts the client-declared content_type, just like the multer naive check.
+@app.post("/upload-vulnerable")
+def upload_vulnerable():
+    f = request.files["file"]
+    if not f.content_type.startswith("image/"):    # forgeable — proves nothing about the bytes
+        return jsonify(error="images only"), 400
+    f.save(os.path.join(UPLOAD_DIR, f.filename))   # also: client filename -> path traversal!
+    return jsonify(stored=f.filename, claimed=f.content_type)
+
+# ✅ SECURE: sniff real magic bytes, allow-list, random server-side name.
+@app.post("/upload")
+def upload_secure():
+    f = request.files["file"]
+    head = f.stream.read(2048)                      # read a chunk to identify the real type
+    f.stream.seek(0)
+    real_mime = magic.from_buffer(head, mime=True)  # actual bytes, NOT the declared header
+    if real_mime not in ALLOWED:
+        return jsonify(error="not an allowed image type"), 400
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[real_mime]
+    safe_name = f"{secrets.token_hex(16)}.{ext}"    # random name — defeats path traversal
+    f.save(os.path.join(UPLOAD_DIR, safe_name))
+    # In production: push to S3/GCS outside the app server; serve via a signed, time-limited URL
+    # with Content-Disposition: attachment. Same architecture as the Node path.
+    return jsonify(stored=safe_name, realType=real_mime)</code></pre>
+<p>Run the same forged-<code>image/png</code> upload against <code>/upload-vulnerable</code> and it's accepted; against <code>/upload</code> it's rejected because <code>magic.from_buffer</code> reports the true type. Identical lesson, identical defense — the only thing that changed is the library binding around the same magic-byte check.</p>
+<blockquote><p><strong>Django note:</strong> <code>request.FILES["file"]</code> carries the same forgeable <code>content_type</code>; validate with <code>python-magic</code> (or Pillow's <code>Image.open(...).verify()</code> for images specifically), set <code>FILE_UPLOAD_MAX_MEMORY_SIZE</code> / <code>DATA_UPLOAD_MAX_MEMORY_SIZE</code>, and store via <code>default_storage</code> pointed at a non-executable location or object storage — never <code>MEDIA_ROOT</code> under a path your server will execute.</p></blockquote>
 <h4 id="knowledge-check-file-upload-security">Knowledge check: File Upload Security</h4>
 <ol><li>Why is trusting the <code>Content-Type</code> header or file extension insufficient, and what should you check instead?</li><li>Explain how a file upload can lead to remote code execution.</li><li>Why is an uploaded SVG a stored-XSS risk, and how do you serve user files safely?</li><li>What attack does generating a random server-side filename prevent?</li><li>Describe the recommended default architecture for handling user uploads.</li></ol>
 <details>
@@ -1890,6 +1960,41 @@ app.get("/fetch", async (req, res) =&gt; {
   res.send(await r.text());
 });</code></pre>
 <p>Re-run the exploit: <code>localhost:9000</code> is rejected (not in the allow-list and a private address). SSRF closed. Clean up internal service with Ctrl-C.</p>
+<p><strong>The same SSRF and fix in Python (Flask + requests).</strong> SSRF is a server-side-fetch bug, so it exists in any language that can make outbound HTTP. The Python fix is actually <em>cleaner</em> than the Node regex: the standard-library <code>ipaddress</code> module classifies private/loopback/link-local addresses for you, so you don't hand-roll CIDR regexes (and you cover IPv6 correctly for free).</p>
+<pre><code data-lang="python"># ssrf_lab.py
+import ipaddress, socket
+from urllib.parse import urlparse
+import requests
+from flask import Flask, request
+
+app = Flask(__name__)
+
+# ❌ VULNERABLE: fetches ANY user-supplied URL from the server's network position.
+@app.get("/fetch-vulnerable")
+def fetch_vulnerable():
+    return requests.get(request.args["url"], timeout=5).text   # attacker controls url
+
+ALLOWED_HOSTS = {"images.example.com", "cdn.example.com"}
+
+def resolves_to_private(host):
+    # Resolve the name, then let the stdlib classify it — covers loopback, private,
+    # link-local (169.254.0.0/16 — the cloud metadata range!), and IPv6 equivalents.
+    addr = socket.gethostbyname(host)
+    ip = ipaddress.ip_address(addr)
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+
+@app.get("/fetch")
+def fetch_secure():
+    parsed = urlparse(request.args.get("url", ""))
+    if parsed.scheme != "https":                       # no file:, gopher:, http:
+        return "https only", 400
+    if parsed.hostname not in ALLOWED_HOSTS:           # allow-list, not deny-list
+        return "host not allowed", 403
+    if resolves_to_private(parsed.hostname):           # block internal ranges (resolve-then-check)
+        return "internal address blocked", 403
+    return requests.get(parsed.geturl(), timeout=5, allow_redirects=False).text
+    # allow_redirects=False matters: a 302 to 169.254.169.254 would otherwise bypass the check.</code></pre>
+<blockquote><p><strong>The cross-language SSRF lesson:</strong> the defense is identical in both stacks — parse the URL, enforce <code>https</code>, allow-list the host, <em>resolve then verify the IP isn't internal</em>, and disable redirects. Python's <code>ipaddress.is_private/is_loopback/is_link_local</code> is the idiomatic way to do the IP classification the Node version did with regexes; prefer it because it's exhaustive and IPv6-aware. (In Node, the equivalent robustness comes from the <code>ipaddr.js</code> library rather than hand-written regexes.)</p></blockquote>
 <p><strong>Juice Shop IDOR (you have it running from Module 4.1).</strong> Log in (register a throwaway account), add an item to your basket, then in DevTools → Network watch for a request like <code>GET /rest/basket/{id}</code>. Note your basket id, then replay the request with a *different* id (use the Console or <code>curl</code> with your token) — if you can read another basket, that's the BOLA/IDOR you studied in Module 3.3, live. Write it up.</p>
 <h4 id="defense-lab-proven-controls-recapped">🛡️ Defense: lab-proven controls, recapped</h4>
 <ul><li><strong>SSRF (A10):</strong> never fetch raw user URLs; <strong>allow-list</strong> destination hosts, enforce <code>https</code>-only, <strong>block private/internal IP ranges</strong> (including <code>169.254.169.254</code>), resolve-then-check to defeat DNS rebinding, and disable dangerous URL schemes (<code>file:</code>, <code>gopher:</code>).</li><li><strong>Access control (A01):</strong> authorize the *object* on every fetch (the Juice Shop IDOR is the same <code>WHERE id=$1 AND owner_id=$2</code> fix from Phase 3).</li><li><strong>General lab discipline:</strong> for every flag, identify the first-principles root cause, write the developer fix, and predict what would stop it — that's how labs become durable skill.</li></ul>

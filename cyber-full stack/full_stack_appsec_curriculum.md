@@ -3013,6 +3013,46 @@ app.get("/fetch", async (req, res) => {
 
 Re-run the exploit: `localhost:9000` is rejected (not in the allow-list and a private address). SSRF closed. Clean up internal service with Ctrl-C.
 
+**The same SSRF and fix in Python (Flask + requests).** SSRF is a server-side-fetch bug, so it exists in any language that can make outbound HTTP. The Python fix is actually *cleaner* than the Node regex: the standard-library `ipaddress` module classifies private/loopback/link-local addresses for you, so you don't hand-roll CIDR regexes (and you cover IPv6 correctly for free).
+
+```python
+# ssrf_lab.py
+import ipaddress, socket
+from urllib.parse import urlparse
+import requests
+from flask import Flask, request
+
+app = Flask(__name__)
+
+# ❌ VULNERABLE: fetches ANY user-supplied URL from the server's network position.
+@app.get("/fetch-vulnerable")
+def fetch_vulnerable():
+    return requests.get(request.args["url"], timeout=5).text   # attacker controls url
+
+ALLOWED_HOSTS = {"images.example.com", "cdn.example.com"}
+
+def resolves_to_private(host):
+    # Resolve the name, then let the stdlib classify it — covers loopback, private,
+    # link-local (169.254.0.0/16 — the cloud metadata range!), and IPv6 equivalents.
+    addr = socket.gethostbyname(host)
+    ip = ipaddress.ip_address(addr)
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+
+@app.get("/fetch")
+def fetch_secure():
+    parsed = urlparse(request.args.get("url", ""))
+    if parsed.scheme != "https":                       # no file:, gopher:, http:
+        return "https only", 400
+    if parsed.hostname not in ALLOWED_HOSTS:           # allow-list, not deny-list
+        return "host not allowed", 403
+    if resolves_to_private(parsed.hostname):           # block internal ranges (resolve-then-check)
+        return "internal address blocked", 403
+    return requests.get(parsed.geturl(), timeout=5, allow_redirects=False).text
+    # allow_redirects=False matters: a 302 to 169.254.169.254 would otherwise bypass the check.
+```
+
+> **The cross-language SSRF lesson:** the defense is identical in both stacks — parse the URL, enforce `https`, allow-list the host, *resolve then verify the IP isn't internal*, and disable redirects. Python's `ipaddress.is_private/is_loopback/is_link_local` is the idiomatic way to do the IP classification the Node version did with regexes; prefer it because it's exhaustive and IPv6-aware. (In Node, the equivalent robustness comes from the `ipaddr.js` library rather than hand-written regexes.)
+
 **Juice Shop IDOR (you have it running from Module 4.1).** Log in (register a throwaway account), add an item to your basket, then in DevTools → Network watch for a request like `GET /rest/basket/{id}`. Note your basket id, then replay the request with a *different* id (use the Console or `curl` with your token) — if you can read another basket, that's the BOLA/IDOR you studied in Module 3.3, live. Write it up.
 
 #### 🛡️ Defense: lab-proven controls, recapped
