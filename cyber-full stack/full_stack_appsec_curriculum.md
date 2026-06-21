@@ -3720,6 +3720,144 @@ async function confirmReset(db, token, newPassword) {
 }
 ```
 
+#### 💻 The same vulnerable-vs-secure password storage in Python (argon2-cffi)
+
+The Python ecosystem's idiomatic Argon2 binding is `argon2-cffi` (`pip install argon2-cffi`). Its `PasswordHasher` mirrors the Node `argon2` package: it generates a CSPRNG salt, embeds algorithm+params+salt+digest in one self-describing PHC string, verifies in constant time, and exposes `check_needs_rehash`. Everything you learned above maps one-to-one.
+
+```python
+# ❌ VULNERABLE — do not do any of this
+import hashlib
+
+def register_bad(conn, email, password):
+    # WHY WRONG: SHA-256 is a *fast* hash. A leaked table is cracked in seconds
+    # with a wordlist. There is also no per-user salt, so identical passwords
+    # share a hash and one rainbow table breaks everyone at once.
+    digest = hashlib.sha256(password.encode()).hexdigest()
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO users(email, password_hash) VALUES (%s, %s)",
+                    (email, digest))
+
+def login_bad(conn, email, password):
+    digest = hashlib.sha256(password.encode()).hexdigest()
+    with conn.cursor() as cur:
+        # WHY WRONG (besides the hash): selecting "WHERE password_hash=%s" makes
+        # response time leak whether the user exists (enumeration), and a plain
+        # SQL string compare is not constant-time.
+        cur.execute("SELECT id FROM users WHERE email=%s AND password_hash=%s",
+                    (email, digest))
+        return cur.fetchone()
+```
+
+```python
+# ✅ SECURE — Argon2id, per-user salt (library-managed), optional pepper,
+#             constant-time verify, transparent parameter upgrade.
+import os
+import hmac
+import hashlib
+import base64
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+
+# Pepper lives in env / secrets manager, NOT in the database.
+PEPPER = os.environ["PASSWORD_PEPPER"].encode()  # e.g. a 32-byte base64 secret
+
+def with_pepper(password: str) -> str:
+    # WHY: HMAC the password with the pepper FIRST. This (a) applies the pepper
+    # as a real secret, and (b) yields a fixed 32-byte digest so we never trip a
+    # downstream length limit. Output is base64 (printable).
+    mac = hmac.new(PEPPER, password.encode(), hashlib.sha256).digest()
+    return base64.b64encode(mac).decode()
+
+# Current OWASP-baseline parameters. Bump these as hardware improves.
+# (argon2-cffi defaults to Argon2id; we set the cost factors explicitly.)
+ph = PasswordHasher(memory_cost=19456, time_cost=2, parallelism=1)
+
+# A pre-computed decoy hash, generated once at startup, so a missing user still
+# costs a full verify — no early return that would leak existence via timing.
+DUMMY_HASH = ph.hash(with_pepper("decoy-never-matches"))
+
+def register(conn, email, password):
+    # WHY RIGHT: ph.hash auto-generates a CSPRNG salt and embeds algorithm +
+    # params + salt + digest in one self-describing PHC string. Slow + memory-hard
+    # => offline cracking is economically infeasible even if the DB leaks.
+    digest = ph.hash(with_pepper(password))
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO users(email, password_hash) VALUES (%s, %s)",
+                    (email, digest))
+
+def login(conn, email, password):
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, password_hash FROM users WHERE email=%s", (email,))
+        row = cur.fetchone()
+    # WHY: run the (expensive) verify EVEN when no user exists, against the dummy
+    # hash, so response time doesn't reveal whether an account exists.
+    stored = row[1] if row else DUMMY_HASH
+    try:
+        # WHY RIGHT: ph.verify reads params/salt back out of the stored string and
+        # compares in CONSTANT TIME, raising on mismatch — no early-exit leak.
+        ph.verify(stored, with_pepper(password))
+    except VerifyMismatchError:
+        return None
+    if not row:
+        return None  # verify "passed" only because there was no real user
+
+    # Transparent upgrade: if this hash used weaker params, re-hash now that we
+    # hold the correct plaintext, migrating the user to current strength silently.
+    if ph.check_needs_rehash(stored):
+        fresh = ph.hash(with_pepper(password))
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET password_hash=%s WHERE id=%s",
+                        (fresh, row[0]))
+    return row[0]
+```
+
+> **Library note.** If you are on an existing Django/Flask codebase, `passlib`'s `CryptContext` is the other idiomatic choice — `CryptContext(schemes=["argon2"], deprecated="auto")` gives you the same hash/verify/`needs_update` trio and can transparently migrate a legacy `bcrypt`/`pbkdf2_sha256` column to Argon2 on next login. Django's own `PASSWORD_HASHERS` setting does the same if you list `Argon2PasswordHasher` first (requires `argon2-cffi`). Whichever you pick, **never** hand-roll `hashlib` for passwords.
+
+The same secure reset flow in Python — note it is identical in *reasoning* to the Node version (unguessable token, store only the hash, single-use, short TTL, kill all sessions, notify):
+
+```python
+# ✅ SECURE password reset — request + confirm
+import os
+import hashlib
+from datetime import datetime, timedelta, timezone
+
+def request_reset(conn, mailer, email):
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+        row = cur.fetchone()
+    # WHY: respond the same way regardless, to avoid leaking who has an account.
+    if row:
+        token = os.urandom(32).hex()                                   # 256-bit, unguessable
+        token_hash = hashlib.sha256(token.encode()).hexdigest()        # store the HASH
+        expires = datetime.now(timezone.utc) + timedelta(minutes=30)   # 30-minute TTL
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO password_resets(user_id, token_hash, expires_at, used)
+                   VALUES (%s, %s, %s, false)""", (row[0], token_hash, expires))
+        # email the PLAINTEXT token; the DB only ever holds its hash
+        mailer.send(email, f"https://example.com/reset?token={token}")
+    return {"message": "If that account exists, a reset link has been sent."}
+
+def confirm_reset(conn, token, new_password):
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT user_id FROM password_resets
+                WHERE token_hash=%s AND used=false AND expires_at > now()""",
+            (token_hash,))
+        row = cur.fetchone()
+    if not row:
+        raise ValueError("Invalid or expired token")  # covers wrong/old/used tokens
+    user_id = row[0]
+
+    digest = ph.hash(with_pepper(new_password))
+    with conn.cursor() as cur:
+        cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (digest, user_id))
+        cur.execute("UPDATE password_resets SET used=true WHERE token_hash=%s", (token_hash,))  # single-use
+        cur.execute("DELETE FROM sessions WHERE user_id=%s", (user_id,))                        # kill all sessions
+    # (notify the user by email that their password changed)
+```
+
 #### Knowledge check: Password Storage
 
 1. Explain in one sentence each: why plaintext fails, why `SHA-256(password)` fails, and why `SHA-256(salt + password)` *still* fails.
@@ -3896,6 +4034,84 @@ app.use((req, res, next) => {
 // Logout / logout-everywhere both just destroy server-side state:
 app.post('/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
 ```
+
+#### 💻 The same vulnerable-vs-secure session setup in Python (Flask)
+
+Flask's built-in session is a **signed cookie** (`itsdangerous` under the hood) — the whole session lives in the browser, tamper-proof but not revocable and size-limited. For real apps you want a **server-side store**, which in Flask means `Flask-Session` (`pip install Flask-Session redis`). The cookie hardening flags map exactly to the Express ones; they are just Flask config keys.
+
+```python
+# ❌ VULNERABLE session setup
+from flask import Flask, session, request, jsonify
+
+app = Flask(__name__)
+app.secret_key = "keyboard cat"     # WHY WRONG: hard-coded weak secret in source.
+# No SESSION_COOKIE_HTTPONLY/SECURE/SAMESITE set -> defaults leave the cookie
+# JS-readable over plain HTTP and exploitable cross-site; session never expires.
+
+@app.post("/login")
+def login_bad():
+    user = check_password(request.form)
+    if user:
+        session["user_id"] = user["id"]  # WHY WRONG: no session rotation -> fixation.
+        return jsonify(ok=True)
+    return jsonify(ok=False), 401
+```
+
+```python
+# ✅ SECURE session setup (server-side store + hardened cookie)
+from datetime import timedelta
+from flask import Flask, session, request, jsonify
+from flask_session import Session
+import redis, os, time
+
+app = Flask(__name__)
+app.config.update(
+    SECRET_KEY=os.environ["SESSION_SECRET"],     # WHY: strong secret from env, rotatable
+    SESSION_TYPE="redis",                         # WHY: server-side store => instant revocation
+    SESSION_REDIS=redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379")),
+    SESSION_USE_SIGNER=True,                      # WHY: sign the session id cookie too
+    # __Host- prefix forces Secure + Path=/ + host-only (no Domain) at the browser:
+    SESSION_COOKIE_NAME="__Host-sid",
+    SESSION_COOKIE_HTTPONLY=True,                 # WHY: JS (and XSS) can't read the cookie
+    SESSION_COOKIE_SECURE=True,                   # WHY: HTTPS-only (required by __Host-)
+    SESSION_COOKIE_SAMESITE="Lax",                # WHY: blocks classic cross-site CSRF POSTs
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),  # WHY: 12h absolute cap
+)
+Session(app)
+
+IDLE_TIMEOUT = 30 * 60  # seconds
+
+@app.post("/login")
+def login():
+    user = check_password(request.form)
+    if not user:
+        return jsonify(ok=False), 401
+    # WHY: clearing first issues a NEW server-side session id at the privilege
+    # boundary => kills session fixation (Flask-Session writes a fresh id on next set).
+    session.clear()
+    session["user_id"] = user["id"]
+    session["created_at"] = time.time()   # for absolute-timeout checks
+    session["last_seen"] = time.time()    # for idle-timeout checks
+    session.permanent = True              # apply PERMANENT_SESSION_LIFETIME cap
+    return jsonify(ok=True)
+
+@app.before_request
+def enforce_idle_timeout():
+    # Idle-timeout: kill sessions inactive > 30 min.
+    if "user_id" in session:
+        if time.time() - session.get("last_seen", 0) > IDLE_TIMEOUT:
+            session.clear()
+            return jsonify(error="session expired"), 401
+        session["last_seen"] = time.time()
+
+# Logout / logout-everywhere both just destroy server-side state:
+@app.post("/logout")
+def logout():
+    session.clear()
+    return jsonify(ok=True)
+```
+
+> **Why `session.clear()` and not just overwriting keys?** With a server-side store, the security property you want at login is *a new, attacker-unknown session identifier*. Flask-Session rotates the id when the session is emptied and repopulated, so `clear()` then set is the Pythonic equivalent of Express's `req.session.regenerate()`. If you ever stay on the default signed-cookie session (no server store), note it is **not revocable** — a stolen cookie is valid until it expires, which is exactly why production auth wants the Redis-backed store above.
 
 #### Knowledge check: Sessions and Cookies
 
@@ -4099,6 +4315,96 @@ async function refresh(db, presented) {
 }
 ```
 
+#### 💻 The same vulnerable-vs-secure JWT handling in Python (PyJWT)
+
+`PyJWT` (`pip install "pyjwt[crypto]"` — the `crypto` extra pulls in `cryptography` for RS256) is the standard Python JWT library. The two killer mistakes are identical to Node: **decoding without verifying**, and **calling `decode` without pinning `algorithms`** (which historically allowed `alg:none` and RS256→HS256 key-confusion). PyJWT *requires* the `algorithms` argument on `decode`, which removes the footgun — but only if you pass the right value.
+
+```python
+# ❌ VULNERABLE verifier (recap of the lab)
+import jwt
+
+claims = jwt.decode(token, options={"verify_signature": False})  # WHY WRONG: no signature check
+if claims.get("role") == "admin":
+    grant_admin()                                                 # trusts attacker-edited payload
+# Also wrong: jwt.decode(token, key, algorithms=["HS256", "RS256"]) -> mixing a symmetric
+#   and asymmetric alg lets an attacker sign HS256 using the PUBLIC key (key confusion).
+```
+
+```python
+# ✅ SECURE verifier (RS256, pinned algorithm, iss/aud/exp enforced)
+import os
+import jwt
+from functools import wraps
+from flask import request, jsonify, g
+
+PUBLIC_KEY = os.environ["JWT_PUBLIC_KEY"]  # PEM; private key lives only on the auth server
+
+def require_auth(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        try:
+            claims = jwt.decode(
+                token, PUBLIC_KEY,
+                algorithms=["RS256"],            # WHY: pin -> kills alg:none + RS256/HS256 confusion
+                issuer="https://auth.example.com",   # verifies the "iss" claim
+                audience="api.example.com",          # verifies the "aud" claim
+                leeway=5,                        # WHY: tolerate tiny clock skew, no more
+                options={"require": ["exp", "iss", "aud", "sub"]},  # WHY: reject tokens missing them
+            )
+        except jwt.InvalidTokenError:
+            # one base class covers signature/exp/iss/aud/decode failures
+            return jsonify(error="invalid token"), 401
+        g.user = {"id": claims["sub"], "role": claims["role"]}  # role came from a SIGNED token
+        return view(*args, **kwargs)
+    return wrapper
+```
+
+```python
+# ✅ SECURE issue + refresh (short access JWT, opaque revocable refresh token)
+import os
+import hashlib
+import datetime as dt
+import jwt
+
+PRIVATE_KEY = os.environ["JWT_PRIVATE_KEY"]  # PEM, auth server only
+
+def issue_tokens(conn, user):
+    now = dt.datetime.now(dt.timezone.utc)
+    access = jwt.encode(
+        {"sub": user["id"], "role": user["role"], "iss": "https://auth.example.com",
+         "aud": "api.example.com", "iat": now, "exp": now + dt.timedelta(minutes=10)},
+        PRIVATE_KEY, algorithm="RS256",       # WHY: short TTL bounds the revocation gap
+    )
+    refresh = os.urandom(32).hex()                                  # opaque, unguessable
+    refresh_hash = hashlib.sha256(refresh.encode()).hexdigest()
+    # WHY: store the HASH of the refresh token server-side -> a deletable, revocable row
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO refresh_tokens(user_id, token_hash, expires_at)
+               VALUES (%s, %s, now() + interval '30 days')""",
+            (user["id"], refresh_hash))
+    return {"access": access, "refresh": refresh}
+
+def refresh(conn, presented):
+    h = hashlib.sha256(presented.encode()).hexdigest()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT user_id FROM refresh_tokens WHERE token_hash=%s AND expires_at > now()",
+            (h,))
+        row = cur.fetchone()
+    if not row:
+        raise ValueError("revoked or expired")  # logout/ban deleted the row -> refresh fails
+    # WHY: ROTATE -> delete old, issue new. Replay of an already-rotated token signals theft.
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM refresh_tokens WHERE token_hash=%s", (h,))
+    user = get_user(conn, row[0])
+    return issue_tokens(conn, user)
+```
+
+> **PyJWT gotcha worth memorizing.** Passing a symmetric algorithm name like `"HS256"` while handing PyJWT an RSA *public* key is the exact key-confusion bug: PyJWT will happily HMAC-verify against the public key bytes, and since the public key is, well, public, an attacker can forge a token. Pin `algorithms=["RS256"]` (asymmetric only) and never include `"HS256"` in the same allow-list as an asymmetric alg. Also: `jwt.decode(..., audience=...)` is what actually triggers `aud` checking — omit it and the claim is ignored.
+
 #### Knowledge check: JWTs
 
 1. Why is it wrong to say a JWT "encrypts" the claims? What property does the signature actually provide?
@@ -4265,6 +4571,57 @@ app.get('/callback', async (req, res) => {
   });
 });
 ```
+
+#### 💻 The same secure OIDC login in Python (Authlib)
+
+`Authlib` (`pip install authlib`) is the idiomatic Python OAuth/OIDC client and the closest analog to `openid-client`: you register the provider from its discovery document, and Authlib handles PKCE, `state`, `nonce`, the back-channel code exchange, and **`id_token` signature/`aud`/`iss`/`exp`/`nonce` verification via JWKS** for you. The security properties are identical — the only thing you must not do is skip the verification helpers and parse the token yourself.
+
+```python
+# ✅ SECURE: Authorization Code + PKCE + state + nonce, id_token consumed for identity
+import os
+from flask import Flask, session, url_for, redirect, abort
+from authlib.integrations.flask_client import OAuth
+
+app = Flask(__name__)
+app.secret_key = os.environ["SESSION_SECRET"]  # state/nonce/PKCE verifier live in the session
+
+oauth = OAuth(app)
+oauth.register(
+    name="google",
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",  # discovery + JWKS
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    client_kwargs={
+        "scope": "openid email profile",
+        "code_challenge_method": "S256",   # WHY: enable PKCE (OAuth 2.1 says always)
+    },
+)
+
+@app.get("/login")
+def login():
+    redirect_uri = url_for("callback", _external=True)  # EXACT, pre-registered URI
+    # WHY: authorize_redirect generates + stashes state, nonce, and the PKCE verifier
+    # in the session automatically, then redirects to Google's /authorize.
+    return oauth.google.authorize_redirect(redirect_uri)
+
+@app.get("/callback")
+def callback():
+    # WHY: authorize_access_token verifies state matches, exchanges the code WITH the
+    # PKCE verifier over the back-channel, and verifies the id_token signature (JWKS) +
+    # nonce + aud + iss + exp. If any check fails it raises — no silent trust.
+    token = oauth.google.authorize_access_token()
+    claims = token["userinfo"]            # the verified id_token claims
+    if not claims.get("email_verified"):
+        abort(403, "verify your email with the provider")
+
+    # WHY: key the local account on the stable, provider-scoped `sub`, not the editable email.
+    user = find_or_create_by_sub(claims["sub"], claims["email"])
+    session.clear()                       # Module 6.2: rotate the session on login
+    session["user_id"] = user["id"]
+    return redirect("/dashboard")
+```
+
+> **Same trap, different library.** The Authlib-specific footgun is reaching past `authorize_access_token()` to call `token["id_token"]` and decode it yourself with PyJWT *without* the discovered JWKS / nonce — that throws away every check Authlib did for you. Let Authlib do the OIDC verification (it caches the provider's JWKS and validates `aud`/`iss`/`exp`/`nonce`), and only read the already-verified `token["userinfo"]` claims. As with Node, exact `redirect_uri` matching and keying on `sub` (not `email`) remain your responsibility, not the library's.
 
 #### Knowledge check: OAuth and OIDC
 
@@ -4451,6 +4808,111 @@ CREATE POLICY tenant_isolation ON projects
 -- the app sets: SET app.current_org = '<session org_id>'; per connection/transaction
 ```
 
+#### 💻 The same vulnerable-vs-secure authorization in Python (Flask, multi-tenant)
+
+Authorization is a *logic* problem, not a library problem, so the Python version is structurally identical to Node — the lessons transfer one-to-one. The idiomatic Python touches are a `functools.wraps`-based `require_role` decorator for **RBAC** (function-level / BFLA defense) and tenant-scoped queries for **object-level** (BOLA/IDOR) defense. A pydantic model gives you the allow-list that defeats mass assignment.
+
+```python
+# ❌ VULNERABLE — authn present, authorization broken in three ways
+@app.get("/api/projects/<int:pid>")
+@require_auth
+def get_project_bad(pid):
+    # WHY WRONG (IDOR/BOLA): fetches by id with NO ownership/tenant check, and
+    # returns the raw row (SELECT *).
+    p = db.fetchone("SELECT * FROM projects WHERE id = %s", (pid,))
+    return jsonify(p)
+
+@app.patch("/api/users/me")
+@require_auth
+def update_me_bad():
+    # WHY WRONG (mass assignment): trusts arbitrary body keys, so {"role": "owner"}
+    # promotes the user.
+    body = request.get_json()
+    db.execute("UPDATE users SET name=%s, role=%s WHERE id=%s",
+               (body["name"], body["role"], g.user["id"]))
+    return jsonify(ok=True)
+
+@app.patch("/api/tasks/<int:tid>")
+@require_auth
+def update_task_bad(tid):
+    # WHY WRONG (BFLA): no role check -> a 'viewer' can write.
+    db.execute("UPDATE tasks SET title=%s WHERE id=%s",
+               (request.get_json()["title"], tid))
+    return jsonify(ok=True)
+```
+
+```python
+# ✅ SECURE — centralized authz: tenant scope + ownership + role, fail closed, DTO output
+from functools import wraps
+from flask import g, request, jsonify, abort
+from pydantic import BaseModel, ValidationError
+
+# --- RBAC: function-level (BFLA) guard as a reusable decorator ---
+def require_role(*allowed_roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapper(*args, **kwargs):
+            if g.user["role"] not in allowed_roles:
+                audit_log("denied", user=g.user["id"], reason="role", path=request.path)
+                abort(403)                       # fail closed
+            return view(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# --- BOLA/IDOR: object-level guard, scoped to the user's tenant in the QUERY ---
+def authorize_task(user, task_id, action):
+    task = db.fetchone(
+        # WHY: scope the lookup to the user's tenant in the query itself -> cross-tenant
+        # IDOR is structurally impossible; an out-of-tenant id simply returns nothing.
+        """SELECT t.*, p.org_id FROM tasks t JOIN projects p ON p.id = t.project_id
+            WHERE t.id = %s AND p.org_id = %s""", (task_id, user["org_id"]))
+    if not task:
+        return (None, 404)                       # not found OR not your tenant -> 404
+    if action == "write" and user["role"] not in ("owner", "admin", "member"):
+        return (None, 403)                       # viewer is read-only -> BFLA closed
+    return (task, 200)
+
+# allow-list of fields a user may change about themselves (defeats mass assignment)
+class UserSelfUpdate(BaseModel):
+    name: str                                    # NOTE: 'role' is deliberately absent
+
+@app.get("/api/projects/<int:pid>")
+@require_auth
+def get_project(pid):
+    p = db.fetchone(
+        # tenant-scoped + explicit DTO columns (no SELECT *)
+        "SELECT id, name, status FROM projects WHERE id = %s AND org_id = %s",
+        (pid, g.user["org_id"]))
+    if not p:
+        abort(404)                               # fail closed
+    return jsonify(p)
+
+@app.patch("/api/users/me")
+@require_auth
+def update_me():
+    try:
+        # WHY RIGHT: pydantic ignores unknown keys, so {"role": "owner"} in the body
+        # never reaches the UPDATE -> no privilege escalation.
+        data = UserSelfUpdate.model_validate(request.get_json())
+    except ValidationError as e:
+        return jsonify(error=e.errors()), 400
+    db.execute("UPDATE users SET name = %s WHERE id = %s", (data.name, g.user["id"]))
+    return jsonify(ok=True)
+
+@app.patch("/api/tasks/<int:tid>")
+@require_auth
+def update_task(tid):
+    task, status = authorize_task(g.user, tid, "write")
+    if not task:
+        audit_log("denied", user=g.user["id"], task=tid, status=status)
+        abort(status)
+    db.execute("UPDATE tasks SET title = %s WHERE id = %s",
+               (request.get_json()["title"], tid))
+    return jsonify(ok=True)
+```
+
+> **Why a decorator for roles but a function for objects?** Roles are *function-level* — "can a viewer call this endpoint at all?" — so a decorator that runs before the handler is the natural fit (Django's `@permission_required` / DRF's `permission_classes` do the same thing). Object-level checks need the specific object id and the tenant, so they live inside the handler as `authorize_task(...)`. You need **both**: the decorator alone still lets an `admin` of org A edit org B's task; the object check alone still lets a `viewer` write. The Postgres RLS policy above is the third, deepest layer — keep it even with the app checks, because defense-in-depth assumes one layer will be forgotten.
+
 #### Knowledge check: Authorization Models
 
 1. Distinguish authentication from authorization, and explain why "Broken Access Control" tops the OWASP list and is hard to scan for.
@@ -4567,6 +5029,61 @@ app.post('/webauthn/register/verify', async (req, res) => {
   res.status(400).json({ ok: false });
 });
 ```
+
+The same registration ceremony in Python uses `py_webauthn` (`pip install webauthn` — the package name is `webauthn`, the project is "py_webauthn"). It is the direct analog of `@simplewebauthn/server`: it generates options, serializes them for the browser, and verifies the response while checking the exact same anti-replay / origin / RP-ID anchors. The six server-side checks are non-negotiable in both languages.
+
+```python
+# app.py — registration ceremony (secure), Flask + py_webauthn
+from flask import Flask, session, request, jsonify
+from webauthn import (
+    generate_registration_options, verify_registration_response,
+    options_to_json,
+)
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria, ResidentKeyRequirement,
+    UserVerificationRequirement, PublicKeyCredentialDescriptor,
+)
+
+RP_ID = "localhost"                     # dev RP ID; in prod = your eTLD+1, e.g. "example.com"
+ORIGIN = "http://localhost:3000"        # in prod = "https://example.com"
+
+@app.get("/webauthn/register")
+def register_options():
+    user = session["user"]              # an already-identified (e.g. email-verified) user
+    options = generate_registration_options(
+        rp_name="My App", rp_id=RP_ID,
+        user_name=user["email"],
+        # WHY: exclude_credentials stops a user re-registering a key they already have
+        exclude_credentials=[
+            PublicKeyCredentialDescriptor(id=c["id"]) for c in user["credentials"]
+        ],
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.PREFERRED,
+        ),
+    )
+    # WHY: server-stored, single-use challenge (store bytes; compare on verify)
+    session["current_challenge"] = options.challenge
+    return options_to_json(options)     # browser-ready JSON for navigator.credentials.create
+
+@app.post("/webauthn/register/verify")
+def register_verify():
+    verification = verify_registration_response(
+        credential=request.get_data(),                       # raw JSON from the browser
+        expected_challenge=session["current_challenge"],     # WHY: must match what WE issued (anti-replay)
+        expected_origin=ORIGIN,                              # WHY: origin binding
+        expected_rp_id=RP_ID,                                # WHY: phishing-resistance anchor
+    )
+    # WHY: store the PUBLIC key + credential ID + counter; there is no secret to leak.
+    save_credential(session["user"]["id"], {
+        "credential_id": verification.credential_id,
+        "public_key": verification.credential_public_key,
+        "sign_count": verification.sign_count,
+    })
+    return jsonify(ok=True)
+```
+
+> **Same six checks, enforced for you.** `verify_registration_response` (and its sibling `verify_authentication_response`) raise `InvalidRegistrationResponse` / `InvalidAuthenticationResponse` if the challenge, origin, or RP-ID don't match — do **not** swallow those exceptions. On the authentication side, pass the stored `public_key` and `sign_count` to `verify_authentication_response(..., credential_current_sign_count=...)`; py_webauthn returns the new `new_sign_count`, and you must reject (or flag as a cloned authenticator) if it ever fails to advance. Build the auth ceremony with `generate_authentication_options` / `verify_authentication_response` exactly as you would the Node `generateAuthenticationOptions` / `verifyAuthenticationResponse` pair.
 
 **Expected observation.** Touch ID prompts; on success your server stores only a public key. Try the registered credential against a *different* origin (e.g. tunnel the app and hit it from another hostname) and the browser refuses — you've watched origin binding work.
 
