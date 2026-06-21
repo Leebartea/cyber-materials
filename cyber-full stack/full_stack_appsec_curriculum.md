@@ -6032,7 +6032,6 @@ Lesson for full-stack devs: assume your system prompt is public the moment you s
 
 ---
 
-<a id="phase-8-cloud-deployment-and-production-security"></a>
 ## Phase 8: Cloud, Deployment, and Production Security
 
 Duration: 3-5 weeks
@@ -6493,7 +6492,6 @@ In 2019 a former AWS engineer exfiltrated 100M+ Capital One credit card applicat
 
 ---
 
-<a id="phase-9-logging-monitoring-incident-response-for-web-apps"></a>
 ## Phase 9: Logging, Monitoring, Incident Response for Web Apps
 
 Duration: 2-3 weeks
@@ -6903,7 +6901,6 @@ Write one playbook (using the six-question template) for each of your realistic 
 
 ---
 
-<a id="phase-10-portfolio-capstones"></a>
 ## Phase 10: Portfolio Capstones
 
 Pick at least two. These are designed to make your web-dev background visible to security-minded employers or collaborators.
