@@ -1,3 +1,7 @@
 .DS_Store
 *.backup
 *.bak-*
+
+# Agent memory is personal/dynamic (background, hardware, preferences) -
+# useful locally across sessions, not meant for a published repo.
+.claude/agent-memory/
