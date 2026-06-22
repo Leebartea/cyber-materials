@@ -672,8 +672,14 @@ const {
      and <details> reveals — everything the source content uses).
    - tracker[] drives the per-module checkboxes + the overall progress bar.
 
-   RESUME MARKER: migrated phases = Phase 0, Phase 1, Phase 2. Remaining = Phases
-   3-10 (+7.5) and the 4 capstones. Source of truth: full_stack_appsec_curriculum.md.
+   RESUME MARKER: migrated phases = Phase 0, Phase 1, Phase 2, Phase 3. Remaining =
+   Phases 4-10 (+7.5) and the 4 capstones. Source of truth: full_stack_appsec_curriculum.md.
+   Phase 3 modules in the array: m3_1 (3.1 Express Security Foundations), m3_2 (3.2
+   SQL Injection & Postgres Safety), m3_3 (3.3 API Security — includes the 3.3.1
+   GraphQL subsection inline), m3_4 (3.4 File Upload Security). Resume at Phase 4:
+   curriculum.md lines ~3076+ (Modules 4.1 OWASP Top 10 lens, 4.2 Hands-On Labs,
+   4.3 Structured Reporting / PortSwigger). Append new module objects right BEFORE
+   the `}],` that closes the modules array (search "end migrated AppSec data").
    NOTE (session 2): App component was rewritten from the old Cyber Guardians
    schema (levels/theory) to the new phases/phaseId/body schema — it previously
    crashed on load (curriculum.levels undefined). All phase definitions (p0-p10,
@@ -2442,6 +2448,833 @@ Two Python-specific pitfalls: do **not** pass \`origins="*"\` (or omit \`origins
 
 ➡️ **Next step:** You've secured the browser side — storage, XSS, CSRF, CORS. Now move to the server, where trust is actually enforced: hardening Express, killing SQL injection, and locking down APIs and uploads. Continue to **Phase 3: Backend, API, and Database Security**.`,
     tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Answered the knowledge check"]
+  },
+
+  // ============== PHASE 3 ==============
+  {
+    id: "m3_1",
+    phaseId: "p3",
+    num: "3.1",
+    title: "Express Security Foundations",
+    objective: "Before any specific vulnerability, an Express app needs a secure skeleton: middleware in the right order, input validated at the edge, errors that don't leak, request sizes bounded, abuse rate-limited, and security headers set. Most apps are insecure because this skeleton is missing.",
+    body: `> **Why this module is first in the phase.** Before any specific vulnerability, an Express app needs a *secure skeleton*: middleware in the right order, input validated at the edge, errors that don't leak, request sizes bounded, abuse rate-limited, and security headers set. Most "small" web apps are insecure not because of one exotic bug but because this skeleton is missing — every later defense in the phase assumes it's in place.
+
+### 🎯 Concept: middleware order, validation at the edge, and safe failure
+
+**Express is a pipeline of middleware.** Each request flows through a chain of functions (\`app.use(...)\`, route handlers) in the order you register them. Each can inspect, modify, short-circuit (respond), or pass control to the next with \`next()\`. **Order is a security property**, not a detail: if you parse a body *before* limiting its size, an attacker can exhaust memory; if you run a route handler *before* your auth middleware, the route runs unauthenticated. The mental rule: *security middleware that should gate a request must come before the thing it gates.*
+
+The pieces of the secure skeleton, each with its reason:
+
+- **Security headers (\`helmet\`)** — Helmet sets a bundle of protective response headers (CSP scaffolding, \`X-Content-Type-Options: nosniff\` to stop MIME-sniffing, \`X-Frame-Options\`/frame-ancestors to stop clickjacking, HSTS, and more). One line raises your baseline; put it early so it applies to everything.
+- **Body parsing with a size limit** — \`express.json({ limit: "100kb" })\`. *Why the limit:* without it, an attacker POSTs a 2 GB body and exhausts server memory (a denial-of-service). Bound every body to the smallest size your endpoint actually needs.
+- **Rate limiting** — \`express-rate-limit\` caps how many requests an IP (or key) can make in a window. *Why:* it blunts brute-force on login (Phase 6), credential stuffing, scraping, and expensive-endpoint abuse. Apply tight limits specifically to auth and costly routes.
+- **Input validation at the edge (\`zod\`)** — define a schema for each endpoint's expected input and reject anything that doesn't match *before* business logic runs. *Why:* it shrinks the attack surface (no surprise fields, no wrong types, no oversize strings) and centralizes the "don't trust the client" rule from Phase 0. Validation is not the *only* defense (you still parameterize SQL, encode output), but it's the first.
+- **Centralized error handling** — a single error-handling middleware that logs the real error server-side and returns a *generic* message to the client. *Why:* verbose errors (stack traces, SQL text, file paths) are information disclosure that hands attackers a map of your internals (OWASP A05). Fail closed and quiet.
+- **Centralized authorization** — don't scatter ad-hoc permission checks; route sensitive endpoints through shared auth/authz middleware so you can't forget one (the omission *is* the bug — Module 0.4, OWASP A01).
+
+**The "don't trust any part of the request" rule, restated for the server:** body, query params, route params, headers, *and* cookies are all client-controlled (you proved this with \`curl\` in Phase 1). Validate and constrain each before use; derive identity from verified sessions/tokens, never from a body field.
+
+### ⚔️ Hands-on: watch the skeleton block abuse you generate
+
+> **Ethics & scope.** Everything runs against *your own* Express app on \`localhost\`. You'll send oversized bodies, malformed input, and rapid requests to *your* server to watch the defenses fire. Never load-test or fuzz servers you don't own.
+
+\`\`\`bash
+brew install node           # if needed (arm64-native)
+mkdir -p ~/express-lab && cd ~/express-lab && npm init -y >/dev/null
+npm install express helmet express-rate-limit zod
+\`\`\`
+
+Create \`secure-skeleton.js\`:
+
+\`\`\`js
+import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
+
+const app = express();
+app.use(helmet());                              // security headers FIRST
+app.use(express.json({ limit: "1kb" }));        // tiny limit to make the DoS guard visible
+app.use(rateLimit({ windowMs: 60_000, limit: 5 }));   // 5 req/min to make limiting visible
+
+const loginSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+});
+
+app.post("/login", (req, res, next) => {
+  try {
+    const body = loginSchema.parse(req.body);   // reject anything off-schema at the edge
+    res.json({ ok: true, email: body.email });
+  } catch (err) { next(err); }                   // hand to centralized error handler
+});
+
+// Centralized error handler: log the real thing, return a generic message.
+app.use((err, req, res, next) => {
+  console.error("internal:", err.message);       // server-side detail only
+  res.status(400).json({ error: "Invalid request" });  // generic to client
+});
+
+app.listen(3000, () => console.log("http://localhost:3000"));
+\`\`\`
+
+Run it and probe each guard:
+
+\`\`\`bash
+node secure-skeleton.js
+
+# 1) Oversized body -> rejected by the 1kb limit (DoS guard):
+curl -i -X POST :3000/login -H 'Content-Type: application/json' \\
+  -d "{\\"email\\":\\"a@b.com\\",\\"password\\":\\"\$(printf 'x%.0s' {1..2000})\\"}"
+
+# 2) Malformed input -> rejected by zod, generic error (no internals leaked):
+curl -i -X POST :3000/login -H 'Content-Type: application/json' -d '{"email":"not-an-email"}'
+
+# 3) Rapid requests -> 6th within a minute gets 429 (rate limit):
+for i in \$(seq 1 6); do curl -s -o /dev/null -w "%{http_code}\\n" -X POST :3000/login \\
+  -H 'Content-Type: application/json' -d '{"email":"a@b.com","password":"password1"}'; done
+\`\`\`
+
+**Expected observations:** (1) the oversized body returns an error before your handler runs — the size limit stopped a memory-exhaustion attempt. (2) The malformed input returns \`{"error":"Invalid request"}\` with *no* stack trace — validation + centralized errors at work. (3) The first five succeed; the sixth returns \`429 Too Many Requests\` — rate limiting throttling brute force. You generated three distinct attacks and the skeleton absorbed each.
+
+### 🛡️ Defense: the secure-skeleton checklist, and why each line is there
+
+- **\`helmet()\` early** — baseline protective headers for the whole app.
+- **Bound every request body** to the minimum size needed — stops memory-exhaustion DoS.
+- **Rate-limit globally, and *tighter* on auth/expensive routes** — blunts brute force, stuffing, scraping.
+- **Validate input with a schema at the edge** (\`zod\`) — reject wrong types, missing/extra fields, oversize values before logic runs.
+- **Centralize error handling** — log detail server-side, return generic messages; never leak stack traces, SQL, or paths in production.
+- **Centralize authorization** — route sensitive endpoints through shared middleware so a check is never accidentally omitted.
+- **Distrust the whole request** — body, query, params, headers, cookies; derive identity from verified auth, not from input.
+
+**False-confidence traps:** "I validate on the frontend, so the backend can trust it" (the attacker skips the frontend — Phase 0); "Helmet makes my app secure" (Helmet sets headers; it doesn't validate input, authorize, or parameterize queries — it's a baseline, not a finish line); "I'll add a body limit if it becomes a problem" (the absence *is* the DoS — set it from the start); "verbose errors help debugging" (in production they help attackers — log server-side, return generic).
+
+### 💻 The same secure skeleton in Python (Flask)
+
+The principles are language-independent; only the libraries change. The Express stack \`helmet + express.json({limit}) + express-rate-limit + zod\` maps cleanly onto Flask: \`flask-talisman\` (security headers), \`MAX_CONTENT_LENGTH\` (body-size cap), \`Flask-Limiter\` (rate limiting), and \`pydantic\` (schema validation at the edge). A Python developer would reach for exactly these.
+
+\`\`\`bash
+python3 -m venv venv && source venv/bin/activate     # arm64-native on M2
+pip install flask flask-talisman flask-limiter pydantic
+\`\`\`
+
+\`\`\`python
+# secure_skeleton.py  —  the Flask equivalent of secure-skeleton.js
+from flask import Flask, request, jsonify
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from pydantic import BaseModel, EmailStr, ValidationError, constr
+
+app = Flask(__name__)
+
+# Body-size cap FIRST: reject oversized bodies before they are read into memory.
+# This is the Flask analogue of express.json({ limit: "1kb" }) — a memory-exhaustion (DoS) guard.
+app.config["MAX_CONTENT_LENGTH"] = 1024            # 1 KB, tiny so the guard is visible
+
+# Security headers for the whole app (helmet's role). force_https=False only for local dev.
+Talisman(app, force_https=False)
+
+# Rate limiting (express-rate-limit's role): 5 requests/min keyed by client IP.
+limiter = Limiter(get_remote_address, app=app, default_limits=["5 per minute"])
+
+# Schema validation at the edge (zod's role): reject anything off-schema BEFORE business logic.
+class LoginInput(BaseModel):
+    email: EmailStr
+    password: constr(min_length=8, max_length=200)
+
+@app.post("/login")
+@limiter.limit("5 per minute")
+def login():
+    try:
+        body = LoginInput(**(request.get_json(silent=True) or {}))   # raises on bad input
+    except ValidationError:
+        # Centralized-style generic failure: never echo the validation internals to the client.
+        return jsonify(error="Invalid request"), 400
+    return jsonify(ok=True, email=body.email)
+
+# Centralized error handler: log the real error server-side, return a generic message.
+# Mirrors the Express error-handling middleware — fail closed and quiet (OWASP A05).
+@app.errorhandler(Exception)
+def handle_error(err):
+    app.logger.error("internal: %s", err)          # detail stays server-side
+    return jsonify(error="Invalid request"), 400
+
+if __name__ == "__main__":
+    app.run(port=3000)
+\`\`\`
+
+Probe it with the *exact same* \`curl\` commands from the lab above — Flask returns \`413 Request Entity Too Large\` for the oversized body (the \`MAX_CONTENT_LENGTH\` guard), \`{"error":"Invalid request"}\` with no traceback for the malformed input, and \`429 Too Many Requests\` on the sixth rapid request. Same three defenses, same observable behavior; the security reasoning is identical because it lives in the *architecture*, not the framework.
+
+> **Why this matters for both stacks:** notice that nothing security-relevant is unique to Node. "Headers early, bound the body, rate-limit, validate at the edge, fail generic" is a checklist you apply in *any* web framework — Express, Flask, Django (\`SecurityMiddleware\` + DRF serializers), Spring (Spring Security), Rails. The frameworks differ; the trust boundary does not.
+
+### Knowledge check: Express Security Foundations
+
+1. Why is middleware *order* a security property? Give an example where wrong order creates a vulnerability.
+2. What attack does \`express.json({ limit: "100kb" })\` specifically defend against?
+3. Why validate input at the edge even though you also parameterize SQL and encode output?
+4. Why must production errors be generic to the client but detailed in the logs?
+5. Which parts of an incoming request are client-controlled and therefore untrusted?
+
+<details>
+<summary>Show answers</summary>
+
+1. Middleware runs in registration order, and security middleware only protects what comes *after* it. Example: registering a route handler before the auth middleware means the route executes for unauthenticated callers; parsing a body before a size limit lets an oversized body through.
+2. A memory-exhaustion **denial-of-service**: without a limit, an attacker sends a huge body that consumes server memory. The limit caps body size to what the endpoint needs.
+3. Validation shrinks the attack surface early (wrong types, extra/missing fields, oversize values) and centralizes the "distrust the client" rule, but it isn't context-specific protection — you still parameterize SQL (data/code separation) and encode output (XSS). They're complementary layers.
+4. Verbose errors (stack traces, SQL text, file paths) are information disclosure that maps your internals for an attacker (OWASP A05). Logging detail server-side preserves debuggability without leaking it to clients.
+5. All of them: request body, query string, route/path params, headers, and cookies. Identity must come from a verified session/token, not from a request field.
+</details>
+
+➡️ **Next step:** The most damaging server-side bug is still injection — the same data-vs-code failure from Phase 0, now against your database. Continue to **Module 3.2: SQL Injection and Postgres Safety**.`,
+    tracker: ["Built secure-skeleton.js with helmet, body limit, rate limit, and zod validation", "Probed all three guards and saw the body cap, generic error, and 429 fire", "Read the Flask (talisman/limiter/pydantic) dual-language equivalent", "Can explain why middleware order is a security property", "Can name every client-controlled part of a request", "Answered the knowledge check"]
+  },
+  {
+    id: "m3_2",
+    phaseId: "p3",
+    num: "3.2",
+    title: "SQL Injection and Postgres Safety",
+    objective: "SQL injection is the canonical, decades-old, still-everywhere vulnerability at #3 of the OWASP Top 10. A single injectable query can dump every user record, bypass login, or destroy data. The fix is simple and absolute: parameterized queries.",
+    body: `> **Why this matters.** SQL injection is the canonical, decades-old, still-everywhere vulnerability, and it sits at #3 of the OWASP Top 10 (Injection). It's the live version of the string experiment you ran in Module 0.5. A single injectable query can dump every user record, bypass login, or — with an over-privileged DB user — destroy your data. The fix is simple and absolute (parameterized queries), and the reasoning is the same data/code-separation principle that underlies XSS.
+
+### 🎯 Concept: why concatenation is the bug, and parameterization is the fix
+
+**The root cause (one more time, because it's that important):** SQL injection happens when **user input is concatenated into SQL text, so the database can't tell your code from the attacker's data.** The database receives one finished string and executes it as written — it has no memory of which characters you wrote and which the user supplied (exactly like the CPU in Module 0.1).
+
+Watch the bug:
+
+\`\`\`js
+const email = req.body.email;                                  // user-controlled
+const sql = \`SELECT id FROM users WHERE email = '\${email}'\`;   // ❌ glued together
+\`\`\`
+
+A normal email is fine. But submit \`' OR '1'='1\` and the query becomes:
+
+\`\`\`sql
+SELECT id FROM users WHERE email = '' OR '1'='1'
+\`\`\`
+
+\`'1'='1'\` is always true, so the \`WHERE\` matches *every* row — classic authentication bypass / data dump. Submit \`'; DROP TABLE users; --\` and (if the driver allows multiple statements and the DB user has rights) you can destroy tables. The attacker rewrote the *logic*, not just the data, because they controlled part of the *code string*.
+
+**Parameterized queries (a.k.a. prepared statements) — the fix and why it's airtight.** Instead of building one string, you send the query *with placeholders* and the values *separately*:
+
+\`\`\`js
+const result = await db.query(
+  "SELECT id, email FROM users WHERE email = \$1",   // code, fixed, never contains input
+  [req.body.email]                                   // data, sent apart from the code
+);
+\`\`\`
+
+The \`\$1\` is a placeholder; the driver sends the SQL template and the parameter array to Postgres as *distinct things*. Postgres parses the query *first* (deciding its structure), then binds the value into the already-parsed query as pure data. **There is no string-building step where input could become code**, so no input — \`' OR '1'='1\`, \`; DROP TABLE\` — can change the query's structure. It's treated as a literal value to compare against. This is the same principle as encoding output for XSS: keep data and code in separate channels.
+
+**ORMs and query builders** (Prisma, Sequelize, Knex, Drizzle) parameterize for you by default — \`prisma.user.findUnique({ where: { email } })\` is safe. The danger is the **raw-query escape hatch** every ORM provides (\`prisma.\$queryRawUnsafe\`, \`sequelize.query\` with interpolation): the moment you build raw SQL with template strings again, you're back to the vulnerable pattern. Use the safe interpolation forms (Prisma's tagged \`\$queryRaw\` parameterizes; \`\$queryRawUnsafe\` does not).
+
+**Least-privilege database users — limiting the blast radius.** Even with perfect parameterization, defense-in-depth says the account your app connects as should have only the rights it needs:
+- The **app user** should \`SELECT\`/\`INSERT\`/\`UPDATE\`/\`DELETE\` on the tables it uses — and *not* \`DROP\`, not own all tables, not have superuser. So a bug (or a future injection you missed) can't destroy schema or read unrelated data.
+- A **separate migration/admin user** (run only during deploys) owns the schema and runs DDL.
+- This is Module 0.1's least-privilege principle applied to the database, and it's what turns "attacker read one table they shouldn't" into "attacker dropped the database."
+
+### ⚔️ Hands-on: exploit and then fix a real injectable login (local Postgres)
+
+> **Ethics & scope.** You'll run Postgres in Docker on *your own* machine and attack a login query *you* wrote, against *seed* data you create. This is the safe, standard way to feel SQLi. Never run injection payloads against databases or apps you don't own.
+
+\`\`\`bash
+# Postgres, native arm64 image, throwaway container:
+docker run --rm -d --name pg -e POSTGRES_PASSWORD=devpass -p 5432:5432 postgres:16
+# wait a couple seconds, then seed a users table with a known password:
+docker exec -i pg psql -U postgres -c \\
+  "CREATE TABLE users(id serial primary key, email text, password text);
+   INSERT INTO users(email,password) VALUES ('admin@example.com','s3cret'),('bob@example.com','bobpass');"
+\`\`\`
+
+Vulnerable login (\`sqli-lab.js\`) — concatenated query:
+
+\`\`\`js
+import express from "express";
+import pg from "pg";
+const app = express();
+app.use(express.json());
+const db = new pg.Pool({ user: "postgres", password: "devpass", host: "localhost", database: "postgres" });
+
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  // ❌ VULNERABLE: input concatenated straight into SQL.
+  const sql = \`SELECT id, email FROM users WHERE email = '\${email}' AND password = '\${password}'\`;
+  const { rows } = await db.query(sql);
+  res.json({ loggedInAs: rows[0] || null });
+});
+app.listen(3000, () => console.log(":3000"));
+\`\`\`
+
+Exploit the classic auth bypass — log in *without knowing any password*:
+
+\`\`\`bash
+node sqli-lab.js
+# password field closes the string and OR-trues the WHERE:
+curl -s -X POST :3000/login -H 'Content-Type: application/json' \\
+  -d "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"' OR '1'='1\\"}"
+# -> logs you in as admin@example.com despite a wrong password
+\`\`\`
+
+**Expected observation:** you authenticate as admin with a garbage password, because \`... AND password = '' OR '1'='1'\` is always true. You bypassed login purely by controlling part of the query string. Now fix it with parameters:
+
+\`\`\`js
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  // ✅ SECURE: code and data in separate channels; input can't alter structure.
+  const { rows } = await db.query(
+    "SELECT id, email FROM users WHERE email = \$1 AND password = \$2",
+    [email, password]
+  );
+  res.json({ loggedInAs: rows[0] || null });
+});
+\`\`\`
+
+Re-run the exact same payload: it now fails (no row matches an email literally equal to \`admin@example.com\` with a password literally equal to \`' OR '1'='1\`). The injection is dead. Clean up: \`docker stop pg\`.
+
+*(Note: this lab stores plaintext passwords only to keep the focus on injection — never do that in real code; Phase 6 covers password hashing.)*
+
+### 🛡️ Defense: separate data from code, and starve the breach
+
+- **Always use parameterized queries / prepared statements.** Never build SQL by concatenating or template-interpolating user input. This is the complete fix for injection.
+- **With an ORM, use the safe query methods**; treat raw-query escape hatches (\`\$queryRawUnsafe\`, interpolated \`sequelize.query\`) as dangerous and parameterize even there.
+- **Give the app a least-privilege DB user** (no \`DROP\`, not owner of all tables, no superuser); use a separate admin user for migrations.
+- **Validate input as defense-in-depth** (type, length, format) — it reduces surface but is *not* a substitute for parameterization.
+- **Don't leak DB errors** to clients (Module 3.1) — a raw Postgres error reveals table/column names and confirms injectability.
+- **Harden Postgres in production:** SSL between app and DB, never expose the DB port to the internet, regular backups, secrets in env/secrets-manager not source.
+
+**False-confidence traps:** "I escaped the quotes myself, so it's safe" (manual escaping misses encodings, comment tricks, and numeric contexts — parameterize instead); "I validate the email format, so injection is impossible" (validation isn't separation of data and code; the real fix is parameters); "we use an ORM, so we can't have SQLi" (true until someone uses the raw escape hatch with interpolation); "the DB is behind a firewall" (the injection arrives *through your app*, which the firewall allows); "it's just a read query" (reads dump your entire user table — confidentiality is often the worst loss).
+
+### 💻 The same bug and fix in Python (psycopg2 / SQLAlchemy)
+
+Injection is a property of *string-building*, not of any one language — the Python version is vulnerable for the same reason and fixed the same way. The \`pg\` driver's \`\$1\` placeholders become psycopg2's \`%s\` placeholders, and the rule is identical: **pass the query and the values as separate arguments; never f-string user input into SQL.**
+
+\`\`\`python
+# VULNERABLE Flask login — input concatenated straight into SQL (the same bug as sqli-lab.js)
+import psycopg2
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+conn = psycopg2.connect("dbname=postgres user=postgres password=devpass host=localhost")
+
+@app.post("/login")
+def login_vulnerable():
+    email = request.json["email"]
+    password = request.json["password"]
+    cur = conn.cursor()
+    # ❌ VULNERABLE: f-string glues user input into the SQL text.
+    #    Payload "' OR '1'='1" rewrites the query's LOGIC, not just its data.
+    cur.execute(f"SELECT id, email FROM users WHERE email = '{email}' AND password = '{password}'")
+    row = cur.fetchone()
+    return jsonify(loggedInAs=row)
+\`\`\`
+
+The exact same \`' OR '1'='1\` payload bypasses login here too. Now the fix — note that \`%s\` is **not** Python string formatting; it is psycopg2's parameter placeholder, and the driver sends the values to Postgres *separately* from the query text:
+
+\`\`\`python
+@app.post("/login")
+def login_secure():
+    email = request.json["email"]
+    password = request.json["password"]
+    cur = conn.cursor()
+    # ✅ SECURE: psycopg2 sends the query template and the params on separate channels.
+    #    Postgres parses the SQL first, then binds these as pure data — input can't become code.
+    #    DO NOT do cur.execute("... %s" % email) — the % must stay INSIDE execute's 2nd arg.
+    cur.execute(
+        "SELECT id, email FROM users WHERE email = %s AND password = %s",
+        (email, password),                    # values passed apart from the SQL string
+    )
+    row = cur.fetchone()
+    return jsonify(loggedInAs=row)
+\`\`\`
+
+With SQLAlchemy (the dominant Python ORM, the Prisma/Sequelize analogue) the same safety is automatic — and the same escape hatch is the danger:
+
+\`\`\`python
+from sqlalchemy import text
+# ✅ SAFE: bound parameters, even in a raw query.
+db.execute(text("SELECT id, email FROM users WHERE email = :email"), {"email": email})
+# ❌ UNSAFE: f-string into text() reintroduces injection — the Python equivalent of \$queryRawUnsafe.
+db.execute(text(f"SELECT id, email FROM users WHERE email = '{email}'"))
+\`\`\`
+
+> **The cross-language takeaway:** \`\$1\` (pg), \`%s\` (psycopg2), \`?\` (sqlite3/Java JDBC), \`:name\` (SQLAlchemy) are all the *same idea* — a placeholder that keeps data out of the code channel. Learn the principle once and you recognize the safe and unsafe pattern in every driver you ever touch.
+
+### Knowledge check: SQL Injection and Postgres Safety
+
+1. State the root cause of SQL injection and the single reliable fix.
+2. Explain *mechanically* why a parameterized query can't be injected — what does the database do differently?
+3. Given \`WHERE email = '<input>' AND password = '<input>'\`, what does the payload \`' OR '1'='1\` do and why?
+4. Why is an ORM not an automatic guarantee against SQLi?
+5. How does a least-privilege database user change the worst-case outcome of an injection you missed?
+
+<details>
+<summary>Show answers</summary>
+
+1. Root cause: user input concatenated into SQL text, so the database can't separate code from data. Fix: **parameterized queries / prepared statements**, which send the query template and the values separately.
+2. The driver sends the SQL template (with placeholders) to the database, which **parses and plans the query first**; the supplied values are then **bound as pure data** into the already-parsed structure. There's no point where input is treated as part of the SQL text, so it can't alter the query's structure.
+3. It closes the string literal and adds an always-true condition: \`... = '' OR '1'='1'\`, making the \`WHERE\` match every row — bypassing the password check / dumping data. It works because the input became part of the SQL *code*.
+4. ORMs parameterize by default, but every ORM has raw-query escape hatches (e.g. \`\$queryRawUnsafe\`, interpolated \`sequelize.query\`). Using those with string interpolation reintroduces injection.
+5. It bounds the damage to what that account can do: with no \`DROP\`/superuser and access only to needed tables, a missed injection can't destroy the schema or read unrelated data — turning a catastrophe into a contained incident.
+</details>
+
+➡️ **Next step:** Injection is one server-side failure; the other dominant class is authorization bugs in your APIs — IDOR, mass assignment, excessive data exposure. Continue to **Module 3.3: API Security**.`,
+    tracker: ["Ran Postgres in Docker and built the injectable sqli-lab.js login", "Bypassed login with ' OR '1'='1 against a wrong password", "Fixed it with $1/$2 parameters and confirmed the bypass died", "Read the Python (psycopg2 %s + SQLAlchemy text()) dual-language version", "Can explain mechanically why parameterized queries can't be injected", "Can explain how least privilege bounds the blast radius", "Answered the knowledge check"]
+  },
+  {
+    id: "m3_3",
+    phaseId: "p3",
+    num: "3.3",
+    title: "API Security (IDOR, Mass Assignment, GraphQL)",
+    objective: "Modern full-stack apps are mostly APIs with a thin client. The most common API vulnerabilities are the backend failing to authorize the specific object (IDOR/BOLA), accepting fields it shouldn't (mass assignment), or returning fields the UI hides. These are OWASP A01 in API form.",
+    body: `> **Why this matters.** Modern full-stack apps are mostly APIs with a thin client. The most common API vulnerabilities aren't exotic — they're the backend failing to authorize *the specific object* a request touches (IDOR/BOLA), accepting *fields it shouldn't* (mass assignment), or *returning fields the UI hides* (excessive data exposure). These are OWASP API Top 10 staples and OWASP A01 (Broken Access Control) in API form. They're your bugs because you write the routes.
+
+### 🎯 Concept: authorize the object, constrain the fields, shape the response
+
+**The unifying principle:** an API must, on every request, independently verify *who* is asking and *whether they may perform this exact action on this exact object* — and it must control *which fields* flow in (request) and out (response). The client controls all input and can replay any request; the server is the only authority.
+
+**The common API bugs, each defined and derived:**
+
+- **IDOR (Insecure Direct Object Reference) / BOLA (Broken Object Level Authorization).** A route like \`GET /api/orders/123\` reads order 123 by id. The bug: the server fetches and returns it *without checking that the caller owns order 123*. An attacker just changes \`123\` to \`124\` and reads someone else's order. **Root cause: authenticating the user but not authorizing the specific object.** IDOR and BOLA are the same idea (BOLA is the API-security term). Fix: every object fetch must scope to the caller (\`WHERE id=\$1 AND owner_id=\$2\`) or explicitly check ownership/role.
+- **BFLA (Broken Function Level Authorization).** Like BOLA but for *functions/endpoints*: a normal user calls an admin-only route (\`POST /api/admin/users/123/delete\`) that forgot to check \`isAdmin\`. Fix: gate privileged functions with role checks via centralized authz middleware (Module 3.1).
+- **Mass assignment.** Your update endpoint does \`user.update(req.body)\` — copying *all* request fields onto the record. The attacker adds \`"isAdmin": true\` or \`"creditBalance": 999999\` to the body, and the ORM dutifully writes it. **Root cause: trusting the shape of client input.** Fix: *allow-list* the fields you accept (\`{ name, bio } = validated(req.body)\`), never spread the raw body into a write.
+- **Excessive data exposure.** The API returns the raw DB row (including \`password_hash\`, \`email\`, internal flags) and the *frontend* just doesn't render the sensitive parts. But the data is in the JSON response — visible in the Network panel (Module 0.3). Fix: return explicit **DTOs (Data Transfer Objects)** — hand-picked, safe fields — never the raw row.
+- **Missing pagination/rate limits.** An endpoint that returns *all* records, or has no rate limit, enables scraping and DoS. Fix: paginate list endpoints; rate-limit (Module 3.1).
+- **File upload risks and webhook verification** — covered in Module 3.4 and below.
+
+**Webhook verification.** If your API receives webhooks (Stripe, GitHub), anyone who knows the URL can POST fake events unless you **verify the signature** the provider sends (an HMAC of the body with a shared secret). Without verification, an attacker forges "payment succeeded." Always verify webhook signatures and reject unsigned/mismatched payloads.
+
+### ⚔️ Hands-on: exploit IDOR and mass assignment, then fix both
+
+> **Ethics & scope.** Local Express app, your own seed data, your own browser/\`curl\`. Changing an id in a URL against *your own* lab is how you learn BOLA safely. Never enumerate other users' object ids on systems you don't own — that's unauthorized access even when it's "just incrementing a number."
+
+\`\`\`bash
+cd ~/express-lab && npm install express   # reuse the lab folder
+\`\`\`
+
+\`api-lab.js\` — both bugs in one small app:
+
+\`\`\`js
+import express from "express";
+const app = express();
+app.use(express.json());
+
+// fake auth: header X-User-Id identifies the caller (stands in for a real session)
+const users = { 1: { id:1, name:"Alice", email:"alice@x.com", isAdmin:false },
+                2: { id:2, name:"Bob",   email:"bob@x.com",   isAdmin:false } };
+const orders = { 100:{ id:100, ownerId:1, total:50 }, 200:{ id:200, ownerId:2, total:99 } };
+const auth = (req,_res,next)=>{ req.userId = Number(req.headers["x-user-id"]); next(); };
+app.use(auth);
+
+// ❌ IDOR/BOLA: returns ANY order by id, never checks the caller owns it.
+app.get("/api/orders/:id", (req, res) => {
+  res.json(orders[req.params.id] || null);
+});
+
+// ❌ Mass assignment + excessive exposure: copies whole body, returns raw row.
+app.patch("/api/users/:id", (req, res) => {
+  Object.assign(users[req.params.id], req.body);   // attacker can set isAdmin!
+  res.json(users[req.params.id]);                   // returns email + isAdmin to client
+});
+app.listen(3000, () => console.log(":3000"));
+\`\`\`
+
+Exploit:
+
+\`\`\`bash
+node api-lab.js
+# IDOR: Alice (user 1) reads Bob's order 200 just by changing the id:
+curl -s :3000/api/orders/200 -H 'X-User-Id: 1'        # -> Bob's order leaked
+
+# Mass assignment: Alice promotes herself to admin via an unexpected field:
+curl -s -X PATCH :3000/api/users/1 -H 'X-User-Id: 1' \\
+  -H 'Content-Type: application/json' -d '{"name":"Alice","isAdmin":true}'   # -> isAdmin:true
+\`\`\`
+
+**Expected observations:** the first call returns Bob's order though Alice doesn't own it (BOLA). The second sets \`isAdmin:true\` because the handler copied the whole body (mass assignment), and the response also leaks \`email\`/\`isAdmin\` (excessive exposure). Now fix all three:
+
+\`\`\`js
+// ✅ Authorize the OBJECT: only the owner may read it.
+app.get("/api/orders/:id", (req, res) => {
+  const order = orders[req.params.id];
+  if (!order || order.ownerId !== req.userId) return res.status(403).json({ error: "Forbidden" });
+  res.json({ id: order.id, total: order.total });   // DTO: only safe fields
+});
+
+// ✅ Allow-list editable fields; never spread the raw body; return a DTO.
+app.patch("/api/users/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (id !== req.userId) return res.status(403).json({ error: "Forbidden" });   // authorize object
+  const allowed = {};
+  if (typeof req.body.name === "string") allowed.name = req.body.name;          // only name
+  Object.assign(users[id], allowed);                                            // isAdmin can't be set
+  res.json({ id: users[id].id, name: users[id].name });                         // no email/isAdmin
+});
+\`\`\`
+
+Re-run the exploits: the IDOR returns \`403\`, and the mass-assignment payload no longer flips \`isAdmin\` (and the response no longer leaks fields). Three OWASP-class bugs closed by "authorize the object, allow-list the fields, shape the response."
+
+### 🛡️ Defense
+
+- **Authorize every object access** server-side: scope queries to the caller or explicitly verify ownership/role. (Kills IDOR/BOLA.)
+- **Gate privileged functions with role checks** via centralized authz middleware. (Kills BFLA.)
+- **Allow-list writable fields**; never \`Object.assign\`/spread the raw request body onto a record. (Kills mass assignment.)
+- **Return DTOs, not raw rows** — explicitly choose the fields the client may see. (Kills excessive data exposure.)
+- **Paginate list endpoints and rate-limit** to prevent scraping and DoS.
+- **Verify webhook signatures** (HMAC) and reject unsigned/mismatched events.
+- **Log suspicious access patterns** (repeated 403s, id enumeration) for detection (Phase 9).
+
+**False-confidence traps:** "The UI never shows other users' orders, so no one can reach them" (the API is a public URL; the client doesn't gate access); "the UI hides those fields" (they're in the JSON — open the Network panel); "we authenticate every request" (auth-n isn't auth-z — you must check the *object*, not just that someone's logged in); "the id is a UUID, so IDOR is impossible" (harder to guess, but UUIDs leak via other endpoints, referrers, and logs — still authorize the object); "the body only has the fields our form sends" (the attacker sends any fields they like).
+
+### 💻 The same three bugs and fixes in Python (Flask + pydantic)
+
+The vulnerabilities are framework-agnostic — they come from *missing object authorization*, *trusting the request shape*, and *returning raw rows*. Here are all three in Flask, then fixed. Note that Python's mass-assignment trap looks slightly different (\`record.__dict__.update(body)\`, \`Model(**body)\`, or a DRF serializer with \`fields = '__all__'\`), but it's the same mistake: letting the client decide which fields get written.
+
+\`\`\`python
+# api_lab.py — IDOR, mass assignment, and excessive exposure in Flask
+from flask import Flask, request, jsonify
+app = Flask(__name__)
+
+users = {1: {"id": 1, "name": "Alice", "email": "alice@x.com", "isAdmin": False},
+         2: {"id": 2, "name": "Bob",   "email": "bob@x.com",   "isAdmin": False}}
+orders = {100: {"id": 100, "ownerId": 1, "total": 50},
+          200: {"id": 200, "ownerId": 2, "total": 99}}
+
+def caller_id():
+    return int(request.headers.get("X-User-Id", 0))   # stands in for a real session
+
+# ❌ IDOR/BOLA: returns ANY order by id, never checks the caller owns it.
+@app.get("/api/orders/<int:oid>")
+def get_order_vulnerable(oid):
+    return jsonify(orders.get(oid))
+
+# ❌ Mass assignment + excessive exposure: writes the whole body, returns the raw record.
+@app.patch("/api/users/<int:uid>")
+def patch_user_vulnerable(uid):
+    users[uid].update(request.get_json())   # attacker can set isAdmin!
+    return jsonify(users[uid])               # leaks email + isAdmin
+\`\`\`
+
+Now the fixes — *authorize the object, allow-list the fields with a pydantic model, return an explicit DTO*:
+
+\`\`\`python
+from pydantic import BaseModel, constr
+
+# pydantic acts as the allow-list: ONLY 'name' is ever read off the body.
+# Unknown fields like isAdmin are ignored by default — mass assignment is structurally impossible.
+class UserPatch(BaseModel):
+    name: constr(min_length=1, max_length=100)
+
+@app.get("/api/orders/<int:oid>")
+def get_order_secure(oid):
+    order = orders.get(oid)
+    # ✅ Authorize the OBJECT: only the owner may read it.
+    if not order or order["ownerId"] != caller_id():
+        return jsonify(error="Forbidden"), 403
+    return jsonify(id=order["id"], total=order["total"])      # DTO: only safe fields
+
+@app.patch("/api/users/<int:uid>")
+def patch_user_secure(uid):
+    if uid != caller_id():                                    # authorize the object
+        return jsonify(error="Forbidden"), 403
+    patch = UserPatch(**(request.get_json() or {}))           # allow-list via schema
+    users[uid]["name"] = patch.name                           # isAdmin can't be set
+    return jsonify(id=users[uid]["id"], name=users[uid]["name"])   # DTO: no email/isAdmin
+\`\`\`
+
+> **Django REST Framework note:** the idiomatic DTO/allow-list tool is the serializer. Always name the \`fields\` explicitly (\`fields = ["id", "name"]\`) — never \`fields = "__all__"\`, which is the DRF version of returning a raw row *and* accepting mass assignment in one line. Object authorization goes in \`get_queryset()\` (scope to \`request.user\`) or a \`permission_classes\` object-level check.
+
+### 🎯 Module 3.3.1: GraphQL Security
+
+GraphQL is a query language that lets the client decide which fields and how deep to traverse. That power is also the attack surface.
+
+**Four-level explanation.**
+
+- **Toddler.** "Tell me anything, but only what you're allowed."
+- **15-year-old.** GraphQL is one URL where the client writes the question. If the server doesn't limit the question, attackers ask for everything.
+- **Developer.** A single \`/graphql\` endpoint accepts arbitrary queries. Without per-field/per-object authorization, depth limits, complexity limits, and introspection control, a single malicious query can dump your database or DoS your server.
+- **Professional.** Threat model GraphQL as a typed RPC: every resolver is an authorization boundary, every list field needs cost analysis, every recursive type needs depth limiting, every field can be the source of N+1 fan-out.
+
+**Top GraphQL risks:**
+
+| Risk | What happens | Defense |
+|---|---|---|
+| Introspection in prod | Attacker queries \`__schema\` to map your entire API | Disable introspection in production |
+| Query depth/complexity DoS | \`user { friends { friends { friends { ... } } } }\` (1M queries) | \`graphql-depth-limit\`, \`graphql-cost-analysis\` |
+| Field-level authz missing | Resolver returns sensitive fields without checking the caller | Authorize per resolver, not just per route |
+| Batch query abuse | One HTTP request runs 1000 mutations | Limit operations per request |
+| Aliased queries (rate-limit bypass) | \`a: login(...) b: login(...) c: login(...)\` runs N logins in 1 request | Count operations, not requests |
+| Verbose errors | Errors leak schema, stack traces, SQL | Mask errors in production |
+
+**Try It Yourself: query a vulnerable GraphQL API.** Spin up DVGA (Damn Vulnerable GraphQL Application):
+
+\`\`\`bash
+docker run --rm --platform linux/amd64 -p 5013:5013 dolevf/dvga
+\`\`\`
+
+> **M2 note:** DVGA only publishes an x86 (\`linux/amd64\`) image, so it runs under Rosetta 2 emulation on Apple Silicon (the \`--platform linux/amd64\` flag handles this; install Rosetta once with \`softwareupdate --install-rosetta\` if Docker prompts). It's a learning lab, so the emulation overhead is fine. **Ethics & scope:** DVGA is intentionally vulnerable and runs on your own machine — attack only this and other labs you control.
+
+Then in your browser open \`http://localhost:5013\` and try:
+
+\`\`\`graphql
+query Recon {
+  __schema {
+    types { name fields { name type { name } } }
+  }
+}
+\`\`\`
+
+<details>
+<summary>Reveal: what to do next</summary>
+
+Once you have the schema, walk to a \`users\` query and ask for \`password\` or \`token\` fields. If the server answers, that is the vulnerability. The fix is field-level authorization plus disabling introspection in production.
+</details>
+
+**Apollo Server hardening sketch (Node):**
+
+\`\`\`javascript
+const { ApolloServer } = require('@apollo/server');
+const depthLimit = require('graphql-depth-limit');
+const costAnalysis = require('graphql-cost-analysis').default;
+
+const server = new ApolloServer({
+  typeDefs, resolvers,
+  introspection: process.env.NODE_ENV !== 'production',
+  validationRules: [
+    depthLimit(7),
+    costAnalysis({ maximumCost: 1000, defaultCost: 1 }),
+  ],
+  formatError: (err) => {
+    if (process.env.NODE_ENV === 'production') {
+      // never leak stack traces
+      return { message: err.message };
+    }
+    return err;
+  },
+});
+\`\`\`
+
+**The same hardening in Python (Strawberry / Graphene).** Python's GraphQL servers face the identical risks and apply the same four controls — disable introspection in prod, cap query depth, mask errors, and authorize per-resolver:
+
+\`\`\`python
+# Strawberry (the modern, type-hint-based Python GraphQL library)
+import strawberry
+from strawberry.extensions import QueryDepthLimiter, MaskErrors
+from strawberry.schema.config import StrawberryConfig
+import os
+
+IS_PROD = os.getenv("ENV") == "production"
+
+schema = strawberry.Schema(
+    query=Query,
+    extensions=[
+        QueryDepthLimiter(max_depth=7),           # graphql-depth-limit equivalent (DoS guard)
+        MaskErrors(should_mask=lambda e: IS_PROD), # never leak stack traces / SQL in prod
+    ],
+    # Disable introspection in production so attackers can't dump the schema with __schema.
+    config=StrawberryConfig(disable_field_suggestions=IS_PROD),
+)
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def me(self, info) -> "User":
+        # ✅ Field-level authorization: every resolver is its own authz boundary,
+        #    exactly as in Apollo — authenticate AND authorize the object the field returns.
+        user = info.context["request"].user
+        if not user.is_authenticated:
+            raise PermissionError("Forbidden")
+        return user
+\`\`\`
+
+> For Graphene (the older Django-friendly library) the equivalents are \`graphene\` validation rules plus \`graphene-django\`'s \`DjangoObjectType\` with an explicit \`fields\` allow-list — never \`fields = "__all__"\` on a type that has sensitive columns, for the same reason as the DTO rule above. Whatever the library, the GraphQL threat model is constant: every resolver is an authorization boundary, every list field needs a cost/depth bound, and introspection is recon you should turn off in production.
+
+### Knowledge check: API Security
+
+1. What is the difference between BOLA and BFLA?
+2. Why is mass assignment dangerous when using ORMs that hydrate request bodies directly?
+3. Name three GraphQL-specific attacks that don't exist in REST.
+4. Why does aliased query batching break naive rate limiting?
+5. When would you choose to keep introspection on in production, and how would you protect it?
+6. Why is returning raw database rows (instead of DTOs) a vulnerability even if the UI hides the extra fields?
+
+<details>
+<summary>Show answers</summary>
+
+1. **BOLA** (Broken Object Level Authz) = wrong user accesses another user's resource (object-level). **BFLA** (Broken Function Level Authz) = wrong user accesses a privileged endpoint/function (e.g., \`/admin/delete\`).
+2. ORMs like Sequelize/Prisma can write directly to fields the user shouldn't control (\`isAdmin\`, \`creditBalance\`). Always allow-list the fields you accept.
+3. Introspection abuse, query depth/complexity DoS, and aliased operation abuse (also: nested-list complexity attacks and field-level info disclosure unique to typed schemas).
+4. Most rate limiters count HTTP requests. With aliases, one request runs many operations, so per-IP/min limits don't trigger; you must count operations, not requests.
+5. Public APIs meant for third-party developers (e.g., GitHub's GraphQL API) keep introspection on. Protect it with auth, rate limits, and field-level redaction for unauthenticated callers.
+6. The "hidden" fields are still present in the JSON response, fully visible in the browser's Network panel or any direct API call. The UI hiding them is client-side only; the data has already left the server. Return DTOs with only safe fields.
+</details>
+
+➡️ **Next step:** One API surface deserves its own module because beginners get it wrong constantly and the impact is code execution: file uploads. Continue to **Module 3.4: File Upload Security**.`,
+    tracker: ["Built api-lab.js with IDOR and mass-assignment bugs", "Exploited BOLA by changing an order id, and self-promoted to admin via mass assignment", "Fixed all three with object authorization, field allow-listing, and DTOs", "Read the Flask + pydantic dual-language version (plus the DRF __all__ note)", "Ran DVGA and queried __schema introspection", "Read the Apollo + Strawberry GraphQL hardening sketches", "Answered the API Security quiz"]
+  },
+  {
+    id: "m3_4",
+    phaseId: "p3",
+    num: "3.4",
+    title: "File Upload Security",
+    objective: "Letting users upload files feels innocuous but is one of the highest-impact features to get wrong. A mishandled upload can lead to remote code execution, stored XSS, denial of service, or serving malware to other users. The defenses are a checklist, each item born of a specific attack.",
+    body: `> **Why this matters.** Letting users upload files feels innocuous — profile pictures, attachments — but it's one of the highest-impact features to get wrong. A mishandled upload can lead to *remote code execution* (uploading a script the server then executes), stored XSS (an SVG/HTML file served inline), denial of service (huge files), or serving malware to other users. The defenses are a checklist, but each item exists because of a specific attack.
+
+### 🎯 Concept: why "it's just a file" is dangerous, attack by attack
+
+A file upload crosses a trust boundary: the client sends *content*, a *filename*, and a *declared type*, and your server stores and often later *serves* or *processes* it. Each of those is attacker-controlled. The attacks:
+
+- **Executable upload → code execution.** If you save uploads inside a directory the web server will *execute* (e.g. a PHP/CGI path), an attacker uploads \`shell.php\` and requests it — the server runs their code. Even in Node, an upload written into a served static directory with a dangerous extension, or later \`require()\`d/processed, can be catastrophic. **Defense: store uploads *outside* any web-executable root, never execute them, and serve them as inert downloads.**
+- **Trusting the declared MIME type / extension.** The client sets \`Content-Type\` and the filename; both are forgeable (you forged headers with \`curl\` in Phase 1). A \`.jpg\` extension or \`image/jpeg\` header proves nothing about the bytes. **Defense: verify the *actual* content** (check magic bytes / use a content-sniffing library) server-side, and **allow-list** the few types you truly accept — don't deny-list.
+- **Dangerous "image" types.** **SVG** is XML that can contain \`<script>\` — served inline, it's stored XSS. HTML files served inline run as your origin. **Defense:** don't serve user content inline from your main origin; serve from a separate domain/bucket with \`Content-Disposition: attachment\` and a correct, safe \`Content-Type\`; sanitize or refuse SVG.
+- **Path traversal via filename.** A filename like \`../../etc/passwd\` or \`..\\..\\config\` can, if you use it to build the storage path, write or overwrite files outside the intended folder. **Defense: never use the client filename for the storage path** — generate a random name yourself.
+- **Size/zip-bomb DoS.** No size limit → memory/disk exhaustion. A "zip bomb" (a tiny archive that expands to terabytes) DoSes processors. **Defense: enforce strict size limits before/while reading; bound decompression.**
+- **Metadata leakage.** Photos carry EXIF data (GPS location, device). Serving them as-is leaks user privacy. **Defense: strip metadata** when privacy matters.
+
+**The clean architecture beginners should default to:** accept the upload with a size limit → verify content type by magic bytes against an allow-list → store with a server-generated random name in object storage (S3/GCS) *outside* your app's executable/static root → serve later via **signed, time-limited URLs** (so access is controlled and the file isn't on your app server's path) with \`Content-Disposition: attachment\`. This sidesteps most of the attacks structurally.
+
+### ⚔️ Hands-on: bypass a naive type check, then enforce real validation
+
+> **Ethics & scope.** Local Express upload endpoint, your own files, your own machine. You'll upload a file that *claims* to be an image to defeat a naive check, then fix the server to inspect real bytes. Never upload malicious payloads to servers you don't own.
+
+\`\`\`bash
+cd ~/express-lab && npm install express multer file-type
+\`\`\`
+
+\`upload-lab.js\` — naive check (trusts the declared type):
+
+\`\`\`js
+import express from "express";
+import multer from "multer";
+const app = express();
+// ❌ stores with the client's filename, trusts mimetype, into a served dir
+const upload = multer({ dest: "uploads/" });
+app.post("/upload", upload.single("file"), (req, res) => {
+  // ❌ VULNERABLE: believes the client-declared mimetype
+  if (!req.file.mimetype.startsWith("image/")) return res.status(400).send("images only");
+  res.json({ stored: req.file.filename, claimed: req.file.mimetype });
+});
+app.listen(3000, () => console.log(":3000"));
+\`\`\`
+
+Bypass it — upload a text/script file but *lie* about its type:
+
+\`\`\`bash
+node upload-lab.js
+echo '<script>alert("not an image")<\/script>' > evil.svg
+# claim it's a PNG with the forged Content-Type, defeating the naive check:
+curl -s -X POST :3000/upload -F "file=@evil.svg;type=image/png"
+# -> accepted, because the server trusted the forged 'image/png'
+\`\`\`
+
+**Expected observation:** the non-image is accepted because the server believed the client's \`Content-Type\`. Now enforce *real* validation by sniffing the actual bytes and generating a safe name:
+
+\`\`\`js
+import { fileTypeFromFile } from "file-type";
+import crypto from "crypto";
+import fs from "fs/promises";
+
+const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp"]);
+const upload2 = multer({ dest: "uploads/", limits: { fileSize: 2 * 1024 * 1024 } }); // 2MB cap
+
+app.post("/upload", upload2.single("file"), async (req, res) => {
+  // ✅ inspect actual magic bytes, not the declared type
+  const detected = await fileTypeFromFile(req.file.path);
+  if (!detected || !ALLOWED.has(detected.mime)) {
+    await fs.unlink(req.file.path);                       // discard rejected file
+    return res.status(400).json({ error: "not an allowed image type" });
+  }
+  // ✅ generate a random server-side name; never trust the client filename
+  const safeName = crypto.randomBytes(16).toString("hex") + "." + detected.ext;
+  // (in production: move to object storage OUTSIDE the web root; serve via signed URL)
+  res.json({ stored: safeName, realType: detected.mime });
+});
+\`\`\`
+
+Re-run with the fake PNG: it's rejected because the magic bytes aren't a real image — the forged header is ignored. A real PNG passes and gets a random name.
+
+### 🛡️ Defense: the file-upload checklist, each item mapped to its attack
+
+- **Allow-list accepted types and verify by content (magic bytes), not extension/declared MIME.** (Defeats type spoofing → XSS/RCE.)
+- **Enforce strict size limits** (and bound decompression). (Defeats DoS / zip bombs.)
+- **Generate random server-side filenames; never use the client's filename in a path.** (Defeats path traversal/overwrite.)
+- **Store outside the web-executable/static root** — ideally object storage (S3/GCS). **Never execute uploaded files.** (Defeats code execution.)
+- **Serve user content from a separate domain/bucket with \`Content-Disposition: attachment\` and a safe \`Content-Type\`; sanitize or refuse SVG/HTML.** (Defeats stored XSS / inline execution.)
+- **Prefer signed, time-limited URLs** for access control. (Limits exposure.)
+- **Strip metadata (EXIF)** when privacy matters.
+
+**False-confidence traps:** "I checked the extension/MIME, so it's an image" (both are client-controlled and forgeable — verify the bytes); "it's stored in \`/uploads\`, that's fine" (if that path is served and executable, you've shipped RCE); "SVGs are images, so they're safe to display" (SVG is scriptable XML — inline display is stored XSS); "I'll add a size limit later" (the absence is a DoS now); "I use the user's filename so downloads are nice" (path traversal — generate your own name and set the download name via a header).
+
+### 💻 The same naive check and real validation in Python (Flask + python-magic)
+
+Multer's \`req.file.mimetype\` becomes Flask's \`file.content_type\` — and it is exactly as untrustworthy, because the client sets it. The \`file-type\` library's magic-byte sniffing becomes \`python-magic\` (a libmagic binding; \`brew install libmagic\` first on M2). The fixes are identical in spirit: sniff real bytes, allow-list, generate a random name, cap the size.
+
+\`\`\`bash
+brew install libmagic                       # native dependency for python-magic on M2
+pip install flask python-magic
+\`\`\`
+
+\`\`\`python
+# upload_lab.py
+import os, secrets
+import magic                                 # libmagic: reads actual file bytes
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024     # 2 MB cap (zip-bomb / DoS guard)
+ALLOWED = {"image/png", "image/jpeg", "image/webp"}
+UPLOAD_DIR = "/var/app-uploads"              # OUTSIDE the web root; never served as code
+
+# ❌ VULNERABLE: trusts the client-declared content_type, just like the multer naive check.
+@app.post("/upload-vulnerable")
+def upload_vulnerable():
+    f = request.files["file"]
+    if not f.content_type.startswith("image/"):    # forgeable — proves nothing about the bytes
+        return jsonify(error="images only"), 400
+    f.save(os.path.join(UPLOAD_DIR, f.filename))   # also: client filename -> path traversal!
+    return jsonify(stored=f.filename, claimed=f.content_type)
+
+# ✅ SECURE: sniff real magic bytes, allow-list, random server-side name.
+@app.post("/upload")
+def upload_secure():
+    f = request.files["file"]
+    head = f.stream.read(2048)                      # read a chunk to identify the real type
+    f.stream.seek(0)
+    real_mime = magic.from_buffer(head, mime=True)  # actual bytes, NOT the declared header
+    if real_mime not in ALLOWED:
+        return jsonify(error="not an allowed image type"), 400
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[real_mime]
+    safe_name = f"{secrets.token_hex(16)}.{ext}"    # random name — defeats path traversal
+    f.save(os.path.join(UPLOAD_DIR, safe_name))
+    # In production: push to S3/GCS outside the app server; serve via a signed, time-limited URL
+    # with Content-Disposition: attachment. Same architecture as the Node path.
+    return jsonify(stored=safe_name, realType=real_mime)
+\`\`\`
+
+Run the same forged-\`image/png\` upload against \`/upload-vulnerable\` and it's accepted; against \`/upload\` it's rejected because \`magic.from_buffer\` reports the true type. Identical lesson, identical defense — the only thing that changed is the library binding around the same magic-byte check.
+
+> **Django note:** \`request.FILES["file"]\` carries the same forgeable \`content_type\`; validate with \`python-magic\` (or Pillow's \`Image.open(...).verify()\` for images specifically), set \`FILE_UPLOAD_MAX_MEMORY_SIZE\` / \`DATA_UPLOAD_MAX_MEMORY_SIZE\`, and store via \`default_storage\` pointed at a non-executable location or object storage — never \`MEDIA_ROOT\` under a path your server will execute.
+
+### Knowledge check: File Upload Security
+
+1. Why is trusting the \`Content-Type\` header or file extension insufficient, and what should you check instead?
+2. Explain how a file upload can lead to remote code execution.
+3. Why is an uploaded SVG a stored-XSS risk, and how do you serve user files safely?
+4. What attack does generating a random server-side filename prevent?
+5. Describe the recommended default architecture for handling user uploads.
+
+<details>
+<summary>Show answers</summary>
+
+1. Both the declared MIME type and the filename/extension are set by the client and forgeable (as with any header), so they don't reflect the real bytes. Verify the *actual content* via magic bytes / a content-sniffing library, against an allow-list of accepted types.
+2. If uploads are stored where the web server will execute them (an executable path/extension) or are later processed/required by the server, an attacker uploads code (e.g. \`shell.php\`) and triggers its execution — running arbitrary code on your server.
+3. SVG is XML that can embed \`<script>\`; if served inline from your origin, the script runs as your site (stored XSS). Serve user files from a separate domain/bucket with \`Content-Disposition: attachment\` and a safe \`Content-Type\`, and sanitize or refuse SVG/HTML.
+4. Path traversal / file overwrite: a malicious filename like \`../../etc/passwd\` could escape the intended directory if used to build the storage path. A server-generated random name eliminates client influence over the path.
+5. Accept with a size limit → verify content type by magic bytes against an allow-list → store with a random server-side name in object storage *outside* the executable/static root (never executed) → serve via signed, time-limited URLs with \`Content-Disposition: attachment\`; strip metadata when needed.
+</details>
+
+➡️ **Next step:** You can harden a server, kill injection, lock down APIs and uploads. Now zoom out to the industry-standard map of *all* the major risks and practice them hands-on. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+    tracker: ["Built upload-lab.js and bypassed its naive mimetype check with a forged image/png", "Fixed it with magic-byte sniffing, an allow-list, a size cap, and a random filename", "Read the Flask + python-magic dual-language version (plus the Django note)", "Can explain how an upload becomes remote code execution", "Can explain why an SVG is a stored-XSS risk and how to serve files safely", "Can recite the default safe upload architecture", "Answered the knowledge check"]
   }],
 
   // ---- end migrated AppSec data ----
