@@ -7759,14 +7759,14 @@ function OSTabs({
    MAIN APP
    ========================================================================= */
 
-const STORAGE_KEY = "cyber-guardians-progress-v1";
+const STORAGE_KEY = "appsec-react-progress-v1";
 function App() {
   // initial id: URL hash > localStorage > default
   const initialId = () => {
     try {
       const fromHash = (location.hash || "").replace(/^#/, "");
       if (fromHash && curriculum.modules.some(m => m.id === fromHash)) return fromHash;
-      const saved = localStorage.getItem("cg-active");
+      const saved = localStorage.getItem("appsec-react-active");
       if (saved && curriculum.modules.some(m => m.id === saved)) return saved;
       return curriculum.modules[0].id;
     } catch {
@@ -7799,7 +7799,7 @@ function App() {
   }, [progress]);
   useEffect(() => {
     try {
-      localStorage.setItem("cg-active", activeModuleId);
+      localStorage.setItem("appsec-react-active", activeModuleId);
       // keep URL hash in sync for deep-linking / bookmarking
       if (location.hash !== "#" + activeModuleId) {
         history.replaceState(null, "", "#" + activeModuleId);
