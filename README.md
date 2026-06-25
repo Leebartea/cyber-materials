@@ -2,8 +2,17 @@
 
 Two self-paced cybersecurity curricula, each shipped as a self-contained, offline-first HTML reader — no build step, no server, no account. Open the file in any browser, on any device.
 
-- **Cyber Guardians** (`cyber_guardians_curriculum.md`, `cyber_guardians_app.html`) — broad cybersecurity course, beginner to specialist, as an interactive React reader (progress tracking, quizzes, search).
-- **Full-Stack AppSec** (`cyber-full stack/full_stack_appsec_curriculum.md`, `full_stack_appsec_app.html`) — a security path built specifically for full-stack web developers: every vulnerability is shown with annotated vulnerable-vs-secure code in **both Node.js and Python**, plus hands-on labs scoped to Apple Silicon. Start with `cyber-full stack/START_HERE_appsec.md`. (A plain-HTML fallback reader with the same content is at `full_stack_appsec_app_static.html`.)
+- **Cyber Guardians** (`cyber-guardians/cyber_guardians_curriculum.md`, `cyber-guardians/cyber_guardians_app.html`) — broad cybersecurity course, beginner to specialist, as an interactive React reader (progress tracking, quizzes, search).
+- **Full-Stack AppSec** (`cyber-full stack/full_stack_appsec_curriculum.md`, `cyber-full stack/full_stack_appsec_app.html`) — a security path built specifically for full-stack web developers: every vulnerability is shown with annotated vulnerable-vs-secure code in **both Node.js and Python**, plus hands-on labs. Start with `cyber-full stack/START_HERE_appsec.md`. (A plain-HTML fallback reader with the same content is at `cyber-full stack/full_stack_appsec_app_static.html`.)
+
+## How to use these files
+
+Every `.html` reader in this repo is a single self-contained file — React/CSS/content are all inlined, with no build step, no server, and no internet connection required.
+
+- **Open it directly:** double-click the file, or drag it onto an open browser window, or use your browser's File → Open. Any modern browser works (Chrome, Firefox, Safari, Edge).
+- **Folder location doesn't matter.** None of these files link to each other or load anything relative to their location, so you can move, rename, or reorganize them freely — nothing will break.
+- **Progress is saved locally in your browser** (via `localStorage`), tied to that exact file. If you move or rename a reader *after* you've started checking off progress in it, treat it as a fresh copy — the saved progress stays attached to the old file path/name, not the content. Avoid renaming a reader once you're partway through it.
+- **Cross-device note:** since progress lives in the browser, not in the file, it doesn't automatically sync between devices. Copy the `.html` file to each device you study from; each copy tracks its own progress independently.
 
 ## Responsible use
 

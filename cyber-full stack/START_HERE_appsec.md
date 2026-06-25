@@ -6,7 +6,7 @@ Use this first.
 
 1. `full_stack_appsec_curriculum.md`
    - Your main path.
-   - Starts from absolute beginner basics, then builds toward your background: frontend-heavy full-stack developer on Mac M2 Pro.
+   - Starts from absolute beginner basics, then builds toward a full-stack web developer's background — works on macOS, Windows, or Linux.
    - Focuses on web, API, Node/Express/Postgres, auth, Burp, OWASP, secure deployment, and portfolio projects.
 
 2. `full_stack_appsec_app.html`
@@ -14,17 +14,17 @@ Use this first.
    - Open it directly in any browser — no install, no internet needed.
    - A plain-HTML fallback with identical content is at `full_stack_appsec_app_static.html`, kept in case you ever want it.
 
-3. `../cyber_guardians_curriculum.md`
+3. `../cyber-guardians/cyber_guardians_curriculum.md`
    - Keep as the broad reference.
    - Use later for blue team, forensics, malware, general networking, and wider cybersecurity branches.
 
-4. `../cyber_guardians_app.html`
+4. `../cyber-guardians/cyber_guardians_app.html`
    - Interactive version of the broad course.
    - Useful, but not the priority path for you right now.
 
 ## Your Priority Order
 
-1. Set up the Mac M2 Pro lab from `full_stack_appsec_curriculum.md`.
+1. Set up your lab from the Environment Setup section of `full_stack_appsec_curriculum.md` (covers macOS, Windows, and Linux).
 2. Do Phase 0 even if it feels familiar: computer, web, backend, database, terminal.
 3. Learn HTTP, DNS, TLS, cookies, CORS, and CLI basics.
 4. Go deep on browser security: XSS, CSRF, CSP, storage, same-origin policy.
@@ -46,8 +46,7 @@ Day 1:
 
 Day 2:
 
-- Install Homebrew and Xcode Command Line Tools.
-- Install core developer tools.
+- Install your platform's package manager (Homebrew on macOS, winget/Chocolatey on Windows, apt/dnf on Linux) and core developer tools.
 
 Day 3:
 
