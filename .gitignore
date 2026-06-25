@@ -2,9 +2,10 @@
 *.backup
 *.bak-*
 
-# Agent memory is personal/dynamic (background, hardware, preferences) -
-# useful locally across sessions, not meant for a published repo.
+# Agent definitions and memory are personal/dynamic (background, hardware,
+# preferences, local paths) - useful locally, not meant for a published repo.
 .claude/agent-memory/
+.claude/agents/
 
 # Personal hardware-specific setup notes (this machine only) - the public
 # curriculum is platform-agnostic; this is the owner's own cheat-sheet.
