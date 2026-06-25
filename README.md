@@ -3,7 +3,7 @@
 Two self-paced cybersecurity curricula, each shipped as a self-contained, offline-first HTML reader — no build step, no server, no account. Open the file in any browser, on any device.
 
 - **Cyber Guardians** (`cyber_guardians_curriculum.md`, `cyber_guardians_app.html`) — broad cybersecurity course, beginner to specialist, as an interactive React reader (progress tracking, quizzes, search).
-- **Full-Stack AppSec** (`cyber-full stack/full_stack_appsec_curriculum.md`, `full_stack_appsec_app.html`) — a security path built specifically for full-stack web developers: every vulnerability is shown with annotated vulnerable-vs-secure code in **both Node.js and Python**, plus hands-on labs scoped to Apple Silicon. Start with `cyber-full stack/START_HERE_appsec.md`.
+- **Full-Stack AppSec** (`cyber-full stack/full_stack_appsec_curriculum.md`, `full_stack_appsec_app.html`) — a security path built specifically for full-stack web developers: every vulnerability is shown with annotated vulnerable-vs-secure code in **both Node.js and Python**, plus hands-on labs scoped to Apple Silicon. Start with `cyber-full stack/START_HERE_appsec.md`. (A plain-HTML fallback reader with the same content is at `full_stack_appsec_app_static.html`.)
 
 ## Responsible use
 

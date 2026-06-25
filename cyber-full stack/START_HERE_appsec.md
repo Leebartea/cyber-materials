@@ -9,11 +9,16 @@ Use this first.
    - Starts from absolute beginner basics, then builds toward your background: frontend-heavy full-stack developer on Mac M2 Pro.
    - Focuses on web, API, Node/Express/Postgres, auth, Burp, OWASP, secure deployment, and portfolio projects.
 
-2. `../cyber_guardians_curriculum.md`
+2. `full_stack_appsec_app.html`
+   - Interactive reader for this same curriculum: sidebar navigation by phase, search, and a progress tracker saved locally in your browser.
+   - Open it directly in any browser — no install, no internet needed.
+   - A plain-HTML fallback with identical content is at `full_stack_appsec_app_static.html`, kept in case you ever want it.
+
+3. `../cyber_guardians_curriculum.md`
    - Keep as the broad reference.
    - Use later for blue team, forensics, malware, general networking, and wider cybersecurity branches.
 
-3. `../cyber_guardians_app.html`
+4. `../cyber_guardians_app.html`
    - Interactive version of the broad course.
    - Useful, but not the priority path for you right now.
 
