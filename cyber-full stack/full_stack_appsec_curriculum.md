@@ -1,5 +1,5 @@
 # Full-Stack Developer to Application Security
-## A Web-First Cybersecurity Curriculum for Absolute Beginners, Built Around the Full-Stack Developer Path on Mac M2 Pro
+## A Web-First Cybersecurity Curriculum for Absolute Beginners, Built Around the Full-Stack Developer Path
 
 > This path starts from zero on purpose. Even if you already know HTML, CSS, JavaScript, Node.js, Express, Postgres, or CLI basics, you will revisit them from a security angle. Repetition here is not wasted time. It hardens your existing knowledge, exposes assumptions, and turns familiar web-development ideas into security instincts.
 
@@ -12,7 +12,7 @@
 3. [How This Path Differs From the Broad Cyber Guardians Course](#how-this-path-differs)
 4. [Priority Learning Map](#priority-learning-map)
 5. [Ethics, Scope, and Legal Safety](#ethics-scope-and-legal-safety)
-6. [Mac M2 Pro Security Lab Setup](#mac-m2-pro-security-lab-setup)
+6. [Environment & Lab Setup](#environment-and-lab-setup)
 7. [Pre-Course Primer](#pre-course-primer)
 8. [Phase 0: Computer, Web, Code, and Terminal Basics](#phase-0-computer-web-code-and-terminal-basics)
 9. [Phase 1: Web, Internet, and CLI Foundations](#phase-1-web-internet-and-cli-foundations)
@@ -275,41 +275,47 @@ Use this rule: if you cannot clearly explain who gave you permission and what ex
 
 ---
 
-<a id="mac-m2-pro-security-lab-setup"></a>
-## Mac M2 Pro Security Lab Setup
+<a id="environment-and-lab-setup"></a>
+## Environment & Lab Setup
 
-This setup is optimized for Apple Silicon. Prefer native ARM64 tools where possible. Use containers and purpose-built labs before heavy VMs. For full virtual machines on your Mac M2 Pro, the most polished option is VMware Fusion Pro 13 or newer; UTM remains the best free/open-source fallback.
+This section gets you a working AppSec lab on **macOS (Apple Silicon or Intel), Windows, or Linux**. The tools are the same everywhere; only the package manager and a few install commands differ. Wherever a command genuinely differs by OS, you'll see clearly labeled **macOS / Windows / Linux** variants. Wherever a note is about CPU architecture rather than a specific laptop, it's labeled as an **ARM64 note** — that applies equally to Apple Silicon Macs, Windows-on-ARM machines, and ARM Linux boxes.
 
-### Step 0: System Prep
+### Your machine architecture
 
-Update macOS first:
+Most of this course runs the same on any modern 64-bit machine. The one thing worth knowing up front is whether your CPU is **x86-64 (Intel/AMD)** or **ARM64 (Apple Silicon, Snapdragon, Raspberry Pi, AWS Graviton, etc.)**, because a handful of older vulnerable-app Docker images are published only for x86-64 and must be emulated on ARM64.
+
+Check your architecture:
+
+```bash
+# macOS / Linux
+uname -m         # "arm64" or "aarch64" = ARM64; "x86_64" = Intel/AMD
+```
+
+```powershell
+# Windows (PowerShell)
+echo $env:PROCESSOR_ARCHITECTURE   # "AMD64" = x86-64; "ARM64" = ARM
+```
+
+### Recommended approach: host-first, with one attacker VM
+
+You do **not** need to put everything in a virtual machine. The pragmatic, widely used setup is a **hybrid**:
+
+- **Run directly on your host (most of the course):** your own vulnerable-then-fixed app code, and the Docker-based targets (Juice Shop, DVWA, WebGoat, DVNA, DVGA). This is just normal local web development, and Docker already gives you reasonable process/network isolation. Containerizing or VM-ing *everything* by default just adds overhead and friction while you're learning.
+- **Use one dedicated attacker VM (Kali Linux) for the heavy testing phases:** specifically Phase 5 (Burp Suite / ZAP / proxying workflows) and the network-testing-heavy parts of Phase 4. There, a pre-built, tool-rich, isolated Kali environment genuinely earns its overhead: real network isolation, a clean separation between "attacker" and "target," and every tool already installed and on your PATH.
+
+Think of it as: **host = where you build and run targets; Kali VM = where you attack them.** You only need the VM once you reach the proxying/network modules, so don't let VM setup block you from starting Phase 0.
+
+### Step 0: System prep & package manager
+
+Each OS has a package manager you'll use for almost every install below. Set it up once.
+
+**macOS — Homebrew.** First update macOS and install the Xcode Command Line Tools (needed for compiling and for many brew formulae):
 
 ```bash
 softwareupdate --list
 softwareupdate --install --all
-```
-
-Install Xcode Command Line Tools:
-
-```bash
 xcode-select --install
 ```
-
-Check your chip and shell:
-
-```bash
-uname -m
-echo $SHELL
-sw_vers
-```
-
-Expected chip output on your machine:
-
-```text
-arm64
-```
-
-### Step 1: Homebrew for Apple Silicon
 
 Install Homebrew:
 
@@ -317,11 +323,7 @@ Install Homebrew:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-Add Homebrew to your shell if the installer asks. On Apple Silicon, Homebrew usually lives at:
-
-```bash
-/opt/homebrew/bin/brew
-```
+> **ARM64 note (Apple Silicon).** On Apple Silicon, Homebrew installs to `/opt/homebrew` (on Intel Macs it's `/usr/local`). If the installer prints a "Next steps" block asking you to add brew to your PATH, run those `eval "$(/opt/homebrew/bin/brew shellenv)"` lines — otherwise the `brew` command won't be found in new shells.
 
 Verify:
 
@@ -330,12 +332,59 @@ brew --version
 brew doctor
 ```
 
-### Step 2: Core Developer Toolkit
+**Windows — winget (built in) or Chocolatey.** `winget` ships with Windows 10/11; nothing to install. If you prefer Chocolatey, install it from an **Administrator** PowerShell:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+```
+
+> **Windows tip:** for the Linux-style command-line workflow this course uses (bash, `curl`, the security CLIs), install **WSL2** with `wsl --install` from an Administrator PowerShell, then run an Ubuntu shell. Inside WSL you get the exact `apt` workflow shown in the Linux variants below, and Docker Desktop integrates with it automatically. Native PowerShell works too, but WSL2 will make the rest of the course feel smoother.
+
+**Linux — apt (Debian/Ubuntu) or dnf (Fedora/RHEL).** Update first:
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt upgrade -y
+
+# Fedora / RHEL
+sudo dnf upgrade --refresh -y
+```
+
+You can also install **Homebrew on Linux** if you want the same `brew install` commands as the macOS instructions — it works on x86-64 and ARM64 Linux and is a convenient way to get newer versions of the security tools than some distro repos ship.
+
+### Step 1: Core developer toolkit
+
+You need Git, Node.js, Python 3, and a good editor (VS Code) everywhere. Install whichever way matches your OS:
+
+**macOS (Homebrew):**
 
 ```bash
 brew install git gh tree jq yq wget curl httpie ripgrep fd bat fzf htop tmux
 brew install node pnpm yarn python@3.12 pipx go rust
-brew install --cask visual-studio-code iterm2 firefox@developer-edition brave-browser
+brew install --cask visual-studio-code firefox@developer-edition
+```
+
+**Windows (winget):**
+
+```powershell
+winget install Git.Git GitHub.cli jqlang.jq stedolan.yq Microsoft.PowerShell
+winget install OpenJS.NodeJS.LTS Python.Python.3.12 pnpm.pnpm GoLang.Go Rustlang.Rustup
+winget install Microsoft.VisualStudioCode Mozilla.Firefox.DeveloperEdition
+# pipx: after Python is installed -> py -m pip install --user pipx; py -m pipx ensurepath
+```
+
+**Linux (apt):**
+
+```bash
+sudo apt install -y git gh tree jq wget curl httpie ripgrep fd-find bat fzf htop tmux \
+  golang rustc pipx
+# Node.js LTS via NodeSource (apt's default is often too old):
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install -y nodejs
+sudo npm install -g pnpm yarn
+sudo apt install -y python3 python3-venv python3-pip
+# VS Code: download the .deb from code.visualstudio.com, or: sudo snap install code --classic
 ```
 
 Why these matter:
@@ -347,12 +396,38 @@ Why these matter:
 - `node`, `pnpm`, `python`, `go`, `rust`: many security tools use these ecosystems.
 - Firefox Developer Edition: best browser for proxying through Burp/ZAP.
 
-### Step 3: Security Testing Tools
+### Step 2: Security testing tools
+
+Most of these are best installed on your host for quick use, but note that the **Kali Linux attacker VM in Step 5 ships with nearly all of them pre-installed** — so if you'd rather not clutter your host, you can skip ahead and just use them inside Kali when you reach Phase 4/5.
+
+**macOS (Homebrew):**
 
 ```bash
-brew install nmap masscan nikto sqlmap ffuf dirsearch nuclei
+brew install nmap masscan nikto sqlmap ffuf nuclei
 brew install semgrep trivy gitleaks
 brew install --cask burp-suite owasp-zap wireshark
+pipx install dirsearch
+```
+
+**Windows (winget / pipx):**
+
+```powershell
+winget install Insecure.Nmap WiresharkFoundation.Wireshark PortSwigger.BurpSuite.Community
+# Java-based ZAP: winget install ZAP.ZAP   (or download from zaproxy.org)
+# Many of these CLIs are easiest inside WSL2/Kali; in WSL Ubuntu use the Linux commands below.
+pipx install sqlmap semgrep dirsearch
+# ffuf / nuclei / trivy / gitleaks: install via `go install` or grab release binaries.
+```
+
+**Linux (apt + pipx + Go):**
+
+```bash
+sudo apt install -y nmap masscan nikto wireshark
+pipx install sqlmap semgrep dirsearch
+# ffuf, nuclei, gitleaks, trivy via Go or official installers:
+go install github.com/ffuf/ffuf/v2@latest
+go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+# Burp Community + ZAP: download installers from portswigger.net / zaproxy.org
 ```
 
 Important notes:
@@ -367,15 +442,35 @@ Important notes:
 - OWASP ZAP: excellent free alternative and automation-friendly scanner.
 - Wireshark: packet-level understanding, useful but not daily AppSec work.
 
-### Step 4: Containers and Local Labs
+> **ARM64 note.** Burp Suite Community, OWASP ZAP, nmap, sqlmap, semgrep, trivy, and gitleaks all run natively on ARM64 (Apple Silicon, Windows-on-ARM, ARM Linux) — no emulation needed. The only things that need emulation are a few old x86-only *Docker target images*, covered in Step 4.
 
-Install Docker Desktop for Apple Silicon:
+### Step 3: Containers and local labs
+
+Install **Docker Desktop** (or, on macOS/Linux, the lighter **Colima** alternative if you want a CLI-only Docker without the desktop app):
+
+**macOS:**
 
 ```bash
-brew install --cask docker
+brew install --cask docker          # Docker Desktop
+# OR a lightweight CLI-only alternative (good on 16GB RAM machines):
+# brew install colima docker && colima start
 ```
 
-Open Docker Desktop once and let it finish setup. Then verify:
+**Windows:**
+
+```powershell
+winget install Docker.DockerDesktop   # uses the WSL2 backend; enable WSL2 first (Step 0)
+```
+
+**Linux:**
+
+```bash
+# Docker Engine (Ubuntu) — see docs.docker.com/engine/install for your exact distro
+sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker $USER         # log out/in so you can run docker without sudo
+```
+
+Open Docker Desktop once (macOS/Windows) and let it finish setup, then verify on any OS:
 
 ```bash
 docker --version
@@ -383,75 +478,88 @@ docker compose version
 docker run hello-world
 ```
 
-Install vulnerable practice apps:
+Create a labs folder and pull the practice apps. These run **directly on your host** — no VM needed for any of them:
 
 ```bash
-mkdir -p ~/cyber-labs
-cd ~/cyber-labs
+mkdir -p ~/cyber-labs && cd ~/cyber-labs
 ```
 
-OWASP Juice Shop (native ARM64 image — no flag needed):
+OWASP Juice Shop (native multi-arch image — runs natively on both x86-64 and ARM64, no flag needed):
 
 ```bash
 docker run --rm -p 3000:3000 bkimminich/juice-shop
 ```
 
-DVWA (x86-only image — emulate via Rosetta):
+DVWA:
 
 ```bash
-docker run --rm -it --platform linux/amd64 -p 8080:80 vulnerables/web-dvwa
+docker run --rm -it -p 8080:80 vulnerables/web-dvwa
+# ARM64 (Apple Silicon / ARM): this image is x86-only, add --platform linux/amd64
+# docker run --rm -it --platform linux/amd64 -p 8080:80 vulnerables/web-dvwa
 ```
 
-WebGoat (multi-arch, but pin amd64 if the ARM build misbehaves):
+WebGoat (multi-arch; pin amd64 only if the ARM build misbehaves):
 
 ```bash
 docker run --rm -p 8081:8080 webgoat/webgoat
-# or, if the ARM build fails:
-docker run --rm --platform linux/amd64 -p 8081:8080 webgoat/webgoat
+# If it fails on ARM64: docker run --rm --platform linux/amd64 -p 8081:8080 webgoat/webgoat
 ```
 
-Damn Vulnerable NodeJS Application (DVNA — x86-only; emulate):
+Damn Vulnerable NodeJS Application (DVNA — x86-only image):
 
 ```bash
-docker run --rm --platform linux/amd64 -p 9090:9090 appsecco/dvna
+docker run --rm -p 9090:9090 appsecco/dvna
+# ARM64: this image is x86-only, add --platform linux/amd64
+# docker run --rm --platform linux/amd64 -p 9090:9090 appsecco/dvna
 ```
 
-> **M2 Pro / ARM64 note.** When you see an x86 image, Docker Desktop transparently runs it under Rosetta 2 emulation if you pass `--platform linux/amd64`. Performance is reduced but functionality is correct. If a container starts and immediately exits, that is a strong sign you missed the platform flag.
+> **ARM64 note (x86-only images).** A few of the targets above (DVWA, DVNA, DVGA) ship only as x86-64 images. On an ARM64 host, Docker runs them under emulation when you pass `--platform linux/amd64`. On **Apple Silicon** this uses Rosetta 2 — install it once with `softwareupdate --install-rosetta` if Docker prompts you. On **ARM Linux** it uses QEMU/binfmt (`docker run --privileged --rm tonistiigi/binfmt --install all` registers the emulators if a pull complains about platform). Performance is reduced but functionality is correct. **If a container starts and immediately exits on an ARM64 host, you almost certainly forgot the `--platform linux/amd64` flag.** On x86-64 hosts (Intel/AMD Mac, most Windows/Linux PCs), drop the flag entirely — these images are native.
 
-If a container image does not support ARM64 cleanly, use another lab first rather than fighting the machine. Juice Shop and WebGoat are usually smoother starting points on Apple Silicon.
+If an image won't run cleanly on your architecture, just use another lab rather than fighting it. Juice Shop and WebGoat are the smoothest cross-platform starting points.
 
-> **Metasploitable 2** (the classic intentionally vulnerable Linux VM) is x86-only and does **not** run cleanly on M2 Pro under UTM. Use the following ARM-friendly alternatives instead until you reach a dedicated network-pentesting phase: HackTheBox machines (ARM-friendly via VPN), TryHackMe rooms (browser-based), and the OWASP Juice Shop / WebGoat / DVNA combination above. We will revisit Metasploitable in the broad-cyber branch with explicit setup instructions.
+> **Metasploitable 2** (the classic intentionally vulnerable Linux VM) is x86-only and runs poorly under emulation on ARM64 hosts. Until you reach a dedicated network-pentesting phase, use these alternatives instead: HackTheBox machines (cloud, via VPN), TryHackMe rooms (browser-based), and the OWASP Juice Shop / WebGoat / DVNA combination above. We revisit Metasploitable in the broad-cyber branch with explicit setup instructions.
 
-### Step 5: Virtual Machines on Apple Silicon
+### Step 4: The attacker VM (Kali Linux)
 
-Use VMware Fusion Pro first if you want the most professional VM experience on Mac M2 Pro. Use UTM if you prefer a free/open-source option or if a specific ARM image works better there.
+When you reach Phase 5 (and the network-heavy parts of Phase 4), spin up **one** Kali Linux VM as your dedicated attacker box. Kali ships with Burp, ZAP, nmap, sqlmap, ffuf, nuclei, Wireshark, and hundreds of other tools pre-installed and configured — that's the whole reason to use it here instead of installing each tool on your host. Run your vulnerable targets on the host (or in Docker on the host) and point Kali's tools at them across the VM's network.
 
-Recommended order:
+Pick VM software based on your OS:
 
-| Tool | Best use | Notes |
+| Your OS | Primary recommendation | Free fallback |
 |---|---|---|
-| VMware Fusion Pro 13+ | Primary VM platform for Kali/Ubuntu ARM64 labs | Polished UI, strong networking controls, good fit for technical labs. Free for personal use as of VMware/Broadcom's current licensing model; commercial use may require a paid license. |
-| UTM | Free/open-source fallback for ARM64 Linux VMs | Excellent on Apple Silicon, especially when you want lightweight ARM Linux practice. |
-| Docker Desktop | First choice for vulnerable web apps | Prefer containers for Juice Shop, WebGoat, DVWA, and local AppSec labs before heavier VMs. |
-| VirtualBox | Usually not your first choice on M2 | Historically better for Intel Macs and x86 labs; Apple Silicon support and old vulnerable VM compatibility can be a friction point. |
+| **macOS** (Apple Silicon **or** Intel) | **VMware Fusion Pro** — free for personal use; excellent Apple Silicon/ARM64 support, including running ARM64 Kali guests natively | **UTM** — free, open-source, great on Apple Silicon for ARM Linux guests |
+| **Windows / Linux** | **VMware Workstation Pro** — free for personal use; same engine/UI family as Fusion | **VirtualBox** — free, cross-platform, ubiquitous |
 
-Install VMware Fusion Pro manually from Broadcom/VMware's official download portal, then install UTM through Homebrew if you also want it:
+Notes on choosing the right Kali image:
+
+- **On an ARM64 host (Apple Silicon, Windows-on-ARM):** download the **Kali ARM64** image — both VMware Fusion and UTM run it natively at full speed. Do **not** download the x86-64 image on ARM; it will be slow or won't boot.
+- **On an x86-64 host (Intel/AMD):** download the standard **Kali amd64** installer or the prebuilt VMware/VirtualBox image.
+- Always download Kali from the official `kali.org/get-kali` page and verify the checksum.
+
+VMware Fusion Pro and Workstation Pro are downloaded from Broadcom/VMware's official portal (free personal-use license; commercial use may require a paid license). UTM and VirtualBox install via your package manager:
 
 ```bash
+# macOS — UTM
 brew install --cask utm
+
+# Windows — VirtualBox
+winget install Oracle.VirtualBox
+
+# Linux — VirtualBox
+sudo apt install -y virtualbox
 ```
 
-Recommended VMs:
+Other VMs worth having once you're comfortable (all available as ARM64 images for ARM hosts, or amd64 for Intel/AMD):
 
-- Kali Linux Apple Silicon/ARM64 installer image for security tooling.
-- Ubuntu Server ARM64 for realistic server practice.
-- Debian ARM64 for lightweight Linux basics.
+- **Kali Linux** — your primary attacker box.
+- **Ubuntu Server** — realistic server-side practice and deployment labs.
+- **Debian** — lightweight Linux fundamentals.
 
-Avoid assuming old x86 vulnerable VMs will work smoothly on M2. Some classic labs were built for Intel and may be slow or awkward under emulation. When downloading Kali, choose the official Apple Silicon/ARM64 image and verify downloads from official sources.
+> **ARM64 note.** Old x86-only vulnerable VMs (like Metasploitable 2) run slowly or awkwardly under emulation on ARM hosts. When a lab offers an ARM64 build, prefer it; otherwise reach for the cloud labs (HackTheBox/TryHackMe) or the Docker targets above.
 
-### Step 6: Browser Security Extensions
+### Step 5: Browser Security Extensions
 
-Install in Firefox Developer Edition:
+Install in Firefox Developer Edition (the add-ons are cross-platform — same extensions on macOS, Windows, and Linux):
 
 - FoxyProxy Standard: switch between normal browsing and Burp/ZAP proxy.
 - uBlock Origin: safer general browsing.
@@ -461,9 +569,9 @@ Install in Firefox Developer Edition:
 
 Do not install random "hacking" extensions. Extensions can read sensitive browser data.
 
-### Step 7: VS Code Extensions
+### Step 6: VS Code Extensions
 
-Install:
+Install (cross-platform — identical on every OS):
 
 - ESLint
 - Prettier
@@ -476,27 +584,56 @@ Install:
 - DotENV
 - Prisma or SQLTools if using database-heavy projects
 
-### Step 8: API and Database Tools
+### Step 7: API and Database Tools
+
+**macOS (Homebrew):**
 
 ```bash
 brew install postgresql@16 redis
 brew install --cask postman bruno tableplus
-```
-
-Optional but useful:
-
-```bash
 brew install k6
 brew install stripe/stripe-cli/stripe
 ```
 
-Use `bruno` or Postman for API testing. Use `httpie` and `curl` so you do not become GUI-dependent.
+**Windows (winget):**
 
-### Step 9: Passwords, Secrets, and Local Safety
+```powershell
+winget install PostgreSQL.PostgreSQL.16 Postman.Postman usebruno.Bruno
+winget install Grafana.k6 Stripe.StripeCLI
+# Redis on Windows: run it in Docker (docker run -p 6379:6379 redis) or inside WSL2.
+```
+
+**Linux (apt):**
+
+```bash
+sudo apt install -y postgresql redis-server
+# Postman / Bruno: snap install postman / download Bruno .deb from usebruno.com
+# k6: see grafana.com/docs/k6 for the apt repo; Stripe CLI: see stripe.com/docs/stripe-cli
+```
+
+Use `bruno` or Postman for API testing. Use `httpie` and `curl` so you do not become GUI-dependent. (Tip: on any OS you can also just run Postgres and Redis as Docker containers instead of installing them natively.)
+
+### Step 8: Passwords, Secrets, and Local Safety
+
+**macOS (Homebrew):**
 
 ```bash
 brew install --cask bitwarden
 brew install age sops
+```
+
+**Windows (winget):**
+
+```powershell
+winget install Bitwarden.Bitwarden FiloSottile.age Mozilla.sops
+```
+
+**Linux (apt):**
+
+```bash
+sudo apt install -y age
+# Bitwarden: snap install bitwarden (or download .deb). sops: grab the release binary from
+# github.com/getsops/sops/releases
 ```
 
 Set up:
@@ -516,7 +653,7 @@ git init
 
 Never store real secrets in your journal.
 
-### Step 10: Verify Everything
+### Step 9: Verify Everything
 
 ```bash
 node --version
@@ -626,7 +763,7 @@ Let us define each precisely, because the security questions live inside the def
 
 **The network card (NIC)** sends and receives data over the network. Security fact: anything sent over the network can, in principle, be observed or modified by anyone on the path between the two machines — *unless it is encrypted*. This is the entire reason HTTPS/TLS exists (Module 1.2).
 
-Sitting on top of the hardware is the **operating system (OS)** — on your Mac, macOS. The OS is the referee. It decides which program gets the CPU, it hands out and protects memory, it controls who can read or write each file, and it mediates network access. Three OS concepts are load-bearing for security:
+Sitting on top of the hardware is the **operating system (OS)** — macOS, Windows, or Linux, depending on your machine. The OS is the referee. It decides which program gets the CPU, it hands out and protects memory, it controls who can read or write each file, and it mediates network access. Three OS concepts are load-bearing for security:
 
 - **Files and folders.** Everything you build or run lives somewhere as a file. A file has *contents* and *metadata* (owner, permissions, timestamps). The path (e.g. `/Users/you/project/.env`) is its address.
 - **Processes.** A *process* is a running program — an instance of code the CPU is executing, with its own slice of memory. Your browser is a process (often many). Your Node server is a process. When you "run" something, you start a process.
@@ -636,17 +773,27 @@ Sitting on top of the hardware is the **operating system (OS)** — on your Mac,
 
 #### ⚔️ Hands-on: inspect your own machine through a trust lens
 
-> **Ethics & scope (read every time).** Everything in this module runs against **your own Mac**, inspecting **your own** files and processes. These commands only *read* information about your machine — they change nothing. Never run inspection or enumeration commands against a computer you do not own or have written permission to examine.
+> **Ethics & scope (read every time).** Everything in this module runs against **your own computer**, inspecting **your own** files and processes. These commands only *read* information about your machine — they change nothing. Never run inspection or enumeration commands against a computer you do not own or have written permission to examine.
 
-Open the Terminal app (press ⌘-Space, type "Terminal", Enter) and run these one at a time. After each, read the explanation — the goal is not to run commands but to *understand what each reveals*.
+Open a terminal and run these one at a time. **macOS:** press ⌘-Space, type "Terminal", Enter. **Linux:** open your terminal app (or Ctrl-Alt-T on many desktops). **Windows:** use a **WSL2** Ubuntu shell so these Unix commands work as written (set up in the Environment & Lab Setup section); the PowerShell equivalents are noted below. After each command, read the explanation — the goal is not to run commands but to *understand what each reveals*.
 
 ```bash
+# macOS / Linux / WSL2:
 pwd          # "print working directory" — where you are in the filesystem right now
 ls           # list the files in the current directory
 ls -la       # list ALL files (including hidden dotfiles) with permissions, owner, size
 whoami        # which user account is running these commands
 id           # your user id, group ids — your "badge" the OS checks for permissions
 ps aux | head # the processes currently running, who owns them, what they are
+```
+
+```powershell
+# Native Windows PowerShell equivalents (if you're not using WSL2):
+Get-Location              # = pwd
+Get-ChildItem -Force      # = ls -la (shows hidden items too)
+whoami                    # same command exists on Windows
+Get-Process | Select-Object -First 10   # = ps aux | head
+# NOTE: Windows uses ACLs, not rwx bits. Inspect with: Get-Acl .\somefile | Format-List
 ```
 
 **What to actually look at:**
@@ -771,7 +918,7 @@ A web page is built from three layers, each with a distinct job:
 
 **The DOM (Document Object Model)** is the browser's *live, in-memory representation of the page as a tree of objects*. When the page loads, the browser parses your HTML into the DOM; JavaScript then manipulates the DOM to change what's on screen. The security-critical insight: **the DOM is not your original HTML file — it's a living structure the user's browser (and any JavaScript, including injected JavaScript) can rewrite at will.** When an attacker's script writes into the DOM, the browser renders it as if it were yours. That is the essence of XSS (Phase 2).
 
-**DevTools (Developer Tools)** is the inspector built into every browser (open with ⌘-⌥-I on Mac). It exposes, to *anyone*, several panels you must respect as attacker tools:
+**DevTools (Developer Tools)** is the inspector built into every browser (open with ⌥-⌘-I on macOS, or F12 / Ctrl-Shift-I on Windows and Linux). It exposes, to *anyone*, several panels you must respect as attacker tools:
 - **Elements** — the live DOM; you can edit any element in place.
 - **Console** — a JavaScript prompt that runs code *as the page*, with all its privileges.
 - **Network** — every request/response, including headers and bodies. Users see your "hidden" API.
@@ -863,11 +1010,10 @@ A **backend** (server-side application) is a program that **receives requests, a
 
 > **Ethics & scope.** This is *your* server, running on *your* machine on `localhost`. You will attack it by sending it requests directly — which is exactly what you're allowed to do to your own software. Never send crafted requests to a server you don't own to manipulate its behavior.
 
-First, confirm Node is installed (ARM64-native on Apple Silicon via Homebrew):
+First, confirm Node is installed (you set this up in the Environment & Lab Setup step; it runs natively on every platform and architecture):
 
 ```bash
-brew install node    # installs the arm64 build on M2; skip if `node -v` already works
-node -v               # confirm it runs
+node -v               # confirm Node runs; if "command not found", revisit Step 1 of the setup
 ```
 
 Create `tiny-server.js`:
@@ -1108,7 +1254,7 @@ print("attack :", build_query_UNSAFE("'"'"' OR '"'"'1'"'"'='"'"'1"))
 
 #### 🎯 Concept: a precise model of what a command is
 
-A **terminal** (or shell — on your Mac the default is `zsh`) is a program that reads text commands, runs them, and shows their output. A command has three parts:
+A **terminal** (or shell — macOS defaults to `zsh`, most Linux distros default to `bash`, and Windows gives you PowerShell or `bash` inside WSL2) is a program that reads text commands, runs them, and shows their output. A command has three parts:
 
 - **The command name** — *what* to run (`ls`, `curl`, `git`).
 - **Options / flags** — *how* to run it, usually starting with `-` or `--` (`ls -l`, `curl --verbose`). Flags modify behavior.
@@ -2365,7 +2511,9 @@ for i in $(seq 1 6); do curl -s -o /dev/null -w "%{http_code}\n" -X POST :3000/l
 The principles are language-independent; only the libraries change. The Express stack `helmet + express.json({limit}) + express-rate-limit + zod` maps cleanly onto Flask: `flask-talisman` (security headers), `MAX_CONTENT_LENGTH` (body-size cap), `Flask-Limiter` (rate limiting), and `pydantic` (schema validation at the edge). A Python developer would reach for exactly these.
 
 ```bash
-python3 -m venv venv && source venv/bin/activate     # arm64-native on M2
+# macOS / Linux:
+python3 -m venv venv && source venv/bin/activate
+# Windows (PowerShell): py -m venv venv ; .\venv\Scripts\Activate.ps1
 pip install flask flask-talisman flask-limiter pydantic
 ```
 
@@ -2810,10 +2958,12 @@ GraphQL is a query language that lets the client decide which fields and how dee
 **Try It Yourself: query a vulnerable GraphQL API.** Spin up DVGA (Damn Vulnerable GraphQL Application):
 
 ```bash
-docker run --rm --platform linux/amd64 -p 5013:5013 dolevf/dvga
+docker run --rm -p 5013:5013 dolevf/dvga
+# ARM64 host (Apple Silicon / ARM): DVGA is x86-only, so add --platform linux/amd64:
+# docker run --rm --platform linux/amd64 -p 5013:5013 dolevf/dvga
 ```
 
-> **M2 note:** DVGA only publishes an x86 (`linux/amd64`) image, so it runs under Rosetta 2 emulation on Apple Silicon (the `--platform linux/amd64` flag handles this; install Rosetta once with `softwareupdate --install-rosetta` if Docker prompts). It's a learning lab, so the emulation overhead is fine. **Ethics & scope:** DVGA is intentionally vulnerable and runs on your own machine — attack only this and other labs you control.
+> **ARM64 note:** DVGA only publishes an x86 (`linux/amd64`) image. On an x86-64 host (Intel/AMD) it runs natively — drop the flag. On an ARM64 host the `--platform linux/amd64` flag makes Docker emulate it (Rosetta 2 on Apple Silicon — install once with `softwareupdate --install-rosetta` if Docker prompts; QEMU/binfmt on ARM Linux). It's a learning lab, so the emulation overhead is fine. **Ethics & scope:** DVGA is intentionally vulnerable and runs on your own machine — attack only this and other labs you control.
 
 Then in your browser open `http://localhost:5013` and try:
 
@@ -3003,11 +3153,16 @@ Re-run with the fake PNG: it's rejected because the magic bytes aren't a real im
 
 #### 💻 The same naive check and real validation in Python (Flask + python-magic)
 
-Multer's `req.file.mimetype` becomes Flask's `file.content_type` — and it is exactly as untrustworthy, because the client sets it. The `file-type` library's magic-byte sniffing becomes `python-magic` (a libmagic binding; `brew install libmagic` first on M2). The fixes are identical in spirit: sniff real bytes, allow-list, generate a random name, cap the size.
+Multer's `req.file.mimetype` becomes Flask's `file.content_type` — and it is exactly as untrustworthy, because the client sets it. The `file-type` library's magic-byte sniffing becomes `python-magic` (a binding for the `libmagic` C library, which you must install first; see the per-OS commands below). The fixes are identical in spirit: sniff real bytes, allow-list, generate a random name, cap the size.
 
 ```bash
-brew install libmagic                       # native dependency for python-magic on M2
+# Install the native libmagic dependency that python-magic binds to:
+#   macOS:   brew install libmagic
+#   Debian/Ubuntu: sudo apt install -y libmagic1
+#   Fedora/RHEL:   sudo dnf install -y file-libs
+#   Windows: pip install python-magic-bin   (bundles the DLL — use this instead of python-magic)
 pip install flask python-magic
+# On Windows, replace python-magic with python-magic-bin in the line above.
 ```
 
 ```python
@@ -3173,7 +3328,7 @@ open http://localhost:3000
 
 There's a deliberate progression of intentionally vulnerable apps, from gentlest to most professional. Climb it in order:
 
-1. **OWASP Juice Shop** — a modern Angular/Node single-page app, beginner-friendly, with 100+ challenges spanning the whole Top 10 and a built-in scoreboard. Closest to *your* stack. Native ARM64.
+1. **OWASP Juice Shop** — a modern Angular/Node single-page app, beginner-friendly, with 100+ challenges spanning the whole Top 10 and a built-in scoreboard. Closest to *your* stack. Multi-arch Docker image (native on both x86-64 and ARM64).
 2. **PortSwigger Web Security Academy** — free, browser-based, professionally authored labs with a hosted target for each (no install). The gold standard for *depth*; each lab isolates one technique. (You'll do a required track below.)
 3. **WebGoat** — OWASP's structured, lesson-by-lesson teaching app (Java). Good for guided, explained exercises.
 4. **DVWA (Damn Vulnerable Web Application)** — the classic PHP app with adjustable difficulty (low/medium/high), great for seeing how a *weak* fix gets bypassed at higher levels.
@@ -3435,17 +3590,24 @@ Goal: stop randomly trying payloads and adopt the *repeatable method* and *profe
 - **Comparer** — diff two responses (to spot what changed when you tweaked input).
 - **Logger / HTTP history** — the full record of traffic for later review.
 
-**Burp Community Edition** is free and runs **natively on Apple Silicon (ARM64)** — no Rosetta needed. Its main limitations vs. the paid Pro are no automated active scanner and a throttled Intruder; everything you need to *learn* the methodology is in Community.
+**Burp Community Edition** is free and runs on macOS, Windows, and Linux — and **natively on ARM64** (Apple Silicon, Windows-on-ARM) with no emulation needed. Its main limitations vs. the paid Pro are no automated active scanner and a throttled Intruder; everything you need to *learn* the methodology is in Community. (Burp ships with its own bundled Java, so you don't need to install a JRE separately.)
 
-#### ⚔️ Hands-on: set up Burp on your M2 and intercept your own traffic
+> **Tip:** if you're using the Kali attacker VM from the setup section, Burp Community is already installed there — just launch it. The steps below are for running Burp directly on your host.
+
+#### ⚔️ Hands-on: set up Burp and intercept your own traffic
 
 > **Ethics & scope.** Configure Burp to intercept traffic to **your own local lab only** (Juice Shop on `localhost:3000`). An intercepting proxy is a MITM tool — pointing it at traffic to systems you don't own (or other people's accounts) is unauthorized interception. Scope it to your lab and keep it there.
 
-**Install (ARM64-native via Homebrew):**
+**Install (native on every OS and architecture):**
 
 ```bash
-brew install --cask burp-suite        # Community Edition, native arm64
+# macOS (Homebrew):
+brew install --cask burp-suite
 open "/Applications/Burp Suite Community Edition.app"
+
+# Windows (winget):  winget install PortSwigger.BurpSuite.Community
+# Linux:             download the .sh installer from portswigger.net/burp/communitydownload
+#                    and run it, or use the copy preinstalled in the Kali VM.
 ```
 
 **Configure a browser to proxy through Burp** (use Firefox Developer Edition so you don't disturb your normal browsing):
@@ -3459,7 +3621,7 @@ open "/Applications/Burp Suite Community Edition.app"
 **Scope it and watch traffic:**
 
 ```bash
-docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop   # native arm64
+docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop   # native on x86-64 and ARM64
 ```
 
 In Burp: **Target → Scope → Add** `http://localhost:3000` (and set "intercept only in-scope" so you don't capture unrelated traffic). Turn FoxyProxy on, set Burp **Proxy → Intercept → off** (for now), and browse `http://localhost:3000` — click around. Watch the **Target → Site map** and **Proxy → HTTP history** fill with the app's requests.
@@ -3481,7 +3643,7 @@ Now try a live intercept: turn **Intercept → on**, submit the login form in Ju
 1. Where does an intercepting proxy sit, and what two powers does that position give you?
 2. Why must you install Burp's CA certificate to intercept HTTPS, and what real-world risk does that mechanism illustrate?
 3. Match each Burp tool to its job: Repeater, Intruder, Site map, Comparer.
-4. Does Burp Community run natively on Apple Silicon, and what are its main limits vs. Pro?
+4. Does Burp Community run natively on ARM64 (Apple Silicon / Windows-on-ARM), and what are its main limits vs. Pro?
 5. Why is scoping Burp to your authorized target both an ethical and practical necessity?
 
 <details>
@@ -3490,7 +3652,7 @@ Now try a live intercept: turn **Intercept → on**, submit the login form in Ju
 1. Between the browser and the server (a deliberate man-in-the-middle on your own traffic). It lets you (a) *observe* every request/response and (b) *modify* them before they continue.
 2. TLS encrypts traffic and authenticates the server via a trusted certificate; to read/modify HTTPS, Burp mints its own certificates, which your browser only accepts if you trust Burp's CA. It illustrates that anyone who can get your machine to trust *their* CA can MITM all your HTTPS — so the trust store must be protected and unknown CAs never installed.
 3. Repeater: send one request repeatedly with manual tweaks. Intruder: automated fuzzing of marked positions with payload lists. Site map: catalog of discovered endpoints/attack surface. Comparer: diff two responses to see what changed.
-4. Yes, Community is native ARM64. Main limits: no automated active scanner and a throttled (rate-limited) Intruder; the manual tools needed to learn the methodology are all present.
+4. Yes — Community runs natively on ARM64 (Apple Silicon, Windows-on-ARM) as well as x86-64. Main limits: no automated active scanner and a throttled (rate-limited) Intruder; the manual tools needed to learn the methodology are all present.
 5. Ethically/legally, intercepting or testing traffic to systems you don't own/aren't authorized for is unauthorized access; practically, scope keeps your history clean and your testing focused. The scope feature enforces the habit.
 </details>
 
@@ -3537,8 +3699,9 @@ docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop   # your targ
 **Run a baseline scan** (you can use the desktop app's "Automated Scan" against `http://localhost:3000`, or the Dockerized ZAP baseline for the CI-style experience):
 
 ```bash
-# CI-style baseline via the official ZAP image (amd64 under Rosetta on M2 is fine for a lab):
-docker run --rm --platform linux/amd64 -t \
+# CI-style baseline via the official ZAP image. The image is multi-arch and runs
+# natively on x86-64 and ARM64 — no --platform flag needed on any host:
+docker run --rm -t \
   --add-host=host.docker.internal:host-gateway \
   ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
   -t http://host.docker.internal:3000 || true
@@ -3594,14 +3757,16 @@ The bug bounty pathway then extends this to *real* systems that have *explicitly
 
 > **Ethics & scope.** Everything here targets **your own local Juice Shop** (an intentionally vulnerable app built for this) or, later, **programs that have published a scope explicitly authorizing your testing**. Never test a real site that hasn't invited you — even "just looking" can be an offense. Recon for bounty programs must use tools *you* run from *your* IP within scope, never cloud-hosted scanners that violate ToS.
 
-**Setup (M2 Pro / ARM64):**
+**Setup:**
 
 ```bash
-# 1) Start Juice Shop (native ARM64)
+# 1) Start Juice Shop (multi-arch image — native on x86-64 and ARM64)
 docker run --rm -p 3000:3000 bkimminich/juice-shop
 
-# 2) Open Burp Suite Community (ARM64 native)
-open "/Applications/Burp Suite Community Edition.app"
+# 2) Open Burp Suite Community
+#    macOS:   open "/Applications/Burp Suite Community Edition.app"
+#    Windows: launch "Burp Suite Community Edition" from the Start menu
+#    Linux/Kali: run `burpsuite` (or launch it from the apps menu)
 ```
 
 In Burp: **Proxy → Intercept off** (for now), **Target → Scope → add** `http://localhost:3000`. In Firefox + FoxyProxy, switch the Burp proxy on, visit `http://localhost:3000`, and click around.
@@ -3744,13 +3909,17 @@ The tuning rule of thumb: **pick parameters so a single hash takes ~250–500ms 
 
 > **Ethics & scope (read every time).** Everything below runs against **passwords you invent, on your own laptop, against hash files you generate yourself.** You are attacking your own data to feel the difference in cracking speed. Do not point these tools at any account, hash, or system you do not own. Cracking someone else's hashes is a crime in most jurisdictions even if you "found" them.
 
-**M2 / Apple Silicon setup (all ARM64-native via Homebrew, no Rosetta):**
+**Setup (these crackers run natively on x86-64 and ARM64 alike — no emulation):**
 
 ```bash
-# hashcat: GPU/CPU password cracker — native arm64 build in Homebrew
-brew install hashcat
-# john the ripper (community "jumbo" build): the classic CPU cracker, native arm64
-brew install john-jumbo
+# hashcat: GPU/CPU password cracker
+#   macOS:   brew install hashcat
+#   Linux:   sudo apt install -y hashcat   (or use the copy preinstalled in Kali)
+#   Windows: winget install hashcat.hashcat
+# john the ripper (community "jumbo" build): the classic CPU cracker
+#   macOS:   brew install john-jumbo
+#   Linux/Kali: sudo apt install -y john   (Kali ships the jumbo build)
+#   Windows: download the "jumbo" build from openwall.com/john
 # a tiny wordlist to crack against (rockyou is the canonical demo list)
 # ships inside the john-jumbo formula; or grab a small sample:
 curl -L -o ~/rockyou-sample.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-100000.txt
@@ -3777,7 +3946,7 @@ hashcat -m 1400 -a 0 --username ~/fasthashes.txt ~/rockyou-sample.txt
 hashcat -m 1400 --username ~/fasthashes.txt --show
 ```
 
-**Expected observation.** On the M2 Pro's CPU this finishes essentially instantly — all three fall in well under a second. The status line will report a hash rate in the *millions to hundreds-of-millions per second* range. **This is the entire point:** a fast hash means the attacker's only limit is the size of their wordlist, and wordlists are free. You just experienced why bare SHA-256 is not password storage — it is a speed bump made of tissue paper.
+**Expected observation.** On any modern CPU this finishes essentially instantly — all three fall in well under a second. The status line will report a hash rate in the *millions to hundreds-of-millions per second* range. **This is the entire point:** a fast hash means the attacker's only limit is the size of their wordlist, and wordlists are free. You just experienced why bare SHA-256 is not password storage — it is a speed bump made of tissue paper.
 
 **Step 3 — now generate the same passwords as Argon2id and feel the difference.**
 
@@ -4174,12 +4343,13 @@ Plus two structural rules:
 
 > **Ethics & scope.** This runs against **OWASP Juice Shop on your own machine**, attacking accounts you create yourself. Never test session attacks against systems you don't own.
 
-**M2 / Apple Silicon setup — Juice Shop is native ARM64:**
+**Setup — Juice Shop runs natively on x86-64 and ARM64:**
 
 ```bash
-# Juice Shop publishes a native arm64 image — no --platform, no Rosetta
+# Juice Shop publishes a multi-arch image — no --platform flag on any host
 docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop
-open http://localhost:3000
+# then open http://localhost:3000
+#   macOS: open <url>  |  Linux: xdg-open <url>  |  Windows: start <url>
 ```
 
 **Demo A — observe a cookie/token missing protections.** Log into Juice Shop, open DevTools → Application → Storage. Notice Juice Shop deliberately stores its auth token in `localStorage` (the *wrong* place — readable by JS). Now in the DevTools console run:
@@ -4428,13 +4598,16 @@ This buys you most of the benefits of stateless tokens (cheap verification on th
 
 > **Ethics & scope.** You will craft tokens for a **toy Express app you run locally**, using a secret you set. Forging JWTs against any system you don't own is unauthorized access — a crime. This is your app, your secret, your data.
 
-**M2 / Apple Silicon setup (all ARM64-native):**
+**Setup (runs natively on every OS and architecture):**
 
 ```bash
 mkdir ~/jwt-lab && cd ~/jwt-lab && npm init -y
 npm install express jsonwebtoken
-# jwt_tool: the standard JWT attack toolkit, pure Python (runs native on arm64)
-brew install pipx && pipx ensurepath
+# jwt_tool: the standard JWT attack toolkit — pure Python, runs anywhere
+# Ensure pipx is available first:
+#   macOS: brew install pipx && pipx ensurepath
+#   Linux: sudo apt install -y pipx && pipx ensurepath   (preinstalled in Kali)
+#   Windows: py -m pip install --user pipx && py -m pipx ensurepath
 pipx install jwt-tool   # or: git clone https://github.com/ticarpi/jwt_tool && pip install -r requirements.txt
 ```
 
@@ -4726,7 +4899,7 @@ Now the reasons:
 
 > **Ethics & scope.** Run this entirely against a **local OAuth flow you build**, using a test provider app *you* register (e.g. a GitHub OAuth app pointed at `http://localhost`). Never tamper with anyone else's OAuth flow or account.
 
-**M2 / Apple Silicon setup:**
+**Setup (pure JavaScript — runs on any OS and architecture):**
 
 ```bash
 mkdir ~/oauth-lab && cd ~/oauth-lab && npm init -y
@@ -4929,11 +5102,11 @@ Most full-stack apps start with RBAC, then bolt on **resource-ownership / tenant
 
 > **Ethics & scope.** You will attack the **multi-tenant lab you build below**, on `localhost`, with accounts you create. IDOR-hunting against real apps without written authorization is illegal even when trivial. Your app, your data.
 
-**M2 / Apple Silicon — build the lab (native, no Docker needed):**
+**Build the lab (runs natively on any OS/architecture, no Docker needed):**
 
 ```bash
 mkdir ~/authz-lab && cd ~/authz-lab && npm init -y
-npm install express better-sqlite3   # better-sqlite3 ships arm64 prebuilds; zero-config local DB
+npm install express better-sqlite3   # better-sqlite3 ships prebuilds for x86-64 and ARM64; zero-config local DB
 ```
 
 Build the project-management app from the lab spec (Users → Organizations → Projects → Tasks; roles owner/admin/member/viewer). Then run the four classic probes with `curl` and an HTTP client:
@@ -5220,11 +5393,11 @@ Everything in Modules 6.1–6.4 is *damage control around a fundamentally broken
 5. **User-presence/verification flags** are set as required.
 6. **Signature counter** is greater than the stored value (or the authenticator reports it doesn't use a counter) — a *decreasing* counter signals a **cloned authenticator**, so you should flag/deny.
 
-#### ⚔️ Lab: add real WebAuthn to a Node app on your Mac
+#### ⚔️ Lab: add real WebAuthn to a Node app
 
 > **Ethics & scope.** This runs on `localhost` (a valid RP ID for WebAuthn — browsers special-case it) using *your own* Touch ID. You're enrolling and authenticating your own credential. Nothing here touches anyone else's account.
 
-**M2 / Apple Silicon setup (all native, Touch ID works out of the box in Safari/Chrome on macOS):**
+**Setup (pure JavaScript — runs on any OS/architecture):**
 
 ```bash
 mkdir ~/webauthn-lab && cd ~/webauthn-lab && npm init -y
@@ -5232,7 +5405,9 @@ npm install express express-session @simplewebauthn/server
 # @simplewebauthn/browser is loaded client-side via a <script type=module> import or bundler
 ```
 
-Use the **registration** ceremony below, then build the matching **authentication** ceremony with `generateAuthenticationOptions` / `verifyAuthenticationResponse`. Open `http://localhost:3000`, register with Touch ID, then sign in — no password anywhere.
+> **Authenticator availability by platform.** WebAuthn needs a platform authenticator (biometric/PIN) or a roaming one (security key). You get a built-in platform authenticator on macOS (Touch ID in Safari/Chrome), Windows (Windows Hello — face/fingerprint/PIN in Edge/Chrome), and Android (fingerprint). On Linux desktops there's often no built-in biometric, so use a roaming **FIDO2 security key** (YubiKey, etc.) or your phone as a cross-device passkey. Any of these works for this lab.
+
+Use the **registration** ceremony below, then build the matching **authentication** ceremony with `generateAuthenticationOptions` / `verifyAuthenticationResponse`. Open `http://localhost:3000`, register with your platform authenticator or security key, then sign in — no password anywhere.
 
 ```javascript
 // server.js — registration ceremony (secure)
@@ -5452,17 +5627,25 @@ You already met DAST in Phase 5 (ZAP's baseline scan, Burp's scanner). This phas
 
 > **Ethics & scope (read every time).** Everything below runs against an app *you* create on *your own* laptop, full of bugs *you* planted on purpose. You are scanning your own code. Never run SAST/SCA/secret scanners against a repository you do not own or have written permission to test — and never `git push` the deliberately-leaked secret to a real remote.
 
-**M2 / Apple Silicon setup (all ARM64-native via Homebrew, no Rosetta):**
+**Setup (all of these run natively on x86-64 and ARM64):**
 
 ```bash
-# Semgrep: SAST engine, pure Python, native arm64 via pipx (preferred) or brew
-brew install semgrep            # or: pipx install semgrep
-# gitleaks: secret scanner, native arm64 Go binary in Homebrew
-brew install gitleaks
-# trivy: SCA + container + IaC scanner, native arm64 Go binary
-brew install trivy
-# npm audit / osv-scanner come from the Node + Go toolchains you already have
-brew install osv-scanner        # Google's OSV-based SCA, native arm64
+# Semgrep (SAST engine, pure Python), gitleaks (secret scanner, Go),
+# trivy (SCA + container + IaC, Go), osv-scanner (Google's OSV-based SCA, Go).
+#
+# macOS (Homebrew):
+brew install semgrep gitleaks trivy osv-scanner
+#
+# Linux:
+#   pipx install semgrep
+#   gitleaks/trivy/osv-scanner: `go install`, the official install scripts, or release binaries.
+#   (Kali ships several of these; check `which semgrep gitleaks trivy` first.)
+#
+# Windows:
+#   pipx install semgrep
+#   gitleaks/trivy/osv-scanner: winget or `go install` (e.g. winget install Trivy.Trivy)
+#
+# npm audit comes free with the Node toolchain you already have.
 ```
 
 **Step 1 — build a tiny vulnerable app to scan.** Create a fresh folder so nothing here touches your real projects:
@@ -5987,7 +6170,7 @@ When you `pip install transformers` and download `bert-base-uncased`, you're tru
 - Pin model versions (commit hash, not `main`).
 - Verify file hashes against the model card.
 - Sandbox model loading (`safetensors` over Python `pickle`).
-- For local models on your M2 Pro: prefer GGUF/safetensors files; never `torch.load` an untrusted `.pt` (it's pickle = arbitrary code execution).
+- For models you run locally: prefer GGUF/safetensors files; never `torch.load` an untrusted `.pt` (it's pickle = arbitrary code execution).
 - Treat your prompts and system instructions as part of the supply chain — store them in version control, code-review them.
 
 ### Module 7.5.5: Cost / Rate Limit DoS
@@ -6909,7 +7092,7 @@ Pick at least two. These are designed to make your web-dev background visible to
 
 **Universal rubric — judge every capstone against this before you call it done:**
 
-- **Reproducible:** a stranger can `git clone`, follow your README, and see both the vulnerability and the fix on their own M2 (note any `--platform` flags). If it only runs on your laptop, it isn't a portfolio piece.
+- **Reproducible:** a stranger can `git clone`, follow your README, and see both the vulnerability and the fix on their own machine — whatever their OS or CPU architecture (note any `--platform linux/amd64` flags needed for x86-only images on ARM64 hosts). If it only runs on your laptop, it isn't a portfolio piece.
 - **Explains *why*, not just *what*:** every fix is annotated with the root-cause principle (the "naive solution fails because…" reasoning from this course), not just "added validation."
 - **Demonstrates impact:** you *show* the exploit working (screenshot/recording/script) before showing the fix — impact is what makes a finding credible.
 - **Maps to a framework:** tag each issue with its OWASP Top 10 / API Top 10 category so reviewers can place your work.
