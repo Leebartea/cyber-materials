@@ -628,6 +628,89 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
     outline-offset: 2px;
   }
 
+  /* === light mode: CSS variable overrides === */
+  [data-theme="light"] {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface-2: #e8edf4;
+    --border: #d1d9e4;
+    --border-strong: #b0bccf;
+    --text: #1a2233;
+    --text-dim: #3d4f68;
+    --text-muted: #6b7a94;
+    --accent: #0891b2;
+    --accent-hover: #0e7490;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --l1: #059669;
+    --l2: #0891b2;
+    --l3: #7c3aed;
+    --l4: #be185d;
+    --l5: #d97706;
+    --l6: #2563eb;
+    --l7: #4d7c0f;
+    --l8: #c2410c;
+    --l9: #0f766e;
+    --l10: #9333ea;
+    --l11: #dc2626;
+    --l12: #4338ca;
+    --code-bg: #f1f5f9;
+  }
+  /* light mode: utility-class hardcoded-hex overrides */
+  [data-theme="light"] .text-white { color: #111827; }
+  [data-theme="light"] .text-\[\#22d3ee\] { color: #0891b2; }
+  [data-theme="light"] .text-\[\#34d399\] { color: #059669; }
+  [data-theme="light"] .text-\[\#6b7790\] { color: #6b7a94; }
+  [data-theme="light"] .text-\[\#9aa5b8\] { color: #4a5568; }
+  [data-theme="light"] .text-\[\#d4dce8\] { color: #374151; }
+  [data-theme="light"] .text-\[\#e8ecf2\] { color: #1a2233; }
+  [data-theme="light"] .text-\[\#fbbf24\] { color: #d97706; }
+  [data-theme="light"] .bg-\[\#0a0e17\]\/90 { background-color: rgba(240,244,248,0.92); }
+  [data-theme="light"] .bg-\[\#0a0e17\] { background-color: #f0f4f8; }
+  [data-theme="light"] .bg-\[\#0b1020\] { background-color: #f8fafc; }
+  [data-theme="light"] .bg-\[\#0e1422\] { background-color: #f1f5f9; }
+  [data-theme="light"] .bg-\[\#121826\] { background-color: #ffffff; }
+  [data-theme="light"] .bg-\[\#1a2233\] { background-color: #e8edf4; }
+  [data-theme="light"] .border-\[\#273042\] { border-color: #d1d9e4; }
+  [data-theme="light"] .border-\[\#384661\] { border-color: #b0bccf; }
+  [data-theme="light"] .hover\:bg-\[\#121826\]:hover { background-color: #e8edf4; }
+  [data-theme="light"] .hover\:border-\[\#384661\]:hover { border-color: #b0bccf; }
+  [data-theme="light"] .hover\:text-\[\#22d3ee\]:hover { color: #0891b2; }
+  /* light mode: component hardcoded-hex overrides */
+  [data-theme="light"] .code-block { color: #1e2d3d; }
+  [data-theme="light"] .code-block .comment,
+  [data-theme="light"] .code-block .tok-c { color: #64748b; font-style: italic; }
+  [data-theme="light"] .code-block .str,
+  [data-theme="light"] .code-block .tok-s { color: #0f766e; }
+  [data-theme="light"] .code-block .kw,
+  [data-theme="light"] .code-block .tok-k { color: #1e40af; font-weight: 700; }
+  [data-theme="light"] .code-block .num,
+  [data-theme="light"] .code-block .tok-n { color: #9a3412; }
+  [data-theme="light"] .code-block .tok-b { color: #047857; font-weight: 700; }
+  [data-theme="light"] .code-block .tok-f { color: #6d28d9; }
+  [data-theme="light"] .code-block .tok-v { color: #9f1239; }
+  [data-theme="light"] .code-block .tok-t { color: #0369a1; }
+  [data-theme="light"] .code-block .tok-o { color: #374151; }
+  [data-theme="light"] .inline-code { color: #0f766e; }
+  [data-theme="light"] .prose-block p strong { color: #111827; }
+  [data-theme="light"] .prose-block h3 { color: #111827; }
+  [data-theme="light"] .prose-block h4 { color: #374151; }
+  [data-theme="light"] .prose-block em { color: #4b5563; }
+  [data-theme="light"] .prose-block a { color: #0369a1; }
+  [data-theme="light"] .prose-block a:hover { color: #075985; }
+  [data-theme="light"] .prose-details > summary { color: #047857; }
+  [data-theme="light"] .prose-table th { color: #111827; }
+  [data-theme="light"] .search-dropdown { box-shadow: 0 18px 40px rgba(0,0,0,0.12); }
+  /* === theme toggle button === */
+  .theme-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--border-strong);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .theme-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent); }
+
   /* === print stylesheet === */
   @media print {
     body { background: #fff; color: #000; }
@@ -643,6 +726,9 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
     .prose-quote { border-left-color: #888 !important; background: #fafafa !important; }
   }
 </style>
+<script>
+(function(){try{var m=localStorage.getItem('appsec-react-theme-v1')||'dark';var r=m==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;document.documentElement.setAttribute('data-theme',r);}catch(e){}})();
+</script>
 </head>
 <body>
 <a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:8px;background:#0a0e17;color:#fff;padding:8px 14px;border-radius:8px;z-index:999;font-weight:800;" onfocus="this.style.left=&quot;8px&quot;" onblur="this.style.left=&quot;-9999px&quot;">Skip to content</a>
@@ -7760,6 +7846,32 @@ function OSTabs({
    ========================================================================= */
 
 const STORAGE_KEY = "appsec-react-progress-v1";
+const THEME_KEY = "appsec-react-theme-v1";
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(mode) {
+  const resolved = mode === 'system' ? getSystemTheme() : mode;
+  document.documentElement.setAttribute('data-theme', resolved);
+}
+function ThemeIcon({ mode }) {
+  if (mode === 'light') return React.createElement("svg", { width: "15", height: "15", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+    React.createElement("circle", { cx: "12", cy: "12", r: "5" }),
+    React.createElement("line", { x1: "12", y1: "1", x2: "12", y2: "3" }),
+    React.createElement("line", { x1: "12", y1: "21", x2: "12", y2: "23" }),
+    React.createElement("line", { x1: "4.22", y1: "4.22", x2: "5.64", y2: "5.64" }),
+    React.createElement("line", { x1: "18.36", y1: "18.36", x2: "19.78", y2: "19.78" }),
+    React.createElement("line", { x1: "1", y1: "12", x2: "3", y2: "12" }),
+    React.createElement("line", { x1: "21", y1: "12", x2: "23", y2: "12" }),
+    React.createElement("line", { x1: "4.22", y1: "19.78", x2: "5.64", y2: "18.36" }),
+    React.createElement("line", { x1: "18.36", y1: "5.64", x2: "19.78", y2: "4.22" }));
+  if (mode === 'system') return React.createElement("svg", { width: "15", height: "15", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+    React.createElement("rect", { x: "2", y: "3", width: "20", height: "14", rx: "2" }),
+    React.createElement("line", { x1: "8", y1: "21", x2: "16", y2: "21" }),
+    React.createElement("line", { x1: "12", y1: "17", x2: "12", y2: "21" }));
+  return React.createElement("svg", { width: "15", height: "15", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+    React.createElement("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }));
+}
 function App() {
   // initial id: URL hash > localStorage > default
   const initialId = () => {
@@ -7790,6 +7902,10 @@ function App() {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [themeMode, setThemeMode] = useState(() => {
+    try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch { return 'dark'; }
+  });
+  const cycleTheme = () => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'system' : 'dark');
   const mainRef = useRef(null);
   const searchInputRef = useRef(null);
   useEffect(() => {
@@ -7822,6 +7938,15 @@ function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  useEffect(() => {
+    applyTheme(themeMode);
+    try { localStorage.setItem(THEME_KEY, themeMode); } catch {}
+    if (themeMode !== 'system') return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system');
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [themeMode]);
 
   // Build search index over all module text content
   const searchIndex = useMemo(() => {
@@ -8071,6 +8196,11 @@ function App() {
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: cycleTheme,
+    className: "theme-btn",
+    title: themeMode === 'dark' ? 'Dark mode \xB7 click for Light' : themeMode === 'light' ? 'Light mode \xB7 click for System' : 'System mode \xB7 click for Dark',
+    "aria-label": "Toggle color theme"
+  }, /*#__PURE__*/React.createElement(ThemeIcon, { mode: themeMode })), /*#__PURE__*/React.createElement("button", {
     onClick: exportProgress,
     className: "link-btn hidden sm:block",
     title: "Export progress as JSON"
