@@ -757,7 +757,7 @@ const curriculum = {
   {
     id: "m_intro",
     level: 0,
-    num: "Overview",
+    num: "★",
     title: "Start Here — About This Course",
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
@@ -889,14 +889,14 @@ docker --version`
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Set up your digital lab. Package manager, code editor, terminal, browser, password manager, VM tool. This is the one 'boring' step that every future module depends on.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 35 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
 
 **Hands-on, every single module.** No theory-only lessons. You will type commands, break things in safe labs, and fix them.
 
-**Ethics as a reflex.** Every module reinforces legal, ethical, and responsible behavior. Security skills without ethics are a liability.
+**Ethics as a reflex.** Every module reinforces legal, ethical, and responsible behaviour. Security skills without ethics are a liability.
 
 ### The Cyber Guardian's Code
 
@@ -906,46 +906,299 @@ Read this before you touch a single tool:
 - I practice in legal sandboxes only — my own VMs, TryHackMe, HackTheBox, OverTheWire, PortSwigger Academy, PicoCTF.
 - I use what I learn to defend — my family, my school, my future employer, my community.
 - I disclose responsibly. If I find a bug in real software, I report it privately first.
-- I never sell skills to harm others.`,
+- I never sell skills to harm others.
+
+### The lab architecture — host-first + one Kali VM
+
+A common beginner mistake: installing Metasploit directly on the laptop where personal files live. This is a risk (exploits you download, intentionally broken services) and also a mess. The professional pattern is:
+
+**Host machine** handles everything that doesn't require root access to a network or running live exploits: code editing, scripting, web browsing, networking basics (Nmap on your own lab), Wireshark on your own traffic, Burp Suite proxying your own browser, analysis and reporting.
+
+**Kali Linux VM** runs on your host machine inside a hypervisor. It is your dedicated attack platform for Modules 19–24: Metasploit, Hydra, credential attacks, live malware analysis sandbox, anything that involves running tools that touch external systems or execute potentially dangerous code. The VM is:
+- Isolated — its network is host-only (no direct internet reach by default for attack labs)
+- Snapshottable — revert to clean state after each lab, including malware analysis
+- Expendable — if you accidentally detonate real malware in dynamic analysis, you revert the snapshot and nothing on your host is touched
+
+### VM software — what to install on your machine
+
+| Platform | Recommended | Free? | Notes |
+|----------|------------|-------|-------|
+| **macOS (Intel or Apple Silicon)** | VMware Fusion Pro 13+ | Yes — personal use free since Broadcom acquisition | Best Apple Silicon / ARM64 guest support; stable snapshots |
+| **macOS (fallback)** | UTM | Yes — open source | Great for lightweight VMs; slightly less polished than Fusion |
+| **Windows 10/11** | VMware Workstation Pro 17+ | Yes — personal use free since 2024 | Requires Intel VT-x or AMD-V enabled in BIOS |
+| **Windows (fallback)** | VirtualBox 7+ | Yes — open source | Slightly weaker performance but cross-platform |
+| **Linux** | VMware Workstation Pro 17+ | Yes — personal use free | Or KVM/QEMU natively if you prefer bare-metal hypervisor |
+
+> **Apple Silicon (M-series) note:** Run the **Kali Linux ARM64** image on Fusion Pro or UTM — NOT the amd64 image. The ARM64 build has all the same tools and runs natively at full speed. The amd64 image requires emulation (slow/unstable) on Apple Silicon.
+
+### Getting VMware Fusion Pro / Workstation Pro (free)
+
+1. Create a free Broadcom account at \`broadcom.com\`
+2. Navigate: Support & Downloads → VMware Cloud Foundation → VMware Fusion (macOS) or VMware Workstation Pro (Win/Linux)
+3. Download the latest version — it is free for personal/educational use; no license key required
+4. Install normally; skip the licence step by selecting "Use for free"
+
+### Kali Linux VM — setup steps
+
+1. Download the Kali VM image from **kali.org/get-kali** → Virtual Machines:
+   - **macOS Apple Silicon**: choose the ARM64 VMware image (\`.vmwarevm\` bundle)
+   - **macOS Intel / Windows / Linux**: choose the AMD64 VMware image (\`.ova\` file)
+2. Verify the SHA256 checksum before importing (Kali posts checksums next to each download)
+3. Import into VMware Fusion/Workstation and assign 4 GB RAM, 2 CPUs minimum (8 GB / 4 CPU recommended)
+4. First boot: update fully:
+   \`\`\`bash
+   sudo apt update && sudo apt full-upgrade -y
+   sudo apt autoremove -y
+   \`\`\`
+5. Take a **clean snapshot** immediately after updating — this is your baseline to revert to
+6. **Network adapter**: use Host-Only for attack labs (so your VM cannot reach the real internet while running exploits). Switch to NAT only when you need to apt-update.
+
+### All tools by level — what you need and when
+
+**Level 1 (Recruit, Weeks 1–8) — install on host now:**
+VS Code · terminal · Homebrew/winget · Python 3.12+ · Git · password manager (Bitwarden) · Firefox · browser extensions (uBlock Origin, Cookie AutoDelete)
+
+**Level 2 (Operator, Weeks 9–20) — install on host:**
+Nmap · Wireshark · Burp Suite Community · netcat/ncat · Docker · john the ripper (host) · hashcat (host) · CyberChef (browser or offline) · Wazuh (Docker for M16)
+
+**Level 3 (Specialist, Weeks 21–36) — mostly inside Kali VM:**
+Metasploit Framework · Hydra · SQLmap · nikto · gobuster/ffuf · Volatility 3 · Autopsy · binwalk · file/strings/radare2 · Ghidra (Java required) · Wireshark in Kali · full Burp Suite Pro (optional, student licence available)
+
+**On host for scripting (M26):**
+Python 3.12+ · pip packages: scapy, requests, pwntools, cryptography · Bash (already available on macOS/Linux) · PowerShell (Windows; available on macOS/Linux too)
+
+### Directory structure — keep it organised
+
+Create this structure before Module 1:
+
+\`\`\`
+~/CyberGuardians/
+├── journal/          ← one .md or .txt file per module, notes + reflections
+├── labs/
+│   ├── level-1/      ← scripts and outputs from M1–M8
+│   ├── level-2/      ← M9–M17
+│   └── level-3/      ← M18–M29
+├── reports/          ← your capstone deliverables (M8, M17, M29)
+└── tools/            ← downloaded tools that aren't package-managed
+\`\`\`
+
+### Password manager — non-negotiable
+
+Install **Bitwarden** (free, open-source, end-to-end encrypted). This course generates dozens of lab credentials. Bitwarden keeps them from ever touching a sticky note or a plain-text file.
+
+### Browser — Firefox with security extensions
+
+Firefox is the recommended lab browser because it has the most flexible proxy configuration for Burp Suite (Module 20). Install these extensions:
+- **FoxyProxy Standard** — switch proxy profiles without changing system settings (essential for Burp)
+- **uBlock Origin** — ad/tracker blocking
+- **Cookie AutoDelete** — automatically deletes cookies after you close a tab (privacy hygiene, Module 5)
+- **Wappalyzer** — identifies what technology a website is built with (useful in recon, Module 19)
+
+### Note-taking system
+
+Security work is 50% doing and 50% writing. Every professional pentest culminates in a report (Module 29 capstone). Start your journal from day one:
+- Create one file per module: \`journal/m01-cia-triad.md\`
+- Record: what you learned, what surprised you, one thing you want to explore further
+- Your Module 8 and Module 17 capstone REPORTS are built from these notes
+- Tools: VS Code markdown preview, Obsidian (free), Notion, or plain text`,
     lab: {
-      mac: `# Install Homebrew (macOS package manager)
+      mac: `# === macOS Environment Setup ===
+# Run step-by-step; each section should complete before the next.
+
+# ── STEP 1: System prep ──────────────────────────────────────────
+softwareupdate --list                            # check for OS updates
+xcode-select --install 2>/dev/null || echo "Xcode CLT already installed"
+# On Apple Silicon: enable Rosetta for rare x86-only Docker images
+# softwareupdate --install-rosetta              # uncomment if prompted by Docker
+
+# ── STEP 2: Homebrew ─────────────────────────────────────────────
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Apple Silicon only — add to shell profile:
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+source ~/.zprofile
+brew --version && brew doctor
 
-# Install the core toolkit
-brew install --cask visual-studio-code firefox wireshark utm bitwarden
-brew install nmap git python@3.12 tree htop
+# ── STEP 3: Core development tools ───────────────────────────────
+brew install git python@3.12 node tree htop tmux jq wget curl
+brew install --cask visual-studio-code iterm2
 
-# Verify
-code --version
-python3 --version
-git --version`,
-      windows: `# PowerShell (as Administrator)
-winget install Microsoft.VisualStudioCode Mozilla.Firefox
-winget install WiresharkFoundation.Wireshark Oracle.VirtualBox
-winget install Bitwarden.Bitwarden Insecure.Nmap
-winget install Git.Git Python.Python.3.12
+# Verify core:
+git --version && python3 --version && node --version && code --version
 
-# Verify
-code --version
-python --version
-git --version`,
-      linux: `# Ubuntu / Debian
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y code firefox wireshark virtualbox
-sudo apt install -y nmap git python3 python3-pip
+# ── STEP 4: Security tools (host-level, safe to run on host) ─────
+brew install nmap hashcat john-jumbo netcat
+brew install --cask wireshark burp-suite firefox bitwarden
+
+# Burp Suite Community Edition installs to /Applications
+# First launch: accept default settings, leave proxy on 127.0.0.1:8080
+
+# Wireshark note: first launch prompts to install ChmodBPF helper — do it.
+# Verify:
+nmap --version && hashcat --version
+
+# ── STEP 5: Docker (for Wazuh SIEM lab, Module 16) ───────────────
+brew install --cask docker
+# Open Docker.app and wait for the whale icon to stop animating
+docker --version
+
+# ── STEP 6: Firefox security extensions ──────────────────────────
+# Open Firefox and install (search in addons.mozilla.org):
+# - FoxyProxy Standard
+# - uBlock Origin
+# - Cookie AutoDelete
+# - Wappalyzer
+open "https://addons.mozilla.org/en-US/firefox/"
+# Configure FoxyProxy with a Burp profile: 127.0.0.1:8080 (used in M20)
+
+# ── STEP 7: Python security libraries ────────────────────────────
+pip3 install --user scapy requests cryptography pwntools
+pip3 install --user beautifulsoup4 dnspython impacket
+python3 -c "import scapy; print('scapy OK')"
+
+# ── STEP 8: VM setup (for Modules 19–24 attack labs) ─────────────
+# Option A — VMware Fusion Pro (recommended, free personal use):
+#   1. Create free account at broadcom.com
+#   2. Download VMware Fusion Pro 13+ from support portal
+#   3. Install, select "Use for free (personal)"
+#   4. Download Kali ARM64 VMware image from kali.org/get-kali → Virtual Machines
+#      (choose: Kali Linux VMware ARM64)
+#   5. Verify the SHA256 checksum:
+#      shasum -a 256 ~/Downloads/kali-*.7z      # compare to kali.org listed hash
+#   6. Extract and import the .vmwarevm into Fusion
+
+# Option B — UTM (free alternative, works great on Apple Silicon):
+brew install --cask utm
+# Download Kali ARM64 ISO from kali.org/get-kali → Installer Images → ARM64
+# Create new UTM VM: Virtualise → Linux → select ISO → 4GB RAM, 2 CPU, 40GB disk
+
+# ── STEP 9: Directory structure ───────────────────────────────────
+mkdir -p ~/CyberGuardians/{journal,labs/{level-1,level-2,level-3},reports,tools}
+echo "# CyberGuardians Journal" > ~/CyberGuardians/journal/start.md
+ls ~/CyberGuardians/
+
+# ── STEP 10: Final verification ───────────────────────────────────
+echo "=== Core tools ===" && git --version && python3 --version && node --version
+echo "=== Security tools ===" && nmap --version | head -1 && hashcat --version
+echo "=== Docker ===" && docker --version
+echo "=== Environment ready ==="`,
+      windows: `# === Windows 10/11 Environment Setup ===
+# Run PowerShell as Administrator for most steps.
+
+# ── STEP 1: Enable WSL2 (Windows Subsystem for Linux) ────────────
+wsl --install                  # enables WSL2 and installs Ubuntu by default
+# Restart when prompted, then set your Ubuntu username/password.
+# WSL2 gives you a full Linux environment inside Windows — very useful for security labs.
+
+# ── STEP 2: winget (modern package manager, built into Windows 11) ─
+winget --version               # should be pre-installed on Win 11
+# If missing, install from the Microsoft Store: "App Installer"
+
+# ── STEP 3: Core development tools ───────────────────────────────
+winget install --id Microsoft.VisualStudioCode -e
+winget install --id Microsoft.WindowsTerminal -e
+winget install --id Git.Git -e
+winget install --id Python.Python.3.12 -e
+winget install --id OpenJS.NodeJS.LTS -e
+winget install --id Mozilla.Firefox -e
+winget install --id Bitwarden.Bitwarden -e
+# Restart terminal to pick up new PATH entries.
+git --version && python --version && node --version
+
+# ── STEP 4: Security tools ────────────────────────────────────────
+winget install --id Nmap.Nmap -e
+winget install --id WiresharkFoundation.Wireshark -e
+winget install --id PortSwigger.BurpSuite.Community -e
+winget install --id Hashcat.Hashcat -e
+# John the Ripper: download windows binary from openwall.com/john
+# Netcat for Windows: included with Nmap (ncat.exe in Nmap install dir)
+nmap --version
+
+# ── STEP 5: Docker Desktop ───────────────────────────────────────
+winget install --id Docker.DockerDesktop -e
+# Restart; Docker needs WSL2 backend. Open Docker Desktop and wait for it to start.
+docker --version
+
+# ── STEP 6: Python libraries ─────────────────────────────────────
+pip install scapy requests cryptography pwntools beautifulsoup4 dnspython
+
+# ── STEP 7: VMware Workstation Pro (free personal use) ───────────
+# 1. Create free Broadcom account at broadcom.com
+# 2. Download VMware Workstation Pro 17+ from portal
+# 3. Install; select "Use for free (personal)"
+# 4. Download Kali AMD64 VMware .ova from kali.org/get-kali → Virtual Machines
+# 5. Verify SHA256: certutil -hashfile kali-*.7z SHA256 (compare to kali.org)
+# 6. File → Import → select .ova
+
+# ── STEP 8: Directory structure ───────────────────────────────────
+New-Item -ItemType Directory -Path "$HOME\\CyberGuardians\\journal","$HOME\\CyberGuardians\\labs\\level-1","$HOME\\CyberGuardians\\labs\\level-2","$HOME\\CyberGuardians\\labs\\level-3","$HOME\\CyberGuardians\\reports","$HOME\\CyberGuardians\\tools" -Force
+dir "$HOME\\CyberGuardians"`,
+      linux: `# === Linux (Ubuntu/Debian) Environment Setup ===
+
+# ── STEP 1: Update system ─────────────────────────────────────────
+sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+
+# ── STEP 2: Core development tools ───────────────────────────────
+sudo apt install -y git python3 python3-pip python3-venv nodejs npm
+sudo apt install -y build-essential curl wget tree htop tmux jq
+# VS Code: install via Snap (or download .deb from code.visualstudio.com)
+sudo snap install code --classic
+git --version && python3 --version && node --version
+
+# ── STEP 3: Security tools ────────────────────────────────────────
+sudo apt install -y nmap wireshark netcat-openbsd hashcat john
+sudo apt install -y aircrack-ng nikto gobuster wordlists
+# Burp Suite: download from portswigger.net/burp/communitydownload
+# Run the installer: chmod +x burpsuite_community_linux_*.sh && ./burpsuite_community_linux_*.sh
+# Bitwarden: snap
 sudo snap install bitwarden
 
-# Verify
-code --version
-python3 --version
-git --version`
+# ── STEP 4: Docker ───────────────────────────────────────────────
+sudo apt install -y docker.io docker-compose
+sudo usermod -aG docker $USER           # allow docker without sudo (logout/login required)
+newgrp docker                           # apply group change in current session
+docker --version
+
+# ── STEP 5: Python libraries ─────────────────────────────────────
+pip3 install --user scapy requests cryptography pwntools
+pip3 install --user beautifulsoup4 dnspython impacket
+
+# ── STEP 6: Firefox + extensions ─────────────────────────────────
+sudo snap install firefox
+# Extensions (install via about:addons or addons.mozilla.org):
+# FoxyProxy, uBlock Origin, Cookie AutoDelete, Wappalyzer
+
+# ── STEP 7: VM software ───────────────────────────────────────────
+# Option A: VMware Workstation Pro (recommended, free personal use)
+#   1. Create Broadcom account → download VMware Workstation Pro 17+
+#   2. chmod +x VMware-Workstation-*.bundle && sudo ./VMware-Workstation-*.bundle
+#   3. Download Kali amd64 VMware .ova from kali.org
+
+# Option B: VirtualBox (free, simpler install)
+sudo apt install -y virtualbox virtualbox-ext-pack
+
+# Option C: KVM/QEMU (best performance on Linux, slightly more setup)
+sudo apt install -y qemu-kvm libvirt-daemon-system virt-manager
+sudo usermod -aG kvm,libvirt $USER
+# Download Kali ISO from kali.org; create new VM in virt-manager
+
+# ── STEP 8: Directory structure ───────────────────────────────────
+mkdir -p ~/CyberGuardians/{journal,labs/{level-1,level-2,level-3},reports,tools}
+echo "# CyberGuardians Journal" > ~/CyberGuardians/journal/start.md
+ls ~/CyberGuardians/`
+    },
+    caseStudy: {
+      title: "The analyst who skipped VM isolation — a cautionary tale",
+      body: "A recurring incident in security training: a student downloads a 'sample malware' file for analysis (Module 24) directly onto their main laptop rather than into an isolated VM. The sample is a real piece of ransomware archived in a security research repository. The student double-clicks it to see what happens. In the best case, modern macOS/Windows quarantine and AV catch it. In the worst case — which happens — it encrypts the Desktop folder before they can kill the process. Everything on the host was fine (backups), but the lesson was expensive. The fix: all malware analysis ALWAYS happens in a VM with a clean snapshot taken immediately before the analysis, with the VM's network set to host-only or completely disconnected. The snapshot is the undo button for the physical world. Never detonate untrusted code on your host OS. Ever."
     },
     challenges: [{
-      q: "What is the difference between an app store and a package manager?",
-      a: "An app store is a curated, often paid, consumer marketplace. A package manager is a command-line tool that installs software plus all its dependencies (other software it needs) automatically, usually from open-source repositories. Package managers are designed for reproducibility — you can install 20 tools with one script, something you can't do with an app store."
+      q: "What is the difference between a host-only VM network adapter and a NAT adapter? Why does it matter for security labs?",
+      a: "Host-only: the VM can only communicate with the host machine — it cannot reach the internet or any other machine on your LAN. NAT: the VM can reach the internet (via the host acting as a router/NAT gateway) but is not directly reachable from your LAN. For attack labs (Metasploit, Hydra, vulnerability scanners): use host-only so your attack traffic is contained and cannot accidentally hit real systems. For installing tools or apt-updating: temporarily switch to NAT, update, then switch back. For malware analysis: use host-only or completely disconnected ('internal' with no host connection)."
+    }, {
+      q: "Why does this course recommend running the Kali attack VM alongside your regular machine rather than dual-booting into Kali?",
+      a: "Dual-booting has three problems: (1) you lose the ability to snapshot and revert — if you detonate malware or mis-configure Kali while dual-booted, the damage is permanent until you reinstall; (2) dual-booting Kali means Kali has direct hardware access and can modify your UEFI/bootloader — a misconfiguration can break your main OS boot; (3) you cannot run both OSes at the same time (you can't run Wireshark on your host while running Metasploit in Kali if they're both on bare metal). Running Kali as a VM solves all three: snapshots are your undo button, hardware is fully isolated, and you can have both running side-by-side."
     }],
-    quiz: ["Why do security professionals prefer command-line tools over GUIs?", "What does 'sudo' mean, and why is typing your password required?", "Why is it safer to practice hacking inside a virtual machine than on your main OS?"],
-    tracker: ["Package manager installed and working", "VS Code opens and runs", "Terminal runs a command and shows output", "Password manager set up with a strong master password I actually remember", "Cyber Journal folder created in VS Code"]
+    quiz: ["What is the recommended VM software for macOS Apple Silicon, and why does the ARM64 Kali image matter on that platform?", "What is the difference between host-only and NAT VM networking, and when do you use each?", "Name three security tools that should be installed on the HOST machine (not just the Kali VM).", "What is the single most important action to take immediately after setting up a clean Kali VM?", "Why is it essential to verify the SHA256 checksum of a Kali Linux download before installing it?"],
+    tracker: ["Package manager installed (Homebrew / winget / apt) and working", "VS Code opens; terminal runs commands; Git, Python, Node all verify", "Nmap, Wireshark, Burp Suite installed on host and verified", "VM software (VMware Fusion Pro / Workstation Pro / UTM / VirtualBox) installed", "Kali Linux VM imported; SHA256 checksum verified; first apt upgrade complete; CLEAN SNAPSHOT taken", "Kali VM network confirmed host-only; ping 8.8.8.8 from Kali FAILS", "Firefox extensions installed: FoxyProxy, uBlock Origin, Cookie AutoDelete, Wappalyzer", "Password manager (Bitwarden) installed with strong master password", "~/CyberGuardians directory structure created; journal started", "Ethics code read and understood — I only test systems I own or have written permission to test"]
   }, {
     id: "m1",
     level: 1,
