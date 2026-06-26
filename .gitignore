@@ -10,3 +10,7 @@
 # Personal hardware-specific setup notes (this machine only) - the public
 # curriculum is platform-agnostic; this is the owner's own cheat-sheet.
 MY_SETUP_*.md
+
+# Superseded static HTML build — the React reader (full_stack_appsec_app.html)
+# is the canonical version; the static build is kept locally for reference only.
+cyber-full\ stack/full_stack_appsec_app_static.html

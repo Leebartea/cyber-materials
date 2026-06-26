@@ -4383,79 +4383,195 @@ Partner with another learner; each takes a side for a week, then swap, so you ex
     level: 3,
     num: "M28",
     title: "Career Pathways & Certifications",
-    objective: "You've touched every major area — and as a full-stack dev you arrive with an edge: you BUILD the systems most attacks target. Turn breadth into a direction. AppSec is the strongest fit for your background, but every path is open.",
-    theory: `#### How to choose (a quick decision aid)
+    objective: "You have now touched every major area of cybersecurity. This module converts that breadth into a concrete career direction: which specialization fits you, what certifications to pursue, how to land your first role without prior experience, how to build a portfolio that proves your skills, and how to keep growing once you're in the field.",
+    theory: `### Choose your specialization — a decision framework
 
-- Love **building and breaking code**? → **AppSec** (your dev skills transfer directly — strongest fit).
-- Love **the hunt / adversary thinking**? → **Pentest / Red Team**.
-- Love **defending, monitoring, patterns**? → **Blue Team / SOC**.
-- Love **investigation, "what happened"**? → **DFIR**.
-- Love **cloud architecture**? → **Cloud Security**.
-- Love **policy, risk, the big picture**? → **GRC**.
-- Curious about the **newest frontier**? → **AI/ML Security** (you've done Module 25.7).
+Don't pick randomly. Pick based on what **energizes** you — depth in a domain you enjoy beats shallow coverage of one you don't. The good news: specialization isn't permanent. It's where you go deep first.
 
-Pick the one that ENERGIZES you — depth in a field you enjoy beats shallow coverage of one you don't. Specialization isn't permanent; it's where you go deep FIRST.
+**Quick decision aid:**
 
-### Specialization paths
+| If you love... | Your best fit |
+|---|---|
+| Building things AND breaking them, reading code | **Application Security (AppSec)** |
+| The hunt, adversary thinking, creative problem-solving | **Penetration Testing / Red Team** |
+| Monitoring patterns, catching attackers, structured defense | **Blue Team / SOC Analyst** |
+| Investigation — "what happened, how, when, who?" | **Digital Forensics & Incident Response (DFIR)** |
+| Cloud architecture at scale | **Cloud Security** |
+| Policy, risk management, the big strategic picture | **GRC (Governance, Risk, Compliance)** |
+| Reverse-engineering, assembly, low-level systems | **Malware Analysis / Reverse Engineering** |
+| The newest frontier — AI, LLMs, autonomous systems | **AI/ML Security** |
 
-- **SOC Analyst / Blue Team** — monitor, detect, respond. Certs: CompTIA Security+ → CySA+ → Splunk Core Certified.
-- **Penetration Tester / Red Team** — simulate attackers. Certs: OSCP, PNPT, CRTO.
-- **Application Security (AppSec)** — find and fix bugs in code. Certs: OSWE, Burp Suite Certified Practitioner.
-- **Digital Forensics / Incident Response (DFIR)** — investigate incidents. Certs: GCFE, GCFA, GCIH.
-- **Cloud Security** — secure AWS/Azure/GCP. Certs: AWS Security Specialty, CCSP.
-- **Malware Analysis / Reverse Engineering** — dissect binaries. Certs: GREM, SANS FOR610.
-- **GRC (Governance, Risk, Compliance)** — policy, frameworks, audits. Certs: CISSP, CISM, CRISC.
-- **AI / ML Security** — new and growing. Reference: OWASP LLM Top 10.
+There is no wrong answer. Every path is well-compensated, in-demand, and respected. The biggest mistake is paralysis — pick one, commit for 12 months, then adjust.
 
-### Realistic first two years
+### The seven specialization paths in depth
 
-For most people: CompTIA Security+ (or its ISC² CC alternative) → then a specialization cert from your chosen path → then build a portfolio of CTFs, blog posts, and (if possible) open-source contributions.
+#### 1. SOC Analyst / Blue Team
+**What you do day-to-day:** monitor SIEM dashboards, investigate alerts, triage incidents, write detection rules, tune out false positives, run threat hunts.
+**Why it's a great entry point:** the most hiring volume in the industry; Security+ is sufficient to start; skills from M12, M13, M16, M18.5 directly apply.
+**Cert roadmap:** CompTIA Security+ (SY0-701) → CompTIA CySA+ (CS0-003) → Splunk Core Certified User → GCIH or BTL1 (Blue Team Labs Level 1)
+**Expected salary range (2025 US):** $55k–$85k entry, $90k–$130k senior.
 
-### For ages 10–17: what you can do legally right now
+#### 2. Penetration Tester / Red Team
+**What you do day-to-day:** simulate real attacks against client infrastructure, write technical reports with exploitation evidence and remediation, present findings to executives and developers.
+**Prerequisites matter here:** employers want demonstrated skills, not just certs. Build a portfolio on HackTheBox/TryHackMe before applying.
+**Cert roadmap:** CompTIA Security+ → eJPT (eLearnSecurity, ~$200, great first pentest cert) → PNPT (TCM Security, practical exam ~$400) → OSCP (Offensive Security, ~$1,499, industry gold standard for pentest)
+**Expected salary range:** $70k–$100k entry, $110k–$160k senior / red teamer.
 
-- Compete in CTFs (PicoCTF, CyberPatriot, HSCTF — all free)
-- Contribute to open-source security tools
-- Run a blog — documenting what you learn is a powerful employer signal
-- Mentor younger learners
-- Run your school's security awareness program
-- Bug bounty programs sometimes accept minors with parental consent (always check)`,
+#### 3. Application Security (AppSec)
+**What you do day-to-day:** code review (SAST), threat modelling, secure design review, integrating security into CI/CD, developer training, bug triage from bug bounty programs.
+**Developer background is a genuine advantage** — you understand the code you're reviewing, you can talk to developers without losing them, you can build security tooling.
+**Cert roadmap:** CompTIA Security+ → Burp Suite Certified Practitioner (BSCP, PortSwigger) → OSWE (Offensive Security Web Expert) or GWEB (GIAC Web App Penetration Tester)
+**Expected salary range:** $80k–$110k entry, $130k–$180k senior. One of the highest-paying specializations.
+**Next step for you:** the companion *Full-Stack AppSec* course covers this path in depth.
+
+#### 4. Digital Forensics & Incident Response (DFIR)
+**What you do day-to-day:** image compromised machines, recover deleted files, build attack timelines, write forensic reports, testify in legal proceedings, run the IR lifecycle from containment to post-incident review.
+**Cert roadmap:** CompTIA Security+ → CompTIA CySA+ → GCFE (GIAC Certified Forensic Examiner) → GCFA (GIAC Certified Forensic Analyst) → GCIH (GIAC Certified Incident Handler)
+**Expected salary range:** $65k–$95k entry, $100k–$150k senior DFIR lead.
+
+#### 5. Cloud Security
+**What you do day-to-day:** design and audit cloud architectures (IAM, VPC, S3 policies, Lambda permissions), respond to cloud misconfigurations, automate security posture management (CSPM), operate cloud-native security tools.
+**Growing fast** — every company is in the cloud and struggling with the shared-responsibility model.
+**Cert roadmap:** AWS Cloud Practitioner (free exam vouchers often available) → AWS Security Specialty → CompTIA Cloud+ → CCSP (ISC² Certified Cloud Security Professional) → GCP/Azure equivalents
+**Expected salary range:** $85k–$120k entry, $140k–$200k+ senior.
+
+#### 6. Malware Analysis / Reverse Engineering
+**What you do day-to-day:** statically and dynamically analyse malware samples, write indicators of compromise (IOCs), reverse-engineer packers and obfuscators, contribute to threat intelligence feeds.
+**Technically deep** — requires comfort with assembly, debuggers, disassemblers (Ghidra, IDA Pro), and operating-system internals.
+**Cert roadmap:** CompTIA Security+ → GREM (GIAC Reverse Engineering Malware) → SANS FOR610: Reverse-Engineering Malware
+**Expected salary range:** $80k–$110k, specialist demand is high.
+
+#### 7. GRC (Governance, Risk, Compliance)
+**What you do day-to-day:** manage security policies, run risk assessments, prepare for and respond to audits (ISO 27001, SOC 2, PCI DSS, HIPAA), measure and report security posture to leadership.
+**Less technical, more strategic** — bridges security and business; well-suited if you enjoy communication and project management alongside security fundamentals.
+**Cert roadmap:** CompTIA Security+ → CRISC (Certified in Risk and Information Systems Control) → CISM (Certified Information Security Manager) → CISSP (highest recognised)
+**Expected salary range:** $70k–$100k entry, $120k–$180k CISO-path.
+
+### The universal first-year roadmap
+
+Regardless of specialization:
+
+1. **CompTIA Security+** (SY0-701) — 3–4 months of study. The universal entry credential. Professor Messer's free course + Darril Gibson book + Jason Dion practice exams. Exam cost: ~$400 (vouchers often available via Pearson, employer reimbursement, or student discounts). This course's content covers ~80% of the domains.
+
+2. **Build evidence of skill** — one public artefact per month:
+   - CTF writeup on your blog or GitHub
+   - A custom security tool or script (even small ones count)
+   - HackTheBox / TryHackMe "Pro Hacker" rank or room completions
+   - A public GitHub repository with your course labs, with README
+
+3. **Choose your specialization cert** — see path details above. Budget 3–6 months.
+
+4. **Get the first role** — see job search section below.
+
+### How to land your first role without prior experience
+
+The #1 mistake: sending applications before you have any public evidence of skill. Recruiters Google you. If nothing comes up, the application goes to the reject pile even with a relevant degree.
+
+**Build before you apply:**
+- **GitHub**: push your course labs, your CTF solutions, any tools you build. Even small, polished repos count. Add READMEs. Make them readable by someone who doesn't know you.
+- **Blog / writeups**: a blog with 5–10 walkthrough posts (TryHackMe rooms, CTF challenges, module reflections) is extremely strong signal. Platform: GitHub Pages (free), Hashnode, or Medium.
+- **TryHackMe / HackTheBox rank**: link it in your resume. Platforms with public profiles that recruiters can verify are powerful.
+- **Certifications**: at minimum, Security+ before serious applications.
+
+**Resume tips for first-time candidates:**
+- Lead with Skills (tools, languages, frameworks) and Certifications, not education, if you're self-taught
+- Under each project, write one sentence about what it proved ("Conducted a full Nmap scan of an isolated lab, identified open services, exploited a default SSH key, wrote a remediation report") — not what you built
+- GitHub link on the resume, clickable and live
+- Keep to one page
+
+**Where to look:**
+- LinkedIn (turn on "Open to Work" for recruiters, filter for "security analyst", "junior penetration tester", "SOC analyst")
+- Indeed, Glassdoor
+- CyberSeek.org — free tool showing real demand by specialization and location
+- USAJobs.gov for US government / DoD roles (clearance paths)
+- Bug bounty programmes (HackerOne, Bugcrowd) for direct AppSec credibility — a valid CVE or hall-of-fame listing is more powerful than most certs
+
+**Networking — the fastest path that beginners skip:**
+- Join local BSides conference (bsides[city].com) — smaller, welcoming, excellent for meeting hiring managers
+- DEF CON Villages (free day-pass option) — specialized villages for forensics, blue team, ICS/OT, hardware
+- ISSA (Information Systems Security Association) local chapter — professionals who actively mentor newcomers
+- Discord communities: TryHackMe, HackTheBox, TCM Security, BlueTeamLabs — stay active, answer questions, get known
+- LinkedIn: connect with security professionals, comment on their posts with genuine insight (not just "great post")
+
+### Keeping your skills current
+
+The field changes every year. The professionals who stay valuable maintain a discipline:
+
+- **One CTF per month** — even one room on THM keeps pattern-recognition sharp
+- **Follow threat intelligence sources**: Krebs on Security, Schneier on Security, Bleeping Computer, SANS Internet Stormcast (5-min daily podcast), RedCanary Blog, Mandiant M-Trends annual report
+- **Attend one conference per year** (in-person or virtual): DEF CON, Black Hat, BSides, SANS Summit, Wild West Hackin' Fest
+- **Read one incident post-mortem per month** — Google Project Zero blog, Cloudflare blog, Heroku/GitHub incident reports
+- **Contribute to something open**: Sigma rule, Atomic Red Team test, an open-source tool you use
+
+The professionals who stagnate are the ones who got the cert and stopped. The ones who advance are the ones who never stopped being curious.`,
     lab: {
-      mac: `# Create your career plan document
-cd ~/cyber-journal
-cat > career-plan.md << 'EOF'
-# My Cyber Career Plan
+      mac: `# Build your career roadmap document — this IS the lab
+mkdir -p ~/CyberGuardians/reports
+cat > ~/CyberGuardians/reports/career-roadmap.md << 'PLAN'
+# My Cyber Career Roadmap
 
-## Which path calls me most and why
-...
+## My chosen specialization and why
+Specialization: ...
+Why it energizes me: ...
+How my Cyber Guardians modules prepare me for it: ...
 
-## My 2-year cert roadmap
-Year 1: ...
-Year 2: ...
+## 90-day action plan (starting today)
+Week 1-4:   [Cert study / specific modules / CTF rooms]
+Week 5-8:   [Build one public artefact — what exactly?]
+Week 9-12:  [Complete cert or finish portfolio piece]
 
-## My portfolio plan
-- GitHub repo: ...
-- Blog: ...
-- CTFs to complete: ...
-- Open source contributions: ...
+## My certification roadmap
+Cert 1: [name, cost, study plan, target date]
+Cert 2: [name, cost, study plan, target date]
+Cert 3: [name, cost, study plan, target date]
 
-## My network plan
-- Communities I'll join:
-- People I'll reach out to (and what I'll ask):
-- Conferences I'll attend (even virtually):
+## My portfolio inventory (what I'll have public by month 3)
+- GitHub repo: [name + what it shows]
+- Blog/writeup: [topic of first post]
+- CTF profile: [platform + current rank]
+- Other: [any CVE, bug bounty finding, open source contribution]
 
-## How I'll measure progress
-Quarter 1: ...
-Quarter 2: ...
-EOF
-code career-plan.md`,
-      windows: `cd $HOME\\cyber-journal
-# Create career-plan.md with the same template — use notepad or VS Code`,
-      linux: `cd ~/cyber-journal
-# Same template`
+## Communities I'm joining this month
+1. [Discord/forum + why]
+2. [local ISSA chapter / BSides event]
+
+## First job target
+Role title: ...
+Company type: [startup / enterprise / government / consultancy]
+Target application date: ...
+PLAN
+
+code ~/CyberGuardians/reports/career-roadmap.md
+
+# Verify your public presence right now:
+open https://github.com
+# Is your profile filled out? Bio, location, pinned repos?
+# If not: set it up before you close this browser tab.
+
+# Check your TryHackMe/HackTheBox public rank:
+open https://tryhackme.com
+open https://www.hackthebox.com`,
+      windows: `# Run in PowerShell
+New-Item -Path "$HOME\CyberGuardians\reports" -ItemType Directory -Force
+# Create career-roadmap.md with the same template in VS Code:
+code "$HOME\CyberGuardians\reports\career-roadmap.md"`,
+      linux: `mkdir -p ~/CyberGuardians/reports
+# Create career-roadmap.md with the same template:
+code ~/CyberGuardians/reports/career-roadmap.md`
     },
-    challenges: [],
-    quiz: [],
-    tracker: ["Picked a primary specialization", "Drafted a 2-year cert roadmap", "Published something public (blog post, GitHub repo, CTF writeup)"]
+    caseStudy: {
+      title: "From zero to senior security engineer — a realistic path",
+      body: "A common path for self-taught security professionals that actually works in 2025: Month 1-4: complete a structured course (like this one), earn Security+, publish 5 TryHackMe writeups on a blog. Month 5-8: earn eJPT or PNPT, complete 20+ HackTheBox machines, push all lab code to a clean GitHub. Month 9-12: apply to junior SOC analyst or AppSec engineer roles; target companies with security teams of 2-10 (larger teams require more experience; small teams take bets on motivated learners). Year 2: first role, learn internal tools, earn CySA+ or BSCP, start attending BSides locally. Year 3-4: specialize deeper, OSCP or OSWE or GCFA depending on direction. Senior title by year 4-5 with consistent progression. The key variable isn't the cert order — it's whether you have PUBLIC EVIDENCE of skill that a recruiter can click on and verify in under 60 seconds. Certificates get you past the ATS. Public evidence gets you past the human."
+    },
+    challenges: [{
+      q: "A recruiter sees two applicants for a junior SOC analyst role. Both have CompTIA Security+. Applicant A has a 4-year CS degree. Applicant B has no degree but has: a GitHub with 15 polished lab repos, a blog with 8 CTF writeups, a TryHackMe 'Pro Hacker' rank, and an eJPT cert. Who gets the interview in most security teams today — and why?",
+      a: "Applicant B, in the majority of modern security teams (and almost universally at startups and mid-sized companies). Here is why: the Security+ establishes baseline knowledge for both. The degree establishes general technical ability for A. But B's public portfolio establishes specific, verifiable security skill — an employer can open GitHub right now and read B's writeup of a Nmap + Burp Suite + privilege escalation chain. A blog demonstrates communication ability (critical for incident reports). A TryHackMe rank shows sustained practice, not just exam passing. The eJPT proves a practical, hands-on test was passed under exam conditions. Employers have been consistently burned by candidates with degrees and certs who can't actually perform under pressure; they've learned that demonstrated, verifiable evidence of practice is stronger signal than credentials alone. The advice: earn the cert AND build the public portfolio. Both, not either/or."
+    }, {
+      q: "You get an interview for a junior penetration tester role. The interviewer asks: 'Walk me through how you'd approach testing a web application you've never seen before.' What does a strong answer cover?",
+      a: "A strong answer follows the PTES / ethical hacking methodology (Module 18): (1) Pre-engagement — confirm scope, rules of engagement, out-of-scope assets, emergency contact. (2) Reconnaissance — passive recon first (Shodan, DNS records, certificate transparency logs, LinkedIn for tech stack) then active (Nmap, tech fingerprinting with Wappalyzer, spider the app). (3) Enumeration — directory brute-forcing (gobuster/ffuf), parameter discovery, identify authentication mechanisms, map all input surfaces. (4) Vulnerability analysis — check each input surface against OWASP Top 10 (injection, auth flaws, IDOR, CSRF, XSS); check third-party components for known CVEs; check headers for misconfigurations. (5) Exploitation — attempt only what scope allows, document every step with timestamps and screenshots. (6) Reporting — write clear technical findings with CVSS scores, evidence, step-by-step reproduction, and developer-actionable remediation. A strong answer shows methodology, not just tool names. The interviewer wants to know you won't go rogue, you'll document everything, and you'll communicate findings clearly."
+    }],
+    quiz: ["Which specialization is the best fit for someone who currently writes full-stack web apps, and why?", "What is the universal first certification recommendation for any specialization, and approximately how long does it take to study for?", "Name three things that can be on your resume or public profile BEFORE your first security job that prove hands-on skill to a recruiter.", "What is BSides and why is attending one valuable for career development?", "What does CyberSeek.org do, and when would you use it during a job search?"],
+    tracker: ["Chosen a primary specialization and written one paragraph explaining why it fits me", "Drafted a 2-year certification roadmap with estimated costs and study timelines", "Created my career-roadmap.md document and filled in the 90-day action plan", "My GitHub profile is set up with a bio, and at least one security-related repo is public", "I have identified one CTF platform (TryHackMe / HackTheBox / PicoCTF) and completed at least one room/challenge", "I know the name of a local BSides event or ISSA chapter near me (or the closest online equivalent)", "I have set a target date for attempting the CompTIA Security+ exam"]
   }, {
     id: "m29",
     level: 3,
