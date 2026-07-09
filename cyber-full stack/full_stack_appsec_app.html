@@ -845,7 +845,7 @@ const curriculum = {
     short: "Phase 7.5 · LLM Security",
     tagline: "OWASP LLM Top 10, prompt injection, output handling",
     colorVar: "--l9",
-    weeks: "1 week"
+    weeks: "1–2 weeks"
   }, {
     id: "p8",
     name: "Phase 8 · Cloud, Deployment & Production Security",
@@ -914,7 +914,7 @@ The course uses Node.js and Express as its primary example language because it i
 - **Full-stack or back-end developers** who have shipped at least one web application and want to stop being the weakest link in their team's security posture
 - **Career-changers into AppSec or DevSecOps** who want a structured, hands-on path — not just a reading list
 - **Front-end developers** who want to understand what happens on the server side of the trust boundary
-- **Engineers preparing for security certifications** (BSCP, GWEB, OSWA, eWPT — this course prepares for all four)
+- **Engineers preparing for security certifications** (BSCP, GWEB, OSWA, eWPT — this course prepares for all four; the standards vocabulary — OWASP ASVS 5.0, CWE, STRIDE, NIST SSDF — carries directly into AppSec interview and audit conversations too)
 
 **Prerequisite:** You should be comfortable with at least one programming language and have a rough idea of how HTTP requests work (if not, Phase 0 will fill those gaps quickly).
 
@@ -932,8 +932,14 @@ By the time you complete this course you will be able to:
 - Audit your supply chain and generate a signed SBOM
 - Harden a cloud deployment: IAM least-privilege, secrets management, container security, Kubernetes RBAC
 - Understand, detect, and write an incident-response playbook for a web app breach
+- Verify an application against **OWASP ASVS 5.0** and threat-model it with **STRIDE** — the two vocabularies a mature AppSec review actually runs on
+- Recognize the current regulatory landscape a shipped product lives in (**EU Cyber Resilience Act, NIS2, DORA, PCI DSS 4.0.1**) and know which one answers which question
+- Scope the security of an LLM-integrated feature, including an **agentic AI** with tool access — not just a chatbot that answers questions
+- Talk about vulnerability priority the way a modern security team does: **CVSS + EPSS + CISA KEV**, not CVSS alone
 
 The **sidebar skill indicator** tracks your live progress through seven named levels as you check off tracker items — from Foundation Builder through Full-Stack AppSec Champion.
+
+> **Currency note:** this course is actively kept aligned with current standards — OWASP Top 10:2025, ASVS 5.0, NIST SP 800-63B-4, and the 2025 CWE Top 25 are reflected throughout, alongside forward-looking coverage (post-quantum crypto, agentic AI security) most training hasn't caught up to yet. Last standards-alignment pass: **July 2026**.
 
 ---
 
