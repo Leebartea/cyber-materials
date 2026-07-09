@@ -762,7 +762,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **35-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **36-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -777,11 +777,12 @@ Cyber Guardians is a **35-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 35 modules at a glance
+### All 36 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
 - M1: The CIA Triad
+- M1.5: Security Governance, Risk & the NIST CSF *(new in this edition)*
 - M2: How the Internet Actually Works
 - M3: Passwords, Hashing & MFA
 - M4: Malware & Social Engineering
@@ -878,7 +879,7 @@ docker --version`
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 35 modules, expect ~45–55 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 36 modules, expect ~46–56 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -889,7 +890,7 @@ docker --version`
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 35 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 36 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -1307,6 +1308,98 @@ openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out secret.txt`
     quiz: ["Which CIA property fails when a website is knocked offline by a DDoS?", "A hospital's patient records are leaked online. Which property failed — and could a second property fail in the same incident?", "You hash a file and store the hash next to it. Why is that weak, and where should the hash live instead?", "Your friend says 'I don't care if my photos leak, I have nothing to hide.' Make the strongest counter-argument using the full triad."],
     tracker: ["I can explain Confidentiality, Integrity, and Availability to a 10-year-old", "I derived why there are exactly three legs (read / change / deny)", "I ran the lab and personally broke each property on my own file", "I can trace the cross-property chain in a real incident (Colonial Pipeline)", "I can spot a self-validating false-confidence check"]
   }, {
+    id: "m1_5",
+    level: 1,
+    num: "M1.5",
+    title: "Security Governance, Risk & the NIST CSF",
+    objective: "Every technical skill in this course fits into a bigger picture that employers, auditors, and regulators share: a governance framework. This module gives you that map — the NIST Cybersecurity Framework 2.0 and the basics of risk management — so you can explain not just how to defend a system, but how an organization decides what to defend and proves it did.",
+    theory: `### Why frameworks exist
+
+You can know Nmap, Wireshark, and Burp cold and still fail a job interview that asks "how would you build a security *program*?" Individual skills defend a host. A **framework** organizes those skills so an organization can decide what matters, assign responsibility, and *prove* to a customer or regulator that it's handling risk. The one you must know by name is the **NIST Cybersecurity Framework (CSF) 2.0** — released February 2024, used worldwide, and free.
+
+### The six CSF 2.0 functions
+
+CSF 1.1 had five functions. **CSF 2.0 added GOVERN** — a signal that leadership, policy, and risk decisions are part of security, not separate from it.
+
+| Function | Question it answers | Where you see it in this course |
+|---|---|---|
+| GOVERN (new in 2.0) | Who decides, what's our risk appetite, what are the policies? | This module, M28 careers |
+| IDENTIFY | What do we have and what could go wrong? | Asset inventory, M19 vuln assessment, threat modeling |
+| PROTECT | How do we prevent harm? | M6 OS hardening, M16.5 Zero Trust, crypto (M10) |
+| DETECT | How do we notice an attack? | M16 blue team, M18.5 ATT&CK/threat hunting, SIEM |
+| RESPOND | What do we do during an incident? | M23 incident response |
+| RECOVER | How do we get back to normal? | Backups, BC/DR (see M23) |
+
+When someone describes their SOC as "we're strong on Detect and Respond but weak on Govern," they mean this. Memorize the six — it's the spine of Security+ Domain 5 and CISSP Domain 1.
+
+### Risk management — the vocabulary
+
+Security is applied risk management. The core terms:
+
+- **Asset** — something of value (data, a server, a reputation).
+- **Threat** — something that could cause harm (ransomware crew, insider, flood).
+- **Vulnerability** — a weakness a threat can exploit (unpatched CVE, weak password policy).
+- **Risk** — the combination: likelihood × impact. \`Risk = Threat × Vulnerability × Impact\`.
+- **Risk appetite** — how much risk leadership will accept before spending to reduce it.
+
+**The four risk treatments** (know these four words):
+
+1. **Mitigate** — reduce it (patch, add MFA).
+2. **Transfer** — shift it (cyber insurance, outsource).
+3. **Avoid** — stop doing the risky thing.
+4. **Accept** — acknowledge and monitor (when the fix costs more than the risk).
+
+A **risk register** is the living document where each risk is logged with its owner, likelihood, impact, treatment, and status. Being able to say "I'd log that in the risk register as high-likelihood/high-impact and recommend mitigation" is a GRC-analyst answer.
+
+### Frameworks you should be able to name (breadth, not depth)
+
+- **NIST CSF 2.0** — the flexible outcome-based framework above.
+- **NIST SP 800-53 Rev 5** — the giant US federal control catalog CSF points to.
+- **ISO/IEC 27001:2022** — the international certification for an Information Security Management System (ISMS). When a non-US company says "we're ISO 27001 certified," this is it. (The 2013 edition retired 31 Oct 2025 — 27001:2022 is the only current version.)
+- **CIS Controls v8.1** — 18 prioritized, prescriptive controls; the fastest practical starting point for a small org ("do these 18 things in order").
+- **MITRE ATT&CK / D3FEND** — adversary behaviors (you meet ATT&CK in M18.5) and their defensive countermeasures.
+
+You don't need to memorize all of 800-53. You need to know *which framework answers which question* so you can navigate a real security program — and pass the GRC section of every foundational cert.`,
+    lab: {
+      mac: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
+# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
+# In a spreadsheet (Numbers/Excel/Sheets), list 5 risks you found in your own setup
+# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
+# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
+# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
+# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
+# This is exactly what a GRC analyst produces on day one.`,
+      windows: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
+# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
+# In a spreadsheet (Excel/Sheets), list 5 risks you found in your own setup
+# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
+# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
+# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
+# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
+# This is exactly what a GRC analyst produces on day one.`,
+      linux: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
+# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
+# In a spreadsheet (LibreOffice Calc/Sheets), list 5 risks you found in your own setup
+# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
+# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
+# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
+# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
+# This is exactly what a GRC analyst produces on day one.`
+    },
+    caseStudy: {
+      title: "Equifax (2017) — a governance failure, not just a technical one",
+      body: "The Equifax breach (147M records) is usually told as a story about not patching Apache Struts (CVE-2017-5638). True — but the deeper failure was GOVERN and IDENTIFY: no accurate asset inventory (they didn't know where Struts ran), an expired scanning certificate that silently disabled detection, and no clear ownership for acting on the patch alert. A CSF lens shows the breach touched every function: Identify (unknown assets), Protect (unpatched), Detect (blind scanner), Respond (delayed disclosure), Govern (no accountable owner). Technical patching was one missing control among five failed functions — which is exactly why frameworks exist."
+    },
+    challenges: [{
+      q: "Your company can't afford to fully fix a low-likelihood, low-impact risk this quarter. Which of the four risk treatments applies, and what must you still do?",
+      a: "Accept — but formally: document it in the risk register with an owner and a review date, and get leadership sign-off on accepting it. 'Accept' is a decision, not ignoring it."
+    }, {
+      q: "A vendor says 'we're ISO 27001 certified.' What does that actually tell you?",
+      a: "That they run a certified Information Security Management System audited against ISO/IEC 27001:2022 — a governance/process assurance, not a guarantee any specific control is perfect. It's the international counterpart to a US SOC 2 report."
+    }],
+    quiz: ["Name the six functions of NIST CSF 2.0 and which one was newly added in the 2.0 release.", "Write the risk equation and define each term.", "List the four risk treatment options with an example of each.", "What is a risk register and what does each entry contain?", "Which framework is the international ISMS certification, and what is its current version year?"],
+    tracker: ["I can name all six NIST CSF 2.0 functions and place any course topic under one", "I built a 5-row risk register with likelihood x impact scoring", "I can explain the four risk treatments with examples", "I can distinguish NIST CSF, 800-53, ISO 27001, and CIS Controls by what each is for"]
+  }, {
     id: "m2",
     level: 1,
     num: "M2",
@@ -1429,7 +1522,17 @@ Cracking cost ≈ (alphabet) ^ (length). Adding a character *multiplies* the spa
 
 ### MFA — the real win
 
-Categories: something you **know** (password), **have** (phone/hardware key), **are** (biometric). MFA breaks the crack-then-reuse chain — Microsoft says it blocks **99%+** of automated takeovers. But **SMS can be SIM-swapped/phished**; an **authenticator app (TOTP)** is better; a **passkey/hardware key (FIDO2/WebAuthn)** is best because the browser checks the site's domain before responding.`,
+Categories: something you **know** (password), **have** (phone/hardware key), **are** (biometric). MFA breaks the crack-then-reuse chain — Microsoft says it blocks **99%+** of automated takeovers. But **SMS can be SIM-swapped/phished**; an **authenticator app (TOTP)** is better; a **passkey/hardware key (FIDO2/WebAuthn)** is best because the browser checks the site's domain before responding.
+
+#### What NIST SP 800-63B-4 actually says (2025)
+
+The global reference for password rules is **NIST SP 800-63B-4** (July 2025). Its current guidance surprises people:
+- **Length beats complexity:** 15+ characters when a password is the *only* factor; support 64+ and allow spaces/Unicode.
+- **Drop composition rules** ("1 upper/1 number/1 symbol") — they push users to predictable patterns.
+- **No scheduled rotation** — change only on evidence of compromise.
+- **Screen new passwords against breach lists** (e.g. Have I Been Pwned) and reject matches.
+
+So the old "change your complex password every 90 days" advice is now an *anti-pattern* by the standard's own words.`,
     lab: {
       mac: `# === ETHICS: crack ONLY hashes you generate yourself here, and check only YOUR email on HIBP.
 # Cracking hashes you don't own (breach dumps, others' accounts) is illegal. ===
@@ -1485,7 +1588,7 @@ john --format=raw-md5 --show myhashes.txt`
       q: "Why does a slow hash (≈4 guesses/sec/core) beat a fast hash (≈10 billion/sec) for passwords, even with the same password?",
       a: "The password's entropy is unchanged, but the attacker's COST per guess is ~2.5 billion times higher. A brute force that took hours against a fast hash takes geologic time against a slow one. Memory-hardness (scrypt/Argon2) further removes the attacker's GPU/ASIC advantage. Slow is a feature, not a bug."
     }],
-    quiz: ["What is the precise difference between encryption and hashing?", "Why is plain SHA-256 a poor choice for password storage, and what should you use instead?", "Why is SMS-based MFA weaker than an authenticator app or a passkey?", "Why can a correctly built site never email you your existing password?"],
+    quiz: ["What is the precise difference between encryption and hashing?", "Why is plain SHA-256 a poor choice for password storage, and what should you use instead?", "Why is SMS-based MFA weaker than an authenticator app or a passkey?", "Why can a correctly built site never email you your existing password?", "According to NIST SP 800-63B-4, name two common password practices that are now discouraged."],
     tracker: ["I can explain hashing vs. encryption without hesitating", "I cracked my own MD5 hashes with John and watched weak ones fall instantly", "I timed a bcrypt hash and understand why 'slow' is the defense", "MFA enabled on email, social, financial (app or passkey, not SMS)", "20+ unique passwords in a manager; ran a Vault health report", "At least one account migrated to a passkey (GitHub or Google)"]
   }, {
     id: "m4",
@@ -1720,7 +1823,19 @@ resp.set_cookie("session", token)   # WHY WRONG: no Secure/HttpOnly/SameSite by 
 
 # Flask - SECURE: explicit protective flags (same HTTP standard as Node)
 resp.set_cookie("session", token, secure=True, httponly=True, samesite="Lax")
-\`\`\``,
+\`\`\`
+
+#### The laws you must recognize by name
+
+Privacy hygiene is personal; **data-protection law** is what makes organizations accountable for the data they hold on you. A security professional isn't a privacy lawyer, but must recognize when an incident triggers a legal obligation and loop in the right people fast:
+
+- **GDPR** (EU) — covers personal data of EU residents regardless of where the company is based. Grants data-subject rights (access, deletion, portability), requires breach notification to the regulator within **72 hours**, and fines up to **4% of global annual turnover**. The de-facto global baseline — even non-EU companies build to it.
+- **CCPA/CPRA** (California) — the closest US equivalent; grants California consumers rights to know, delete, and opt out of the sale of their data.
+- **HIPAA** (US) — protects health data specifically; covers hospitals, insurers, and their vendors.
+- **PCI DSS 4.0.1** (global) — protects payment card data; contractual (enforced by the card networks), not a government law.
+- **SOC 2** (US) — a trust-services *audit report*, not a law; commonly required by enterprise customers as proof of security controls.
+
+**Breach-notification clocks — the practical thing an incident responder needs:** GDPR gives you **72 hours** to notify the supervisory authority; the EU **Cyber Resilience Act** gives you **24 hours** to report an actively-exploited vulnerability in a product with digital elements (applies from 11 Sep 2026); PCI, DORA, and HIPAA each run their own clocks. The lesson isn't memorizing every deadline — it's knowing that **an IR playbook must include a legal-notification step**, because "we fixed it" and "we reported it in time" are two different obligations.`,
     lab: {
       mac: `# LAB: Harden your browser & inspect real tracking (Apple Silicon)
 # ETHICS: everything inspects YOUR own browser/machine only.
@@ -1751,7 +1866,7 @@ curl -sI https://github.com | grep -i "set-cookie"`
     },
     caseStudy: {
       title: "Cambridge Analytica (2016–2018)",
-      body: "A personality-quiz app on Facebook collected data on 87 million users — not just the ~270,000 who took the quiz, but all of THEIR friends too, via an over-permissive platform API. The data fed political micro-targeting. Nobody was 'hacked' technically; the data was handed out by design. The lesson maps to this module: privacy isn't only about attackers breaking in — it's about the DEFAULTS and PERMISSIONS of platforms you use and platforms you build. Over-broad data access is a vulnerability even with no exploit."
+      body: "A personality-quiz app on Facebook collected data on 87 million users — not just the ~270,000 who took the quiz, but all of THEIR friends too, via an over-permissive platform API. The data fed political micro-targeting. Nobody was 'hacked' technically; the data was handed out by design. The lesson maps to this module: privacy isn't only about attackers breaking in — it's about the DEFAULTS and PERMISSIONS of platforms you use and platforms you build. Over-broad data access is a vulnerability even with no exploit. The regulatory aftermath is the other half of the lesson: the UK ICO and US FTC both fined Facebook (the FTC settlement alone was $5 billion, then a record), and the incident is a standard reference case for GDPR-style enforcement even though it predates GDPR's 2018 effective date in the EU portion of the harm — proof that platform-level privacy failures carry regulatory consequences, not just reputational ones."
     },
     challenges: [{
       q: "Your friend says 'Incognito mode makes me invisible online.' Correct them precisely.",
@@ -1760,7 +1875,7 @@ curl -sI https://github.com | grep -i "set-cookie"`
       q: "You set HttpOnly on a session cookie. Which attack does that blunt, and which does it NOT help with at all?",
       a: "HttpOnly stops JavaScript from reading the cookie, so an XSS payload can't exfiltrate the session via document.cookie. It does NOT help against CSRF — the browser still attaches the cookie to cross-site requests automatically; that's what SameSite (and CSRF tokens) are for. Different flags defend different attacks: defense in depth."
     }],
-    quiz: ["A VPN encrypts your traffic. Does it make you anonymous? Why or why not?", "Your friend says incognito makes them invisible online. Correct them precisely.", "What is browser fingerprinting, and why is it hard to defend against by clearing cookies?", "As a developer, what do the Secure, HttpOnly, and SameSite cookie flags each defend against?", "Why is Cambridge Analytica a privacy failure even though 'no one was hacked'?"],
+    quiz: ["A VPN encrypts your traffic. Does it make you anonymous? Why or why not?", "Your friend says incognito makes them invisible online. Correct them precisely.", "What is browser fingerprinting, and why is it hard to defend against by clearing cookies?", "As a developer, what do the Secure, HttpOnly, and SameSite cookie flags each defend against?", "Why is Cambridge Analytica a privacy failure even though 'no one was hacked'?", "An EU user's data is breached. How long do you have to notify the regulator, and under which law?"],
     tracker: ["Firefox hardened with Strict ETP, HTTPS-Only, and 3+ privacy extensions", "Ran the EFF Cover Your Tracks test with and without blocking", "Inspected a real site's Set-Cookie flags with curl", "Audited and trimmed app permissions on my Mac and phone", "I can explain what Secure, HttpOnly, and SameSite each defend against"]
   }, {
     id: "m6",
@@ -2224,7 +2339,15 @@ def encrypt_secure(plain: bytes) -> bytes:
     nonce = os.urandom(12)                             # unique nonce each message
     return nonce + AESGCM(key).encrypt(nonce, plain, None)   # ciphertext + auth tag
 # WHY IT WORKS: AEAD (confidentiality + integrity); fresh nonce; key out of source.
-\`\`\``,
+\`\`\`
+
+#### The quantum threat and post-quantum cryptography
+
+The encryption protecting the internet (RSA, ECDH key exchange, ECDSA signatures) relies on math a large **quantum computer** could break. It doesn't exist at scale yet, but **"harvest now, decrypt later"** means adversaries record encrypted data today to crack later — so long-lived secrets are already at risk.
+
+The response is real and standardized. In **August 2024** NIST finalized the first post-quantum algorithms: **FIPS 203 (ML-KEM)** for key exchange, **FIPS 204 (ML-DSA)** and **FIPS 205 (SLH-DSA)** for signatures (**HQC** was added as a backup in March 2025). Governments have set deadlines to retire classical algorithms (US: deprecate by **2030**, disallow by **2035**), and modern TLS 1.3 already negotiates **hybrid** key exchange (classical + ML-KEM together).
+
+**What a defender needs to know:** you won't implement these, but you should (1) recognize the terms ML-KEM / post-quantum / crypto-agility, (2) understand that keeping crypto libraries current is a security control because it's how the hybrid algorithms reach you, and (3) know the migration is a live project, not science fiction.`,
     lab: {
       mac: `# LAB: Keys, encryption, real certs (Apple Silicon)
 # ETHICS: your own keys/files; inspecting a public site's cert is read-only and fine.
@@ -2259,7 +2382,7 @@ echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noou
       q: "Two messages were encrypted with AES-CBC using the SAME IV and key. Why is that dangerous?",
       a: "An IV must be unique per message. Reuse leaks relationships: with CBC, identical leading blocks produce identical ciphertext, revealing where two messages start the same; with CTR/GCM, nonce reuse is catastrophic and can leak the keystream or auth key. Always use a fresh random nonce per message."
     }],
-    quiz: ["If a website's certificate expires, what actually breaks, and why?", "Why are bcrypt and Argon2 intentionally slow, while AES is intentionally fast?", "Why is ECB mode unsafe, and what should you use instead?", "What does an AEAD mode (AES-GCM) give you that plain AES-CBC does not?", "Heartbleed used strong algorithms yet leaked private keys — what does that teach about where crypto fails?"],
+    quiz: ["If a website's certificate expires, what actually breaks, and why?", "Why are bcrypt and Argon2 intentionally slow, while AES is intentionally fast?", "Why is ECB mode unsafe, and what should you use instead?", "What does an AEAD mode (AES-GCM) give you that plain AES-CBC does not?", "Heartbleed used strong algorithms yet leaked private keys — what does that teach about where crypto fails?", "What does 'harvest now, decrypt later' mean, and why does it make post-quantum migration urgent even before quantum computers are practical?"],
     tracker: ["Generated a GPG key pair and encrypted/decrypted a file", "Inspected a real TLS certificate's issuer and validity window", "I can explain symmetric vs asymmetric and why HTTPS uses both (hybrid)", "I can write AES-256-GCM encryption (Node or Python) with a random nonce and key-from-env", "I can explain why ECB and reused IVs are dangerous"]
   }, {
     id: "m11",
@@ -2284,7 +2407,7 @@ root is all-powerful; daily work happens unprivileged; sudo grants momentary, AU
 
 #### Why the naive way to run a subprocess fails
 
-> **Naive: "I'll build a shell command string with the user's input and run it."** Fails because the shell interprets metacharacters. Running \`ping <input>\` via the shell lets an attacker submit \`8.8.8.8; rm -rf ~\` — the \`;\` chains a second command. This is **command injection** (OWASP A03, Module 14). The fix: never invoke a shell with untrusted input — pass program + args as a LIST so the OS runs exactly one program with the input as inert data.
+> **Naive: "I'll build a shell command string with the user's input and run it."** Fails because the shell interprets metacharacters. Running \`ping <input>\` via the shell lets an attacker submit \`8.8.8.8; rm -rf ~\` — the \`;\` chains a second command. This is **command injection** (OWASP A05:2025 Injection, Module 14). The fix: never invoke a shell with untrusted input — pass program + args as a LIST so the OS runs exactly one program with the input as inert data.
 
 > **The correct rule:** prefer argument-array execution (no shell), validate/allow-list inputs, run services unprivileged, audit privileged actions.
 
@@ -2542,20 +2665,26 @@ sudo tcpdump -i lo0 -A 'tcp port 8080'`,
 - **SQLi / XSS / command injection / IDOR / SSRF** — input alters a query / runs as script in another user's browser / runs OS commands / changing an id exposes another user's object / server is tricked into fetching an attacker URL.
 - **Parameterized query** — send SQL structure and data separately so input is never parsed as SQL. The correct SQLi defense.
 
-#### OWASP Top 10 (2021) — example -> core defense
+#### OWASP Top 10 (2025 edition) — example -> core defense
+
+OWASP refreshed the list in 2025. If you learned the 2021 version: **supply-chain attacks got their
+own category (A03)**, a new **A10** covers software that fails *open* on error, and **SSRF is no
+longer its own entry** — it now lives under A01. Four other categories changed *number* even though
+their meaning didn't (Misconfig 05->02, Crypto 02->04, Injection 03->05, Insecure Design 04->06) —
+if you memorized the 2021 numbers, re-anchor on these.
 
 | ID | Risk | Example | Defense |
 |---|---|---|---|
-| A01 | Broken Access Control | IDOR /account/124 | Server-side authZ every request; deny by default |
-| A02 | Cryptographic Failures | MD5 passwords; HTTP login | TLS (M13); Argon2/bcrypt (M3); AES-GCM (M10) |
-| A03 | Injection | admin' OR '1'='1 | Parameterized queries; arg-array exec; output encoding |
-| A04 | Insecure Design | reset token never expires | Threat modeling in design |
-| A05 | Security Misconfig | default creds, debug on | Hardening, minimal config |
-| A06 | Vulnerable Components | unpatched Struts | SCA tools, patch fast (Equifax) |
+| A01 | Broken Access Control (incl. SSRF) | IDOR /account/124; fetch 169.254.169.254 -> cloud creds | Server-side authZ every request; deny by default; allow-list outbound URLs |
+| A02 | Security Misconfig | default creds, debug on | Hardening, minimal config |
+| A03 | Software Supply Chain Failures | unpatched Struts; malicious npm package | SCA tools, patch fast, SBOM (Equifax) |
+| A04 | Cryptographic Failures | MD5 passwords; HTTP login | TLS (M13); Argon2/bcrypt (M3); AES-GCM (M10) |
+| A05 | Injection | admin' OR '1'='1 | Parameterized queries; arg-array exec; output encoding |
+| A06 | Insecure Design | reset token never expires | Threat modeling in design |
 | A07 | Auth Failures | no lockout, weak sessions | MFA, rate limit, strong tokens (M3) |
 | A08 | Integrity Failures | unsigned updates | Signed artifacts, SBOM |
-| A09 | Logging Failures | 200-day dwell | Centralized logging, alerting |
-| A10 | SSRF | fetch 169.254.169.254 -> cloud creds | Allow-list outbound; block internal IPs |
+| A09 | Logging & Alerting Failures | 200-day dwell, no one paged | Centralized logging, alerting |
+| A10 | Mishandling of Exceptional Conditions | a \`catch\` that grants access when a check errors | Fail CLOSED on every security-relevant exception |
 
 #### Why the naive defenses fail (the through-line)
 
@@ -2644,7 +2773,7 @@ sudo docker run --rm -d -p 8080:80 vulnerables/web-dvwa`
     },
     caseStudy: {
       title: "Equifax (2017)",
-      body: "A known Apache Struts vulnerability (CVE-2017-5638) had a public patch for TWO MONTHS. Equifax didn't apply it. Attackers exploited the unpatched component and exfiltrated 147 million people's SSNs, birthdates, and addresses; the settlement reached ~$700M. This is A06 — Vulnerable and Outdated Components — at maximum scale. The bug wasn't exotic and the patch existed; the failure was operational: no inventory, no patch discipline, no monitoring. The most damaging breaches are often unpatched KNOWN bugs."
+      body: "A known Apache Struts vulnerability (CVE-2017-5638) had a public patch for TWO MONTHS. Equifax didn't apply it. Attackers exploited the unpatched component and exfiltrated 147 million people's SSNs, birthdates, and addresses; the settlement reached ~$700M. This is A03:2025 — Software Supply Chain Failures (a known-vulnerable dependency left unpatched) — at maximum scale. The bug wasn't exotic and the patch existed; the failure was operational: no inventory, no patch discipline, no monitoring. The most damaging breaches are often unpatched KNOWN bugs."
     },
     challenges: [{
       q: "In DVWA Low SQL Injection, retrieve all usernames and password hashes. Document the exact payload, then explain why the High-security version defeats it.",
@@ -2827,7 +2956,7 @@ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | u
     },
     caseStudy: {
       title: "Target (2013)",
-      body: "Attackers compromised an HVAC vendor (Fazio Mechanical) via phishing, used those credentials to reach Target's vendor network, pivoted to corporate, and deployed malware on point-of-sale systems — 40 million payment cards stolen. Target's FireEye monitoring DID fire an alert; no one acted in time. OWASP A09 — Logging & Monitoring Failures — at industry scale. Two lessons: detection without RESPONSE is theater; and attackers pivot through the weakest connected party (supply chain), so monitor lateral movement, not just the perimeter. The blue team is people + process, not just a dashboard."
+      body: "Attackers compromised an HVAC vendor (Fazio Mechanical) via phishing, used those credentials to reach Target's vendor network, pivoted to corporate, and deployed malware on point-of-sale systems — 40 million payment cards stolen. Target's FireEye monitoring DID fire an alert; no one acted in time. OWASP A09:2025 — Security Logging and Alerting Failures — at industry scale. Two lessons: detection without RESPONSE is theater; and attackers pivot through the weakest connected party (supply chain), so monitor lateral movement, not just the perimeter. The blue team is people + process, not just a dashboard."
     },
     challenges: [{
       q: "Signature-based vs anomaly-based detection — give one strength and one weakness of each.",
@@ -3301,7 +3430,7 @@ done | sort | uniq -c | sort -rn
 
 > **Naive #2: "Fix the highest CVSS first."** Fails: CVSS is intrinsic severity, not YOUR risk. A 9.8 in an unexposed internal component behind auth may matter less than a 6.5 on your public login page. Prioritize by severity × exploit likelihood × exposure × asset value.
 
-> **Naive #3: "We scanned the servers, so we're covered."** Fails: most surface is your DEPENDENCIES (Equifax/A06). Hundreds of third-party packages can each carry a CVE. Host scans miss the vulnerable library inside your app — scan the SBOM.
+> **Naive #3: "We scanned the servers, so we're covered."** Fails: most surface is your DEPENDENCIES (Equifax/A03:2025 Software Supply Chain Failures). Hundreds of third-party packages can each carry a CVE. Host scans miss the vulnerable library inside your app — scan the SBOM.
 
 > **The correct posture:** scan broadly (hosts AND dependencies), then triage: validate, prioritize by combined risk, feed top items to remediation with owners and deadlines.
 
@@ -3330,7 +3459,20 @@ def risk_score(f):
     return f["cvss"] * f["epss"] * (1.0 if f["internet_exposed"] else 0.3) * f["asset_value"]
 fix_first(sorted(findings, key=risk_score, reverse=True)[0])
 # WHY IT WORKS: prioritizes what an attacker can actually reach and is likely to exploit.
-\`\`\``,
+\`\`\`
+
+#### Two more inputs the pros use: KEV and SSVC
+
+CVSS tells you *how bad* a vuln is in theory; EPSS tells you *how likely* it is to be exploited soon. Two more, both free and authoritative:
+
+- **CISA KEV (Known Exploited Vulnerabilities) catalog.** A curated list of CVEs **confirmed exploited in the wild**. Rule of thumb: **if it's on KEV, it jumps the queue** — real-world exploitation beats any theoretical score. US federal agencies are *required* to patch KEV entries on a deadline; treat it the same way. Check it at cisa.gov/kev.
+- **SSVC (Stakeholder-Specific Vulnerability Categorization).** Instead of a single number, SSVC is a **decision tree**: Is it being exploited (KEV)? Is the system exposed? What's the mission impact? It outputs an *action* — Track / Track-star / Attend / Act — which is what you actually need. CISA promotes SSVC precisely because "CVSS 9.8" isn't a decision, it's a data point.
+
+**The modern triage stack:** start from your scan, then rank by **KEV (exploited?) -> EPSS (likely?) -> exposure -> asset value**, using CVSS as one input, not the verdict. That's the answer that lands in a CySA+ interview.
+
+#### Naming the weakness: CWE
+
+Every CVE is tagged with a **CWE (Common Weakness Enumeration)** — the *type* of flaw (CWE-79 XSS, CWE-89 SQLi, CWE-352 CSRF). The **CWE Top 25 (2025)** is the "most dangerous weaknesses" list, led by XSS, SQLi, and CSRF. When you report a finding, cite its CWE — it's how scanners, CVEs, and triagers all speak.`,
     lab: {
       mac: `# LAB: Scan a target AND your own dependencies (Apple Silicon)
 mkdir -p ~/cyber-journal/m19 && cd ~/cyber-journal/m19
@@ -3359,7 +3501,7 @@ npm audit --audit-level=high; pip-audit; trivy fs .`
       q: "Why does npm audit / pip-audit catch things an nmap scan of your running server never will?",
       a: "nmap sees network services and versions from outside; it can't see third-party libraries compiled/bundled INTO your app. A vulnerable logging/parsing library (Log4Shell-style) exposes no distinct port — it's reachable through normal app traffic. Dependency scanners read your lockfile/SBOM and match package versions against known-CVE databases, surfacing the vulnerable component a network scan is blind to."
     }],
-    quiz: ["What's the difference between a vulnerability scan and a penetration test?", "What does CVSS measure, and why is it insufficient for prioritization alone?", "What four factors should real risk-based prioritization combine?", "Why must you scan dependencies, not just running hosts (cite Log4Shell)?", "What is triage, and why is an un-triaged scanner dump worse than useless?"],
+    quiz: ["What's the difference between a vulnerability scan and a penetration test?", "What does CVSS measure, and why is it insufficient for prioritization alone?", "What four factors should real risk-based prioritization combine?", "Why must you scan dependencies, not just running hosts (cite Log4Shell)?", "What is triage, and why is an un-triaged scanner dump worse than useless?", "A CVE has a CVSS of 6.1 but appears on the CISA KEV catalog. Do you patch it before a 9.8 that isn't on KEV? Why?"],
     tracker: ["Ran Nuclei against my lab target and reviewed findings", "Ran npm audit / pip-audit / trivy against my own project", "I can explain CVSS vs risk-based prioritization", "I triaged a finding list and justified my top fix", "I understand why dependency scanning catches what host scans miss (Log4Shell)"]
   }, {
     id: "m20",
@@ -3663,6 +3805,8 @@ vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`
 5. **Recovery** — restore and monitor for re-entry.
 6. **Post-Incident** — lessons learned (the step everyone skips). (SANS: **PICERL**.)
 
+**The legal-notification step your playbook must not skip:** different laws start different clocks the moment you confirm a breach. GDPR gives you **72 hours** to notify the supervisory authority for personal-data breaches; the EU Cyber Resilience Act gives you **24 hours** to report an actively-exploited vulnerability in a product with digital elements (applies from 11 Sep 2026); PCI, DORA, and HIPAA each run their own. "We contained it" and "we reported it within the legal deadline" are two separate obligations — Preparation (step 1) means already knowing which clock applies to your organization *before* an incident, not looking it up at 2 a.m.
+
 #### Why the naive instincts fail
 
 > **Naive #1: "Power everything off / wipe and reinstall."** Fails because power-off destroys volatile evidence (RAM keys, processes, C2 — M22's order of volatility) and wiping erases HOW they got in, so you rebuild into the same hole and miss scope/notification triggers. Isolate (network-off) and PRESERVE first; eradicate after you understand the entry point.
@@ -3905,7 +4049,17 @@ Defence: separate trust levels between AI instructions and AI data; never let us
 
 > "AI will detect everything automatically — we just need to buy the right tool."
 
-Fails because: (a) AI detection models are trained on known attack patterns — novel techniques evade them until the model is retrained; (b) AI detections produce false positives; human review is still needed; (c) AI-assisted attackers are evolving their evasion faster than any single vendor model can keep up; (d) the highest-value attacks (targeted APT, insider threat) are still primarily human-driven with AI assistance, not fully automated. AI is a force multiplier for both sides — neither side wins just by having it.`,
+Fails because: (a) AI detection models are trained on known attack patterns — novel techniques evade them until the model is retrained; (b) AI detections produce false positives; human review is still needed; (c) AI-assisted attackers are evolving their evasion faster than any single vendor model can keep up; (d) the highest-value attacks (targeted APT, insider threat) are still primarily human-driven with AI assistance, not fully automated. AI is a force multiplier for both sides — neither side wins just by having it.
+
+#### Beyond chatbots: autonomous agents and MCP
+
+Everything above treats AI as something that *answers*. The next wave is AI that *acts* — an **agent** wired up to tools that can read files, call APIs, run code, or spend money. That's a new risk axis: an attack against a chatbot produces a bad answer; an attack against an agent produces a bad **action**. OWASP released a dedicated **Top 10 for Agentic Applications** and an **MCP (Model Context Protocol) Top 10** in December 2025, distinct from the LLM Top 10 above, because of failure modes like:
+
+- **Excessive agency** — an agent granted more tool access than its task needs, so a single successful manipulation has an outsized blast radius.
+- **Tool / MCP poisoning** — a malicious or compromised tool server embeds hidden instructions in its own description, which the model reads as guidance (a "confused deputy": the agent has legitimate access, but is tricked into misusing it).
+- **Memory poisoning** — a long-running agent's persistent memory is corrupted with attacker-controlled content that influences *future* decisions, not just the current one.
+
+**Defense in one line:** grant agents the least privilege their task needs, put a human approval gate on high-impact actions (payments, deletions, credential access), and treat tool output — and tool *descriptions* — as untrusted input, same as any other AI-generated content above.`,
     lab: {
       mac: `# AI security lab — defensive exercises only
 # All work is on your own machine; no external targets.
@@ -3988,7 +4142,7 @@ sha256sum /bin/ls
 
 - **Shared Responsibility Model** — the provider secures the cloud INFRASTRUCTURE; YOU secure what's in it (IAM, data, code, config). Most breaches are your side.
 - **IMDS** — internal endpoint (169.254.169.254) returning instance config AND temporary IAM credentials. IMDSv1 answers any local request; **IMDSv2** needs a token handshake an SSRF can't perform.
-- **SSRF** — server tricked into fetching an attacker URL (M14, A10); in cloud, the prize target is IMDS.
+- **SSRF** — server tricked into fetching an attacker URL (M14, filed under A01:2025 Broken Access Control); in cloud, the prize target is IMDS.
 - **Least privilege (cloud)** — scope every role/policy to specific actions and resources (a named ARN), never \`*:*\`.
 
 #### The five misconfigurations behind most cloud breaches
@@ -4050,6 +4204,8 @@ def safe_fetch(raw_url):
 
 iOS sandboxes + code-signs aggressively (its walled garden IS its model); Android is more open and fragmented. Reference: OWASP Mobile Top 10. Top dev risks: **insecure local storage** (secrets/tokens in plaintext on a device the user controls), **weak transport** (no TLS / no cert pinning), and **reverse-engineering** (your shipped client is fully inspectable — never hide secrets or trust client-side checks in an app). Test your own APK with MobSF; MITM only your own device.
 
+For mobile specifically, the standard is **OWASP MASVS 2.1.0** (Mobile Application Security Verification Standard, with the **MASTG** testing guide) — it covers storage, crypto, auth, network, platform interaction, code quality, resilience, and (added in 2.1) privacy. If you go into mobile security, MASVS is your ASVS.
+
 #### AI/LLM security (the new trust boundary)
 
 If your app calls an LLM, the model's output is **untrusted input**. **Prompt injection** (LLM01): user/3rd-party text overrides your system prompt ("ignore previous instructions..."). The fix is architecture, not cleverer prompts: treat LLM output as untrusted (never run it as SQL/HTML/shell — re-apply M14), give agents **least privilege** (no tool/permission the user lacks), keep a human in the loop for consequential actions, and bound cost/tokens. Full OWASP LLM Top 10 is the reference.
@@ -4081,7 +4237,7 @@ python3 -m http.server 8169 & curl http://127.0.0.1:8169/`
     },
     caseStudy: {
       title: "Capital One (2019)",
-      body: "A misconfigured AWS WAF was abused via SSRF to reach the EC2 metadata service, retrieve the instance's temporary IAM credentials, and pull over 100 million customer records from S3. Textbook OWASP A10 (SSRF) + cloud IAM misconfiguration; ~$80M fine; perpetrator convicted. The fix is architectural, not a patch: require IMDSv2 (breaks the credential grab), scope IAM roles to specific bucket ARNs, block egress to 169.254.169.254 + private ranges (the secure code above), and alert on out-of-VPC role use. Any ONE would have broken the chain."
+      body: "A misconfigured AWS WAF was abused via SSRF to reach the EC2 metadata service, retrieve the instance's temporary IAM credentials, and pull over 100 million customer records from S3. Textbook SSRF — now classified under OWASP A01:2025 Broken Access Control, not its own number — plus cloud IAM misconfiguration; ~$80M fine; perpetrator convicted. The fix is architectural, not a patch: require IMDSv2 (breaks the credential grab), scope IAM roles to specific bucket ARNs, block egress to 169.254.169.254 + private ranges (the secure code above), and alert on out-of-VPC role use. Any ONE would have broken the chain."
     },
     challenges: [{
       q: "What single EC2 instance setting would have broken the Capital One attack chain, and why?",
@@ -4414,7 +4570,8 @@ There is no wrong answer. Every path is well-compensated, in-demand, and respect
 #### 2. Penetration Tester / Red Team
 **What you do day-to-day:** simulate real attacks against client infrastructure, write technical reports with exploitation evidence and remediation, present findings to executives and developers.
 **Prerequisites matter here:** employers want demonstrated skills, not just certs. Build a portfolio on HackTheBox/TryHackMe before applying.
-**Cert roadmap:** CompTIA Security+ → eJPT (eLearnSecurity, ~$200, great first pentest cert) → PNPT (TCM Security, practical exam ~$400) → OSCP (Offensive Security, ~$1,499, industry gold standard for pentest)
+**Cert roadmap:** CompTIA Security+ → **CompTIA PenTest+ (PT0-003)** (vendor-neutral offensive badge) or eJPT (**INE Security**, the rebranded eLearnSecurity, ~$200, great first pentest cert) → PNPT (TCM Security, practical exam ~$400) → **OSCP+** (OffSec's current pentest cert — OffSec added the "+" with the exam refresh, ~$1,649, industry gold standard for pentest)
+**Global / UK-EU path:** **CREST CRT / CPSA** is the UK/EU-recognized pentest credential — the single most useful non-US cert for the "employable anywhere" goal. OffSec's OSCP/OSCP+ plus CPSA can route to CRT by equivalency, but equivalency doesn't qualify you for UK Government CHECK work (that needs the CREST exam directly).
 **Expected salary range:** $70k–$100k entry, $110k–$160k senior / red teamer.
 
 #### 3. Application Security (AppSec)
@@ -4447,11 +4604,25 @@ There is no wrong answer. Every path is well-compensated, in-demand, and respect
 **Cert roadmap:** CompTIA Security+ → CRISC (Certified in Risk and Information Systems Control) → CISM (Certified Information Security Manager) → CISSP (highest recognised)
 **Expected salary range:** $70k–$100k entry, $120k–$180k CISO-path.
 
+### Mapping yourself to real job roles — the NICE Framework
+
+Certifications prove skills; the **NIST NICE Workforce Framework** (Components v2.0.0, March 2025) names the **jobs** those skills add up to. Employers worldwide describe openings in NICE terms, so knowing your target **work role** turns "I know security stuff" into "I'm targeting the Cyber Defense Analyst role." A few roles this course prepares you for:
+
+| NICE work role | What they do | Course modules that build it | Certs that signal it |
+|---|---|---|---|
+| Cyber Defense Analyst (SOC analyst) | Monitor, detect, triage alerts | M16, M18.5, M19, M23 | Security+, CySA+ |
+| Vulnerability Assessment Analyst | Find and prioritize weaknesses | M12, M19, M20 | PenTest+, eJPT |
+| Penetration Tester | Authorized offensive testing | M15, M18, M20, M21 | OSCP+, PenTest+, CEH, CREST CRT |
+| Incident Responder | Contain and recover from attacks | M23, M24, M22 (forensics) | GCIH, CySA+ |
+| Secure Software Developer | Build security into code | the AppSec course | GWEB, OSWA/OSWE, BSCP |
+
+**How to use NICE:** pick the work role you want, read its NICE Task/Knowledge/Skill statements (free on the NIST NICE site), and treat any gap as your study plan. It's the bridge from this course to a specific job title recruiters search for.
+
 ### The universal first-year roadmap
 
 Regardless of specialization:
 
-1. **CompTIA Security+** (SY0-701) — 3–4 months of study. The universal entry credential. Professor Messer's free course + Darril Gibson book + Jason Dion practice exams. Exam cost: ~$400 (vouchers often available via Pearson, employer reimbursement, or student discounts). This course's content covers ~80% of the domains.
+1. **CompTIA Security+** (SY0-701; **SY0-801 is expected ~late 2026** — SY0-701 remains current and valid for 3 years from your test date, so don't wait for the refresh) — 3–4 months of study. The universal entry credential. Professor Messer's free course + Darril Gibson book + Jason Dion practice exams. Exam cost: ~$400 (vouchers often available via Pearson, employer reimbursement, or student discounts). This course's content covers ~80% of the domains.
 
 2. **Build evidence of skill** — one public artefact per month:
    - CTF writeup on your blog or GitHub
