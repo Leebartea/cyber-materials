@@ -943,18 +943,34 @@ A common beginner mistake: installing Metasploit directly on the laptop where pe
 
 ### Kali Linux VM — setup steps
 
-1. Download the Kali VM image from **kali.org/get-kali** → Virtual Machines:
-   - **macOS Apple Silicon**: choose the ARM64 VMware image (\`.vmwarevm\` bundle)
-   - **macOS Intel / Windows / Linux**: choose the AMD64 VMware image (\`.ova\` file)
-2. Verify the SHA256 checksum before importing (Kali posts checksums next to each download)
-3. Import into VMware Fusion/Workstation and assign 4 GB RAM, 2 CPUs minimum (8 GB / 4 CPU recommended)
-4. First boot: update fully:
+> **Go directly to the official site — do not search "download Kali Linux."** Type the URL yourself: **kali.org/get-kali** (full address: \`https://www.kali.org/get-kali/\`). Kali is a security tool people run with elevated privileges, which makes it a favorite target for fake "Kali" downloads pushed by search-engine-optimized blog posts, YouTube-description links, and third-party mirror sites that can outrank the real site in search results. If the address bar doesn't say \`kali.org\`, close the tab and start over — this is the single most important habit in this whole setup section.
+
+1. On the Kali site, choose the **"Virtual Machines"** tab specifically — not "Installer Images," "Bare Metal," "Live Boot," or "Cloud" (those are for different setups):
+   - **macOS Apple Silicon**: the ARM64 VMware image (a \`.7z\` archive containing a \`.vmwarevm\` bundle)
+   - **macOS Intel / Windows / Linux**: the AMD64 VMware image (a \`.7z\` archive containing an \`.ova\` file)
+2. **Verify the checksum before you extract or import anything.** Kali posts a SHA256 hash directly next to every download link — copy it, then run the matching command for your OS against the file you downloaded:
    \`\`\`bash
+   # macOS / Linux — Terminal
+   shasum -a 256 ~/Downloads/kali-linux-*.7z
+   \`\`\`
+   \`\`\`text
+   :: Windows — Command Prompt
+   certutil -hashfile kali-linux-*.7z SHA256
+   \`\`\`
+   Compare the output character-by-character against the hash shown on kali.org. **If it doesn't match exactly, delete the file and download it again — do not extract or import it.** A mismatch usually just means a corrupted download, but a checksum is precisely the control that would catch a tampered file too, so never skip this step or proceed on a partial match.
+3. Extract the \`.7z\` archive — macOS: The Unarchiver (free, App Store) or \`brew install sevenzip\`; Windows: 7-Zip; Linux: \`7z x kali-linux-*.7z\`. Then import the extracted VM into your hypervisor:
+   - **VMware Fusion / Workstation**: File → Open, select the extracted \`.vmwarevm\` (macOS) or \`.vmx\` (Windows/Linux)
+   - **UTM**: File → Import, select the extracted VM bundle
+   - **VirtualBox**: File → Import Appliance, select the \`.ova\`
+4. Assign 4 GB RAM, 2 CPUs minimum (8 GB / 4 CPU recommended)
+5. First boot: log in with the default credentials **kali / kali**, then immediately:
+   \`\`\`bash
+   passwd                                # change the default password FIRST, before anything else
    sudo apt update && sudo apt full-upgrade -y
    sudo apt autoremove -y
    \`\`\`
-5. Take a **clean snapshot** immediately after updating — this is your baseline to revert to
-6. **Network adapter**: use Host-Only for attack labs (so your VM cannot reach the real internet while running exploits). Switch to NAT only when you need to apt-update.
+6. Take a **clean snapshot** immediately after updating — this is your baseline to revert to
+7. **Network adapter**: use Host-Only for attack labs (so your VM cannot reach the real internet while running exploits). Switch to NAT only when you need to apt-update.
 
 ### All tools by level — what you need and when
 

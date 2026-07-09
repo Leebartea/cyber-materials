@@ -1201,10 +1201,25 @@ brew install --cask utm
 # sudo apt install -y virtualbox
 \`\`\`
 
-Download the Kali image from **kali.org/get-kali** and verify the checksum. Choose the image that matches your host CPU:
+> **Go directly to the official site — do not search "download Kali Linux."** Type the URL yourself: **kali.org/get-kali** (full address: \`https://www.kali.org/get-kali/\` → the "Virtual Machines" tab). Kali is a security tool people run with elevated privileges, which makes it a favorite target for fake downloads pushed by SEO blog posts and third-party mirrors that can outrank the real site in search results. If the address bar doesn't say \`kali.org\`, close the tab.
 
-- **ARM64 host (Apple Silicon, Windows-on-ARM):** download the Kali ARM64 image — runs natively at full speed
-- **x86-64 host (Intel/AMD):** download the standard Kali amd64 image
+Choose the image that matches your host CPU (both ship as a \`.7z\` archive):
+
+- **ARM64 host (Apple Silicon, Windows-on-ARM):** the Kali ARM64 image — runs natively at full speed
+- **x86-64 host (Intel/AMD):** the standard Kali amd64 image
+
+**Verify the checksum before extracting or importing anything** — Kali posts a SHA256 hash next to the download link:
+
+\`\`\`bash
+# macOS / Linux
+shasum -a 256 ~/Downloads/kali-linux-*.7z
+\`\`\`
+\`\`\`text
+:: Windows (Command Prompt)
+certutil -hashfile kali-linux-*.7z SHA256
+\`\`\`
+
+Compare the output character-by-character against the hash on kali.org. **If it doesn't match, delete the file and re-download — never import an unverified image.** Extract the \`.7z\` (macOS: The Unarchiver or \`brew install sevenzip\`; Windows: 7-Zip; Linux: \`7z x\`), then import it: VMware Fusion/Workstation → File → Open the extracted \`.vmwarevm\`/\`.vmx\`; UTM → File → Import; VirtualBox → File → Import Appliance the \`.ova\`. First boot uses **kali/kali** — run \`passwd\` immediately to change it before doing anything else.
 
 ---
 
