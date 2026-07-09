@@ -14,3 +14,8 @@ MY_SETUP_*.md
 # Superseded static HTML build — the React reader (full_stack_appsec_app.html)
 # is the canonical version; the static build is kept locally for reference only.
 cyber-full\ stack/full_stack_appsec_app_static.html
+
+# Internal planning/audit docs used to drive course updates — working
+# material for the owner, not meant for the published repo.
+FABLE_GLOBAL_STANDARDS_PROMPT.md
+global-standards-blueprint/
