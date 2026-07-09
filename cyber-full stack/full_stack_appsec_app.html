@@ -10129,7 +10129,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [themeMode, setThemeMode] = useState(() => {
-    try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch { return 'dark'; }
+    try { return localStorage.getItem(THEME_KEY) || 'system'; } catch { return 'system'; }
   });
   const cycleTheme = () => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'system' : 'dark');
   const mainRef = useRef(null);
