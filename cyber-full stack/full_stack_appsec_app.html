@@ -2832,8 +2832,8 @@ Module 1.6 gave you \`awk\`. Two more tools complete the classic Unix text-proce
 
 \`\`\`bash
 mkdir -p ~/cyber-labs/1-7/configs && cd ~/cyber-labs/1-7/configs
-printf 'db_host=10.0.0.5\\\\napi_key=REDACT_ME\\\\n' > service-a.conf
-printf 'db_host=10.0.0.5\\\\napi_key=REDACT_ME\\\\n' > service-b.conf
+printf 'db_host=10.0.0.5\\napi_key=REDACT_ME\\n' > service-a.conf
+printf 'db_host=10.0.0.5\\napi_key=REDACT_ME\\n' > service-b.conf
 
 # Find every config file, then bulk-redact a placeholder secret in all of them at once:
 find . -name "*.conf" | xargs sed -i.bak 's/REDACT_ME/<set-via-env-var>/g'
