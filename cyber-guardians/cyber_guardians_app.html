@@ -762,7 +762,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **36-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **37-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -777,7 +777,7 @@ Cyber Guardians is a **36-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 36 modules at a glance
+### All 37 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -795,6 +795,7 @@ Cyber Guardians is a **36-module breadth-first course** that takes you from zero
 - M9: Networking Deep Dive
 - M10: Cryptography Essentials
 - M11: Linux Power User
+- M11.5: Advanced Shell Scripting, Text Processing & SSH Tunneling *(new in this edition)*
 - M12: Nmap — Network Scanning
 - M13: Wireshark — Packet Analysis
 - M14: OWASP Top 10 — Web Security
@@ -881,7 +882,7 @@ docker --version`
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 36 modules, expect ~46–56 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 37 modules, expect ~47–57 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -892,7 +893,7 @@ docker --version`
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 36 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 37 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -2497,6 +2498,119 @@ docker run --platform linux/arm64 -it kalilinux/kali-rolling /bin/bash`
     }],
     quiz: ["What does sudo give you over logging in as root, from a security standpoint?", "What is the SUID bit, and why is it a privilege-escalation concern?", "Why is subprocess.run(cmd, shell=True) (or Node's exec) dangerous with user input, and what's the fix?", "Why do defenders run find /etc -mtime -1 and find / -perm -4000?", "Why should you never trust or execute files in /tmp?"],
     tracker: ["Kali ARM64 VM running on VMware Fusion or UTM", "I can navigate the FHS and explain /etc, /var/log, /proc, /tmp", "I understand sudo vs root and where escalation is logged", "I audited my VM for SUID binaries and recent /etc changes", "I can run a subprocess safely (Node execFile / Python list-args, no shell)"]
+  }, {
+    id: "m11_5",
+    level: 2,
+    num: "M11.5",
+    title: "Advanced Shell Scripting, Text Processing & SSH Tunneling",
+    objective: "M7 and M11 taught you to run the right command for a known task. This module teaches you to write your own and reach systems that aren't directly in front of you. Bash scripting and text processing are core LPIC-1/CompTIA Linux+ material, not advanced trivia, and SSH tunneling is a foundational OSCP pivoting skill — this closes that gap now, not at the end of the course.",
+    theory: `#### Define the words first
+
+- **Script** — a command sequence written once, run any number of times on any input. The difference between knowing a command and automating an investigation.
+- **Quoting** — always write "$var", never bare $var. Unquoted, the shell word-splits on whitespace and glob-expands *, ? BEFORE the command sees the value — a filename with a space silently becomes two arguments.
+- **BRE vs ERE** — grep/sed's default regex dialect (BRE) requires escaping ( ) { } + ? to make them special; grep -E/awk/sed -E (ERE) make them special by default.
+- **SSH tunnel / pivot** — one authenticated SSH connection carrying OTHER traffic through it, so you can reach a host that isn't directly reachable from your machine.
+
+#### Why this belongs here, not at the end
+
+> **Naive: "I'll just keep copy-pasting the one-liners I already know."** Fails because every real investigation eventually needs something no one-liner covers: looping over 50 files instead of 1, bulk-editing instead of hand-editing, reaching a host that's one hop away instead of directly in front of you. LPIC-1 treats bash control flow as ENTRY-LEVEL content (LPIC-2 assumes you already have it and moves to system administration instead); OSCP lists bash scripting and SSH tunneling as walk-in prerequisites, not advanced extras.
+
+**The control-flow vocabulary:**
+
+for f in *.log; do echo "File: $f"; done
+while IFS= read -r line; do echo "$line"; done < file.txt
+if [[ -f "$name" ]]; then echo "exists"; fi
+check() { local target="$1"; [[ -r "$target" ]] && echo ok || echo fail; }
+set -euo pipefail    # -e: exit on error, -u: error on undefined var, pipefail: whole pipeline fails if any stage does
+
+**Text processing beyond grep:** sed 's/old/new/g' file substitutes; sed -i.bak edits in place WITH a backup. xargs turns search results into arguments for another command: find . -name "*.log" | xargs grep -l ERROR runs grep on every match instead of just listing them.
+
+**SSH tunneling — three directions:** ssh -L 8080:internal-host:80 user@jumpbox (local forward — reach internal-host through jumpbox); ssh -R 8080:localhost:3000 user@remote (remote forward — expose YOUR service to remote); ssh -D 1080 user@jumpbox (dynamic — a full SOCKS proxy through the tunnel, for proxychains).
+
+#### Vulnerable vs secure code — writing and running a generated script safely
+
+\`\`\`javascript
+// Node - VULNERABLE: predictable temp path + shell string building
+const fs = require("fs");
+const { exec } = require("child_process");
+function runReport(target) {
+  fs.writeFileSync("/tmp/report.sh", "#!/bin/bash\\nnmap " + target);   // WHY WRONG: predictable path = race condition
+  exec("bash /tmp/report.sh");                                          // WHY WRONG: shell string, injectable target
+}
+
+// Node - SECURE: unpredictable path, owner-only mode, argument list (no shell)
+const os = require("os"), path = require("path"), crypto = require("crypto");
+const { execFile } = require("child_process");
+function runReportSecure(target) {
+  const tmp = path.join(os.tmpdir(), "report-" + crypto.randomBytes(8).toString("hex") + ".sh");
+  fs.writeFileSync(tmp, "#!/bin/bash\\nnmap \\"$1\\"", { mode: 0o700 });   // owner-only, unpredictable name
+  execFile("bash", [tmp, target]);                                       // WHY IT WORKS: target is data, never shell-parsed
+}
+\`\`\`
+
+\`\`\`python
+# Python - VULNERABLE: same shape
+import subprocess
+def run_report(target):
+    with open("/tmp/report.sh", "w") as f:      # WHY WRONG: predictable path
+        f.write(f"#!/bin/bash\\nnmap {target}")  # WHY WRONG: f-string into a shell script = injection
+    subprocess.run("bash /tmp/report.sh", shell=True)
+
+# Python - SECURE: tempfile module + argument list
+import tempfile, os as _os
+def run_report_secure(target):
+    fd, tmp = tempfile.mkstemp(suffix=".sh")     # unpredictable name, created atomically
+    _os.write(fd, b'#!/bin/bash\\nnmap "$1"')     # target passed as an ARGUMENT, not interpolated
+    _os.close(fd); _os.chmod(tmp, 0o700)
+    subprocess.run(["bash", tmp, target])         # WHY IT WORKS: target is a list element, never shell-parsed
+\`\`\``,
+    lab: {
+      mac: `# LAB: write a real script, then tunnel to a lab service (Apple Silicon)
+# ETHICS: your own files/VMs only.
+mkdir -p ~/cyber-journal/m11_5 && cd ~/cyber-journal/m11_5
+echo "INFO login ok" > app.log
+echo "ERROR db timeout" >> app.log
+echo "ERROR db timeout" >> app.log
+
+cat > scan.sh << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -ge 1 ]] || { echo "Usage: $0 <pattern>" >&2; exit 1; }
+count=$(grep -c "$1" app.log)
+echo "matches: $count"
+EOF
+chmod +x scan.sh && ./scan.sh ERROR
+
+# Text processing: bulk-redact a placeholder across files
+find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'
+
+# SSH tunnel to a lab service running on your Kali VM (adjust IP):
+# ssh -L 9000:localhost:3000 you@kali-vm-ip
+# curl -I http://localhost:9000    # reaches the VM's port 3000 through the tunnel`,
+      windows: `# WSL2/Git Bash: same commands as macOS/Linux.
+# Native PowerShell has its own scripting model (functions, loops) but this
+# module's Unix tools (sed/xargs/ssh -L) need WSL2 or Git Bash on Windows.
+wsl
+# then run the mac/linux commands above inside the WSL2 shell`,
+      linux: `# Identical to macOS - Linux is where these tools come from.
+mkdir -p ~/cyber-journal/m11_5 && cd ~/cyber-journal/m11_5
+printf 'INFO login ok\\nERROR db timeout\\n' > app.log
+grep -c ERROR app.log
+find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'`
+    },
+    caseStudy: {
+      title: "Shellshock (CVE-2014-6271, 2014)",
+      body: "Bash had a parsing bug for over two decades before anyone noticed: when bash imported a function definition from an environment variable, it kept parsing PAST the closing brace and executed anything left over as a real command. Since CGI web scripts routinely passed HTTP headers into environment variables, an attacker could set a header like User-Agent: () { :; }; echo VULNERABLE and get arbitrary command execution on any server whose CGI script touched bash. It was rated CVSS 10.0, affected an enormous fraction of the internet overnight, and is still found in old embedded devices and unpatched systems today. The lesson for this module: bash's own parsing edge cases can be a critical vulnerability, not just a place YOUR scripts can go wrong — which is exactly why 'quote everything, trust the shell's parsing as little as possible' is a security habit, not pedantry."
+    },
+    challenges: [{
+      q: "Your script does: rm $file where file=\"notes a.txt\". What actually happens, and how do you fix it?",
+      a: "Unquoted, $file word-splits into two arguments: notes and a.txt. rm receives TWO filenames and tries to delete both — likely failing on (or worse, deleting) something unintended. Fix: rm \"$file\" (quoted) passes the whole value as one argument regardless of spaces."
+    }, {
+      q: "Why is tempfile.mkstemp() (Python) or crypto.randomBytes() in a temp filename (Node) safer than writing to a fixed path like /tmp/report.sh?",
+      a: "A fixed, predictable path is a race condition: between your script creating the file and using it, another process (or an attacker who knows the convention) can replace it, read it, or symlink it elsewhere. An unpredictable name generated atomically at creation time removes the window an attacker needs to exploit."
+    }],
+    quiz: ["Why does an unquoted $var behave differently from \"$var\" in a script?", "What's the difference between BRE and ERE, and which tools default to which?", "In ssh -L 8080:internal-host:80 user@jumpbox, what happens when you request localhost:8080?", "Why was Shellshock rated CVSS 10.0, and what made it so widely exploitable?", "Why is a predictable temp file path a security problem even on your own machine?"],
+    tracker: ["Wrote and ran a bash script with a function, a loop, and set -euo pipefail", "Used sed -i with a backup and xargs to bulk-process files", "Forwarded a local port to a lab service with ssh -L and verified it with curl", "Can explain why $var must be quoted and what word-splitting does without quotes", "Can explain the Shellshock bug in one sentence"]
   }, {
     id: "m12",
     level: 2,
