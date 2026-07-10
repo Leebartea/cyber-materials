@@ -796,7 +796,7 @@ const curriculum = {
     short: "Phase 1 · Web & CLI",
     tagline: "The protocols (HTTP/DNS/TLS) and tools security rides on",
     colorVar: "--l2",
-    weeks: "2–3 weeks"
+    weeks: "2–4 weeks"
   }, {
     id: "p2",
     name: "Phase 2 · Secure JavaScript & Browser Security",
@@ -884,7 +884,7 @@ This course is a practitioner-grade, full-stack application security curriculum 
 
 ### What this course is
 
-**58 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
+**59 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
 
 The course uses Node.js and Express as its primary example language because it is the most common full-stack pairing — but Phase 3.5 explicitly maps every pattern to Python, Go, Java, PHP, and Ruby. The security thinking is language-agnostic; only the syntax differs.
 
@@ -895,7 +895,7 @@ The course uses Node.js and Express as its primary example language because it i
 | Phase | Name | What you gain |
 |-------|------|---------------|
 | **0** | Foundations | How computers, the web, databases, and the terminal actually work — viewed through a threat lens |
-| **1** | Web & CLI | HTTP/DNS/TLS deep-dive, CLI investigation toolkit, Git/GitHub security (basics + advanced Actions hardening) |
+| **1** | Web & CLI | HTTP/DNS/TLS deep-dive, CLI investigation toolkit, Git/GitHub security (basics + advanced Actions hardening), advanced shell scripting & SSH tunneling |
 | **2** | Browser Security | Same-origin policy, XSS, CSRF, CORS misconfiguration |
 | **3** | Server Security | Node/Express hardening, SQL injection, API security, file uploads, polyglot patterns, business logic flaws, WebSockets |
 | **4** | Offensive Foundations | OWASP Top 10 as a threat model, hands-on web exploitation, PortSwigger lab track |
@@ -962,7 +962,7 @@ The **sidebar skill indicator** tracks your live progress through seven named le
 This course is one half of a two-course path:
 
 - **Full-Stack AppSec (this course)** — deep specialist dive into web application security. 12 phases, real exploit labs, certification-prep level depth.
-- **[Cyber Guardians](../cyber-guardians/cyber_guardians_app.html)** — the breadth-first companion: blue-team / SOC operations, network security, cryptography, forensics, incident response, cloud security, and governance. 36 modules covering the wider landscape that AppSec specialists build on.
+- **[Cyber Guardians](../cyber-guardians/cyber_guardians_app.html)** — the breadth-first companion: blue-team / SOC operations, network security, cryptography, forensics, incident response, cloud security, and governance. 37 modules covering the wider landscape that AppSec specialists build on.
 
 **Which to do first?** Many learners do AppSec first because it builds directly on existing dev skills and gives a concrete security foundation before branching out. Others do Cyber Guardians first for the broader context. Either order works — the courses are designed to complement each other, not depend on each other.
 
@@ -2730,6 +2730,172 @@ curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profil
         a: "`0.0.0.0` means the process accepts connections on all network interfaces — including the server's public IP. The database should only be accessible from the application on the same host (or from specific internal IPs), not from the internet. Fix: in `postgresql.conf`, set `listen_addresses = '127.0.0.1'` (or the specific private IP), then restart Postgres. Verify with a port scan from outside: `nmap -p 5432 <server-ip>` should show the port as filtered/closed."
       }
     ]
+  },
+  {
+    id: "m1-7",
+    phaseId: "p1",
+    num: "1.7",
+    title: "Advanced CLI: Shell Scripting, Text Processing & SSH Tunneling",
+    objective: "Modules 1.3 and 1.6 taught you to run the right command for a known task. This module teaches you to write your own — the difference between following a checklist and adapting when the checklist doesn't cover what you're looking at. Bash scripting and text processing are core LPIC-1 and CompTIA Linux+ material, not advanced trivia, and SSH tunneling is a foundational OSCP skill you'll need the first time you have to reach something that isn't directly in front of you.",
+    body: `> **Why this belongs here, not later.** It's tempting to file "shell scripting" under advanced and push it to the end of the course. The standards disagree: LPIC-1 (the entry-level Linux certification) treats bash control flow — loops, conditionals, functions — as foundational exam content, and LPIC-2 assumes you already have it and moves on to system administration instead. CompTIA Linux+ puts scripting and automation in its own core exam domain, not an optional extra. And OSCP lists bash scripting and SSH tunneling as prerequisites you're expected to walk in with. This module closes that gap now, while it's still cheap to close, instead of leaving you copy-pasting one-liners for the rest of the course.
+
+### 🎯 Concept: from one-liners to scripts — bash control flow
+
+Every command you've run so far has been typed once. A **script** is a command sequence you write once and run any number of times, on any input — the actual difference between "I know the \`grep\` command" and "I can automate an investigation."
+
+**Quoting discipline first, because it's the root of most script bugs:** always write \`"\\$var"\` (double-quoted), never bare \`\\$var\`. An unquoted variable gets **word-split** on whitespace and **glob-expanded** on \`*\`/\`?\` before the command ever sees it — a filename with a space in it silently becomes two arguments. This is the shell-scripting sibling of the data-vs-code failure you've seen all through this phase: an unquoted variable lets the *shell* reinterpret your data as *structure*.
+
+**The control-flow vocabulary:**
+\`\`\`bash
+# Variables — no spaces around =, always quote on use
+name="production.log"
+echo "Checking $name"
+
+# for loop — iterate over a list
+for f in *.log; do
+  echo "File: $f"
+done
+
+# while loop — read line-by-line (the safe pattern for reading files)
+while IFS= read -r line; do
+  echo "Line: $line"
+done < "$name"
+
+# if / conditionals — [[ ]] is the modern, safer test (handles empty/unset vars correctly)
+if [[ -f "$name" ]]; then
+  echo "exists"
+elif [[ -d "$name" ]]; then
+  echo "is a directory"
+else
+  echo "not found"
+fi
+
+# Functions — named, reusable, take arguments like a script does
+check_file() {
+  local target="$1"                 # local: scoped to the function, not global
+  [[ -r "$target" ]] && echo "readable: $target" || echo "cannot read: $target"
+}
+check_file "$name"
+
+# Positional arguments to the SCRIPT itself
+# $1, $2... = individual args; $@ = all args (quoted, preserves boundaries); $# = arg count
+# $? = exit code of the last command (0 = success, non-zero = failure — this is how scripts chain safely)
+\`\`\`
+
+**\`set -euo pipefail\`** at the top of a script is the closest thing bash has to "fail loudly instead of silently": \`-e\` exits on any unhandled error, \`-u\` errors on an undefined variable instead of silently treating it as empty, \`-o pipefail\` makes a pipeline fail if *any* stage fails (not just the last one). Put it at the top of every script you write from now on.
+
+### ⚔️ Hands-on: write a real log-scanning script
+
+> **Ethics & scope.** This script reads log files you create yourself, on your own machine. No external targets.
+
+\`\`\`bash
+mkdir -p ~/cyber-labs/1-7 && cd ~/cyber-labs/1-7
+printf 'INFO login ok\\nWARN retry\\nERROR db timeout\\nERROR db timeout\\nINFO logout\\n' > app.log
+printf 'INFO start\\nERROR disk full\\n' > worker.log
+
+cat > scan-logs.sh << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: $0 <pattern> <file...>" >&2   # >&2: errors go to stderr, not stdout
+  exit 1
+fi
+
+pattern="$1"; shift                          # shift: $1 is consumed, $2 becomes the new $1
+total=0
+for file in "$@"; do
+  [[ -f "$file" ]] || { echo "skip: $file not found" >&2; continue; }
+  count=$(grep -c "$pattern" "$file")
+  echo "$file: $count match(es)"
+  total=$((total + count))
+done
+echo "TOTAL: $total"
+EOF
+chmod +x scan-logs.sh
+./scan-logs.sh ERROR app.log worker.log
+\`\`\`
+
+**Expected observation:** the script reports per-file and total counts, exits non-zero (check with \`echo $?\`) if you point it at zero files, and \`set -euo pipefail\` catches a typo'd filename immediately instead of silently continuing with wrong output. This — argument handling, per-item error handling, a total that accumulates correctly — is the actual skill; the pattern generalizes to any repeated investigation task.
+
+### 🎯 Concept: the text-processing toolkit you're missing — sed, xargs, and regex
+
+Module 1.6 gave you \`awk\`. Two more tools complete the classic Unix text-processing set, plus the regex vocabulary all three lean on:
+
+- **\`sed\`** (stream editor) — transforms text as it streams past. \`sed 's/old/new/g' file\` substitutes every occurrence; add \`-i\` to edit the file in place (use \`-i.bak\` to keep a backup — in-place edits with no backup are unrecoverable if the pattern is wrong). \`sed -n '5,10p' file\` prints only lines 5-10.
+- **\`xargs\`** — turns a list of items (usually from \`find\` or \`grep -l\`) into arguments for another command, so you can act on search results instead of just reading them: \`find . -name "*.log" | xargs grep -l ERROR\` runs \`grep\` on every matching file. \`-I{}\` lets you place each item explicitly; \`-P4\` runs four at a time in parallel.
+- **Regex, briefly** — grep/sed/awk all use it, and it's never *just* worked without understanding the two dialects: **BRE** (grep/sed default) requires escaping \`( ) { } + ?\` to make them special; **ERE** (\`grep -E\`, \`egrep\`, \`sed -E\`, \`awk\`) makes them special by default. \`^\` and \`$\` anchor to line start/end; \`.\` matches *any single character including a literal dot* — the single most common regex bug is forgetting to escape a literal \`.\` in something like an IP address pattern, which then matches far more than intended.
+
+### ⚔️ Hands-on: a find + xargs + sed pipeline
+
+> **Ethics & scope.** Operates only on the practice files you create below.
+
+\`\`\`bash
+mkdir -p ~/cyber-labs/1-7/configs && cd ~/cyber-labs/1-7/configs
+printf 'db_host=10.0.0.5\\\\napi_key=REDACT_ME\\\\n' > service-a.conf
+printf 'db_host=10.0.0.5\\\\napi_key=REDACT_ME\\\\n' > service-b.conf
+
+# Find every config file, then bulk-redact a placeholder secret in all of them at once:
+find . -name "*.conf" | xargs sed -i.bak 's/REDACT_ME/<set-via-env-var>/g'
+cat service-a.conf
+# .bak backups exist because -i alone gives no undo — always keep one until you've verified the result
+\`\`\`
+
+**Expected observation:** both files are edited in one pass without a manual loop, and the \`.bak\` files are your safety net — delete them once you've confirmed the substitution did what you intended, not before.
+
+### 🎯 Concept: SSH tunneling — reaching what isn't directly in front of you
+
+Your host machine, the Docker labs, and the Kali VM from earlier modules all sit on different networks. **SSH tunneling** lets one authenticated SSH connection carry *other* traffic through it — the exact skill OSCP calls pivoting, and one you'll use any time a target service isn't directly reachable.
+
+- **Local forwarding (\`-L\`)** — \`ssh -L 8080:internal-host:80 user@jumpbox\` makes \`localhost:8080\` on *your* machine reach port 80 on \`internal-host\`, as seen from the jump box. Use this to reach an admin panel or database that only the jump box can see.
+- **Remote forwarding (\`-R\`)** — \`ssh -R 8080:localhost:3000 user@remote\` exposes a service running on *your* machine to the remote host — the reverse direction, useful for letting a remote system reach something you're running locally.
+- **Dynamic forwarding (\`-D\`)** — \`ssh -D 1080 user@jumpbox\` turns the SSH connection into a SOCKS proxy: point \`proxychains\` or a browser's SOCKS setting at \`localhost:1080\` and *any* traffic routes through the jump box, not just one fixed port.
+
+### ⚔️ Hands-on: forward a local port to a lab service
+
+> **Ethics & scope.** Only against a service you run yourself (e.g. the Juice Shop container from earlier modules, or the Kali VM), never a host you don't own.
+
+\`\`\`bash
+# If Juice Shop (or any lab target) is running on the Kali VM / a remote lab host on port 3000:
+ssh -L 9000:localhost:3000 you@your-vm-ip
+# Now, in another terminal on your HOST machine:
+curl -I http://localhost:9000
+# The request left your host, rode inside the SSH connection, and hit port 3000 on the VM —
+# without opening 3000 to your host's network directly.
+\`\`\`
+
+**Expected observation:** \`curl\` against your own \`localhost:9000\` gets a response from a service that's actually running on a different machine entirely — the tunnel, not a direct connection, made that possible. This exact mechanism is how a pentester reaches an internal-only service through one exposed jump host during an authorized engagement.
+
+### 🛡️ Defense: pitfalls that turn a convenience script into a liability
+
+- **Never \`curl ... | bash\` (or \`| sh\`) an installer you haven't read.** You're handing a remote server the ability to run arbitrary code on your machine with no review step. Download the script, read it, *then* run it.
+- **Unquoted variables are a scripting-level version of injection.** \`rm $file\` where \`file="a b"\` deletes two things named \`a\` and \`b\`, not one file named \`a b\`. Always \`"$file"\`.
+- **\`set -e\` is a safety net, not a substitute for real error handling.** It does *not* fire inside an \`if\` condition, inside a pipeline stage that isn't the last one (without \`pipefail\`), or inside \`&&\`/\`||\` chains — know its actual boundaries rather than trusting it blindly.
+- **An SSH tunnel only encrypts the SSH hop, not the destination.** \`ssh -L 9000:localhost:80 ...\` to an HTTP (not HTTPS) service means traffic is encrypted from you to the jump box, then plaintext from the jump box to the final destination — the tunnel is not a blanket encryption guarantee for whatever's at the far end.
+- **Predictable temp file names are a race condition waiting to happen** — the same lesson as the atomic-secrets-file pattern earlier in this course. Use \`mktemp\` to generate an unpredictable, safely-created temp path instead of \`/tmp/myscript-tmp\`.
+
+**False-confidence traps:** "I tested the script once and it worked" (test the failure paths too — missing file, empty input, a filename with a space); "sed -i is fine, I don't need the backup" (you need it exactly once, and you won't know which time in advance); "SSH tunneling is just for pentesters" (you'll use \`-L\` the first time you need to debug a database that's correctly firewalled off from direct access — Module 8.3 revisits this from the cloud-security side).
+
+### Knowledge check: Advanced CLI
+
+1. Why is \`"$var"\` (quoted) meaningfully different from \`$var\` (unquoted) in a script?
+2. What do \`-e\`, \`-u\`, and \`-o pipefail\` each do in \`set -euo pipefail\`, and name one case \`-e\` does *not* catch?
+3. What's the difference between BRE and ERE, and which tools default to which?
+4. In \`ssh -L 8080:internal-host:80 user@jumpbox\`, what actually happens when you request \`localhost:8080\`?
+5. Why is \`curl https://example.com/install.sh | bash\` risky even from a site you trust?
+
+<details>
+<summary>Show answers</summary>
+
+1. Unquoted, the shell applies word-splitting (breaks on whitespace) and glob expansion (\`*\`/\`?\` get expanded) to the variable's value *before* the command sees it — a value with a space or a wildcard character silently becomes multiple arguments or gets expanded into filenames. Quoting disables both, so the variable is passed as exactly one literal value.
+2. \`-e\` exits the script on any command that returns non-zero (with exceptions: not inside an \`if\` test, not for a non-final pipeline stage without \`pipefail\`, not inside \`&&\`/\`||\`); \`-u\` errors immediately on referencing an undefined variable instead of silently substituting empty string; \`-o pipefail\` makes the whole pipeline's exit code reflect the first failing stage, not just the last one.
+3. BRE (Basic Regular Expressions — grep and sed's default) requires backslash-escaping \`( ) { } + ?\` to make them behave as metacharacters. ERE (Extended Regular Expressions — \`grep -E\`, \`egrep\`, \`sed -E\`, and \`awk\`) treats those characters as metacharacters by default, no escaping needed.
+4. Your local \`localhost:8080\` becomes a forwarded entry point: any connection to it is carried, encrypted, through the SSH session to \`jumpbox\`, which then makes a *new* connection from itself to \`internal-host:80\` and relays the traffic back. You're reaching \`internal-host\` as if you were sitting on \`jumpbox\`'s network, without \`internal-host\` ever being directly reachable from your machine.
+5. You're executing whatever the remote server returns, at the moment you run it, with zero review — if the server is compromised, serves different content based on your IP/User-Agent, or the connection is tampered with, you run exactly what an attacker wants, with your full user privileges. Download and read the script first, or verify its checksum/signature if one is published.
+</details>
+
+➡️ **Next step:** You can now write your own tools instead of only running other people's. Time to point that toolkit at real, deliberately vulnerable applications. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+    tracker: ["Wrote and ran a bash script with a function, a loop, and proper argument handling", "Used `set -euo pipefail` and can explain what each flag catches", "Used `sed -i` with a backup to bulk-edit files, and `xargs` to chain a find result into an action", "Can explain the difference between BRE and ERE and when each applies", "Forwarded a local port to a remote/VM service with `ssh -L` and verified it with curl", "Can name the SSH tunneling risk: it only encrypts the SSH hop, not necessarily the destination service", "Answered the knowledge check"]
   },
   // ============== PHASE 2 ==============
   {
