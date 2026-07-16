@@ -4722,7 +4722,7 @@ mkdir -p ~/cyber-journal/m26 && cd ~/cyber-journal/m26
 ```python
 # ❌ VULNERABLE — Python: scope-free + shell string-building + hardcoded secret
 import os, subprocess
-API_KEY = "sk_live_abc123"                       # WHY WRONG: secret in source (Module 8/25)
+API_KEY = "hardcoded-secret-value"                # WHY WRONG: secret in source (Module 8/25)
 host = input("host> ")
 subprocess.run(f"nmap {host}", shell=True)        # WHY WRONG: command injection (Module 11)
 
@@ -4738,7 +4738,7 @@ subprocess.run(["nmap", host])                    # arg array, no shell -> no in
 
 ```javascript
 // ❌ VULNERABLE — Node: same three mistakes
-const API_KEY = "sk_live_abc123";                 // secret in source
+const API_KEY = "hardcoded-secret-value";         // secret in source
 require("child_process").exec(`nmap ${process.argv[2]}`);   // shell + unscoped + injectable
 
 // ✅ SECURE — Node: env secret, scope + validation, execFile (no shell)

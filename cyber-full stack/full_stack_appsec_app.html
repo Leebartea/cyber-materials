@@ -7565,7 +7565,7 @@ app.get("/user", (req, res) => {
 });
 
 // BUG 2 (secret-scan target): hard-coded credential committed to source
-const STRIPE_KEY = "sk_live_51H8xQ2eZvKYlo2C0FAKEbutLOOKSreal0000000000";
+const STRIPE_KEY = "qT7mZ2vB9nL4xR8wA1cF6dK3jH0sY5pE";
 
 // BUG 3 (SAST target): user input flows into eval -> RCE
 app.get("/calc", (req, res) => res.send(String(eval(req.query.expr))));
@@ -7588,7 +7588,7 @@ git init && git add -A && git commit -m "wip" -q
 gitleaks detect --source . --verbose
 \`\`\`
 
-gitleaks reports \`STRIPE_KEY\` (the \`sk_live_\` prefix matches the stripe rule). The lesson: once a secret is committed, deleting the line is **not** enough — it persists in history forever, which is why the real remediation is *rotate the key*, not "edit the file."
+gitleaks reports \`STRIPE_KEY\` (the \`KEY\`-named variable holding a high-entropy string matches its generic-api-key rule). The lesson: once a secret is committed, deleting the line is **not** enough — it persists in history forever, which is why the real remediation is *rotate the key*, not "edit the file."
 
 **Step 4 — SCA with three tools (same job, compare them):**
 

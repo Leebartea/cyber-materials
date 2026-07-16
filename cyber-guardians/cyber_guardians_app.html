@@ -4546,7 +4546,7 @@ echo "Check this on https://www.shodan.io/host/$MY_IP"
 \`\`\`python
 # Python - VULNERABLE: scope-free + shell string-building + hardcoded secret
 import subprocess
-API_KEY = "sk_live_abc123"                       # WHY WRONG: secret in source (M8/M25)
+API_KEY = "hardcoded-secret-value"                # WHY WRONG: secret in source (M8/M25)
 host = input("host> ")
 subprocess.run(f"nmap {host}", shell=True)        # WHY WRONG: command injection (M11)
 
@@ -4562,7 +4562,7 @@ subprocess.run(["nmap", host])                    # arg array, no shell -> no in
 
 \`\`\`javascript
 // Node - VULNERABLE: same three mistakes
-const API_KEY = "sk_live_abc123";                 // secret in source
+const API_KEY = "hardcoded-secret-value";         // secret in source
 require("child_process").exec("nmap " + process.argv[2]);   // shell + unscoped + injectable
 
 // Node - SECURE: env secret, scope + validation, execFile (no shell)
