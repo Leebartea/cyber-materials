@@ -1564,7 +1564,7 @@ echo -n "password" | shasum -a 256
 echo -n "password" | shasum -a 256        # identical -> reverse once, reuse forever
 
 # B) Crack your OWN fast-hashes to feel why MD5 is wrong for passwords
-brew install john                          # native arm64 build
+brew install john-jumbo                    # native arm64 build; plain "john" lacks raw-md5 (Homebrew's jumbo build has it — same one M0 installs)
 printf '%s\\n' "$(echo -n 'password' | md5)" "$(echo -n 'iloveyou' | md5)" "$(echo -n 'Tr0ub4dor&3' | md5)" > myhashes.txt
 printf '%s\\n' password iloveyou letmein dragon monkey > words.txt
 john --format=raw-md5 --wordlist=words.txt myhashes.txt
