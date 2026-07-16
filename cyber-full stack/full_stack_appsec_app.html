@@ -1929,7 +1929,23 @@ Create \`~/appsec-journal/notes/phase-0-foundations.md\` and answer, in your own
 - What is an HTTP request, and what is a response?
 - What is a relational database, and what is the root cause of SQL injection?
 - Name the four cross-cutting principles from Module 0.1 (least privilege, isolation, trust boundaries, persistence of data) and give one example of each.
-- What is one thing you can now explain better than before you started?`,
+- What is one thing you can now explain better than before you started?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Frontend vs. backend:** the frontend is code that runs in the *user's* browser (HTML/CSS/JS) — the user's machine, fully under the user's control. The backend is code that runs on a server *you* control. Only the **backend** can enforce security, because anything running on the user's machine can be read, edited, or bypassed by that same user (or an attacker impersonating them).
+- **Why the frontend can't enforce security alone:** the browser executing your JS is controlled by whoever is sitting at it — they can open DevTools and edit the DOM/JS, disable a client-side check, or skip the browser entirely and send the raw HTTP request themselves (e.g. with \`curl\`). Concrete DevTools example: removing a \`disabled\` attribute from a submit button, or editing a client-side "price" value in the console, and watching the request go through anyway — proving the check only ever lived in the browser, not on the server.
+- **HTTP request/response:** a request is what a client sends to a server — a method + path + version, a set of headers, and an optional body. A response is what the server sends back — a status line (e.g. \`200 OK\`), headers, and a body.
+- **Relational database & SQL injection root cause:** a relational database stores structured data in tables (rows and columns) linked by keys, queried with SQL. SQL injection's root cause is the same data-vs-code confusion introduced in Module 0.1: user input gets concatenated directly into a SQL query string, so attacker-supplied *data* is interpreted as *code* — part of the command itself — instead of staying inert data.
+- **The four cross-cutting principles, with an example each:**
+  - *Least privilege* — grant only the access a task needs. Example: \`chmod 600\` on a \`.env\` file so only its owner can read it.
+  - *Isolation* — keep one thing from touching another it shouldn't. Example: the OS keeps each running program's memory separate, so one process can't read another's.
+  - *Trust boundaries* — anywhere two sides don't automatically trust each other's data. Example: the browser–server boundary, where the server must re-validate everything the client claims, because the client could be lying.
+  - *Persistence of data* — once written, data tends to last far longer than you expect. Example: a secret committed to Git remains recoverable in history even after a later commit "removes" it.
+- **What you can now explain better:** this line is personal — but a common answer is realizing *why* the frontend can never be the security boundary. Before Phase 0 it can feel like an arbitrary rule ("always validate on the server too"); after it, it's a direct, derivable consequence of who controls the browser.
+
+</details>`,
     tracker: ["Ran the safe practice-folder commands (pwd/mkdir/echo/cat) and the chmod 600 demo", "Can classify a command as read-only vs state-changing before pressing Enter", "Understand why curl | sh and reflexive sudo are dangerous", "Wrote the Phase 0 deliverable journal entry", "Answered the knowledge check"]
   },
   // ============== PHASE 1 ==============
@@ -2025,7 +2041,9 @@ http POST :3000/delete-account id:=2 Cookie:session=anything-i-want
 Watch a redirect:
 
 \`\`\`bash
-curl -i https://httpbin.org/redirect-to?url=https://example.com
+curl -i "https://httpbin.org/redirect-to?url=https://example.com"
+# Quote the URL — an unquoted "?" is a shell glob character (zsh will error
+# with "no matches found" if nothing on disk happens to match it).
 # Observe the 3xx status and the Location header. Now imagine url= being
 # attacker-controlled with no allow-list — that's an open redirect.
 \`\`\`
@@ -2168,6 +2186,8 @@ If your OpenSSL is older than 3.5 it won't offer ML-KEM groups — that itself i
 3. What problem does HSTS solve that an HTTP→HTTPS redirect alone does not?
 4. What is mixed content and why is it dangerous on an otherwise-HTTPS page?
 5. Does a valid certificate / padlock mean a site is trustworthy? Explain.
+6. What is "harvest now, decrypt later," and why does it make post-quantum migration urgent *today* rather than whenever quantum computers actually arrive?
+7. What does "crypto-agility" mean for a developer, and name one concrete practice that supports it?
 
 <details>
 <summary>Show answers</summary>
@@ -2177,10 +2197,12 @@ If your OpenSSL is older than 3.5 it won't offer ML-KEM groups — that itself i
 3. The *first* request, when a user types a bare domain, may leave as plain HTTP before any redirect. HSTS makes the browser use HTTPS-only, upgrading *before* it sends that first request.
 4. Mixed content is an HTTPS page loading sub-resources (especially scripts) over plain HTTP. Those resources are unencrypted and tamperable, so an attacker can execute code in the context of your "secure" page.
 5. No. A valid cert/padlock proves the connection is encrypted and the name authenticated — not that the operator is honest. Phishing sites routinely obtain valid certificates.
+6. It's the strategy where an adversary records your encrypted traffic *now* and stores it, planning to decrypt it later once a sufficiently powerful quantum computer exists to break today's key exchange. It's urgent today because the exposure window opens the moment the data is captured, not when the quantum computer boots — anything with a long confidentiality lifetime (health records, long-term secrets) sent today is already at risk of a future break.
+7. Crypto-agility means your system can swap cryptographic algorithms or key sizes without a rewrite. Concrete practices: don't hard-code cipher/curve/key-size choices scattered across the codebase — centralize them behind config; keep TLS libraries current so they can negotiate hybrid post-quantum groups (e.g. X25519MLKEM768); maintain an inventory of every place you use asymmetric crypto (TLS, JWT signing, SSH, code signing) as your migration plan.
 </details>
 
 ➡️ **Next step:** You can read the protocols; now sharpen the terminal skills that turn observation into investigation. Continue to **Module 1.3: CLI for Security Work**.`,
-    tracker: ["Ran dig for A/AAAA/TXT/MX/CNAME records and read the openssl certificate chain", "Can explain the three TLS guarantees and which closes the DNS-can-lie gap", "Can walk through a subdomain takeover and name its root cause", "Checked a site for the HSTS header", "Answered the knowledge check"]
+    tracker: ["Ran dig for A/AAAA/TXT/MX/CNAME records and read the openssl certificate chain", "Can explain the three TLS guarantees and which closes the DNS-can-lie gap", "Can walk through a subdomain takeover and name its root cause", "Checked a site for the HSTS header", "Can explain harvest-now-decrypt-later and what crypto-agility means for a developer", "Answered the knowledge check"]
   }, {
     id: "m1-3",
     phaseId: "p1",
@@ -2219,19 +2241,19 @@ rg -i "password|secret|token|api[_-]?key|private[_-]?key|aws_access" .
 # Build a tiny fake project with a planted (fake) secret:
 mkdir -p ~/cli-lab/src && cd ~/cli-lab
 printf 'PORT=3000\\nDATABASE_URL=postgres://app:hunter2@localhost/app\\nSTRIPE_KEY=sk_test_FAKE123\\n' > .env
-printf 'console.log("starting app");\\n// TODO remove before commit:\\nconst apiKey = "sk_live_FAKE_should_not_be_here";\\n' > src/app.js
+printf 'console.log("starting app");\\n// TODO remove before commit:\\nconst apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ";   // pretend this is a real payment-provider live key\\n' > src/app.js
 
 # Now investigate like a security reviewer:
 ls -la                          # notice .env is just a normal (hidden) file
 rg -i "secret|token|key|password|sk_(live|test)" .   # find the planted secrets
-rg -n "sk_live" .               # -n shows line numbers — pinpoints the leak in src/app.js
+rg -n "apiKey" .                # -n shows line numbers — pinpoints the leak in src/app.js
 find . -name ".env*"            # locate env files that must never be committed
 chmod 600 .env                  # tighten permissions to owner-only
 ls -la .env                     # confirm -rw------- now
 printenv | rg -i "path|home" | head   # see real env vars on your machine (read-only)
 \`\`\`
 
-**Expected observation:** \`rg\` finds the hard-coded \`sk_live_...\` key in \`src/app.js\` *instantly*, with file and line number. This is exactly how secret scanners (and attackers grepping a leaked repo) work — the secret was never hidden, just unsearched.
+**Expected observation:** \`rg\` finds the hard-coded \`apiKey\` value in \`src/app.js\` *instantly*, with file and line number. This is exactly how secret scanners (and attackers grepping a leaked repo) work — the secret was never hidden, just unsearched.
 
 ### 🛡️ Defense: assume secrets leak through boring channels, and starve them
 
@@ -2262,7 +2284,7 @@ printenv | rg -i "path|home" | head   # see real env vars on your machine (read-
 </details>
 
 ➡️ **Next step:** The most common "boring channel" for a catastrophic leak is Git itself. Let's make sure secrets never enter your history. Continue to **Module 1.4: Git and GitHub Security Basics**.`,
-    tracker: ["Built the cli-lab folder and found the planted sk_live key with rg -n", "Set the .env to chmod 600 and confirmed -rw-------", "Can write the secret-pattern search one-liner from memory", "Can name two 'boring channels' secrets leak through", "Answered the knowledge check"]
+    tracker: ["Built the cli-lab folder and found the planted apiKey secret with rg -n", "Set the .env to chmod 600 and confirmed -rw-------", "Can write the secret-pattern search one-liner from memory", "Can name two 'boring channels' secrets leak through", "Answered the knowledge check"]
   }, {
     id: "m1-4",
     phaseId: "p1",
@@ -2309,10 +2331,10 @@ git add .
 git status              # confirm .env is NOT staged (it's ignored) — this is the win
 
 # Scan the working tree for secrets that slipped past .gitignore:
-gitleaks detect --source . --no-git    # finds src/app.js's fake sk_live key
+gitleaks detect --source . --no-git    # finds src/app.js's fake apiKey secret
 \`\`\`
 
-**Expected observation:** \`git status\` shows \`.env\` is *not* staged because \`.gitignore\` excluded it. But \`gitleaks\` still flags the **hard-coded key inside \`src/app.js\`**, because \`.gitignore\` only protects whole files you remembered to ignore. **Two lessons:** (1) \`.gitignore\` your secret files *before the first commit*, and (2) you still need scanning.
+**Expected observation:** \`git status\` shows \`.env\` is *not* staged because \`.gitignore\` excluded it. But \`gitleaks\` still flags the **hard-coded key inside \`src/app.js\`** (rule: \`generic-api-key\`), because \`.gitignore\` only protects whole files you remembered to ignore. **Two lessons:** (1) \`.gitignore\` your secret files *before the first commit*, and (2) you still need scanning.
 
 Now create a tiny project with a known-vulnerable dependency and audit it:
 
@@ -2354,7 +2376,7 @@ npm audit fix --dry-run # shows what bumping would change WITHOUT applying it
 5. Any three of: issues/PR comments, logs, screenshots, chat (Slack/Discord), support tickets, commit messages.
 </details>
 
-➡️ **Next step:** You can read HTTP, reason about DNS/TLS, investigate from the CLI, and keep secrets out of Git. Now turn your frontend fluency into security intuition — starting with the browser's trust model. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+➡️ **Next step:** You can keep secrets out of a single commit and audit a dependency by hand. The bigger risk lives one layer up — the CI/CD pipeline itself. Continue to **Module 1.5: Advanced GitHub Security — Actions, Signing, and SLSA**.`,
     tracker: ["git init'd cli-lab with .gitignore before first commit; confirmed .env not staged", "Ran gitleaks and saw it flag the hard-coded key inside tracked code", "Ran npm audit on an old lodash and read the CVE output", "Can explain why a committed secret must be rotated even after deletion", "Answered the knowledge check"]
   },
   {
@@ -2503,7 +2525,7 @@ If your repo is public (or your org has GHAS):
 2. \`pull_request\` from a fork runs in a restricted sandbox: no write permissions, no access to secrets. \`pull_request_target\` always runs in the context of the *base* repository (with write permissions and secrets) even when triggered by a fork PR. Checking out and running untrusted fork code inside a \`pull_request_target\` workflow is effectively remote code execution with full repository write access.
 </details>
 
-➡️ **Next step:** Your pipeline is locked down. Now build security into the user's browser — starting with the same-origin policy, the foundation all browser security is built on. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+➡️ **Next step:** Your pipeline is locked down. Now round out the investigator's toolkit — TLS, HTTP, JSON, and process-level inspection — before moving into the browser's security model. Continue to **Module 1.6: Security Investigation Toolkit — curl, openssl, jq, lsof, awk**.`,
     tracker: [
       "Can explain workflow injection and demonstrate the env-var fix pattern in YAML",
       "Has pinned at least one Action to a full SHA hash in a real or practice workflow",
@@ -2542,7 +2564,7 @@ curl -X POST https://api.example.com/login \\
 curl -H "Cookie: session=abc123" https://api.example.com/profile
 
 # 5. Follow redirects AND show each hop (useful for SSRF / open-redirect research)
-curl -L --max-redirs 5 -v https://target.example.com/redirect?url=http://169.254.169.254
+curl -L --max-redirs 5 -v "https://target.example.com/redirect?url=http://169.254.169.254"
 
 # 6. Test with a custom Host header (virtual-host probing)
 curl -H "Host: admin.internal" https://target.example.com/
@@ -2728,7 +2750,7 @@ curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profil
 2. \`0.0.0.0\` means the process accepts connections on all network interfaces — including the server's public IP. The database should only be accessible from the application on the same host (or from specific internal IPs), not from the internet. Fix: in \`postgresql.conf\`, set \`listen_addresses = '127.0.0.1'\` (or the specific private IP), then restart Postgres. Verify with a port scan from outside: \`nmap -p 5432 <server-ip>\` should show the port as filtered/closed.
 </details>
 
-➡️ **Next step (Phase 1 complete):** You can navigate, search, and investigate from the terminal; you understand Git's history model and can harden a GitHub Actions pipeline. Now step into the browser's security model — where attacks on your users live. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
+➡️ **Next step:** You can investigate with the right command for a known task. The last gap is writing your own — bash control flow, heavier text processing, and reaching a host that isn't directly in front of you. Continue to **Module 1.7: Advanced CLI: Shell Scripting, Text Processing & SSH Tunneling**.`,
     tracker: [
       "Used curl -v to inspect response headers on a live HTTPS endpoint and identified at least one missing security header",
       "Used openssl s_client to view a certificate chain and check TLS version support",
@@ -2901,8 +2923,29 @@ curl -I http://localhost:9000
 5. You're executing whatever the remote server returns, at the moment you run it, with zero review — if the server is compromised, serves different content based on your IP/User-Agent, or the connection is tampered with, you run exactly what an attacker wants, with your full user privileges. Download and read the script first, or verify its checksum/signature if one is published.
 </details>
 
-➡️ **Next step:** You can now write your own tools instead of only running other people's. Time to point that toolkit at real, deliberately vulnerable applications. Continue to **Phase 2: Secure JavaScript and Browser Security**.`,
-    tracker: ["Wrote and ran a bash script with a function, a loop, and proper argument handling", "Used `set -euo pipefail` and can explain what each flag catches", "Used `sed -i` with a backup to bulk-edit files, and `xargs` to chain a find result into an action", "Can explain the difference between BRE and ERE and when each applies", "Forwarded a local port to a remote/VM service with `ssh -L` and verified it with curl", "Can name the SSH tunneling risk: it only encrypts the SSH hop, not necessarily the destination service", "Answered the knowledge check"]
+➡️ **Next step:** You can now write your own tools instead of only running other people's. Time to point that toolkit at real, deliberately vulnerable applications. Continue to **Phase 2: Secure JavaScript and Browser Security**.
+
+### Phase 1 Deliverable
+
+Create \`~/appsec-journal/notes/phase-1-web-cli-foundations.md\` and answer, in your own words:
+
+- Walk through, step by step, what happens between typing a URL and your browser showing a page: where does DNS fit in, where does TLS fit in, and what does the HTTP request/response actually carry? Name the point in that chain where trust is established, and what an attacker gets if that point fails.
+- You spot a hard-coded API key in a teammate's pull request *before* it's merged. What do you do? Now suppose it's already merged and pushed — why does deleting the line in a new commit not fix it, and what is the correct remediation order?
+- What is the difference between a GitHub Actions workflow triggered by \`pull_request\` versus \`pull_request_target\`, and why does pinning an Action to a full commit SHA (instead of a tag like \`@v4\`) matter?
+- You SSH-tunnel into a database that's supposed to be "internal only" and, using the investigation toolkit from this phase, discover it's actually listening on \`0.0.0.0\`. What command revealed this, why is it a finding, and what's the fix?
+- Name one terminal habit from this phase (quoting URLs, \`chmod 600\`, \`set -euo pipefail\`, running \`gitleaks\` before a commit, etc.) that you will now do automatically that you didn't before Phase 1.
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **URL to page, end to end:** you type a URL → **DNS** resolves the hostname to an IP (Module 1.2) — this is a trust point because DNS can be spoofed or a dangling CNAME hijacked, so the name alone proves nothing. The browser opens a TCP connection and negotiates **TLS** — this is *the* trust point: the server presents a certificate, signed by a CA the browser trusts, proving it really is the name DNS resolved to; even if DNS lied, the attacker can't forge a valid certificate for the real name. Only then does the browser send the **HTTP request** (method + path + headers + optional body) and receive a **response** (status + headers + body). If TLS is skipped or the cert is invalid, everything downstream — cookies, credentials, the page itself — is readable and alterable by anyone on the network path.
+- **Secret in a PR:** before merge, delete the secret from the diff (or ask the author to), and add it to \`.gitignore\`/rotate it as a precaution if there's any doubt it was already used locally. Once a commit containing a secret is *merged and pushed*, deleting it in a later commit does nothing — Git history is immutable and append-only, so the old commit (and the live secret inside it) is still there, still clonable, still pushed to every fork. Correct order: (1) **revoke/rotate** the credential immediately, (2) confirm the old one is dead, (3) *then* clean history (\`git filter-repo\`/BFG) as cleanup, (4) add a pre-commit secret scan so it can't recur.
+- **\`pull_request\` vs \`pull_request_target\`:** a workflow triggered by \`pull_request\` from a fork runs sandboxed — no write permissions, no access to secrets. \`pull_request_target\` always runs in the context of the *base* repository, with full write permissions and secrets, even when triggered by a fork's PR. Checking out and running the fork's untrusted code inside a \`pull_request_target\` workflow hands an attacker code execution with your repo's write access. Pinning an Action to a full commit SHA matters because a tag like \`@v4\` is a movable pointer — a compromised maintainer (or account takeover) can repoint it at malicious code, which your pipeline then runs with your token; a SHA is immutable and always refers to the exact code you reviewed.
+- **The \`0.0.0.0\` database finding:** \`lsof -iTCP -sTCP:LISTEN\` (or \`ss\`) shows the database's port bound to \`0.0.0.0\` — every network interface, including the public one — instead of \`127.0.0.1\`/a private IP. It's a finding because "internal only" was never actually enforced at the network layer; anyone who can reach the host's public IP can attempt a connection. Fix: set \`listen_addresses\` (Postgres) to \`127.0.0.1\` or the specific private IP, restart, and confirm externally with a port scan that it's filtered/closed.
+- **A new habit:** answers vary, but common ones: quoting every URL passed to \`curl\` (an unquoted \`?\` is a shell glob in zsh); running \`gitleaks detect\` before the first commit of any new project, not after; reflexively \`chmod 600\`-ing anything that holds a secret; never trusting a tag-pinned GitHub Action in a workflow that touches secrets.
+
+</details>`,
+    tracker: ["Wrote and ran a bash script with a function, a loop, and proper argument handling", "Used `set -euo pipefail` and can explain what each flag catches", "Used `sed -i` with a backup to bulk-edit files, and `xargs` to chain a find result into an action", "Can explain the difference between BRE and ERE and when each applies", "Forwarded a local port to a remote/VM service with `ssh -L` and verified it with curl", "Can name the SSH tunneling risk: it only encrypts the SSH hop, not necessarily the destination service", "Wrote the Phase 1 deliverable journal entry", "Answered the knowledge check"]
   },
   // ============== PHASE 2 ==============
   {
@@ -3579,8 +3622,29 @@ Two Python-specific pitfalls: do **not** pass \`origins="*"\` (or omit \`origins
 5. \`endsWith("example.com")\` matches attacker-controlled hostnames like \`evilexample.com\` or \`example.com.evil.com\`, granting them access. Compare origins with exact equality against an allow-list.
 </details>
 
-➡️ **Next step:** You've secured the browser side — storage, XSS, CSRF, CORS. Now move to the server, where trust is actually enforced: hardening Express, killing SQL injection, and locking down APIs and uploads. Continue to **Phase 3: Backend, API, and Database Security**.`,
-    tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Answered the knowledge check"]
+➡️ **Next step:** You've secured the browser side — storage, XSS, CSRF, CORS. Now move to the server, where trust is actually enforced: hardening Express, killing SQL injection, and locking down APIs and uploads. Continue to **Phase 3: Backend, API, and Database Security**.
+
+### Phase 2 Deliverable
+
+Create \`~/appsec-journal/notes/phase-2-browser-security.md\` and answer, in your own words:
+
+- Define "origin" precisely, then explain how the Same-Origin Policy, CSRF, and CORS are three *different* consequences of that same origin concept — what does each one restrict or grant?
+- A feature lets users submit a bio that's rendered on their public profile page. Where would a stored-XSS payload live, which dangerous DOM sink would need to run it for the attack to work, and why would a strict \`Content-Security-Policy\` limit the damage even if the injection succeeded?
+- Why does a session token in \`localStorage\` create a bigger blast radius from an XSS bug than one in an \`HttpOnly\` cookie — and, separately, why does an \`HttpOnly\`, \`SameSite=Lax\` cookie still need a CSRF token?
+- A teammate ships \`cors({ origin: true, credentials: true })\` "to make development easier." Explain exactly what this allows an attacker to do, and why "my API only returns JSON" would not have saved them anyway.
+- Name one browser-security default (SOP, \`HttpOnly\`, \`SameSite\`, CSP, exact-match CORS) you'll now check for by habit when reviewing someone else's code.
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Origin, and its three consequences:** an origin is the tuple **(scheme, host, port)**. **SOP** restricts *script in one origin from reading responses from a different origin* — the baseline that keeps your bank tab safe from your other open tabs. **CSRF** exploits the specific gap SOP leaves open: SOP never stopped the browser from *sending* a cross-origin request with your cookies attached, only from *reading the response* — so a malicious site can trigger a state-changing request on your behalf even though it can't see what came back. **CORS** is the mechanism a server uses to deliberately *widen* SOP for specific origins — it grants named origins permission to read cross-origin responses; the browser enforces it, the server configures it, and getting it wrong (e.g. reflecting any origin with credentials on) effectively disables SOP for your API.
+- **Stored-XSS bio field:** the payload would live wherever the bio is persisted server-side (a database column) and would run for *every visitor* who views that profile page, not just the attacker — that's what makes it "stored" rather than "reflected." It needs a dangerous sink to execute: if the frontend renders the bio with \`innerHTML\` (or a framework escape hatch like \`dangerouslySetInnerHTML\`/\`v-html\`), the browser parses it as HTML and runs any \`<script>\`/\`onerror\` inside; rendering with \`textContent\` (or the framework's default auto-escaping) would have kept it inert text. Even if an injection *did* succeed, a strict CSP limits the damage because it restricts which script sources the browser will execute/load — an inline injected \`<script>\` block can be blocked by policy even though the HTML injection itself worked, which is why CSP is called defense-in-depth rather than the fix for the root cause.
+- **localStorage vs HttpOnly, and CSRF despite SameSite:** \`localStorage\` is fully readable by any JavaScript running on the page, so a successful XSS payload can simply call \`localStorage.getItem(...)\` and exfiltrate the token in one line. An \`HttpOnly\` cookie is invisible to \`document.cookie\` and to any other JS API, so the same XSS payload cannot read it directly — it narrows what an XSS bug can steal, though the attacker can still make requests *as* the user via the browser. Separately, a cookie still needs a CSRF token because \`SameSite=Lax\` only blocks the cookie being attached on cross-site \`POST\`s/\`fetch\`/iframe requests — it does not cover state-changing GETs, doesn't apply once a cookie is marked \`SameSite=None\`, and isn't enforced by very old browsers, so the token remains the belt to \`SameSite\`'s suspenders.
+- **\`cors({ origin: true, credentials: true })\`:** \`origin: true\` reflects back whatever \`Origin\` header the request carried as an allowed origin, and \`credentials: true\` tells the browser to include the user's cookies *and* let the calling page read the response. Combined, literally any website — including \`evil.com\` — can make a cookie-authenticated request to the API from a victim's browser and read the private data that comes back, which is exactly what SOP/CORS exist to prevent. "It's just JSON" doesn't help because the vulnerability is in the *CORS configuration deciding who may read the response*, not in the response's content-type — a misconfigured header set reopens the read regardless of what format the data is in.
+- **A new review habit:** answers vary, but common ones: checking that any new cookie holding a session/auth token is \`HttpOnly\` + \`SameSite\` + \`Secure\`; checking CORS config for exact-origin allow-lists instead of \`origin: true\`/reflected origins; checking that user-supplied HTML never reaches \`innerHTML\`/\`dangerouslySetInnerHTML\` without sanitization; confirming a CSP header exists at all.
+
+</details>`,
+    tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Wrote the Phase 2 deliverable journal entry", "Answered the knowledge check"]
   },
 
   // ============== PHASE 3 ==============
@@ -4419,7 +4483,7 @@ Run the same forged-\`image/png\` upload against \`/upload-vulnerable\` and it's
 5. Accept with a size limit → verify content type by magic bytes against an allow-list → store with a random server-side name in object storage *outside* the executable/static root (never executed) → serve via signed, time-limited URLs with \`Content-Disposition: attachment\`; strip metadata when needed.
 </details>
 
-➡️ **Next step:** You can harden a server, kill injection, lock down APIs and uploads. Now zoom out to the industry-standard map of *all* the major risks and practice them hands-on. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+➡️ **Next step:** You can harden a server, kill injection, and lock down APIs and uploads. The same root causes look different in other languages, and beyond injection there's a whole class of bugs no scanner catches — logic flaws. Continue to **Module 3.5: Polyglot Security — Same Vulns, Every Language**.`,
     tracker: ["Built upload-lab.js and bypassed its naive mimetype check with a forged image/png", "Fixed it with magic-byte sniffing, an allow-list, a size cap, and a random filename", "Read the Flask + python-magic dual-language version (plus the Django note)", "Can explain how an upload becomes remote code execution", "Can explain why an SVG is a stored-XSS risk and how to serve files safely", "Can recite the default safe upload architecture", "Answered the knowledge check"]
   },
   {
@@ -4738,7 +4802,7 @@ When testing any application for business logic flaws:
 2. Because SELECT and UPDATE are separate operations. Between the check and the update, both threads can read uses=0, both pass the check, and both increment — leaving uses=2 even though it should cap at 1. Fix: use an atomic conditional UPDATE (\`UPDATE coupons SET uses=uses+1 WHERE code=? AND uses<1\`) and check rows-affected; if 0, the code was already used. Alternatively, SELECT FOR UPDATE within a transaction locks the row until the transaction commits, preventing the interleave.
 </details>
 
-➡️ **Next step (Phase 3 complete):** You can harden a server against injection, lock down APIs and uploads, reason across multiple languages, and find the logic flaws scanners miss. Zoom out now to the industry-standard map of all major risks. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+➡️ **Next step:** You can harden a server against injection, lock down APIs and uploads, reason across multiple languages, and find the logic flaws scanners miss. One more server-side surface remains: connections that stay open. Continue to **Module 3.7: WebSockets & Real-Time Application Security**.`,
     tracker: [
       "Can explain why business logic flaws don't appear in DAST/SAST output",
       "Has completed at least one Juice Shop business logic challenge (e.g. price manipulation, coupon reuse)",
@@ -4922,13 +4986,35 @@ wscat -c wss://app.example.com/chat --header "Cookie: session=abc123"
 2. Because the client is under the user's control. Anyone with the WebSocket URL and a session cookie can send arbitrary messages — they don't need your front-end app at all (wscat, Burp Repeater, or a script can connect directly). Trusting the structure or content of WebSocket messages because "our UI only sends valid ones" is the same mistake as trusting HTTP request body fields from your own forms. All server-side validation rules apply: type-check, length-check, sanitise, parameterise database queries.
 </details>
 
-➡️ **Next step (Phase 3 complete):** Server secured, API locked down, uploads hardened, business logic defended, WebSocket surface controlled. Now zoom out to the industry-standard map of all major risk categories — and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.`,
+➡️ **Next step (Phase 3 complete):** Server secured, API locked down, uploads hardened, business logic defended, WebSocket surface controlled. Now zoom out to the industry-standard map of all major risk categories — and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.
+
+### Phase 3 Deliverable
+
+Create \`~/appsec-journal/notes/phase-3-backend-api-database.md\` and answer, in your own words:
+
+- Middleware order, input validation at the edge, and parameterized queries are three separate defenses from this phase. Give one concrete example of how getting *each one* wrong creates a real vulnerability.
+- Explain BOLA vs. BFLA, and why returning raw database rows to the client is a vulnerability even when the UI hides the extra fields.
+- A checkout endpoint trusts a client-supplied price, and a promo-code redemption has a check-then-update race condition. What do these two bugs have in common, and why wouldn't a SAST/DAST scanner catch either one?
+- You inherit a Rails app; a colleague says it's "safe from SQLi because we always use \`where(id: params[:id])\`." What do you check before believing that, and why does the same *kind* of question apply in every language, not just Rails?
+- A developer argues a WebSocket endpoint is safe because it requires a valid session cookie. What attack does this miss, and what's the server-side fix?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Three defenses, three failure examples:** Middleware order — registering a route handler *before* the auth middleware means that route runs for unauthenticated callers even though "auth middleware exists" in the codebase. Input validation at the edge — skipping it doesn't cause an injection by itself (parameterization/encoding still catch that), but it widens the attack surface: oversized bodies, unexpected types, and extra fields all reach business logic unfiltered. Parameterized queries — concatenating user input directly into SQL text (e.g. building the query as a string with the email glued in) lets input like \`' OR '1'='1\` become part of the query's *code*, matching every row instead of one.
+- **BOLA vs. BFLA, and raw rows:** BOLA (Broken Object Level Authorization) is the wrong user accessing *another user's* object — e.g. changing an id in the URL to view someone else's order. BFLA (Broken Function Level Authorization) is the wrong user reaching a *privileged endpoint entirely* — e.g. a normal user successfully calling \`/admin/delete\`. Returning raw DB rows is a vulnerability regardless of UI hiding, because the JSON response itself — visible in the browser's Network tab or to any direct API call — already contains the extra fields; the UI choosing not to *display* them does nothing to stop someone from reading the response directly. The fix is a DTO that only includes fields meant to be public.
+- **What the price and coupon bugs share:** both are **business logic flaws** — the code runs exactly as written and no input is malformed, but the *design* trusts something it shouldn't. The price bug trusts a client-supplied value instead of looking up the authoritative price server-side; the coupon bug trusts that a SELECT-then-UPDATE pair happens atomically, when two simultaneous requests can both pass the SELECT check before either UPDATE lands. Scanners can't catch either because there's no unsafe syntax pattern to match — SAST looks for code shapes like string-built SQL or dangerous sinks, and a perfectly well-formed "trust the client's price" or "check then update" is invisible to that kind of pattern matching. It takes a human (or a targeted race-condition test) asking "what happens if two of these run at once, or the client lies?"
+- **Verifying the Rails claim, and why it generalizes:** hash-style \`where(id: params[:id])\` is genuinely parameterized and safe — but that's only one query. You'd grep for string-interpolated queries (\`where("id = #{params[:id]}")\`), unparameterized \`.order(params[:sort])\`, and \`params.permit!\` (which disables Rails' mass-assignment protection entirely). The same *kind* of question applies in every language because the root cause of injection is universal — untrusted input treated as code instead of data — while the specific escape hatch that reintroduces it is framework-specific: Sequelize/Prisma's raw-query methods, Django's \`.raw()\`, Go's \`text/template\` instead of \`html/template\`. "We use the safe API" is only true until someone finds the one place they didn't.
+- **The WebSocket cookie claim:** requiring a valid session cookie doesn't prevent **Cross-Site WebSocket Hijacking (CSWSH)** — a page on \`evil.com\` can open a WebSocket connection to your server, and the browser will automatically attach the victim's session cookie to the upgrade request, same as any other same-origin cookie behavior. If the server only checks "is this cookie valid," it accepts the connection. The fix: validate the \`Origin\` header during the upgrade handshake against an allow-list, the same discipline CSRF defenses use for regular HTTP requests.
+
+</details>`,
     tracker: [
       "Can explain why the Same-Origin Policy does not automatically protect WebSocket connections",
       "Can explain the CSWSH attack and name the server-side fix (Origin header validation)",
       "Has written a WebSocket server that validates Origin and authenticates the user during the upgrade",
       "Can intercept and replay a WebSocket message in Burp Suite (or describe the steps)",
       "Knows the four defense layers: Origin validation, upgrade auth, message validation, rate limiting",
+      "Wrote the Phase 3 deliverable journal entry",
       "Answered the knowledge check"
     ]
   },
@@ -5053,6 +5139,10 @@ The **CWE Top 25 (2025)** is the industry's "most dangerous weaknesses" list. It
 3. Explain SSRF and why it's now classified under A01 instead of having its own number.
 4. What's genuinely new in the 2025 list, and what does A10:2025 actually mean?
 5. Map three bugs you learned in Phases 0-3 to their *2025* Top 10 categories.
+6. What does STRIDE stand for, and which letter maps most directly onto OWASP A01 Broken Access Control?
+7. What is OWASP ASVS 5.0, and what's the difference between its L1 and L2 levels? Which level should most apps handling meaningful data target?
+8. What's the difference between an OWASP Top 10 category and a CWE ID, and why does a Semgrep/CodeQL finding or a bug-bounty triager reference the CWE rather than the OWASP category?
+9. Why shouldn't you prioritize vulnerabilities by raw CVSS score alone? Name two additional signals and what each one measures.
 
 <details>
 <summary>Show answers</summary>
@@ -5062,10 +5152,14 @@ The **CWE Top 25 (2025)** is the industry's "most dangerous weaknesses" list. It
 3. SSRF is when the server fetches a *user-supplied URL*, using its own privileged network position (internal services, the cloud metadata endpoint) that the attacker lacks. It's now under **A01 Broken Access Control** because the root failure is the same as any other access-control bug: the server performs an action (a fetch) on the attacker's behalf without verifying it should be allowed to reach that target.
 4. Two categories are genuinely new: **A03:2025 Software Supply Chain Failures** (promoted and expanded from the narrower 2021 "vulnerable components") and **A10:2025 Mishandling of Exceptional Conditions** — error/exception paths that fail *open* (grant/allow) instead of *closed* (deny/reject) when something goes wrong, turning a reliability bug into a security bypass.
 5. Examples (2025 numbering): SQL injection (Module 3.2) → **A05** Injection; IDOR/BOLA (Module 3.3) → **A01** Broken Access Control; plaintext-password storage (Module 0.5/Phase 6) → **A04** Cryptographic Failures; reflected XSS (Module 2.2) → **A05** Injection (overlaps A02 Misconfiguration if CSP is missing); CORS misconfig (Module 2.4) → **A02** Security Misconfiguration.
+6. STRIDE = **S**poofing, **T**ampering, **R**epudiation, **I**nformation disclosure, **D**enial of service, **E**levation of privilege. **Elevation of Privilege** maps most directly onto **A01 Broken Access Control** (BFLA, a path to admin, a container escape).
+7. ASVS (Application Security Verification Standard) is ~350 concrete, testable security requirements across 14 chapters. **L1** is the baseline every app should meet, testable from outside (black-box); **L2** is the standard target for most apps handling meaningful data; **L3** is high-assurance (payments, health, critical infrastructure). Most apps handling meaningful data should target **L2**.
+8. The OWASP Top 10 gives broad **risk categories** for awareness (A01–A10); **CWE** is a precise catalog of *specific* software weaknesses, each with its own ID. Scanners, CVEs, and triagers reference the CWE because it pinpoints the exact flaw pattern found (e.g. "CWE-89 SQL Injection"), whereas an OWASP category like "A05 Injection" is too broad to act on precisely.
+9. Raw CVSS measures severity *in the abstract*, not your actual exposure — a 9.8 in an internal, unreachable component matters less than a 6.5 on your public login page. **EPSS** (Exploit Prediction Scoring System) estimates the probability a CVE will actually be exploited in the next 30 days; **CISA's KEV** catalog lists CVEs with *confirmed* real-world exploitation, which get patched first regardless of CVSS. (Larger teams formalize this further with **SSVC**, a decision tree instead of a single score.)
 </details>
 
 ➡️ **Next step:** Reading about the Top 10 isn't enough — you must *exploit* them with your own hands in a safe lab, including SSRF which you haven't done yet. Continue to **Module 4.2: Hands-On Web Exploitation Labs**.`,
-    tracker: ["Read the 2025 Top 10 table and can state what each category means for a developer", "Threat-modeled the profile-picture feature in nine lines, one per applicable 2025 risk", "Can state the four threat-modeling questions and which one the Top 10 powers", "Can explain why SSRF moved under A01 and what A10:2025 (Mishandling of Exceptional Conditions) means", "Started Juice Shop locally for the Module 4.2 labs", "Answered the knowledge check"]
+    tracker: ["Read the 2025 Top 10 table and can state what each category means for a developer", "Threat-modeled the profile-picture feature in nine lines, one per applicable 2025 risk", "Can state the four threat-modeling questions and which one the Top 10 powers", "Can explain why SSRF moved under A01 and what A10:2025 (Mishandling of Exceptional Conditions) means", "Can name all six STRIDE letters and map ASVS L1/L2/L3 to their intended use", "Can distinguish OWASP Top 10 categories from CWE IDs, and explain EPSS/KEV as CVSS-prioritization signals", "Started Juice Shop locally for the Module 4.2 labs", "Answered the knowledge check"]
   },
   {
     id: "m4_2",
@@ -5318,8 +5412,29 @@ A security finding isn't "I found a bug" — it's a document a developer can act
 5. They are hosted, intentionally vulnerable targets provided by PortSwigger expressly for you to hack as part of learning — authorization is built into their purpose.
 </details>
 
-➡️ **Next step:** You've exploited the Top 10 and learned to report. Now stop trying payloads ad hoc and adopt the professional tooling and a repeatable testing methodology — Burp Suite, ZAP, and a disciplined workflow. Continue to **Phase 5: Burp Suite, ZAP, and Professional Testing Workflow**.`,
-    tracker: ["Learned the five-part finding report (Title, Severity, Steps, Impact, Recommendation) and why each exists", "Can name Steps to reproduce as the most important section", "Set up ~/appsec-journal/reports/ and wrote a report using the template", "Started the ordered PortSwigger track (Auth → Access control → SQLi → XSS → CSRF → CORS → SSRF → upload → JWT → OAuth → business logic)", "Can rate severity as likelihood × impact without inflating", "Answered the knowledge check"]
+➡️ **Next step:** You've exploited the Top 10 and learned to report. Now stop trying payloads ad hoc and adopt the professional tooling and a repeatable testing methodology — Burp Suite, ZAP, and a disciplined workflow. Continue to **Phase 5: Burp Suite, ZAP, and Professional Testing Workflow**.
+
+### Phase 4 Deliverable
+
+Create \`~/appsec-journal/notes/phase-4-owasp-labs.md\` and answer, in your own words:
+
+- Pick a feature you didn't design in this course (something from an app you use) and threat-model it against the OWASP Top 10 (2025) using the four questions from Module 4.1. Name at least three categories that apply and why.
+- Explain SSRF end to end: why can the server reach something the outside world can't, why is blocking the string \`localhost\` not an adequate defense, and what makes the cloud metadata endpoint (\`169.254.169.254\`) the single highest-value SSRF target?
+- You reproduce the Juice Shop basket IDOR. Which OWASP category does it map to, and walk through the "hypothesize → test → explain root cause → write the fix → predict what prevents it" loop you used, rather than just capturing the flag and moving on.
+- Name the five parts of a finding report and explain why "steps to reproduce" is the single most important one.
+- Why is "add a WAF rule" usually a weaker recommendation than a code fix, even though both might stop the same request today?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Threat-modeling a real feature:** answers vary by feature, but the method is fixed: (1) what are we building — the data flow and trust boundaries; (2) what can go wrong — walk the ten categories against it; (3) what will we do about it — name the control; (4) did we do a good job — how you'd verify. A "share a document by link" style feature, for example, touches **A01** (can the id be guessed or incremented to reach someone else's document?), **A06** (should the link expire or be revocable — a design question, not a bug), and **A02** (is the storage bucket accidentally public?).
+- **SSRF end to end:** the server can reach internal-only services (a metadata endpoint, an internal admin panel, Redis on localhost) because *it* sits inside the network perimeter with access the external attacker doesn't have; SSRF tricks the server into making that request on the attacker's behalf and returning the result. Blocking the literal string \`localhost\` fails because attackers reach the same target via \`127.0.0.1\`, \`0.0.0.0\`, \`[::1]\`, decimal/hex/octal-encoded IPs, or a DNS name that simply resolves to an internal address (including via DNS rebinding after the check passes). \`169.254.169.254\` is the highest-value target because it's the cloud metadata endpoint — reading it can hand over the instance's live IAM credentials, turning a single SSRF into a full cloud-account compromise.
+- **The Juice Shop IDOR loop:** it maps to **A01 Broken Access Control** (specifically BOLA — a user reaching another user's basket by object id). The loop: hypothesize the object id isn't checked against the caller; test minimally by changing the id in the request; on success, explain the root cause first-principles style (the query fetches by id alone, with no ownership check); write the developer fix (\`WHERE id=$1 AND owner_id=$caller\`, or an explicit ownership check before returning data); predict what would have caught it earlier (an authorization test per endpoint, not just a functional test). Capturing the flag is the easy 10%; the writeup is the actual learning.
+- **The five report parts:** **Title** (lets a triager scan and prioritize at a glance); **Severity** (tells the team what to fix first); **Steps to reproduce** (lets anyone confirm and fix the bug); **Impact** (states the business risk in plain terms); **Recommendation** (gives the developer the root-cause fix, not just "reject this request"). Steps to reproduce is the most important because an unreproducible finding can't be verified, can't be fixed with confidence, and won't be trusted or paid.
+- **WAF rule vs. code fix:** a WAF rule filters requests that *look like* the attack pattern seen so far — it's a symptom-level band-aid that a slightly different payload can often bypass, and the underlying flaw (unparameterized query, missing object-authorization check, unescaped output) is still sitting in the code waiting for the next bypass. A code fix removes the root cause itself, so the vulnerability is gone regardless of what payload shape someone tries next.
+
+</details>`,
+    tracker: ["Learned the five-part finding report (Title, Severity, Steps, Impact, Recommendation) and why each exists", "Can name Steps to reproduce as the most important section", "Set up ~/appsec-journal/reports/ and wrote a report using the template", "Started the ordered PortSwigger track (Auth → Access control → SQLi → XSS → CSRF → CORS → SSRF → upload → JWT → OAuth → business logic)", "Can rate severity as likelihood × impact without inflating", "Wrote the Phase 4 deliverable journal entry", "Answered the knowledge check"]
   },
   {
     id: "m5_1",
@@ -5591,8 +5706,29 @@ Once you can finish the Juice Shop assessment end to end and write clean reports
 5. Cloud-hosted scanners typically violate program/provider Terms of Service and can be high-volume/disruptive; running recon from your own IP within scope keeps you compliant and avoids bans or legal exposure.
 </details>
 
-➡️ **Next step:** You can methodically assess an application and report professionally. Now go deep on the area that breaks real products most often and underlies OWASP A01 and A07: authentication, authorization, and session security. Continue to **Phase 6: Authentication, Authorization, and Session Security**.`,
-    tracker: ["Ran a full Burp-driven assessment of local Juice Shop end to end (recon → auth → authz → XSS → fuzzing → report)", "Completed the capstone: found 6+ distinct vulnerability classes and wrote each up", "Can explain a full assessment as the 5.2 workflow + Burp + 4.3 reporting", "Read and internalized the ethical bug-bounty on-ramp (scope, minimal impact, own-IP recon)", "Can recite the ethical core: bug bounty is not a license to attack; when in doubt, don't", "Answered the knowledge check"]
+➡️ **Next step:** You can methodically assess an application and report professionally. Now go deep on the area that breaks real products most often and underlies OWASP A01 and A07: authentication, authorization, and session security. Continue to **Phase 6: Authentication, Authorization, and Session Security**.
+
+### Phase 5 Deliverable
+
+Create \`~/appsec-journal/notes/phase-5-testing-workflow.md\` and answer, in your own words:
+
+- What two capabilities does an intercepting proxy give you by sitting between the browser and the server, and why must you install Burp's CA certificate to intercept HTTPS specifically (not just HTTP)?
+- Why is "define scope" always the first step of an assessment, both practically and legally?
+- State the correct mindset toward automated scanner output in one sentence. Give an example each of a false positive and a false negative from a scanner, and explain which one is more dangerous and why.
+- In bug bounty work, why must you prove impact *minimally* rather than escalating as far as you can, and what's the rule when a target's in-scope status is unclear?
+- What is a "full assessment" actually made of, in terms of earlier modules? Which single step tends to find the highest-value bugs, and why is that step human-only work a scanner can't do for you?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **The intercepting proxy's two powers, and the CA cert:** sitting between browser and server as a deliberate, self-authorized man-in-the-middle gives you the power to **observe** every request and response, and the power to **modify** them before they continue — turning "I wonder what would happen if..." into something you can actually try. Burp's CA certificate is required specifically for HTTPS because TLS authenticates the server via a certificate chain your browser already trusts; to read or edit encrypted traffic, Burp has to mint its own certificates for each site, and your browser only accepts those if you've explicitly told it to trust Burp's CA. It's a real-world illustration that whoever controls what CAs your machine trusts controls what TLS connections can be silently intercepted — which is exactly why installing unknown CAs is dangerous outside a lab you set up yourself.
+- **Why scope comes first:** practically, scope is what everything else in the workflow targets — you can't systematically test what you haven't defined. Legally, testing anything *outside* the authorized scope is unauthorized access, a real offense, regardless of intent — so scope has to be nailed down before a single request is sent, not discovered along the way.
+- **Scanner mindset, and false positive/negative:** the correct mindset is that automated scanner output is a *lead generator, not proof* — every finding must be verified by hand, and a clean scan is never evidence of security. A false positive example: ZAP flags a reflected parameter as XSS when it's actually properly encoded. A false negative example: ZAP stays silent on a business-logic bug like the Juice Shop basket IDOR, because authorization bugs have no fixed syntactic shape for a scanner to pattern-match. The **false negative is more dangerous** — a false positive wastes your time verifying a non-issue, but a false negative hides a real, often high-impact bug behind a false sense of "the scan came back clean."
+- **Minimal impact, and scope uncertainty:** escalating a finding as far as possible (deleting data, pivoting further, exfiltrating real records) risks real damage and exceeds the access the program actually authorized you to demonstrate — turning legitimate research into something indistinguishable from an attack. Proving impact minimally (one record, one screenshot, one proof-of-concept call) demonstrates the bug is real without causing harm or leaving the authorized lane. When a target's scope is unclear: treat it as **out of scope** — ask the program, or don't test it; never assume permission.
+- **What a "full assessment" is made of:** it's the Module 5.2 repeatable testing workflow, executed end to end with Burp as the instrument, with every finding written up to the Module 4.3 report standard — the convergence of the proxy, the method, the Top 10 knowledge, and structured reporting, not a separate skill on its own. **Authorization testing (BOLA/IDOR)** tends to surface the highest-value bugs, and it's human-only because it requires understanding which user is *supposed* to be able to reach which object — the application's intent — and no scanner can infer intent from HTTP traffic alone.
+
+</details>`,
+    tracker: ["Ran a full Burp-driven assessment of local Juice Shop end to end (recon → auth → authz → XSS → fuzzing → report)", "Completed the capstone: found 6+ distinct vulnerability classes and wrote each up", "Can explain a full assessment as the 5.2 workflow + Burp + 4.3 reporting", "Read and internalized the ethical bug-bounty on-ramp (scope, minimal impact, own-IP recon)", "Can recite the ethical core: bug bounty is not a license to attack; when in doubt, don't", "Wrote the Phase 5 deliverable journal entry", "Answered the knowledge check"]
   },
   {
     id: "m6_1",
@@ -6003,6 +6139,7 @@ def confirm_reset(conn, token, new_password):
 5. What is "memory-hardness" and why does it hurt attackers more than CPU-cost alone?
 6. Name the bcrypt input limit and describe the safe way to apply a pepper given that limit.
 7. List four properties a password-reset token must have, and the consequence of dropping each.
+8. Per NIST SP 800-63B-4, name two password-policy rules you should **stop** enforcing, and one check you should **start** enforcing at registration/change time.
 
 <details>
 <summary>Show answers</summary>
@@ -6014,6 +6151,7 @@ def confirm_reset(conn, token, new_password):
 5. Memory-hardness forces each hash to allocate and randomly traverse a large block of RAM. Attackers win through massive parallelism (thousands of cores), but you can't cheaply give every core enough memory — memory becomes the bottleneck, attacking the *economics* of mass cracking.
 6. bcrypt ignores input beyond 72 bytes (and historically truncated at a null byte). Apply the pepper by computing a fixed-length \`base64(HMAC-SHA256(pepper, password))\` first, then bcrypt that — it stays well under 72 bytes and applies the pepper as a true secret.
 7. (a) Random/unguessable — else brute-forced or IDOR'd; (b) hashed in the DB — else a leak yields live tokens; (c) short expiry — else a stale token in email/logs stays usable; (d) single-use + invalidates sessions on use — else the token (or an attacker's existing session) keeps working after reset.
+8. Stop enforcing: composition rules ("1 upper, 1 number, 1 symbol") and forced periodic/scheduled rotation (only force a change on evidence of compromise) — also drop password hints and security questions. Start enforcing: screening new/changed passwords against known-breached corpora (e.g. HIBP's k-anonymity range API or an offline bloom filter), plus a minimum length of 15 characters when the password is the sole authenticator (8+ within MFA), supporting up to at least 64 characters with spaces and full Unicode.
 </details>
 
 ➡️ **Next step:** You can now store and reset passwords safely — but a correct login still issues a *session*, and a mishandled session undoes all of this work. Continue to **Module 6.2: Sessions and Cookies**.`,
@@ -7309,8 +7447,29 @@ In 2012 LinkedIn lost 6.5M (later revised to 167M) password hashes — unsalted 
 - **Why it spread:** reused passwords meant the same credentials unlocked countless other sites — a classic credential-stuffing supply chain.
 - **Modern fix:** bcrypt/argon2 with per-user salt, breached-password checks (Have I Been Pwned), passkey rollout, and forced rotation on suspicion.
 
-➡️ **Next step (Phase 6 complete):** You can now store credentials, manage sessions, issue and verify tokens, delegate identity, enforce authorization, and remove passwords entirely. The next leap is moving security *left* — catching these bugs in the pipeline before they ship, and defending the code you *didn't write* (your dependencies). Continue to **Phase 7: Secure SDLC, DevSecOps, and Supply Chain**.`,
-    tracker: ["Can explain that WebAuthn removes the shared transmitted secret and which attack classes that kills", "Can explain the origin/RP-ID binding mechanism that makes WebAuthn phishing-resistant vs password+TOTP", "Built the WebAuthn registration ceremony on localhost with Touch ID (Node @simplewebauthn + Python py_webauthn) and watched origin binding refuse a wrong origin", "Can list the six server-side checks on every authentication assertion", "Knows account-recovery is mandatory and must not become a weaker password backdoor", "Completed the Phase 6 cumulative quiz and read the LinkedIn 2012 case study", "Answered the knowledge check"]
+➡️ **Next step (Phase 6 complete):** You can now store credentials, manage sessions, issue and verify tokens, delegate identity, enforce authorization, and remove passwords entirely. The next leap is moving security *left* — catching these bugs in the pipeline before they ship, and defending the code you *didn't write* (your dependencies). Continue to **Phase 7: Secure SDLC, DevSecOps, and Supply Chain**.
+
+### Phase 6 Deliverable
+
+Create \`~/appsec-journal/notes/phase-6-auth-sessions.md\` and answer, in your own words:
+
+- Trace a user's credential from registration to a protected request — password storage, then a session cookie or JWT, then an authorization check. Name one concrete bug at each of those three steps that would turn into a full account takeover.
+- Compare how a server-side session and a stateless JWT each handle "log this user out everywhere, right now." Which is naturally easier and why, and what pattern do JWT-based systems use to get close to session-level revocability?
+- In OAuth/OIDC, why is the access token the wrong thing to use to answer "who is this user," and why must \`redirect_uri\` be matched *exactly* rather than by prefix?
+- Explain the difference between authentication and authorization, and why "hide the button in the UI" is not a security control. Where does authorization actually have to be enforced, and why is Broken Access Control hard for scanners to catch?
+- WebAuthn eliminates an entire class of attacks by removing one specific thing passwords (and even password+TOTP) still have. What is it, and why does a decreasing/duplicate signature counter matter?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Tracing a credential, one bug per step:** at **password storage**, using a fast hash like plain SHA-256 (or skipping the per-user salt) means a single database leak lets an attacker crack every password with a wordlist in seconds. At the **session/token** step, storing the session token in \`localStorage\` instead of an \`HttpOnly\` cookie means a single XSS bug can read and exfiltrate it directly — or, for JWTs, failing to pin the verification algorithm (\`algorithms: ['RS256']\`) opens the door to an \`alg:none\` or RS256→HS256 confusion forgery. At the **authorization** step, checking "is this user logged in" but not "does this user own *this* object" is a BOLA/IDOR — the request succeeds with a normal \`200\` against someone else's data. Any one of the three turns "a real user logged in" into "an attacker has full access to someone else's account."
+- **Session vs. JWT revocation:** a server-side session is a row in a store you control — deleting it (or flipping a \`revoked\` flag) instantly kills that session everywhere, on the next request. A stateless, signed JWT has nothing to delete server-side; it stays valid until its \`exp\`, no matter what happens to the user's account in the meantime. JWT systems close that gap with the **access/refresh split**: a short-lived access JWT bounds the exposure window to minutes, backed by a long-lived *opaque* refresh token stored server-side (a genuinely deletable row) — logout or a ban deletes the refresh token, and the access token expires shortly after on its own.
+- **Access token vs. id_token, and exact redirect_uri matching:** the access token is a scoped credential for calling the *resource server* — it was not necessarily minted for your app's audience, and possessing one isn't proof of who the user is. The \`id_token\` is a JWT specifically issued for your \`client_id\` that you verify (signature, \`aud\`, \`iss\`, \`exp\`, \`nonce\`), which is why it — not the access token — answers "who logged in." \`redirect_uri\` must match exactly because it's where the authorization code (or tokens) get delivered; prefix matching lets an attacker register something like \`app.com.evil.com\` that technically "starts with" your domain, redirecting the code to an attacker-controlled endpoint.
+- **Authn vs. authz, and where enforcement lives:** authentication answers "who are you"; authorization answers "what are you allowed to do." Hiding a button in the UI only controls what the *browser renders* — the API endpoint behind that button is still directly callable via \`curl\`, Burp, or the console, so it enforces nothing. Authorization has to be checked **server-side, on every request**, against the caller's actual identity and the object/function being accessed. Broken Access Control is hard for scanners to catch because the buggy response is usually a completely normal \`200 OK\` — the code runs fine, it just returns (or allows) the wrong thing, and no pattern-matcher can tell "this user shouldn't see this" from the shape of the response alone.
+- **What WebAuthn removes, and the signature counter:** WebAuthn eliminates the **shared, transmitted secret** — with a password (or even password+TOTP), the user still produces something (a password, a 6-digit code) that can be phished, replayed, or leaked from a breached database. WebAuthn's private key never leaves the authenticator and never crosses the network; the browser itself checks that the credential's origin matches the site being visited, so a human can't be tricked into "typing" a valid signature into a look-alike site. A decreasing or duplicate signature counter matters because it indicates the same credential is being used from more than one copy — evidence of a cloned authenticator, which should be flagged or denied.
+
+</details>`,
+    tracker: ["Can explain that WebAuthn removes the shared transmitted secret and which attack classes that kills", "Can explain the origin/RP-ID binding mechanism that makes WebAuthn phishing-resistant vs password+TOTP", "Built the WebAuthn registration ceremony on localhost with Touch ID (Node @simplewebauthn + Python py_webauthn) and watched origin binding refuse a wrong origin", "Can list the six server-side checks on every authentication assertion", "Knows account-recovery is mandatory and must not become a weaker password backdoor", "Completed the Phase 6 cumulative quiz and read the LinkedIn 2012 case study", "Wrote the Phase 6 deliverable journal entry", "Answered the knowledge check"]
   },
   {
     id: "m7_1",
@@ -7577,6 +7736,7 @@ When a customer or the US government asks for a "secure development attestation,
 3. A workflow runs \`npm audit || true\`. What's the consequence, and the one-line fix?
 4. Why is pinning a GitHub Action to \`@v4\` weaker than to a commit SHA?
 5. A developer commits an AWS key, notices instantly, and force-pushes a commit deleting the line. Are you safe? What is the correct remediation order?
+6. What is the NIST SSDF (SP 800-218), and name its four practice groups? Which one maps to the threat modeling you did in Module 4.1?
 
 <details>
 <summary>Show answers</summary>
@@ -7586,6 +7746,7 @@ When a customer or the US government asks for a "secure development attestation,
 3. \`|| true\` forces the step's exit code to 0, so the job reports success even when audit found High/Critical vulns — the gate is silently disabled. Fix: remove \`|| true\` and use \`npm audit --audit-level=high\`.
 4. A tag like \`@v4\` is a movable pointer a compromised maintainer can repoint at new code, which your pipeline runs with your repo's token. A full commit SHA is immutable — it always refers to the exact code you reviewed.
 5. No. The key is permanently in git history (force-push doesn't reliably erase it from forks, caches, CI logs, or clones — and scrapers grab \`sk_\`/\`AKIA\` strings within minutes). Correct order: (1) **revoke/rotate** the key immediately, (2) confirm the old key is dead, (3) *then* purge it from history (\`git filter-repo\`) as cleanup, (4) add a pre-commit secret scan so it can't recur.
+6. NIST SSDF (Secure Software Development Framework, SP 800-218) is the framework the US government requires software producers to attest to for secure development practice. Its four practice groups: **PO** — Prepare the Organization (security requirements, roles); **PS** — Protect the Software (protect code/releases, integrity); **PW** — Produce Well-Secured Software (secure design, review, testing); **RV** — Respond to Vulnerabilities (find, remediate, disclose). The threat modeling from Module 4.1 maps to **PO**.
 </details>
 
 ➡️ **Next step:** You can catch bugs in *your* code at the gate. The bigger blind spot is the code you *didn't* write — the 1,000+ packages in your dependency tree. Continue to **Module 7.2: Software Supply Chain Security**.`,
@@ -7731,7 +7892,7 @@ In 2017 Equifax disclosed a breach of 147 million records. Root cause: an unpatc
 - **Why it was a record breach:** the vulnerable web app sat in front of credit data with no network segmentation; once the attacker had RCE they pivoted to a database with 143M SSNs.
 - **Modern fix:** run \`npm audit\` / \`pip-audit\` / \`trivy fs .\` in CI, block on Critical/High, maintain an SBOM per app, map CVE feeds to assets *daily*, and enforce a patch SLA.
 
-➡️ **Next step (Phase 7 complete):** You can build security into the conveyor belt — gate insecure code at the PR, defend the code you didn't write, and inventory everything you ship. If your app talks to an LLM, the build pipeline isn't enough: you've added a brand-new trust boundary that classic scanners don't understand. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, you may skip 7.5 and go straight to **Phase 8: Cloud, Deployment, and Production Security**.)`,
+➡️ **Next step:** You can build security into the conveyor belt — gate insecure code at the PR, defend the code you didn't write, and inventory everything you ship. The pipeline is technical; the last piece of Phase 7 is knowing what the law and your auditors actually require. Continue to **Module 7.3: Compliance & Privacy Engineering for Developers**.`,
     tracker: ["Can explain that a modern app ships far more (transitive) code than it writes, inside one trust boundary", "Can define typosquatting, dependency confusion, maintainer takeover, malicious postinstall, and protestware", "Can explain the lockfile + integrity hash, npm ci vs npm install, and pinning-with-cooldown", "Generated a CycloneDX SBOM and inspected lockfile integrity hashes on the local lab", "Demoed dependency-confusion resolution and the scope-binding fix in .npmrc", "Read the hardened .npmrc and renovate.json and the Equifax 2017 case study", "Answered the knowledge check"]
   },
   {
@@ -7921,13 +8082,35 @@ app.delete("/api/me", authenticate, async (req, res) => {
 2. Partially correct. If you use Stripe Elements or Stripe.js (so card numbers go directly from the browser to Stripe and your server only ever sees a token), your PCI scope is dramatically reduced to SAQ A — a simple self-assessment. But you still have PCI obligations: you must use HTTPS exclusively on payment pages, never log card data, implement access controls on systems in your CDE, and keep your Stripe integration secure. "Stripe handles it" does not mean you are entirely out of scope — it means your scope is minimised, not eliminated.
 </details>
 
-➡️ **Next step:** The pipeline is hardened, the supply chain is inventoried, and compliance is built in. If your app uses AI features, those introduce a brand-new trust boundary next. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, go straight to **Phase 8: Cloud, Deployment, and Production Security**.)`,
+➡️ **Next step:** The pipeline is hardened, the supply chain is inventoried, and compliance is built in. If your app uses AI features, those introduce a brand-new trust boundary next. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, go straight to **Phase 8: Cloud, Deployment, and Production Security**.)
+
+### Phase 7 Deliverable
+
+Create \`~/appsec-journal/notes/phase-7-secure-sdlc.md\` and answer, in your own words:
+
+- Explain "shift left" correctly — not "do the same pentest a week earlier." Name the four families of automated security checks from this phase, and which class of bug (and which family) still needs a human because no scanner can catch it.
+- Your CI runs \`npm install\` instead of \`npm ci\`, and a separate workflow uses \`pull_request_target\` to build fork PRs. Explain the specific risk each creates, and the one-line fix for each.
+- Define dependency confusion in one sentence and give the *structural* fix — why isn't "be careful when installing packages" sufficient?
+- A user emails asking you to delete all their data (a GDPR right-to-erasure request). What does honoring that actually require your engineering team to have built *ahead of time* — name at least three concrete pieces?
+- Name the NIST SSDF's four practice groups, and map one thing you did in this phase (or Phase 4) to each group.
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Shift-left, the four check families, and the human-only gap:** shift-left means moving *automated, continuous* security checks as early as they can usefully run — threat-modeling at design time, SAST as you type, SCA/secret-scanning at build — so defects are caught while cheap to fix, not one big manual pentest moved earlier on the calendar. The four families: **SAST** (static pattern-matching over your own code), **SCA** (scanning your dependency tree for known-vulnerable versions), **secret-scanning** (catching committed credentials), and **DAST** (probing the running app from outside). None of them reliably catch **broken access control** — "this user can read another user's record" has no fixed syntactic shape and no obviously-wrong HTTP response, so it takes human review or targeted authorization testing (Phase 3/4's BOLA work), not automation.
+- **\`npm install\` in CI, and \`pull_request_target\` with fork code:** \`npm install\` can silently *rewrite* the lockfile — re-resolving version ranges — which destroys reproducibility and can mask a dependency-confusion swap going unnoticed; the fix is \`npm ci\`, which installs strictly from the lockfile and fails the build if \`package.json\` and the lock disagree. A workflow that checks out a fork PR's code under \`pull_request_target\` runs that untrusted code with the *base* repository's write permissions and secrets — a classic CI takeover; the fix is to use the sandboxed \`pull_request\` trigger for anything that builds/runs fork-submitted code.
+- **Dependency confusion, one sentence and the structural fix:** it's when an attacker publishes a *public* package under the same name as your *private* internal package with a higher version number, causing your package resolver to pull the attacker's malicious public package instead of your real internal one. "Be careful" isn't sufficient because the resolver — not a human — makes the choice at install time, often transitively, with no visible warning; the structural fix is scoping internal packages (\`@acme/...\`) and binding that scope to your internal registry in \`.npmrc\`, so the public registry can never satisfy that name no matter what version is published there.
+- **What a right-to-erasure request actually requires:** engineering needs, ahead of time: (1) a **data map** — knowing every table/service/analytics pipeline/backup that holds a piece of this user's data; (2) a **cascading deletion function** that actually reaches all of them, not just the primary users table; (3) a process for requesting deletion from any **third-party processors** you've shared the data with; and (4) the ability to **confirm and timestamp** the deletion for your own compliance records. Without all four built in advance, "delete my data" becomes a manual, error-prone scramble instead of a button.
+- **SSDF's four groups, mapped to this course:** **PO** (Prepare the Organization — security requirements, roles) maps to the Module 4.1 threat-modeling habit; **PS** (Protect the Software — protect code/releases, integrity) maps to Module 7.2's lockfiles, integrity hashes, and SBOM; **PW** (Produce Well-Secured Software — secure design, review, testing) maps to the SAST/DAST/secret-scanning gate from Module 7.1 and the whole of Phases 2–5; **RV** (Respond to Vulnerabilities — find, remediate, disclose) maps to \`npm audit\`/dependency patching from Module 7.2 and the incident-response work coming in Phase 9.
+
+</details>`,
     tracker: [
       "Can name the six GDPR data subject rights and describe what each requires your system to implement",
       "Understands why PCI DSS scope reduction (never touching raw card data) is the most important PCI control for developers",
       "Can list at least 5 SOC 2 engineering controls that appear on audit evidence lists",
       "Knows the HIPAA 72-hour breach notification rule (it applies to GDPR too) and what triggers it",
       "Has implemented or designed at least one privacy-by-design pattern (data minimisation, log redaction, or a data export endpoint)",
+      "Wrote the Phase 7 deliverable journal entry",
       "Answered the knowledge check"
     ]
   },
@@ -8152,7 +8335,7 @@ A user can ask your app for "a 50,000-word essay about every Wikipedia article" 
 
 Within hours of Bing's public AI chat launch, users coaxed it into revealing its system prompt and internal name "Sydney" via a series of indirect prompt injections. Microsoft's response showed the right pattern: they treated the leak as a security incident (not PR), added topic constraints, conversation-length limits, and mid-conversation system-prompt refresh, and improved telemetry on prompt leakage. **Lesson for full-stack devs:** assume your system prompt is public the moment you ship the feature. Don't put secrets, internal API keys, or production database hints in it.
 
-➡️ **Next step (Phase 7.5 complete):** You can defend the new trust boundary an LLM introduces. Now take everything you've built and ship it safely — secrets management, production hardening, security headers, and cloud posture (including SSRF-to-metadata). Continue to **Phase 8: Cloud, Deployment, and Production Security**.`,
+➡️ **Next step:** You can defend the new trust boundary an LLM introduces, including the economic one. Two risks remain before Phase 7.5 is complete: the AI coding tools you use yourself, and agents that don't just answer but *act*. Continue to **Module 7.5.6: Secure AI-Assisted Development — Copilot, ChatGPT, and Vibe Coding**.`,
     tracker: ["Can explain LLM cost-exhaustion as DoS with a financial loss attached", "Knows the defenses: per-user token budgets, hard max_tokens, runaway-agent loop/depth limits, authenticated billing, cost-as-security-signal", "Completed the Phase 7.5 cumulative quiz and read the Bing/Sydney 2023 case study", "Knows to assume the system prompt is public and never put secrets in it"]
   },
   {
@@ -8426,8 +8609,29 @@ def agent_turn_secure(user_task):
 5. ISO/IEC 42001 (AI management system) and the EU AI Act (risk-tiered transparency and oversight obligations).
 </details>
 
-➡️ **Next step:** The model layer is defended, the pipeline is hardened, and now the agent's capabilities are scoped too. Ship everything safely — secrets management, production hardening, and cloud posture. Continue to **Phase 8: Cloud, Deployment, and Production Security**.`,
-    tracker: ["Can explain why agency (not just generation) is the new risk axis for LLM applications", "Can name at least three OWASP Agentic Top 10 failure modes (excessive agency, tool/description poisoning, memory poisoning, cross-agent impersonation, cascading failures)", "Built the local readFile/runShell agent lab and watched an injected document trigger the dangerous tool call", "Fixed it with a narrower tool set, an allow-list, and a human-approval gate — not a better prompt", "Can name ISO/IEC 42001 and the EU AI Act at breadth level", "Answered the knowledge check"]
+➡️ **Next step:** The model layer is defended, the pipeline is hardened, and now the agent's capabilities are scoped too. Ship everything safely — secrets management, production hardening, and cloud posture. Continue to **Phase 8: Cloud, Deployment, and Production Security**.
+
+### Phase 7.5 Deliverable
+
+Create \`~/appsec-journal/notes/phase-7-5-llm-security.md\` and answer, in your own words:
+
+- Name the OWASP LLM Top 10 category for each: (a) a user tricking the model into ignoring its system prompt; (b) an agent granted more tool access than its task needs; (c) an attacker draining your token budget with expensive prompts.
+- Explain the difference between direct and indirect prompt injection, with a full-stack example of each. Why is "write a better system prompt" not a real defense?
+- Your chatbot generates SQL that the app then runs against the database. What does "LLM output is untrusted input" mean concretely here, and name two architectural fixes (not prompt tweaks).
+- Why is loading an untrusted model with \`pickle.load()\` more dangerous than loading it with \`safetensors\`, and why should you assume your system prompt will eventually leak regardless of how well you word it?
+- A coworker wires up an AI agent with a \`runShell\` tool for a task that only ever needs to read files. Using the "agency is the new risk axis" idea, explain what could go wrong and the fix. Separately: why is pasting real customer data into an AI coding assistant "just to get an example working" a problem even if the tool claims it won't train on your data?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Mapping to the LLM Top 10:** (a) is **LLM01 Prompt Injection** — user text overriding the system prompt's instructions. (b) is **LLM06 Excessive Agency** — the agent has more tool access/autonomy than the task requires. (c) is **LLM10 Unbounded Consumption** — DoS via expensive prompts or runaway loops, with a real financial cost attached.
+- **Direct vs. indirect injection, and why a better prompt doesn't fix it:** direct injection is the attacker typing the malicious instruction straight into the chat ("ignore your previous instructions and..."). Indirect injection is the attacker planting the payload in content the LLM reads *later*, without ever talking to it directly — e.g. a hidden instruction inside a GitHub README that an LLM-based code-review bot reads and obeys, leaking its own API key. A better system prompt doesn't fix either, because the model has **no architectural separation between instructions and data** — both are just tokens in the same context window, so no amount of prompt wording creates a boundary that isn't actually there. The real defense has to live in the surrounding system: tool privilege limits, output validation, human approval for high-impact actions, and tagging/tracking where content came from.
+- **"LLM output is untrusted input," concretely:** it means you must not run, render, or execute whatever the model produces without the same validation you'd apply to any other untrusted input. For a chatbot generating SQL, that means never handing the raw generated string to your database driver as-is. Two architectural fixes: (1) restrict the model to producing parameters for a fixed, parameterized query template (or an allow-listed query DSL) instead of free-form SQL text; (2) run whatever it does generate against a **read-only** database role with row-level security and a tight statement timeout, so even a successful injection can't write, delete, or run away with resources.
+- **pickle vs. safetensors, and the leaking system prompt:** \`pickle.load()\` deserializes arbitrary Python objects, so a malicious model file can execute attacker code the instant it's loaded — there's no way to load it "just for the weights" without also running whatever code is embedded. \`safetensors\` is a structured, tensor-only format with no executable payload surface, so loading it can't run anything, only read numbers. You should assume the system prompt is public because injection techniques (direct or indirect) routinely coax models into repeating instructions verbatim — the 2023 Bing/Sydney leak happened within hours of launch — so secrets, internal API keys, or database hints must never be placed in a system prompt in the first place.
+- **The over-scoped \`runShell\` tool, and pasting customer data into an AI tool:** granting a read-only task a \`runShell\` tool means an injected instruction (from a document the agent reads, an untrusted tool description, anything the model treats as context) can escalate straight to arbitrary command execution — the fix is least privilege: don't grant the tool at all if the task never needs it, and gate any genuinely high-impact tool behind human approval rather than trusting the model's judgment. Separately, pasting real customer data into an AI coding assistant is a problem even with a "we don't train on your data" promise because: retention policies still mean the data is *stored* somewhere outside your control and could be exposed in a breach of the AI vendor; your company's data-processing agreements or regulations (GDPR/CCPA/HIPAA) may flatly prohibit sending that data to a third party regardless of training use; and even a single transmission is a data-exfiltration event you can't undo. Use synthetic or anonymized data instead.
+
+</details>`,
+    tracker: ["Can explain why agency (not just generation) is the new risk axis for LLM applications", "Can name at least three OWASP Agentic Top 10 failure modes (excessive agency, tool/description poisoning, memory poisoning, cross-agent impersonation, cascading failures)", "Built the local readFile/runShell agent lab and watched an injected document trigger the dangerous tool call", "Fixed it with a narrower tool set, an allow-list, and a human-approval gate — not a better prompt", "Can name ISO/IEC 42001 and the EU AI Act at breadth level", "Wrote the Phase 7.5 deliverable journal entry", "Answered the knowledge check"]
   },
   {
     id: "m8_1",
@@ -8851,7 +9055,7 @@ Now the patched app resolves the hostname to an IP, sees it's in a blocked range
 
 In 2019 a former AWS engineer exfiltrated 100M+ Capital One credit card applications. The canonical SSRF-to-cloud-takeover chain: (1) a **misconfigured WAF** exposed an SSRF primitive; (2) the attacker forced it to fetch the **EC2 IMDSv1** at \`http://169.254.169.254/latest/meta-data/iam/security-credentials/\`; (3) IMDS returned the IAM **temporary credentials** for the WAF instance role; (4) that role had **over-broad \`s3:GetObject\`** on the customer-data bucket; (5) the attacker enumerated and downloaded from their own laptop. **Lessons:** IMDSv2 by default, least-privilege IAM, WAF/proxy egress filtering of RFC-1918 / link-local ranges, CloudTrail + GuardDuty for anomalous credential use, and SSRF unit tests on every URL-fetching path.
 
-➡️ **Next step (Phase 8 complete):** You can ship safely. But prevention eventually fails — so the next phase builds the layer that *catches* failures: logging, monitoring, and incident response. Continue to **Phase 9: Logging, Monitoring, Incident Response for Web Apps**.`,
+➡️ **Next step:** You can ship safely with a hardened cloud posture. One production surface remains — the container and orchestrator layer everything else runs on. Continue to **Module 8.4: Container & Kubernetes Security**.`,
     tracker: ["Can explain 'identity is the perimeter' and least-privilege IAM as the thing that bounds blast radius", "Can walk the SSRF-to-metadata chain end to end and name its two independent defenses (IMDSv2 + egress filtering), plus how IAM breaks the final link", "Knows to filter SSRF by resolved IP (not hostname string) and why DNS rebinding defeats string checks", "Read the Capital One 2019 case study and can map each step to a defense"]
   },
   {
@@ -9024,7 +9228,28 @@ A Kubernetes dashboard was exposed to the internet without authentication. An at
 2. Base64 is an encoding, not encryption — it adds no confidentiality whatsoever. Kubernetes Secrets are stored in etcd, and unless etcd encryption-at-rest is explicitly configured, the base64-decoded value is readable by anyone with etcd access, raw etcd backups, or sufficient RBAC permissions to read the Secret. The right approach is to enable etcd encryption-at-rest AND use an external secret manager (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault) as the authoritative source, synced in via the External Secrets Operator.
 </details>
 
-➡️ **Next step (Phase 8 complete):** You can ship safely and harden your containers and cluster. Prevention eventually fails — the next phase builds the layer that *catches* failures: structured logging, detection, and incident response. Continue to **Phase 9: Logging, Monitoring, and Incident Response**.`,
+➡️ **Next step (Phase 8 complete):** You can ship safely and harden your containers and cluster. Prevention eventually fails — the next phase builds the layer that *catches* failures: structured logging, detection, and incident response. Continue to **Phase 9: Logging, Monitoring, and Incident Response**.
+
+### Phase 8 Deliverable
+
+Create \`~/appsec-journal/notes/phase-8-production-security.md\` and answer, in your own words:
+
+- A teammate moves the Stripe *secret* key into \`NEXT_PUBLIC_STRIPE_KEY\` "so the checkout component can use it." What did they just do, and what's the correct architecture? Separately, why is a leaked 15-minute STS token less dangerous than a leaked static access key?
+- Walk the SSRF-to-cloud-credentials chain step by step, and name which specific defense — IMDSv2, SSRF egress filtering, or least-privilege IAM — breaks which link in that chain.
+- Why does a strict \`Content-Security-Policy\` only actually defend against XSS if it avoids \`unsafe-inline\`, and why is removing \`X-Powered-By: Express\` worth doing even though it doesn't fix a vulnerability by itself?
+- A container runs as root with the Docker socket mounted in. Why is that a critical misconfiguration? Separately, why is "Kubernetes Secrets are fine, they're base64-encoded" a false-confidence trap?
+- Name one control from this phase that limits blast radius even when a vulnerability elsewhere is *inevitable* — a defense-in-depth control, not a "prevent the bug" control — and explain what it bounds.
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **The \`NEXT_PUBLIC_\` mistake, and STS vs. static keys:** \`NEXT_PUBLIC_\` (like \`VITE_\`/\`REACT_APP_\`) values get inlined into the JavaScript bundle shipped to every visitor's browser — so your teammate just published the Stripe *secret* key to the entire internet. The correct architecture: only the *publishable* key (designed to be public) goes client-side; the secret key stays server-side, and the browser calls your own backend endpoint, which performs the charge using the secret key. A leaked 15-minute STS token is far less dangerous than a leaked static key because its value **decays** — it's useless 15 minutes after issuance regardless of whether anyone notices the leak — whereas a static key works until a human happens to notice and manually rotates it, often months later.
+- **The SSRF-to-credentials chain, defense by defense:** (a) a server-side endpoint fetches a user-supplied URL with no restriction — this is where **SSRF egress filtering** (resolve the hostname, block on the resolved IP being link-local/private, restrict schemes) breaks the chain. (b) the attacker supplies the cloud metadata URL and the server fetches it, returning live IAM credentials — this is where **IMDSv2** (\`HttpTokens: required\`) breaks the chain, since it requires a session token IMDSv1-style SSRF can't obtain. (c) the attacker uses the stolen credentials to reach data — this is where **least-privilege IAM** breaks the chain, bounding what those credentials can actually do even after theft. All three are independent layers; any one alone leaves a gap.
+- **CSP and \`X-Powered-By\`:** a CSP only defends against XSS if it forbids \`unsafe-inline\` (and ideally \`unsafe-eval\`) for scripts, using a per-request nonce or hash instead — a policy that still allows inline scripts lets an injected \`<script>\` run exactly as before, so the header exists but defends nothing. \`X-Powered-By: Express\` doesn't cause a vulnerability by itself, but it's free reconnaissance: it hands an attacker your exact framework so they can go straight to matching CVEs instead of guessing — removing it adds friction for no functional cost.
+- **The Docker socket, and base64 "encryption":** mounting \`/var/run/docker.sock\` into a container gives any process inside it full control of the Docker daemon — it can spin up a new privileged container with the host filesystem mounted and effectively become root on the host, completely undermining container isolation regardless of what user the original container runs as. "Kubernetes Secrets are fine, they're base64-encoded" is false-confidence because base64 is an **encoding**, not encryption — it adds zero confidentiality; anyone with etcd access, a raw etcd backup, or sufficient RBAC permissions can trivially decode it. The real fix is etcd encryption-at-rest plus an external secret manager (Vault, AWS/GCP Secrets Manager) as the source of truth.
+- **A defense-in-depth control:** least-privilege IAM is the clearest example — it doesn't prevent the next SSRF, RCE, or leaked key (those are treated as inevitable), it bounds the **blast radius** once one of them happens: a narrowly-scoped role turns a stolen credential into "read one bucket prefix" instead of "read the entire cloud account."
+
+</details>`,
     tracker: [
       "Can write a hardened multi-stage Dockerfile with non-root USER, distroless runtime, and no secrets in layers",
       "Has run Trivy against a Dockerfile or image and interpreted CVE and misconfiguration output",
@@ -9032,6 +9257,7 @@ A Kubernetes dashboard was exposed to the internet without authentication. An at
       "Can write a Kubernetes NetworkPolicy that denies all ingress by default",
       "Knows the difference between K8s Secrets (base64, etcd), ESO, and Vault Agent for secret injection",
       "Can explain why `pod-security.kubernetes.io/enforce: restricted` prevents the most common container misconfigurations",
+      "Wrote the Phase 8 deliverable journal entry",
       "Answered the knowledge check"
     ]
   },
@@ -9425,8 +9651,29 @@ Write one playbook (using the six-question template) for each realistic worst ca
 5. The attacker likely created additional sessions/tokens/API keys you can't see; killing one leaves others live. It should say "invalidate **all** active sessions for the account, force password reset, re-enroll MFA, and check for attacker-created credentials/recovery-address changes."
 </details>
 
-➡️ **Next step (Phase 9 complete):** You can now prevent (Phases 2–8), detect, and respond. The last phase makes all of it *visible* to employers and collaborators: portfolio capstones that prove you can do this work on real, full-stack code. Continue to **Phase 10: Portfolio Capstones**.`,
-    tracker: ["Can name the six NIST-style IR phases in order and explain why IR is written down in advance", "Knows the two counter-intuitive rules: contain before you erase (preserve evidence first) and rotate, don't just delete", "Can fill in the six-question playbook template and has the ATO playbook format to copy", "Knows the web-app playbook set (ATO, leaked secret, exploited vuln, insider, CVE, exposed DB) and why postmortems must be blameless"]
+➡️ **Next step (Phase 9 complete):** You can now prevent (Phases 2–8), detect, and respond. The last phase makes all of it *visible* to employers and collaborators: portfolio capstones that prove you can do this work on real, full-stack code. Continue to **Phase 10: Portfolio Capstones**.
+
+### Phase 9 Deliverable
+
+Create \`~/appsec-journal/notes/phase-9-monitoring-ir.md\` and answer, in your own words:
+
+- Why is logging *failed* logins and *denied* authorizations often more valuable than logging successes — and why should "no logs arriving" itself be treated as an alert?
+- You can only build five alerts this week. Name three high-value web-app detections you'd prioritize and the specific attack each one catches.
+- An attacker leaves a webshell on your server. Why is immediately deleting it and reimaging the box the wrong first move? What should happen instead, and in which IR phase does that fall?
+- A secret leaks in a public repo. Put these in the correct order and justify it: delete the line from git, rotate the key, purge git history.
+- Your account-takeover (ATO) playbook says "kill the suspicious session." Why is that insufficient, and what should it say instead?
+
+<details>
+<summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
+
+- **Failures/denials over successes, and silence as a signal:** successes just show normal use, but an attack usually *lives* in the failures — credential stuffing is a flood of failed logins, IDOR/enumeration probing is a burst of authorization denials. Logging only successes misses the attack in progress entirely. "No logs arriving" deserves its own alert because a successful attacker who compromises a host will often disable or wipe logging specifically to hide their tracks — an unexplained drop in expected log volume can be the *only* signal something happened, so silence has to be treated as data, not as "nothing to report."
+- **Three high-value detections for a five-alert budget:** (1) an authentication-failure spike per account/IP → catches credential stuffing/brute force; (2) a successful login from a new country/ASN on a privileged account, especially right after a password reset or MFA disable → catches account takeover; (3) a burst of authorization denials from a single principal → catches IDOR/BOLA enumeration probing. (Two more from the same family: data-export volume far above baseline for exfiltration, and a new admin user/IAM role change for privilege escalation.)
+- **The webshell, and why not to delete-and-reimage first:** deleting the shell and reimaging destroys the forensic evidence needed to determine *how* the attacker got in and *what* they touched — without that, you can't close the actual entry point, so the same vector likely gets exploited again. The correct first move is to preserve a snapshot/forensic copy, then contain (isolate the host from the network) — this is the **Containment** phase, which comes *before* Eradication in the IR lifecycle (Preparation → Detection & Analysis → Containment → Eradication → Recovery → Post-incident), precisely so evidence isn't destroyed before it's captured.
+- **Leaked secret, correct order:** **(1) rotate the key** first — this is the only action that actually stops abuse, since the secret is likely already scraped by bots within minutes of appearing in a public repo; **(2) remove the line** from the current code; **(3) purge git history** last, as cleanup. Doing the git cleanup before rotating leaves a live, already-compromised credential sitting there exploitable the entire time you're fixing the history.
+- **The ATO playbook gap:** "kill the suspicious session" only handles the one session you noticed — an attacker who took over an account has likely also created additional sessions, API keys, or tokens you can't see just by killing one. The playbook should instead say: invalidate **all** active sessions for the account, force a password reset, re-enroll MFA, and check for attacker-created credentials or changes to recovery email/phone — closing every door the attacker might have opened, not just the one you happened to spot.
+
+</details>`,
+    tracker: ["Can name the six NIST-style IR phases in order and explain why IR is written down in advance", "Knows the two counter-intuitive rules: contain before you erase (preserve evidence first) and rotate, don't just delete", "Can fill in the six-question playbook template and has the ATO playbook format to copy", "Knows the web-app playbook set (ATO, leaked secret, exploited vuln, insider, CVE, exposed DB) and why postmortems must be blameless", "Wrote the Phase 9 deliverable journal entry"]
   },
   {
     id: "m10_1",
