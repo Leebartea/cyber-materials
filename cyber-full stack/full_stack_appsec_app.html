@@ -792,84 +792,156 @@ const curriculum = {
     short: "Phase 0 · Foundations",
     tagline: "First-principles foundation, viewed through a threat lens",
     colorVar: "--l1",
-    weeks: "1–2 weeks"
+    weeks: "2–3 weeks",
+    roadmap: {
+      promise: "Before you can secure software, you need an honest model of how it actually works — computer, web, code, database, and terminal — always through a \"what could go wrong here?\" lens.",
+      canDo: ["Explain why only the backend can enforce security, and bypass a client-side check in DevTools to prove it", "Read a command-line pipeline out loud instead of fearing it", "Name the root cause of SQL injection as a data-vs-code confusion", "Build and inspect a Docker image, and prove a baked-in secret survives in a layer"],
+      build: "A Phase 0 journal entry that explains the foundations — and the container knowledge — in your own words.",
+      prereq: "No security background needed — just a computer you can install tools on."
+    }
   }, {
     id: "p1",
     name: "Phase 1 · Web, Internet & CLI Foundations",
     short: "Phase 1 · Web & CLI",
     tagline: "The protocols (HTTP/DNS/TLS) and tools security rides on",
     colorVar: "--l2",
-    weeks: "2–4 weeks"
+    weeks: "3–4 weeks",
+    roadmap: {
+      promise: "Security rides on a handful of protocols and tools. This phase makes HTTP, DNS, and TLS concrete and turns the terminal into an investigation instrument you actually trust.",
+      canDo: ["Trace an HTTPS request from DNS lookup through the TLS handshake to the response", "Investigate a running service with curl, openssl, lsof, and dig", "Harden a Git/GitHub workflow and catch secrets before they are committed", "Write a small shell script and open an SSH tunnel"],
+      build: "A CLI investigation of a live service, plus a hardened repo and Actions workflow.",
+      prereq: "Phase 0 (terminal + web basics)."
+    }
   }, {
     id: "p2",
     name: "Phase 2 · Secure JavaScript & Browser Security",
     short: "Phase 2 · Browser Security",
     tagline: "The browser's security model: origins, XSS, CSRF, CORS",
     colorVar: "--l3",
-    weeks: "3–4 weeks"
+    weeks: "2–3 weeks",
+    roadmap: {
+      promise: "The browser is a security model, not just a renderer. Once origins are crisp, XSS, CSRF, and CORS stop being magic and become deductions.",
+      canDo: ["Define an origin and predict what the same-origin policy allows and blocks", "Exploit and then patch a stored and a reflected XSS", "Demonstrate a CSRF attack and defend it with tokens and SameSite cookies", "Spot a CORS misconfiguration that re-opens the hole SOP closes"],
+      build: "A written browser threat model plus fixed XSS/CSRF demos in your own app.",
+      prereq: "Phase 1 (HTTP + headers)."
+    }
   }, {
     id: "p3",
     name: "Phase 3 · Backend, API & Database Security",
     short: "Phase 3 · Backend & API",
     tagline: "Where trust is enforced: Express hardening, SQLi, APIs, uploads",
     colorVar: "--l4",
-    weeks: "3–4 weeks"
+    weeks: "3–4 weeks",
+    roadmap: {
+      promise: "The backend is where trust is actually enforced. This phase hardens the server: input handling, SQL, APIs, uploads, and the business logic attackers abuse.",
+      canDo: ["Harden an Express app with validation, safe error handling, and least-privilege DB access", "Exploit and then parameterize away a SQL injection", "Secure an API against IDOR and mass assignment", "Handle file uploads and WebSockets without opening a foothold"],
+      build: "A hardened backend with the vulnerable-vs-secure version of each flaw documented.",
+      prereq: "Phases 1–2."
+    }
   }, {
     id: "p4",
     name: "Phase 4 · OWASP Top 10 & Web Exploitation Labs",
     short: "Phase 4 · OWASP Labs",
     tagline: "The Top 10 as a threat-modeling lens, plus hands-on labs",
     colorVar: "--l5",
-    weeks: "2–3 weeks"
+    weeks: "2–3 weeks",
+    roadmap: {
+      promise: "The OWASP Top 10 is best learned as a threat-modeling lens, not a checklist. Here you exploit and fix real vulnerabilities and start a professional lab track.",
+      canDo: ["Use the Top 10 as a \"what could go wrong?\" pass on any feature you build", "Exploit and patch a real SQLi, XSS, and IDOR in a running app", "Map a PortSwigger lab to its vulnerability class and solve it", "Write up a finding the way an assessor would"],
+      build: "A risk breakdown of a \"simple\" feature, plus solved lab write-ups.",
+      prereq: "Phases 1–3."
+    }
   }, {
     id: "p5",
     name: "Phase 5 · Burp Suite, ZAP & Professional Testing",
     short: "Phase 5 · Testing Workflow",
     tagline: "The intercepting proxy and a repeatable assessment workflow",
     colorVar: "--l6",
-    weeks: "2 weeks"
+    weeks: "2 weeks",
+    roadmap: {
+      promise: "Professionals don't poke at apps randomly — they run a repeatable workflow through an intercepting proxy. This phase builds that muscle.",
+      canDo: ["Intercept, modify, and replay requests with Burp Suite or ZAP", "Run a repeatable assessment workflow from recon to reporting", "Automate repetitive checks with the proxy's tooling"],
+      build: "A short, repeatable assessment methodology you can run on any target you own.",
+      prereq: "Phase 4."
+    }
   }, {
     id: "p6",
     name: "Phase 6 · Authentication, Authorization & Sessions",
     short: "Phase 6 · Auth & Sessions",
     tagline: "Password storage, sessions, JWTs, OAuth, authz, passkeys",
     colorVar: "--l7",
-    weeks: "3–4 weeks"
+    weeks: "3–4 weeks",
+    roadmap: {
+      promise: "Auth is where a single mistake becomes account takeover. This phase covers password storage, sessions, tokens, authorization, and the modern passwordless path.",
+      canDo: ["Store passwords correctly with a slow, salted hash", "Build secure sessions and reason about JWT trade-offs", "Implement an OAuth flow and enforce authorization without IDOR", "Explain how passkeys remove the phishable secret"],
+      build: "A working auth system with correct password storage, sessions, and authorization checks.",
+      prereq: "Phases 3–4."
+    }
   }, {
     id: "p7",
     name: "Phase 7 · Secure SDLC, DevSecOps & Supply Chain",
     short: "Phase 7 · Secure SDLC",
     tagline: "Shift left: threat modeling, SAST/DAST, dependency security",
     colorVar: "--l8",
-    weeks: "2 weeks"
+    weeks: "2 weeks",
+    roadmap: {
+      promise: "Security that lives only in your head doesn't scale. This phase shifts it left — into threat models, CI gates, and dependency hygiene.",
+      canDo: ["Threat-model a feature before it is built", "Wire SAST, DAST, secret-scanning, and SCA into a CI gate that blocks bad merges", "Reason about supply-chain risk and pin and verify dependencies"],
+      build: "A CI pipeline that fails the build on real security findings.",
+      prereq: "Phases 3–6."
+    }
   }, {
     id: "p7_5",
     name: "Phase 7.5 · AI / LLM Application Security",
     short: "Phase 7.5 · LLM Security",
     tagline: "OWASP LLM Top 10, prompt injection, output handling",
     colorVar: "--l9",
-    weeks: "1–2 weeks"
+    weeks: "2–3 weeks",
+    roadmap: {
+      promise: "AI features add a new, weird attack surface. This phase covers the OWASP LLM Top 10 — prompt injection, output handling, and agentic/tool-use risk — for apps that call models.",
+      canDo: ["Exploit and defend against prompt injection, both direct and indirect", "Treat model output as untrusted and handle it safely", "Reason about agent/tool-use and MCP risks and constrain them", "Apply the OWASP LLM Top 10 to an AI feature"],
+      build: "A threat model and hardened design for an LLM-backed feature.",
+      prereq: "Phases 2–3 and 7."
+    }
   }, {
     id: "p8",
     name: "Phase 8 · Cloud, Deployment & Production Security",
     short: "Phase 8 · Production",
     tagline: "Secrets management, hardening, headers, cloud posture",
     colorVar: "--l10",
-    weeks: "2 weeks"
+    weeks: "2–3 weeks",
+    roadmap: {
+      promise: "The last mile — secrets, hardening, headers, containers, and cloud posture — is where \"it works\" quietly ships the vulnerability. This phase closes that gap.",
+      canDo: ["Manage secrets so they never reach a bundle, a Git history, or an image layer", "Set the security headers that actually defend (CSP without unsafe-inline, HSTS)", "Build, break, and harden a container image, then lock down a real kind cluster", "Trace the SSRF-to-cloud-credentials chain and name the defense that breaks each link"],
+      build: "A hardened deployment: managed secrets, real headers, a distroless non-root image, and a locked-down cluster.",
+      prereq: "Phases 3, 6, 7."
+    }
   }, {
     id: "p9",
     name: "Phase 9 · Logging, Monitoring & Incident Response",
     short: "Phase 9 · Monitoring & IR",
     tagline: "Security logging, detection, alerting, and IR playbooks",
     colorVar: "--l11",
-    weeks: "1–2 weeks"
+    weeks: "1–2 weeks",
+    roadmap: {
+      promise: "Prevention eventually fails. This phase builds the layer that catches failure — security logging, detection, and an incident-response playbook.",
+      canDo: ["Log security-relevant events without leaking secrets or PII", "Write detections for patterns like credential stuffing and token abuse", "Run an incident from detection to a blameless postmortem"],
+      build: "Structured security logging plus an incident-response playbook for your app.",
+      prereq: "Phases 3, 6, 8."
+    }
   }, {
     id: "p10",
     name: "Phase 10 · Portfolio Capstones",
     short: "Phase 10 · Capstones",
     tagline: "Four portfolio projects that prove the work to employers",
     colorVar: "--l12",
-    weeks: "Ongoing"
+    weeks: "Ongoing",
+    roadmap: {
+      promise: "Proof beats claims. This phase turns everything above into portfolio projects that show an employer you can do the work.",
+      canDo: ["Ship a portfolio-grade secure application with a documented threat model", "Produce an assessment report on an app you own", "Demonstrate a CI security pipeline and an IR runbook end to end"],
+      build: "Four portfolio artifacts that prove the work to employers.",
+      prereq: "All prior phases."
+    }
   }],
   modules: [
   // ============== INTRO ==============
@@ -887,7 +959,7 @@ This course is a practitioner-grade, full-stack application security curriculum 
 
 ### What this course is
 
-**59 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
+**60 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
 
 The course uses Node.js and Express as its primary example language because it is the most common full-stack pairing — but Phase 3.5 explicitly maps every pattern to Python, Go, Java, PHP, and Ruby. The security thinking is language-agnostic; only the syntax differs.
 
@@ -1163,7 +1235,7 @@ mkdir -p ~/cyber-labs && cd ~/cyber-labs
 **OWASP Juice Shop** (multi-arch — runs natively on both x86-64 and ARM64):
 
 \`\`\`bash
-docker run --rm -p 3000:3000 bkimminich/juice-shop
+docker run --rm -p 3000:3000 bkimminich/juice-shop   # Module 0.8 explains what this command is actually doing
 # Then open: http://localhost:3000
 \`\`\`
 
@@ -1216,6 +1288,7 @@ Choose the image that matches your host CPU (both ship as a \`.7z\` archive):
 \`\`\`bash
 # macOS / Linux
 shasum -a 256 ~/Downloads/kali-linux-*.7z
+# Windows (PowerShell): Get-FileHash ~/Downloads/kali-linux-*.7z -Algorithm SHA256
 \`\`\`
 \`\`\`text
 :: Windows (Command Prompt)
@@ -1921,37 +1994,748 @@ ls -l note.txt        # confirm it changed to -rw-------
 5. It downloads a script and immediately executes it as you, with no chance to read it first. You're trusting that URL completely with code execution on your machine.
 </details>
 
-➡️ **Next step:** You have a calm foundation: the machine, the network, the page, the server, the data, and the terminal — each viewed through "where could trust fail." Record what you've learned, then move into the protocols web security actually rides on. Continue to **Phase 1: Web, Internet, and CLI Foundations**.
+➡️ **Next step:** You have a calm foundation, and you know the few commands that can actually hurt you. Before Phase 1, spend real time with the command-line field guide — a single reference that introduces every tool, flag, and shell symbol the rest of the course uses, *one at a time*, so you never meet them for the first time in the middle of a security exercise. Continue to **Module 0.7: The Command-Line Field Guide**.`,
+    tracker: ["Ran the safe practice-folder commands (pwd/mkdir/echo/cat) and the chmod 600 demo", "Can classify a command as read-only vs state-changing before pressing Enter", "Understand why curl | sh and reflexive sudo are dangerous", "Answered the knowledge check"]
+  },
+  {
+    id: "m0-7",
+    phaseId: "p0",
+    num: "0.7",
+    title: "The Command-Line Field Guide",
+    objective: "Later modules reach for awk, jq, openssl, lsof, ss, tmux, find, and grep with a fistful of flags — usually mid-exercise, when you're already trying to think about a vulnerability. This module front-loads all of it: every command, flag, and shell symbol the rest of the course uses, taught one at a time, with the exact output you'll see, so you never meet a tool for the first time in the middle of a security lab.",
+    body: `> **Why this matters.** The complaint this module fixes is real: it's miserable to learn \`awk\`, a new \`grep\` flag, and a shell trick *simultaneously*, in the middle of a security exercise, when your attention is already spent on the actual vulnerability. So we front-load the whole toolkit here. Read it once to build familiarity, then treat it as a **reference to come back to** every time a later module reaches for a command. Nothing here is exotic — it's the standard working set of every security engineer, and every piece appears again in Phases 1–10.
+
+### 🎯 How to use this guide
+
+You do **not** need to memorize this. You need to have *seen each piece once*, in isolation, so that when Module 1.6 pipes \`awk\` into \`sort\` into \`uniq\`, you recognize each link in the chain instead of learning three tools at once. Every entry below follows the same shape: **what it does → an example you can run → the exact output you'll see.** The output matters as much as the command: a surprising output format is its own kind of friction, so we show it up front.
+
+Everything here is safe to run in a throwaway folder. Set one up once:
+
+\`\`\`bash
+mkdir -p ~/cli-field-guide && cd ~/cli-field-guide   # macOS / Linux / WSL2
+\`\`\`
+
+> **Cross-platform note.** Commands in this guide are written for a **bash/zsh** shell — macOS Terminal, any Linux terminal, or **WSL2** on Windows. Native Windows PowerShell has different commands (noted inline where it matters). If you're on Windows, doing this course inside WSL2 (Step 0 of the setup) means every command below works unchanged.
+
+---
+
+### 🧱 Shell mechanics: the symbols before the commands
+
+These aren't commands — they're the *grammar* the shell applies to every command line. Later modules use all of them without announcement, so learn them first.
+
+**Quoting: \`'single'\` vs \`"double"\`.** The difference is whether the shell expands \`$\` inside.
+
+\`\`\`bash
+name=world
+echo 'hello $name'    # single quotes: literal, no expansion
+echo "hello $name"    # double quotes: $name is expanded
+\`\`\`
+\`\`\`
+hello $name
+hello world
+\`\`\`
+
+Rule of thumb: use **single quotes** to hand a string to a tool *untouched* (an \`awk\` program, a \`jq\` filter, a regex full of \`$\` and \`*\`), and **double quotes** when you *want* variables expanded but still need to keep spaces together.
+
+**Variables: \`$VAR\` and \`\${VAR}\`.** \`$VAR\` reads a variable; the braces in \`\${VAR}\` just mark where the name ends (needed when a letter follows, e.g. \`\${VAR}_backup\`).
+
+\`\`\`bash
+port=3000
+echo "Server on port $port"
+echo "Log file: \${port}_access.log"
+\`\`\`
+\`\`\`
+Server on port 3000
+Log file: 3000_access.log
+\`\`\`
+
+**Command substitution: \`$(...)\`.** Runs a command and drops its *output* into the line. This is how you capture a token, a PID, or a count.
+
+\`\`\`bash
+echo "Today is $(date +%F)"
+files=$(ls | wc -l)
+echo "There are $files entries here"
+\`\`\`
+\`\`\`
+Today is 2026-07-19
+There are 3 entries here
+\`\`\`
+
+**Chaining: \`;\`  \`&&\`  \`||\`  \`&\`.**
+
+- \`a ; b\` — run \`a\`, then \`b\`, **regardless** of whether \`a\` succeeded.
+- \`a && b\` — run \`b\` **only if \`a\` succeeded** (exit code 0). This is the safe one: \`cd project && rm -rf build\` won't \`rm\` if the \`cd\` failed.
+- \`a || b\` — run \`b\` **only if \`a\` failed**. Common as \`... || echo "not found"\`.
+- \`a &\` — run \`a\` in the **background** so you get your prompt back (used to start a server and keep testing in the same terminal).
+
+\`\`\`bash
+mkdir logs && cd logs && echo "created and entered logs/"
+grep -q "root" /etc/hostname || echo "no match — this is the || fallback"
+\`\`\`
+\`\`\`
+created and entered logs/
+no match — this is the || fallback
+\`\`\`
+
+**Job control: \`&\`, \`jobs\`, \`%1\`, \`kill %1\`, \`fg\`.** \`a &\` doesn't just run \`a\` in the background — it adds \`a\` to the shell's *job table* and prints the job number and the PID. \`jobs\` lists the table, \`%1\` names job 1, \`kill %1\` stops it, and \`fg %1\` pulls it back to the foreground. The key point: \`%1\` is a *job spec*, not a PID — that's why \`kill %1\` works without you ever looking up a process number.
+
+\`\`\`bash
+sleep 300 &            # background a long-running task
+\`\`\`
+\`\`\`
+[1] 54321
+\`\`\`
+\`\`\`bash
+jobs                   # what's running in the background?
+kill %1                # stop job 1 by its job spec
+\`\`\`
+\`\`\`
+[1]+  Running                 sleep 300 &
+\`\`\`
+
+You'll use exactly this from Phase 9 on: a lab starts its server with \`node server.js &\` (which prints \`[1] <pid>\`) and cleans it up with \`kill %1\` — no second terminal, no hunting for the PID.
+
+**Wildcards (globbing): \`*\`  \`?\`  \`[...]\`.** The *shell* expands these into matching filenames before the command runs.
+
+- \`*\` — any run of characters: \`*.log\` matches every \`.log\` file.
+- \`?\` — exactly one character: \`log?.txt\` matches \`log1.txt\` but not \`log10.txt\`.
+- \`[...]\` — one character from a set: \`log[12].txt\` matches \`log1.txt\` and \`log2.txt\`.
+
+\`\`\`bash
+touch app.log error.log log1.txt log2.txt log10.txt
+ls *.log
+ls log?.txt
+\`\`\`
+\`\`\`
+app.log		error.log
+log1.txt	log2.txt
+\`\`\`
+
+**Redirects and pipes: \`>\`  \`>>\`  \`|\`  \`2>\`  \`2>&1\`.** (You met \`>\`, \`>>\`, and \`|\` in 0.6 — here's the rest.) A program has three streams: input (0), normal output "stdout" (1), and errors "stderr" (2).
+
+- \`cmd > out.txt\` — send stdout to a file (overwrite); \`>>\` appends.
+- \`cmd 2> err.txt\` — send *errors* to a file.
+- \`cmd 2>/dev/null\` — throw errors away (you'll see this on almost every \`openssl\` line, to hide handshake chatter).
+- \`cmd 2>&1\` — merge stderr *into* stdout so a following \`| grep\` can see both. \`curl -v ... 2>&1 | grep ...\` works because \`-v\` writes to stderr.
+- \`a | b\` — pipe \`a\`'s stdout into \`b\`'s stdin. Chaining pipes is the heart of log analysis.
+
+---
+
+### 🔎 Finding things: \`grep\`, \`rg\`, \`find\`, \`fd\`
+
+**\`grep\` — search *inside* files for lines matching a pattern.** This is the single most-used investigation command in the course. Learn these flags now; every later module assumes them:
+
+| Flag | Meaning |
+|---|---|
+| \`-i\` | case-**i**nsensitive |
+| \`-n\` | show line **n**umbers |
+| \`-r\` / \`-R\` | **r**ecurse into a directory tree |
+| \`-v\` | in**v**ert — show lines that *don't* match |
+| \`-E\` | **E**xtended regex (enables \`|\`, \`+\`, \`()\` without backslashes) |
+| \`-o\` | print **o**nly the matched part, not the whole line |
+| \`-l\` | **l**ist only the filenames that contain a match |
+| \`-c\` | **c**ount matching lines |
+| \`-a\` | treat binary files **a**s text (search inside binaries/archives) |
+
+\`\`\`bash
+printf 'API_KEY=sk_test_123\\nport=3000\\nAPI_key=lowercase\\n' > config.txt
+grep -n "API_KEY" config.txt        # find the literal string, with line numbers
+grep -in "api_key" config.txt       # case-insensitive: catches both spellings
+grep -c "API" config.txt            # how many lines mention API?
+\`\`\`
+\`\`\`
+1:API_KEY=sk_test_123
+1:API_KEY=sk_test_123
+3:API_key=lowercase
+2
+\`\`\`
+
+A recursive secret-hunt (the pattern Module 1.3 and 1.5 build on):
+
+\`\`\`bash
+grep -rniE "password|secret|api_key|token" .    # -r recurse, -n lines, -i any case, -E enables the | "or" alternation (Module 1.7 dissects regex — here just read | as "or")
+\`\`\`
+\`\`\`
+./config.txt:1:API_KEY=sk_test_123
+./config.txt:3:API_key=lowercase
+\`\`\`
+
+**\`rg\` (ripgrep) — a faster \`grep\` that respects \`.gitignore\`.** Same idea, nicer defaults: it recurses by default and skips \`node_modules\`/\`.git\` automatically. \`rg "api_key"\` is roughly \`grep -rn "api_key" .\`. Later modules offer \`rg\` as the quick alternative wherever they use \`grep -r\`.
+
+\`\`\`bash
+rg -i "api_key"     # recursive + case-insensitive; note: no path needed, no -r needed
+\`\`\`
+\`\`\`
+config.txt
+1:API_KEY=sk_test_123
+3:API_key=lowercase
+\`\`\`
+
+**\`find\` — search the filesystem *by name, type, age, size* (not contents).** Where \`grep\` looks inside files, \`find\` locates the files themselves.
+
+\`\`\`bash
+find . -name "*.log"                 # every .log under here, recursively
+find . -type f -name "*.txt"         # files (-type f), not directories
+find . -type f -mtime -1             # files modified in the last 1 day
+find . -name "*.log" -exec wc -l {} \\;   # run wc -l on each match ({} = the file)
+\`\`\`
+\`\`\`
+./app.log
+./error.log
+./config.txt
+       0 ./app.log
+       0 ./error.log
+\`\`\`
+
+The \`-exec ... {} \\;\` form runs a command per match — \`{}\` is replaced by each filename and \`\\;\` ends the command. You'll see it again when scrubbing world-writable files in Phase 8.
+
+**\`fd\` — a friendlier \`find\`.** \`fd log\` finds anything with "log" in the name, recursively, skipping hidden/ignored dirs by default. It's the \`find\` equivalent of \`rg\` vs \`grep\`. Optional, but a few labs mention it.
+
+---
+
+### 📄 Reading & slicing text: \`head\`, \`tail\`, \`less\`, \`wc\`, \`cut\`, \`tr\`, \`sort\`, \`uniq\`
+
+**\`head\` / \`tail\` — the first or last N lines.** Essential for not drowning in output.
+
+\`\`\`bash
+seq 1 100 > numbers.txt      # make a file of 1..100 (seq is handy for demos)
+head -3 numbers.txt          # first 3 lines
+tail -3 numbers.txt          # last 3 lines
+\`\`\`
+\`\`\`
+1
+2
+3
+98
+99
+100
+\`\`\`
+
+\`tail -f access.log\` **f**ollows a file live, printing new lines as they're written — this is how you watch a server log during an attack demo. Stop it with **Ctrl+C**.
+
+**\`less\` — scroll through output a page at a time.** \`less bigfile\` opens a viewer: arrow keys / \`Space\` to page, \`/pattern\` to search, \`q\` to quit. Pipe into it when output won't fit: \`grep -r "TODO" . | less\`.
+
+**\`wc\` — count lines, words, bytes.** \`wc -l\` (lines) is the one you'll use constantly, usually at the end of a pipe to answer "how many?"
+
+\`\`\`bash
+wc -l numbers.txt
+grep "9" numbers.txt | wc -l     # how many numbers 1..100 contain a 9?
+\`\`\`
+\`\`\`
+     100 numbers.txt
+      19
+\`\`\`
+
+**\`cut\` — pull out columns by delimiter.** \`-d\` sets the delimiter, \`-f\` picks the field(s).
+
+\`\`\`bash
+echo "alice:x:1000:1000:Alice:/home/alice:/bin/bash" | cut -d: -f1,5
+\`\`\`
+\`\`\`
+alice:Alice
+\`\`\`
+
+**\`tr\` — translate or delete characters.** \`tr 'a-z' 'A-Z'\` upper-cases; \`tr -d '\\n'\` strips newlines.
+
+\`\`\`bash
+echo "hello" | tr 'a-z' 'A-Z'
+\`\`\`
+\`\`\`
+HELLO
+\`\`\`
+
+**\`sort\` and \`uniq\` — the log-analysis workhorses.** \`sort\` orders lines; \`uniq -c\` collapses *adjacent* duplicates and counts them (so you almost always \`sort\` first). \`sort -rn\` sorts numerically, highest first. The idiom **\`sort | uniq -c | sort -rn\`** = "count each distinct line, most frequent first" — you will see it in nearly every log lab.
+
+\`\`\`bash
+printf 'GET\\nPOST\\nGET\\nGET\\nPOST\\nDELETE\\n' > methods.txt
+sort methods.txt | uniq -c | sort -rn
+\`\`\`
+\`\`\`
+   3 GET
+   2 POST
+   1 DELETE
+\`\`\`
+
+Flags worth knowing: \`sort -n\` (numeric, so 10 sorts after 9), \`sort -r\` (reverse), \`sort -u\` (sort **and** drop duplicates in one step), \`uniq -c\` (prefix each line with its count).
+
+---
+
+### ✂️ Field extraction & pattern logic: \`sed\` and \`awk\`
+
+**\`sed\` — stream editor; mostly used for find-and-replace.** The one form to know is substitution: \`sed 's/old/new/'\` (first match per line) and \`sed 's/old/new/g'\` (all matches).
+
+\`\`\`bash
+echo "user=admin role=guest" | sed 's/guest/user/'
+\`\`\`
+\`\`\`
+user=admin role=user
+\`\`\`
+
+**\`awk\` — split each line into fields and act on them.** This is the one that ambushes people mid-lab, so spend a minute here. \`awk\` splits every line on whitespace (by default) into numbered fields:
+
+- \`$1\` = first field, \`$2\` = second, and so on.
+- \`$NF\` = the **last** field (NF = "number of fields"), useful when line length varies.
+- \`$0\` = the **whole** line.
+- \`-F':'\` changes the field separator (here, to a colon).
+- \`'{ print ... }'\` runs for every line; \`'pattern { ... }'\` runs only on matching lines.
+
+\`\`\`bash
+# A fake access-log line (this is the exact field layout Module 1.6 uses):
+# 203.0.113.5 - - [19/Jul/2026:10:00:01] "GET /login HTTP/1.1" 200 512
+printf '203.0.113.5 - - [19/Jul/2026:10:00:01] "GET /login HTTP/1.1" 200 512\\n' > access.log
+
+awk '{print $1}' access.log          # field 1 = client IP
+awk '{print $NF}' access.log         # last field = response size
+awk '{print $1, $NF}' access.log     # both, space-separated
+\`\`\`
+\`\`\`
+203.0.113.5
+512
+203.0.113.5 512
+\`\`\`
+
+In that standard log format the useful field positions are: **\`$1\`** = client IP, **\`$6\`** = the quoted \`"GET\` method (with the leading quote), **\`$7\`** = the request path, **\`$9\`** = the HTTP status code, **\`$NF\`** = the response size (last field). A **pattern** filters lines before printing — e.g. only 4xx statuses:
+
+\`\`\`bash
+awk '$9 ~ /^4/ {print $9, $7}' access.log   # ~ means "matches regex"; ^4 = starts with 4
+\`\`\`
+
+(No output for the single 200-status line above — which is itself the lesson: the pattern filtered it out.) You now have every piece Module 1.6's log-analysis pipeline is built from: \`awk\` to pick fields, \`sort | uniq -c | sort -rn\` to rank them.
+
+---
+
+### 🧩 JSON on the command line: \`jq\`
+
+APIs and modern logs speak JSON; \`jq\` is a filter language for it. Install it once:
+
+\`\`\`bash
+brew install jq              # macOS
+sudo apt install -y jq       # Debian/Ubuntu / WSL2
+winget install jqlang.jq     # Windows (PowerShell)
+\`\`\`
+
+The core filters, smallest to largest:
+
+- \`.\` — pretty-print the whole thing (also validates it's real JSON).
+- \`.field\` — pull one key; \`.a.b\` drills in.
+- \`.[]\` — iterate array elements.
+- \`select(cond)\` — keep only elements matching a condition.
+- \`-r\` — **raw** output: strip the surrounding quotes (so results pipe cleanly into \`grep\`/\`sort\`).
+
+\`\`\`bash
+echo '[{"user":"alice","role":"admin"},{"user":"bob","role":"guest"}]' > users.json
+jq . users.json                                  # pretty-print
+jq '.[].user' users.json                         # every user (quoted)
+jq -r '.[] | select(.role=="admin") | .user' users.json   # admins only, raw
+\`\`\`
+\`\`\`
+[
+  {
+    "user": "alice",
+    "role": "admin"
+  },
+  {
+    "user": "bob",
+    "role": "guest"
+  }
+]
+"alice"
+"bob"
+alice
+\`\`\`
+
+You'll also see \`// empty\` (a fallback that yields nothing instead of \`null\` when a key is missing) and \`to_entries\` (turn an object into key/value pairs to loop over). Both show up in Module 1.6's response-inspection lab — now they won't be new.
+
+---
+
+### 🌐 Network & process inspection: \`curl\`, \`openssl\`, \`lsof\`, \`ss\`, \`dig\`
+
+These get a full workout in Modules 1.2 and 1.6 (against a **real local server** you build). Here's just enough to recognize each.
+
+**\`curl\` — make an HTTP request from the terminal.** The flags you'll live in:
+
+| Flag | Meaning |
+|---|---|
+| \`-I\` | fetch **headers only** (a \`HEAD\` request) |
+| \`-i\` | **include** response headers *above* the body |
+| \`-v\` | **verbose** — show the request too (writes to stderr) |
+| \`-s\` | **silent** — hide the progress meter (for piping) |
+| \`-X\` | set the method (\`-X POST\`) |
+| \`-H\` | add a request **header** (\`-H "Content-Type: application/json"\`) |
+| \`-d\` | send a request body (implies POST) |
+| \`-L\` | **follow** redirects |
+| \`-k\` | skip TLS cert verification (**local labs only**) |
+| \`-o\` | write the body to a file |
+
+\`\`\`bash
+curl -I https://example.com     # example.com is ICANN's official demo host — safe to hit
+\`\`\`
+\`\`\`
+HTTP/2 200
+content-type: text/html; charset=UTF-8
+date: Sun, 19 Jul 2026 10:00:00 GMT
+...
+\`\`\`
+
+> **Why the practice labs use a server you build, not \`example.com\`.** \`example.com\` is fine for a one-line \`curl -I\` demo, but you can't make it *misbehave* — you can't add a leaky header, a debug endpoint, or a log file to someone else's host. So from Module 0.4 onward the labs have you stand up your **own** tiny server on \`localhost\` and attack that. Module 1.6 does exactly this for the whole toolkit.
+
+**\`openssl s_client\` — inspect a TLS connection by hand.** It performs the handshake and dumps the certificate chain, protocol, and cipher. It needs a **real TLS endpoint** (it speaks the TLS protocol, so it can't meaningfully test a plain-HTTP \`localhost\` server unless you add TLS). You'll point it at public hosts and, in 1.6, at a locally-generated self-signed cert.
+
+\`\`\`bash
+openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\
+  | openssl x509 -noout -subject -dates
+\`\`\`
+\`\`\`
+subject=CN=example.com
+notBefore=Jan 15 00:00:00 2026 GMT
+notAfter=Jan 15 23:59:59 2027 GMT
+\`\`\`
+
+(\`</dev/null\` gives it an empty stdin so it doesn't hang; \`2>/dev/null\` hides handshake noise; \`x509 -noout\` prints cert fields without re-dumping the raw certificate.)
+
+**\`lsof\` and \`ss\` — what's listening on this machine?** After you start a server, these confirm *which process* opened *which port* — and catch a service accidentally exposed to the whole network.
+
+\`\`\`bash
+lsof -iTCP -sTCP:LISTEN -n -P    # macOS / Linux: TCP sockets in LISTEN state, numeric
+ss -tlnp                          # Linux only: same idea (t=tcp l=listening n=numeric p=process)
+\`\`\`
+\`\`\`
+COMMAND   PID   USER   FD   TYPE  DEVICE  NODE NAME
+node    54321   you   20u  IPv4  0x...   TCP  127.0.0.1:3000 (LISTEN)
+\`\`\`
+
+> **Cross-platform note.** \`ss\` is **Linux-only**. \`lsof\` works on **macOS and Linux**. On **native Windows (PowerShell)** the equivalent is \`Get-NetTCPConnection -State Listen\` (or \`netstat -ano\`), or just use \`lsof\`/\`ss\` inside **WSL2**. Reading \`127.0.0.1:3000\` (loopback = local only) vs \`0.0.0.0:3000\` (all interfaces = reachable from the network) is a security skill you'll use in Phase 8.
+
+**\`dig\` — ask DNS directly.** You met it in 0.2/1.2. \`dig example.com\` prints the \`A\` record; read the \`ANSWER SECTION\`. \`dig +short example.com\` prints just the IP.
+
+\`\`\`bash
+dig +short example.com
+\`\`\`
+\`\`\`
+93.184.216.34
+\`\`\`
+
+---
+
+### 🪟 Staying organized: \`tmux\`
+
+Security work means running several things at once — a server in one place, an attack in another, a log tail in a third. \`tmux\` gives you split panes and **sessions that survive a dropped SSH connection**. The only gesture to learn is the **prefix**: press **Ctrl+B**, release, then a key.
+
+\`\`\`bash
+tmux new -s lab        # start a named session
+# Ctrl+B then "  -> split into a top/bottom pane
+# Ctrl+B then %  -> split into a left/right pane
+# Ctrl+B then arrow -> move between panes
+# Ctrl+B then d  -> "detach" (session keeps running)
+tmux ls                # list running sessions
+tmux attach -t lab     # re-attach later
+\`\`\`
+\`\`\`
+lab: 1 windows (created Sun Jul 19 10:00:00 2026)
+\`\`\`
+
+> **Cross-platform note.** \`tmux\` runs on macOS (\`brew install tmux\`), Linux (\`sudo apt install -y tmux\`), and WSL2. It is **not** native to Windows PowerShell — use it inside WSL2, or use Windows Terminal's built-in split panes as a rough substitute.
+
+---
+
+### 🔐 A few more you'll meet: \`base64\`, \`shasum\`, \`xargs\`, \`tee\`, \`watch\`
+
+- **\`base64\`** — encode/decode. JWTs and Basic-Auth headers are base64; \`echo -n "a:b" | base64\` -> \`YTpi\`, and \`base64 -d\` reverses it. (Base64 is *encoding, not encryption* — a recurring Phase 6 point.)
+- **\`shasum -a 256 file\`** (macOS) / **\`sha256sum file\`** (Linux) — a file's SHA-256 hash, for integrity checks and comparing against a known-good digest.
+- **\`xargs\`** — turn a list on stdin into arguments for another command: \`grep -rl "TODO" . | xargs wc -l\`.
+- **\`tee\`** — write to a file *and* pass output onward: \`curl -s ... | tee resp.json | jq .\` saves and displays in one shot.
+- **\`watch -n 2 'lsof -i :3000'\`** (Linux; \`brew install watch\` on macOS) — re-run a command every 2 seconds to watch something change live.
+
+> **Cross-platform note.** \`shasum -a 256\` is the macOS spelling; \`sha256sum\` is the Linux/WSL2 spelling — same output, different command name. On native Windows PowerShell it's \`Get-FileHash file -Algorithm SHA256\`.
+
+---
+
+### 🛡️ Defense: the habits that keep a powerful shell from hurting you
+
+Front-loading the toolkit also means front-loading the ways it can bite:
+
+- **A pipe hides failures.** In \`a | b | c\`, the pipeline's exit code is only \`c\`'s by default, so \`a\` failing silently can produce empty-but-"successful" output. When a security check pipes commands, confirm the *first* stage actually produced data before trusting the conclusion.
+- **Globs expand before the command sees them.** \`rm *\` in the wrong directory is \`rm\` *every file here*. Preview a glob with \`ls\` first (\`ls *.log\` before \`rm *.log\`).
+- **Quoting bugs are security bugs.** An unquoted \`$VAR\` containing spaces or a \`*\` gets re-split and re-globbed by the shell — the root of many shell-injection issues you'll study later. Quote variable expansions: \`"$VAR"\`.
+- **\`-k\` / \`--insecure\` is for your own lab only.** Disabling TLS verification against anything you don't control defeats the exact protection Module 1.2 exists to teach.
+- **Read before you pipe to a shell.** \`curl ... | sh\` (from 0.6) runs unread code as you. The convenience of the CLI is also its danger.
+
+### Knowledge check: The Command-Line Field Guide
+
+1. What is the difference between \`'single'\` and \`"double"\` quotes, and which would you use to pass an \`awk\` program untouched?
+2. Read this pipeline out loud in plain English: \`awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -5\`.
+3. In the standard access-log format, which \`awk\` field is the client IP, which is the HTTP status code, and what does \`$NF\` give you?
+4. What does \`grep -riE "password|secret"\` do, flag by flag?
+5. You run \`lsof -iTCP -sTCP:LISTEN -n -P\` and see your database listening on \`0.0.0.0:5432\` instead of \`127.0.0.1:5432\`. Why might that matter? (You'll confirm the answer in Phase 8.)
+6. Why does \`cd build && rm -rf *\` use \`&&\` rather than \`;\`?
+7. You started a lab server with \`node server.js &\` and now want to stop it without closing the terminal. What does \`%1\` refer to, and what command stops the server?
+
+<details>
+<summary>Show answers</summary>
+
+1. Single quotes are literal — the shell expands nothing inside them, so \`$\`, \`*\`, and spaces are passed through unchanged. Double quotes expand \`$variables\` and \`$(...)\` but still keep the string as one argument. Use **single quotes** for an \`awk\` or \`jq\` program so the shell doesn't mangle its \`$1\`/\`$\`/\`{}\`.
+2. "Take field 1 (the client IP) of every line in \`access.log\`, sort them so identical IPs are adjacent, count each distinct IP (\`uniq -c\`), sort those counts highest-first (\`sort -rn\`), and show the top 5" — i.e. the five busiest client IPs.
+3. \`$1\` = client IP; \`$9\` = HTTP status code; \`$NF\` = the last field = the response size in bytes (\`$NF\` is robust to lines whose length varies).
+4. \`-r\` recurse into subdirectories, \`-i\` case-insensitive, \`-E\` extended regex so \`|\` means "or" — i.e. "recursively, case-insensitively, find every line containing \`password\` **or** \`secret\`."
+5. \`0.0.0.0\` means the service accepts connections on *every* network interface, including any public one — so a database meant to be reachable only by the local app may be exposed to the network. \`127.0.0.1\` (loopback) restricts it to the same machine.
+6. \`&&\` runs \`rm -rf *\` **only if the \`cd\` succeeded**. With \`;\` it would run \`rm -rf *\` even if \`cd build\` failed — deleting everything in whatever directory you were actually in. \`&&\` is the safety interlock.
+7. \`%1\` is the *job spec* for background job 1 — the shell assigned it and printed \`[1] <pid>\` the moment you ran \`node server.js &\`. \`kill %1\` stops that job by its job number, so you never need to look up the PID. If you're unsure which number to use, \`jobs\` lists every background job first.
+</details>
+
+➡️ **Next step:** You now know each tool, flag, and shell symbol *in isolation* — so when a later module combines them, you'll be reading, not decoding. One tool the whole course leans on has still never been dissected: Docker. The last module of Phase 0 fixes that — and carries the Phase 0 deliverable that ties the foundations together. Continue to **Module 0.8: Docker Fundamentals**.`,
+    tracker: ["Set up the ~/cli-field-guide practice folder and ran the shell-mechanics examples (quoting, $(...), &&/||, globs)", "Ran the grep/find/sort/uniq examples and can read a piped log-analysis one-liner in plain English", "Ran the awk field examples and can name what $1, $9, and $NF are in an access log", "Used jq to pretty-print and filter a small JSON file", "Backgrounded a command with & and stopped it with kill %1 using its job spec", "Skimmed the curl/openssl/lsof/ss/tmux sections so none will be new in Module 1.6", "Answered the knowledge check"]
+  },
+  {
+    id: "m0-8",
+    phaseId: "p0",
+    num: "0.8",
+    title: "Docker Fundamentals — Images, Containers, and Layers",
+    objective: "You already used Docker in setup to run Juice Shop, and Phase 8 will ask you to harden a Dockerfile and read a secret out of an image layer — but nothing has ever explained what an image actually is, how `docker build` turns text into layers, or why `docker history` can resurrect a secret you thought you deleted. This module front-loads Docker the same way 0.7 front-loaded the shell: image vs. container vs. layer, the core `docker` verbs, ports/volumes/env, and the forensic permanence of layers — each in the what → run it → exact output shape, so Module 8.4's container-security lab lands on prepared ground.",
+    body: `> **Why this matters.** In setup you ran \`docker run ... juice-shop\` on faith. In Phase 8 you'll \`docker build\` a deliberately-bad image, use \`docker history\` to *find the secret you baked into a layer*, and rebuild it hardened. Between those two points sits a set of ideas nobody taught you: an **image** is not a container, a **layer** is not a file, and "I deleted the secret in the next line of the Dockerfile" does **not** remove it. This module is the container-layer twin of 0.7 — the standard working set, one piece at a time, with the exact output. Everything here reappears in Module 8.4.
+
+### 🎯 The one idea to anchor on: image vs. container vs. layer
+
+- An **image** is a read-only *template* — a stack of filesystem layers plus metadata (what to run, which user, which port). It's a build artifact, like a \`.zip\` you can't edit.
+- A **container** is a *running (or stopped) instance* of an image — the image's layers plus one thin writable layer on top. You can have ten containers from one image; they share the read-only layers and each get their own writable scratch layer.
+- A **layer** is the filesystem change produced by *one build step*. Each instruction in a Dockerfile (\`RUN\`, \`COPY\`, \`ADD\`) adds a layer. Layers are **stacked and immutable**: a later layer can *hide* a file, but the earlier layer that contains it is still there, addressable, and shippable.
+
+> **The security consequence, stated once up front:** because layers are immutable and stacked, a secret introduced in layer 3 is *permanently* in the image even if layer 4 deletes the file. \`docker history\` and \`docker save\` can both pull it back out. This is the exact "deleting a secret ≠ removing it" lesson from Git history (Phase 7), now at the container layer — and it's the finding you'll plant and detect in Module 8.4.
+
+Everything below is safe to run. You installed Docker Desktop (or the engine) in setup; confirm it's up:
+
+\`\`\`bash
+docker version --format '{{.Server.Version}}'   # macOS / Linux / WSL2
+\`\`\`
+\`\`\`
+27.3.1
+\`\`\`
+
+> **Cross-platform note.** Docker commands are identical on macOS, Linux, and inside **WSL2** on Windows. On native Windows, Docker Desktop uses the WSL2 backend under the hood — run these from a WSL2 Ubuntu shell (Step 0 of setup) and everything below works unchanged.
+
+---
+
+### 🧱 Images: pull, list, inspect
+
+An image has a **name:tag** (e.g. \`node:22-slim\`). Pull one and list what you have:
+
+\`\`\`bash
+docker pull node:22-slim
+docker images
+\`\`\`
+\`\`\`
+REPOSITORY   TAG        IMAGE ID       CREATED        SIZE
+node         22-slim    a1b2c3d4e5f6   2 weeks ago    221MB
+\`\`\`
+
+The **IMAGE ID** is a hash of the image's content — the identity that \`docker history\` and \`trivy\` (Module 8.4) work against. Note the **SIZE**: a full base is big attack surface; you'll shrink it with \`-slim\` and distroless later.
+
+### 🏗️ \`docker build\` — text becomes layers
+
+Make a tiny app and a Dockerfile in a throwaway folder:
+
+\`\`\`bash
+mkdir -p ~/docker-field-guide && cd ~/docker-field-guide
+echo 'require("http").createServer((_,res)=>res.end("hi\\n")).listen(3000,()=>console.log("up on 3000"))' > server.js
+\`\`\`
+
+\`\`\`dockerfile
+# ~/docker-field-guide/Dockerfile
+FROM node:22-slim
+WORKDIR /app
+COPY server.js .
+EXPOSE 3000
+CMD ["node", "server.js"]
+\`\`\`
+
+\`\`\`bash
+docker build -t hello:v1 .
+\`\`\`
+\`\`\`
+[+] Building 1.2s (8/8) FINISHED
+ => [1/3] FROM docker.io/library/node:22-slim
+ => [2/3] WORKDIR /app
+ => [3/3] COPY server.js .
+ => exporting to image
+ => => naming to docker.io/library/hello:v1
+\`\`\`
+
+Read it as: **each numbered step is one layer.** \`-t hello:v1\` tags the result; the final \`.\` is the *build context* (the folder Docker can \`COPY\` from). Change one line and rebuild — only that step and the ones after it re-run, because Docker **caches** unchanged layers.
+
+### ▶️ \`docker run\` — an image becomes a running container
+
+\`\`\`bash
+docker run -d --name hello -p 8080:3000 hello:v1
+\`\`\`
+\`\`\`
+7f3c9a1e2b4d5c6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f
+\`\`\`
+
+Flags you'll reuse everywhere:
+- \`-d\` — **detached** (background), like \`&\` for the shell; it prints the container ID.
+- \`--name hello\` — a friendly handle so you don't paste the long ID.
+- \`-p 8080:3000\` — **port mapping: \`host:container\`.** The app listens on 3000 *inside*; you reach it on \`localhost:8080\` *outside*. This is a trust-boundary control — mapping \`-p 8080:3000\` exposes it only on your host; a naïve \`-p 0.0.0.0:8080:3000\` would publish it to your whole network (echoes the \`127.0.0.1\` vs \`0.0.0.0\` lesson from 0.7).
+
+\`\`\`bash
+curl -s localhost:8080
+\`\`\`
+\`\`\`
+hi
+\`\`\`
+
+### 🔎 \`ps\`, \`logs\`, \`exec\` — look inside a running container
+
+\`\`\`bash
+docker ps
+\`\`\`
+\`\`\`
+CONTAINER ID   IMAGE      COMMAND                  STATUS         PORTS                    NAMES
+7f3c9a1e2b4d   hello:v1   "node server.js"         Up 20 seconds  0.0.0.0:8080->3000/tcp   hello
+\`\`\`
+
+- \`docker logs hello\` — the container's stdout/stderr (where your app's \`console.log\` and, later, your security logs land):
+
+\`\`\`bash
+docker logs hello
+\`\`\`
+\`\`\`
+up on 3000
+\`\`\`
+
+- \`docker exec\` — run a command *inside* the running container. This is how you'd poke around — and, in 8.4, how you'll see **which user the process runs as**:
+
+\`\`\`bash
+docker exec hello whoami
+\`\`\`
+\`\`\`
+root
+\`\`\`
+
+> Note that \`whoami\` returned **root** — the default. A vulnerability in a process running as \`root\` inside the container is the first link in the container-escape chain you'll study in 8.4. The fix is a \`USER\` line in the Dockerfile; you'll do it there.
+
+### 🗄️ Volumes (\`-v\`) and environment (\`-e\` / \`--env-file\`)
+
+- \`-v host_path:container_path\` — **mount** a host directory into the container. Powerful and dangerous: mounting \`/var/run/docker.sock\` (Module 8.4) hands the container control of the whole Docker daemon.
+- \`-e KEY=value\` / \`--env-file .env\` — inject configuration at **runtime**. This is the *correct* place for secrets — passed in when the container starts, never baked into the image:
+
+\`\`\`bash
+docker run -d --name hello2 -e GREETING=hola -p 8081:3000 hello:v1
+docker exec hello2 printenv GREETING
+\`\`\`
+\`\`\`
+hola
+\`\`\`
+
+Runtime env vars live only in the running container, not in the shippable image — contrast that with the next section.
+
+### 🧨 \`docker history\` — why a baked-in secret is forever
+
+Here's the beat the whole module builds toward. Suppose someone "temporarily" bakes a secret into the image and deletes it a line later:
+
+\`\`\`dockerfile
+FROM node:22-slim
+WORKDIR /app
+COPY server.js .
+ENV API_TOKEN=EXAMPLE_do_not_use_token
+RUN echo "using token during build" && unset API_TOKEN   # "cleaning up"
+CMD ["node", "server.js"]
+\`\`\`
+
+\`\`\`bash
+docker build -t leaky:v1 . && docker history --no-trunc leaky:v1 | grep -i token
+\`\`\`
+\`\`\`
+<missing>  ...  ENV API_TOKEN=EXAMPLE_do_not_use_token
+\`\`\`
+
+The secret is **still in a layer** and \`docker history\` prints it verbatim — the later \`unset\`/delete created a *new* layer on top but could not edit the old one. Anyone who can \`docker pull\` this image (a registry, a CI cache, a teammate) can read it. **The only real fix is to never put the secret in a layer** — inject it at runtime with \`-e\`/\`--env-file\`, or use build secrets (\`--mount=type=secret\`) that never persist. You'll surface exactly this finding with \`trivy\` in Module 8.4.
+
+### 🧹 Cleaning up: \`stop\`, \`rm\`, \`rmi\`
+
+\`\`\`bash
+docker stop hello hello2           # stop running containers
+docker rm hello hello2             # remove the stopped containers
+docker rmi hello:v1 leaky:v1       # remove the images
+docker system df                   # how much disk Docker is using
+\`\`\`
+\`\`\`
+hello
+hello2
+...
+TYPE          TOTAL   ACTIVE   SIZE      RECLAIMABLE
+Images        1       0        221MB     221MB (100%)
+Containers    0       0        0B        0B
+\`\`\`
+
+> **Habit:** a stopped container still exists (and still holds its writable layer) until you \`docker rm\` it, and a removed container's *image* still exists until you \`docker rmi\` it. "It's not running" is not "it's gone" — the same persistence lesson, one more time.
+
+### Knowledge check: Docker Fundamentals
+
+1. In one sentence each: what is the difference between an **image**, a **container**, and a **layer**?
+2. You run \`docker build\`, then edit only the last \`COPY\` line and rebuild. Why does the build finish almost instantly?
+3. A teammate writes \`ENV DB_PASSWORD=hunter2\` in a Dockerfile, then adds \`RUN unset DB_PASSWORD\` on the next line, and says "it's cleaned up." Are they right? What command proves it, and what's the correct fix?
+4. What does \`-p 8080:3000\` mean, and which number is the port *inside* the container?
+5. \`docker exec myapp whoami\` prints \`root\`. Why is that a security concern, and where do you fix it?
+
+<details>
+<summary>Show answers</summary>
+
+1. An **image** is a read-only build artifact — a stack of immutable layers plus metadata. A **container** is a running or stopped *instance* of an image, with one thin writable layer added on top. A **layer** is the immutable filesystem change produced by a single build instruction.
+2. Docker **caches** layers. Only the changed step and every step *after* it re-run; every earlier layer is reused from cache, so a change near the end rebuilds almost nothing. (This is also why you \`COPY package.json\` and \`npm install\` *before* \`COPY . .\` — to keep the expensive dependency layer cached.)
+3. They're wrong. \`ENV DB_PASSWORD=hunter2\` creates a permanent layer; the later \`unset\` adds a *new* layer on top but can't edit the old one. \`docker history --no-trunc <image>\` prints the password verbatim. The fix is to never put the secret in a layer — inject it at runtime with \`-e\`/\`--env-file\`, or use \`--mount=type=secret\` build secrets that don't persist.
+4. \`-p host:container\` maps a host port to a container port, so \`-p 8080:3000\` means "reach the container's port 3000 via the host's port 8080." **3000** is the port inside the container (where the app actually listens).
+5. A process running as \`root\` inside the container means any code-execution bug in that process starts with root privileges, which is the first link in a container-escape chain (root + a bad mount or capability → host). You fix it with a non-root \`USER\` line in the Dockerfile — which you'll do in Module 8.4.
+</details>
+
+➡️ **Next step:** You now know what an image, a container, and a layer are; how \`docker build\`/\`run\`/\`exec\`/\`logs\` work; and why a baked-in secret is forensically permanent. That's the foundation Module 8.4 assumes when it has you build, break, and harden a real image and cluster. Continue to **Phase 1: Web, Internet, and CLI Foundations**.
 
 ### Phase 0 Deliverable
 
-Create \`~/appsec-journal/notes/phase-0-foundations.md\` and answer, in your own words:
+Create \`~/appsec-journal/notes/phase-0-foundations.md\` and answer, in your own words. The first block proves you built the mental models; the second proves the container knowledge from this module actually landed.
+
+**Foundations (Modules 0.1–0.7):**
 
 - What is the difference between the frontend and the backend, and *which one can enforce security, and why*?
 - Why can the frontend not enforce security by itself? Give a concrete example you demonstrated in DevTools.
 - What is an HTTP request, and what is a response?
 - What is a relational database, and what is the root cause of SQL injection?
 - Name the four cross-cutting principles from Module 0.1 (least privilege, isolation, trust boundaries, persistence of data) and give one example of each.
-- What is one thing you can now explain better than before you started?
+- Read one command-line pipeline out loud in plain English (proof you can decode a pipe instead of fearing it).
+
+**Containers (Module 0.8):**
+
+- In your own words, what is the difference between an **image**, a **container**, and a **layer**?
+- A teammate bakes \`ENV API_TOKEN=...\` into a Dockerfile and deletes it on the next line. Which single command proves the secret is *still* shippable, and why can't the later line remove it? Where should the secret have gone instead?
+- \`docker exec myapp whoami\` prints \`root\`. Why is that a security concern, and which one line in the Dockerfile fixes it?
+- What does \`-p 8080:3000\` mean, and how does this connect to the \`127.0.0.1\` vs \`0.0.0.0\` binding idea from Module 0.7?
+- What is one thing about how software actually ships that you can now explain better than before you started?
 
 <details>
 <summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
 
-- **Frontend vs. backend:** the frontend is code that runs in the *user's* browser (HTML/CSS/JS) — the user's machine, fully under the user's control. The backend is code that runs on a server *you* control. Only the **backend** can enforce security, because anything running on the user's machine can be read, edited, or bypassed by that same user (or an attacker impersonating them).
-- **Why the frontend can't enforce security alone:** the browser executing your JS is controlled by whoever is sitting at it — they can open DevTools and edit the DOM/JS, disable a client-side check, or skip the browser entirely and send the raw HTTP request themselves (e.g. with \`curl\`). Concrete DevTools example: removing a \`disabled\` attribute from a submit button, or editing a client-side "price" value in the console, and watching the request go through anyway — proving the check only ever lived in the browser, not on the server.
-- **HTTP request/response:** a request is what a client sends to a server — a method + path + version, a set of headers, and an optional body. A response is what the server sends back — a status line (e.g. \`200 OK\`), headers, and a body.
-- **Relational database & SQL injection root cause:** a relational database stores structured data in tables (rows and columns) linked by keys, queried with SQL. SQL injection's root cause is the same data-vs-code confusion introduced in Module 0.1: user input gets concatenated directly into a SQL query string, so attacker-supplied *data* is interpreted as *code* — part of the command itself — instead of staying inert data.
-- **The four cross-cutting principles, with an example each:**
-  - *Least privilege* — grant only the access a task needs. Example: \`chmod 600\` on a \`.env\` file so only its owner can read it.
-  - *Isolation* — keep one thing from touching another it shouldn't. Example: the OS keeps each running program's memory separate, so one process can't read another's.
-  - *Trust boundaries* — anywhere two sides don't automatically trust each other's data. Example: the browser–server boundary, where the server must re-validate everything the client claims, because the client could be lying.
-  - *Persistence of data* — once written, data tends to last far longer than you expect. Example: a secret committed to Git remains recoverable in history even after a later commit "removes" it.
-- **What you can now explain better:** this line is personal — but a common answer is realizing *why* the frontend can never be the security boundary. Before Phase 0 it can feel like an arbitrary rule ("always validate on the server too"); after it, it's a direct, derivable consequence of who controls the browser.
+- **Frontend vs. backend:** the frontend is code that runs in the *user's* browser (HTML/CSS/JS) — the user's machine, fully under the user's control. The backend runs on a server *you* control. Only the **backend** can enforce security, because anything running on the user's machine can be read, edited, or bypassed by that same user (or an attacker impersonating them).
+- **Why the frontend can't enforce security alone:** whoever is at the browser controls it — they can open DevTools and edit the DOM/JS, disable a client-side check, or skip the browser entirely and send the raw HTTP request themselves (e.g. with \`curl\`). Concrete example: removing a \`disabled\` attribute from a submit button, or editing a client-side "price" in the console, and watching the request go through anyway — the check only ever lived in the browser.
+- **HTTP request/response:** a request is a method + path + version, headers, and an optional body. A response is a status line (e.g. \`200 OK\`), headers, and a body.
+- **Relational database & SQL injection root cause:** a relational database stores structured data in tables (rows/columns) linked by keys, queried with SQL. SQLi's root cause is the data-vs-code confusion from Module 0.1: user input is concatenated into the query string, so attacker-supplied *data* is executed as *code*.
+- **The four cross-cutting principles, with an example each:** *Least privilege* — \`chmod 600\` on a \`.env\` so only its owner reads it. *Isolation* — the OS keeps each process's memory separate. *Trust boundaries* — the browser–server boundary, where the server re-validates everything the client claims. *Persistence of data* — a secret committed to Git stays recoverable in history even after a later "removal."
+- **Reading a pipeline aloud:** e.g. \`awk '{print $1}' access.log | sort | uniq -c | sort -rn | head\` = "pull the client IP from every log line, group and count identical IPs, and show the busiest ones first."
+- **Image vs. container vs. layer:** an **image** is a read-only build artifact — a stack of immutable layers plus metadata. A **container** is a running/stopped *instance* of an image with one thin writable layer on top. A **layer** is the immutable filesystem change from a single build instruction.
+- **The baked secret:** \`docker history --no-trunc <image>\` prints the token verbatim. The later line can't remove it because layers are immutable and stacked — deleting the value adds a *new* layer on top, but the earlier layer that holds it is still present and shippable. The secret should have been injected at runtime (\`-e\`/\`--env-file\`) or via a \`--mount=type=secret\` build secret that never persists.
+- **Runs as root:** a process running as \`root\` inside the container means any code-execution bug starts with root privileges — the first link in a container-escape chain (root + a bad mount/capability → host). One line fixes it: a non-root \`USER\` in the Dockerfile.
+- **\`-p 8080:3000\`:** maps host port 8080 to the container's port 3000 (where the app listens). It's the same trust-boundary idea as Module 0.7's binding lesson: what you *publish* (and to which interface) decides who can reach the service — a container is only as exposed as the port you map and the address you map it on.
+- **What you can now explain better:** personal — a common answer is finally understanding that "deleting" a secret (from Git *or* a Docker layer) doesn't remove it, because both are append-only histories.
 
 </details>`,
-    tracker: ["Ran the safe practice-folder commands (pwd/mkdir/echo/cat) and the chmod 600 demo", "Can classify a command as read-only vs state-changing before pressing Enter", "Understand why curl | sh and reflexive sudo are dangerous", "Wrote the Phase 0 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Confirmed Docker is running and pulled/listed a base image with docker images", "Built an image with docker build -t and ran it with docker run -d -p, reaching it via curl", "Used docker ps, docker logs, and docker exec to inspect a running container (and saw it runs as root)", "Injected config at runtime with -e / printenv and understands why that's the right place for secrets", "Baked a demo secret into a layer and recovered it with docker history --no-trunc — proving layers are permanent", "Cleaned up with docker stop/rm/rmi and understands 'stopped' ≠ 'removed'", "Wrote the Phase 0 deliverable journal entry (foundations + containers)", "Answered the knowledge check"]
   },
   // ============== PHASE 1 ==============
+  {
+    id: "p1_roadmap",
+    phaseId: "p1",
+    num: "1.0",
+    title: "Phase 1 Roadmap — Web, Internet & CLI",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
   {
     id: "m1-1",
     phaseId: "p1",
@@ -2544,226 +3328,409 @@ If your repo is public (or your org has GHAS):
     phaseId: "p1",
     num: "1.6",
     title: "Security Investigation Toolkit — curl, openssl, jq, lsof, awk",
-    objective: "grep and rg got you through basic secret hunting. Now build the rest of the security investigator's toolkit: inspect a live TLS connection with openssl, probe any HTTP endpoint with curl, parse API responses and logs with jq and awk, and see exactly what your processes are doing with lsof and ss. These tools are how security engineers spend their days.",
-    body: `> **The gap Module 1.3 left.** That module made you comfortable in the shell and taught you to hunt secrets in files. This one builds the *network and process investigation* layer — the tools you need when the question is "what is this server doing?" rather than "what is in this file?"
+    objective: "grep and rg got you through basic secret hunting. Now build the rest of the security investigator's toolkit — but the way this course teaches best: against a server you build yourself. Stand up a deliberately leaky Node (Express) and Python (Flask) server on localhost, then use curl, openssl, jq, awk, lsof/ss, and tmux to find its weaknesses. Every command produces a real, observable result you caused.",
+    body: `> **Restoring the pattern from Module 0.4.** Back in 0.4 you didn't read *about* Broken Access Control — you stood up \`tiny-server.js\` and deleted Alice with one \`curl\`. This module does the same for the whole investigation toolkit. Instead of pointing commands at \`example.com\` (where nothing can misbehave for you), you'll build a small server with a **deliberately weak security posture** and watch each tool surface a real finding. You already met every command in Module 0.7 — here they finally have a target worth investigating.
 
-### 🔍 curl — your HTTP Swiss army knife
+### 🎯 Concept: the network/process investigation layer
 
-\`curl\` is what the browser hides from you: every HTTP request, header, redirect, and certificate. Security engineers use it to test endpoints precisely, without browser magic getting in the way.
+Module 1.3 made you comfortable *in* the shell and taught you to hunt secrets *in files*. This module builds the layer you need when the question is **"what is this server doing?"** rather than "what is in this file?" — inspecting live HTTP responses, TLS, listening ports, and logs. These are the tools security engineers live in.
 
-\`\`\`bash
-# 1. Show response headers (not body) — check security headers
-curl -I https://example.com
+### ⚔️ Hands-on: build the leaky server (Node + Python)
 
-# 2. Show both request and response headers (-v = verbose)
-curl -v https://api.example.com/health 2>&1 | head -40
+> **Ethics & scope.** This is *your* server on *your* machine, bound to \`localhost\`. Attacking software you run yourself is exactly what you're allowed to do — this is the whole point of a local lab.
 
-# 3. Send a JSON body (testing an API endpoint)
-curl -X POST https://api.example.com/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"username":"alice","password":"test123"}'
-
-# 4. Send a cookie
-curl -H "Cookie: session=abc123" https://api.example.com/profile
-
-# 5. Follow redirects AND show each hop (useful for SSRF / open-redirect research)
-curl -L --max-redirs 5 -v "https://target.example.com/redirect?url=http://169.254.169.254"
-
-# 6. Test with a custom Host header (virtual-host probing)
-curl -H "Host: admin.internal" https://target.example.com/
-
-# 7. Bypass TLS verification (for self-signed certs in a local lab ONLY — never in production research)
-curl -k https://localhost:3443/api
-\`\`\`
-
-**What to look for in response headers:**
-\`\`\`
-✓ Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-✓ Content-Security-Policy: (should be present and restrictive)
-✓ X-Frame-Options: DENY  (or CSP frame-ancestors)
-✓ X-Content-Type-Options: nosniff
-✓ Referrer-Policy: no-referrer
-✗ Server: Apache/2.4.52 (Ubuntu)  — version disclosure
-✗ X-Powered-By: Express           — framework disclosure
-\`\`\`
-
----
-
-### 🔒 openssl s_client — inspect TLS directly
-
-\`openssl s_client\` connects to a server over TLS and shows you the full handshake: certificate chain, cipher suite, protocol version, and expiry.
+Make a folder and pick one language to start (do the other later — the findings are identical, which is the lesson):
 
 \`\`\`bash
-# Inspect a TLS connection end-to-end
-openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | \\
-  openssl x509 -noout -text | grep -E "Subject:|Issuer:|Not (Before|After)"
-
-# Check cipher suite negotiated
-openssl s_client -connect example.com:443 2>&1 | grep -E "Protocol|Cipher"
-
-# Test for old TLS versions (should fail on a properly configured server)
-openssl s_client -connect example.com:443 -tls1   2>&1 | grep "alert\|Cipher"
-openssl s_client -connect example.com:443 -tls1_1 2>&1 | grep "alert\|Cipher"
-
-# Quick cert expiry check (useful in a script)
-openssl s_client -connect example.com:443 2>/dev/null | \\
-  openssl x509 -noout -dates
+mkdir -p ~/leaky-lab && cd ~/leaky-lab   # macOS / Linux / WSL2
 \`\`\`
 
-A properly hardened server should: reject TLS 1.0 and 1.1, negotiate TLS 1.2 or 1.3 only, and use a cipher suite without RC4, 3DES, or NULL.
+**Node (Express).** Create \`leaky-server.js\`. Every comment marked LEAK is a deliberate flaw:
 
----
+\`\`\`javascript
+import express from "express";
+import fs from "fs";
+const app = express();
+app.use(express.json());
 
-### 🔧 jq — parse JSON from the command line
+// LEAK 1 + 2: Express sends "X-Powered-By: Express" by default (framework disclosure),
+// and here we ALSO add a verbose Server header (version disclosure). Both are free recon.
+app.use((req, res, next) => {
+  res.setHeader("Server", "Express/4.18.2 (Node 22.12.0)");
+  next();
+});
 
-APIs return JSON. Logs increasingly do too. \`jq\` is a filter language for JSON — essential for investigating API responses and parsing structured logs.
+// LEAK 4: a growing access log in Common Log Format (we analyze it with awk below).
+function clfDate() {
+  const d = new Date();
+  const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getUTCDate()) + "/" + M + "/" + d.getUTCFullYear() + ":" +
+    p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds()) + " +0000";
+}
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    const size = res.get("content-length") || "0";
+    fs.appendFileSync("access.log",
+      req.ip + ' - - [' + clfDate() + '] "' + req.method + " " + req.url +
+      ' HTTP/1.1" ' + res.statusCode + " " + size + "\\n");
+  });
+  next();
+});
+
+const users = [
+  { id: 1, name: "alice", role: "admin", email: "alice@lab.local" },
+  { id: 2, name: "bob",   role: "user",  email: "bob@lab.local"   }
+];
+app.get("/api/users", (req, res) => res.json(users));
+
+// LEAK 3: a debug endpoint that overshares — it dumps EVERY environment variable,
+// which in a real app includes secrets (DB passwords, API keys, tokens).
+app.get("/debug", (req, res) => res.json({
+  node: process.version,
+  pid: process.pid,
+  cwd: process.cwd(),
+  uptimeSeconds: process.uptime(),
+  env: process.env            // <-- the whole environment, secrets and all
+}));
+
+// Bind to 127.0.0.1 (loopback only) — good. Binding to 0.0.0.0 would expose it to the network.
+app.listen(3000, "127.0.0.1", () => console.log("leaky server on http://127.0.0.1:3000"));
+\`\`\`
+
+Run it (Express is a dependency — \`npm init -y && npm install express\` first if needed; Node runs natively on every OS/architecture):
 
 \`\`\`bash
-# Install
-brew install jq         # macOS
-sudo apt install jq     # Debian/Ubuntu
-
-# Pretty-print a curl response
-curl -s https://api.example.com/users/1 | jq .
-
-# Extract a specific field
-curl -s https://api.example.com/users | jq '.[].email'
-
-# Filter array: only items where role is "admin"
-curl -s https://api.example.com/users | jq '[.[] | select(.role == "admin")]'
-
-# Investigate a JSON log file — count errors per endpoint
-jq -r '.[] | select(.level == "error") | .path' access-log.json | \\
-  sort | uniq -c | sort -rn | head -20
-
-# Extract all Authorization header values from a JSON access log (spot leaked tokens)
-jq -r '.[] | .headers.authorization // empty' access-log.json | sort -u
+node leaky-server.js
+# -> leaky server on http://127.0.0.1:3000   (leave it running; open a second terminal to attack)
 \`\`\`
 
----
+**Python (Flask).** Same server, same four leaks, in \`leaky_server.py\`. Flask ships a verbose \`Server\` header *for free* — you don't even have to add one:
 
-### 📊 awk + sort + uniq — log analysis patterns
+\`\`\`python
+# pip install flask   (inside a venv)
+from flask import Flask, request, jsonify
+import os, time
 
-Logs are where breaches leave fingerprints. These three commands let you answer "what happened?" from a raw log file without a SIEM.
+app = Flask(__name__)
+
+users = [
+    {"id": 1, "name": "alice", "role": "admin", "email": "alice@lab.local"},
+    {"id": 2, "name": "bob",   "role": "user",  "email": "bob@lab.local"},
+]
+
+@app.get("/api/users")
+def api_users():
+    return jsonify(users)
+
+# LEAK 3: debug endpoint that overshares — dumps ALL environment variables.
+@app.get("/debug")
+def debug():
+    return jsonify(
+        python=os.sys.version,
+        pid=os.getpid(),
+        cwd=os.getcwd(),
+        env=dict(os.environ),   # the whole environment, secrets and all
+    )
+
+# LEAK 4: access log in Common Log Format (same field layout as the Node version).
+@app.after_request
+def access_log(resp):
+    with open("access.log", "a") as f:
+        f.write('%s - - [%s] "%s %s HTTP/1.1" %s %s\\n' % (
+            request.remote_addr,
+            time.strftime("%d/%b/%Y:%H:%M:%S +0000", time.gmtime()),
+            request.method, request.path, resp.status_code,
+            resp.calculate_content_length() or 0))
+    return resp
+
+# LEAK 1 + 2 come for free: Flask/Werkzeug sends "Server: Werkzeug/3.x Python/3.12" by default.
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=3000)
+\`\`\`
 
 \`\`\`bash
-# Top 20 IPs hitting your app (detect scanning)
-awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -20
-
-# All unique 4xx responses — find brute-force attempts and path probing
-awk '$9 ~ /^4/' access.log | awk '{print $9, $7}' | sort | uniq -c | sort -rn | head -30
-
-# All POST requests to /login — detect credential stuffing
-grep 'POST /login' access.log | awk '{print $1}' | sort | uniq -c | sort -rn | head -20
-
-# Requests that took > 5 seconds (detect DoS / resource exhaustion)
-awk '{if ($NF > 5000) print $0}' access.log | head -20
-
-# Find all unique User-Agents (malicious bots often have distinctive or missing UAs)
-awk -F'"' '{print $6}' access.log | sort | uniq -c | sort -rn | head -20
+python leaky_server.py
+# -> Running on http://127.0.0.1:3000
 \`\`\`
 
----
+Whichever you ran, the rest of this module attacks **that** server. Everything is the same server-side finding regardless of language — which is exactly the point 0.4 made about backends.
 
-### 🌐 ss and lsof — see what's listening
+### 🔍 curl — read the response the browser hides, line by line
 
-When you're debugging or auditing a server, you need to know exactly what processes are accepting connections.
+In your second terminal, ask the server for **only its headers** with \`-I\`:
 
 \`\`\`bash
-# Show all listening TCP sockets and which process owns them
-ss -tlnp          # Linux
-
-# Same on macOS
-lsof -iTCP -sTCP:LISTEN -n -P
-
-# Check if a specific port is in use before starting a service
-ss -tlnp | grep :8080
-
-# All network connections for a specific process (by name)
-lsof -i -P -n | grep node
-
-# All files (including sockets) opened by PID 1234
-lsof -p 1234 | head -40
-
-# Find which process is using a port (quick version)
-lsof -i :3000
+curl -I http://127.0.0.1:3000/api/users
+\`\`\`
+\`\`\`
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Server: Express/4.18.2 (Node 22.12.0)
+Content-Type: application/json; charset=utf-8
+Content-Length: 128
+ETag: W/"80-Xy..."
+Date: Sun, 19 Jul 2026 10:00:01 GMT
+Connection: keep-alive
 \`\`\`
 
-Security use: after deploying an app, \`lsof -iTCP -sTCP:LISTEN\` should show only the ports you intended to expose. Anything unexpected — a debug port, a management interface, a stray database binding on 0.0.0.0 instead of 127.0.0.1 — is a finding.
+Read every line — this *is* the skill:
 
----
+- **\`HTTP/1.1 200 OK\`** — the status line: protocol version, numeric status (200 = success), reason phrase.
+- **\`X-Powered-By: Express\`** — **LEAK 1.** Announces your framework. An attacker now skips guessing and looks up Express CVEs directly. (Flask won't send this one — that header is Express-specific.)
+- **\`Server: Express/4.18.2 (Node 22.12.0)\`** — **LEAK 2.** Version disclosure: exact framework *and* runtime versions. On the Flask server this line reads \`Server: Werkzeug/3.0.1 Python/3.12.2\` — same class of leak, handed to you by the framework's default.
+- **\`Content-Type\`** — how to interpret the body (here, JSON). Getting this wrong is its own vulnerability class (Phase 3, MIME sniffing).
+- **\`Content-Length\`** — body size in bytes.
+- **What's *missing* is the real finding:** no \`Strict-Transport-Security\`, no \`Content-Security-Policy\`, no \`X-Frame-Options\`, no \`X-Content-Type-Options: nosniff\`. Their absence is the vulnerability — you'll add them all in the Defense section and re-run this exact command to watch them appear.
 
-### ⚡ tmux — persistent sessions for investigation work
-
-When you're doing a live investigation on a remote server, your SSH connection can drop mid-session. \`tmux\` gives you persistent sessions that survive disconnects.
+More curl you'll use constantly (all against your own server):
 
 \`\`\`bash
-# Start a new named session
-tmux new -s investigation
-
-# Detach (session keeps running in background): Ctrl+B then D
-
-# List sessions
-tmux ls
-
-# Re-attach to a session
-tmux attach -t investigation
-
-# Split pane horizontally (run curl in one pane, watch logs in another)
-# Ctrl+B then %  (vertical split)
-# Ctrl+B then "  (horizontal split)
-# Ctrl+B then arrow keys to move between panes
+curl -i http://127.0.0.1:3000/api/users     # -i = body WITH headers above it
+curl -s http://127.0.0.1:3000/api/users     # -s = silent (no progress meter), for piping
+curl -v http://127.0.0.1:3000/api/users 2>&1 | head -20   # -v = show the request too (goes to stderr, hence 2>&1)
+curl -s -X POST http://127.0.0.1:3000/api/users \\
+  -H "Content-Type: application/json" -d '{"name":"mallory"}'   # -X method, -H header, -d body
 \`\`\`
 
----
+### 🔒 openssl s_client — and an honest note about localhost
 
-### 🔗 Putting it together: investigate a live endpoint
+\`openssl s_client\` speaks the **TLS** protocol. Your leaky server above is plain **HTTP**, so pointing \`openssl s_client -connect 127.0.0.1:3000\` at it just hangs or errors — there's no TLS handshake to inspect. That's not a bug in the tool; it's the tool being honest. You have two truthful options:
+
+**Option A — inspect a real public TLS endpoint** (what you'll do against real targets):
 
 \`\`\`bash
-# 1. Check what headers the server exposes
-curl -sI https://target.example.com | grep -Ei "server:|x-powered-by:|strict-transport|content-security"
-
-# 2. Verify TLS version and cipher
-openssl s_client -connect target.example.com:443 2>&1 | grep -E "Protocol|Cipher|Verify"
-
-# 3. Check certificate expiry
-openssl s_client -connect target.example.com:443 2>/dev/null | openssl x509 -noout -enddate
-
-# 4. Test an authenticated endpoint and parse the JSON response
-TOKEN=\$(curl -s -X POST https://target.example.com/auth/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"username":"testuser","password":"testpass"}' | jq -r '.token')
-curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profile | jq .
-
-# 5. Look for sensitive data in the response (should return 0 findings)
-curl -s -H "Authorization: Bearer \$TOKEN" https://target.example.com/api/profile | \\
-  jq -r 'to_entries[] | "\\(.key): \\(.value)"' | \\
-  grep -i "password\\|secret\\|key\\|hash\\|salt"
+openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\
+  | openssl x509 -noout -subject -issuer -dates
 \`\`\`
+\`\`\`
+subject=CN=example.com
+issuer=C=US, O=DigiCert Inc, CN=DigiCert Global G3 TLS ECC SHA384 2020 CA1
+notBefore=Jan 15 00:00:00 2026 GMT
+notAfter=Feb 14 23:59:59 2027 GMT
+\`\`\`
+
+Here **subject ≠ issuer** — a real Certificate Authority signed it. Read \`notAfter\` to catch expiring certs.
+
+**Option B — give your *own* lab real TLS** so \`openssl\` works locally. First, use openssl's *other* job — making certificates — to generate a self-signed one:
+
+\`\`\`bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj "/CN=localhost"
+\`\`\`
+
+Then serve over HTTPS. In Flask it's a one-liner (\`pip install pyopenssl\`), which is the fastest way to see it:
+
+\`\`\`python
+# add TLS to the Flask server: it now listens on https://127.0.0.1:3443
+app.run(host="127.0.0.1", port=3443, ssl_context=("cert.pem", "key.pem"))
+\`\`\`
+
+Now inspect your own handshake:
+
+\`\`\`bash
+openssl s_client -connect localhost:3443 -servername localhost </dev/null 2>/dev/null \\
+  | openssl x509 -noout -subject -issuer -dates
+\`\`\`
+\`\`\`
+subject=CN=localhost
+issuer=CN=localhost
+notBefore=Jul 19 10:00:00 2026 GMT
+notAfter=Jul 20 10:00:00 2026 GMT
+\`\`\`
+
+**subject == issuer** is the signature of a *self-signed* certificate — it signed itself, so no CA vouches for it. That's why browsers and \`curl\` reject it unless you force past with \`-k\`:
+
+\`\`\`bash
+curl https://localhost:3443/api/users        # fails: self-signed cert not trusted
+curl -k https://localhost:3443/api/users      # -k = skip verification (LOCAL LAB ONLY)
+\`\`\`
+
+Using \`-k\` against anything you don't control would throw away the exact protection Module 1.2 exists to teach — it's a local-lab-only switch.
+
+### 🔧 jq — parse the JSON your server returns
+
+Pipe curl into \`jq\` to read the API response, then to expose LEAK 3:
+
+\`\`\`bash
+curl -s http://127.0.0.1:3000/api/users | jq .            # pretty-print the array
+curl -s http://127.0.0.1:3000/api/users | jq -r '.[].email'   # just the emails, raw (-r strips quotes)
+\`\`\`
+\`\`\`
+[
+  { "id": 1, "name": "alice", "role": "admin", "email": "alice@lab.local" },
+  { "id": 2, "name": "bob",   "role": "user",  "email": "bob@lab.local" }
+]
+alice@lab.local
+bob@lab.local
+\`\`\`
+
+Now hit the debug endpoint and watch the oversharing. \`jq\` makes the finding obvious:
+
+\`\`\`bash
+curl -s http://127.0.0.1:3000/debug | jq 'keys'            # what does /debug expose?
+curl -s http://127.0.0.1:3000/debug | jq '.env | keys' | head   # every env var name it leaks
+\`\`\`
+\`\`\`
+[
+  "cwd",
+  "env",
+  "node",
+  "pid",
+  "uptimeSeconds"
+]
+[
+  "HOME",
+  "PATH",
+  "PWD",
+  ...
+]
+\`\`\`
+
+In a real deployment \`.env\` would include \`DATABASE_URL\`, \`STRIPE_KEY\`, \`JWT_SECRET\` — an unauthenticated \`/debug\` handing those out is a critical finding. (\`select(...)\`, \`// empty\`, and \`to_entries\` from Module 0.7 all apply here too.)
+
+### 📊 awk + sort + uniq — analyze the access log the server wrote
+
+Every request you've made appended a line to \`access.log\`. Generate a bit more traffic, then read it:
+
+\`\`\`bash
+for i in 1 2 3; do curl -s http://127.0.0.1:3000/api/users >/dev/null; done
+curl -s http://127.0.0.1:3000/debug >/dev/null
+curl -s http://127.0.0.1:3000/nope >/dev/null      # a 404
+cat access.log
+\`\`\`
+\`\`\`
+::1 - - [19/Jul/2026:10:00:01 +0000] "GET /api/users HTTP/1.1" 200 128
+::1 - - [19/Jul/2026:10:00:02 +0000] "GET /api/users HTTP/1.1" 200 128
+::1 - - [19/Jul/2026:10:00:03 +0000] "GET /api/users HTTP/1.1" 200 128
+::1 - - [19/Jul/2026:10:00:04 +0000] "GET /debug HTTP/1.1" 200 4210
+::1 - - [19/Jul/2026:10:00:05 +0000] "GET /nope HTTP/1.1" 404 150
+\`\`\`
+
+> **Note on \`$1\`.** On localhost the client address is the IPv6 loopback \`::1\` (or \`::ffff:127.0.0.1\`); the Flask version reports \`127.0.0.1\`. Either way it's **field 1**. This is the exact **Common Log Format** real web servers use, so the field map below is the one you'll use on production logs.
+
+The field map for this log line (whitespace-separated):
+
+| Field | Value | Meaning |
+|---|---|---|
+| \`$1\` | \`::1\` | client IP |
+| \`$4\` \`$5\` | \`[19/Jul/2026:10:00:01\` \`+0000]\` | timestamp (two tokens — the space is why status lands at \`$9\`) |
+| \`$6\` | \`"GET\` | method (with the opening quote) |
+| \`$7\` | \`/api/users\` | request path |
+| \`$9\` | \`200\` | HTTP status code |
+| \`$NF\` | \`128\` | response size in bytes (last field) |
+
+Now the classic log-analysis one-liners — each piece is from Module 0.7:
+
+\`\`\`bash
+awk '{print $1}' access.log | sort | uniq -c | sort -rn          # busiest client IPs
+awk '{print $9}' access.log | sort | uniq -c | sort -rn          # status-code distribution
+awk '$9 ~ /^4/ {print $9, $7}' access.log                        # every 4xx: status + path (probing/brute-force)
+awk '{print $7}' access.log | sort | uniq -c | sort -rn          # most-requested paths
+awk '$NF > 1000 {print $7, $NF}' access.log                      # unusually large responses (data exfil / the /debug leak)
+\`\`\`
+\`\`\`
+   5 ::1
+   4 200
+   1 404
+404 /nope
+   3 /api/users
+   1 /debug
+   1 /nope
+/debug 4210
+\`\`\`
+
+That last line — \`/debug 4210\` — is LEAK 3 showing up in the logs as an anomalously large response, exactly how you'd spot exfiltration in the wild.
+
+### 🌐 lsof and ss — confirm what's actually listening
+
+Your server *says* it bound to \`127.0.0.1:3000\`. Verify it — never trust the log message alone:
+
+\`\`\`bash
+lsof -iTCP -sTCP:LISTEN -n -P | grep 3000     # macOS / Linux: TCP sockets in LISTEN state
+ss -tlnp | grep 3000                           # Linux only: same question, different tool
+\`\`\`
+\`\`\`
+node    54321  you  20u  IPv4  0x...  TCP  127.0.0.1:3000 (LISTEN)
+\`\`\`
+
+The key column is the address: **\`127.0.0.1:3000\`** means loopback only — reachable just from this machine. If it read **\`0.0.0.0:3000\`** or **\`*:3000\`**, the server would be accepting connections from the *whole network*, which for a dev/debug server (especially one with a \`/debug\` endpoint) is a serious exposure. Prove the difference to yourself: change the Node \`app.listen(3000, "127.0.0.1", ...)\` to \`app.listen(3000, "0.0.0.0", ...)\`, restart, re-run the command, and watch the bind address change.
+
+> **Cross-platform note.** \`ss\` is **Linux-only**; \`lsof\` is **macOS + Linux**. On **native Windows (PowerShell)** use \`Get-NetTCPConnection -State Listen -LocalPort 3000\` (or \`netstat -ano | findstr :3000\`), or run \`lsof\`/\`ss\` inside **WSL2**.
+
+### ⚡ tmux — server in one pane, attack in another
+
+Rather than juggling two terminal windows, use \`tmux\` (from Module 0.7) to watch the server and attack it side by side:
+
+\`\`\`bash
+tmux new -s leaky
+# Ctrl+B then %   -> split left/right
+# left pane:  node leaky-server.js
+# Ctrl+B then arrow -> move to the right pane
+# right pane: tail -f access.log      (watch requests arrive live as you curl in a third split)
+# Ctrl+B then d   -> detach; 'tmux attach -t leaky' to come back
+\`\`\`
+
+> **Cross-platform note.** \`tmux\` runs on macOS (\`brew install tmux\`), Linux (\`sudo apt install -y tmux\`), and WSL2. It isn't native to Windows PowerShell — use WSL2 or Windows Terminal's built-in split panes.
+
+### 🛡️ Defense: close every leak, then re-run the same commands
+
+Fix the Node server and re-run \`curl -I\` — the missing headers appear and the disclosure headers vanish:
+
+\`\`\`javascript
+import express from "express";
+import helmet from "helmet";        // npm install helmet
+const app = express();
+
+app.disable("x-powered-by");        // kills LEAK 1
+app.use(helmet());                  // adds CSP, HSTS, X-Frame-Options, nosniff, etc.
+// Do NOT set a verbose Server header (LEAK 2 fixed by omission; a reverse proxy can strip it entirely).
+
+// LEAK 3 fixed: no debug endpoint in production, and if you must have one, gate it:
+if (process.env.NODE_ENV !== "production") {
+  app.get("/debug", requireAdmin, (req, res) =>
+    res.json({ ok: true }));        // never dump process.env
+}
+
+// LEAK 4 fixed: log to a file only YOU can read, and never log secrets/tokens (Phase 9).
+app.listen(3000, "127.0.0.1");      // loopback bind stays — least exposure
+\`\`\`
+
+The Flask equivalents: \`flask-talisman\` for the security headers/HSTS, remove or admin-gate \`/debug\`, and never \`jsonify\` \`os.environ\`. Werkzeug's default \`Server\` header is best stripped at a reverse proxy (nginx \`server_tokens off;\`) in front of the app.
+
+**Defense-in-depth layers:** (1) don't disclose versions; (2) never expose debug/introspection endpoints unauthenticated; (3) send security headers by default (a library like helmet/talisman, not hand-rolled); (4) bind services to loopback or private interfaces, not \`0.0.0.0\`; (5) treat logs as sensitive (Phase 9). **Common pitfall:** removing \`X-Powered-By\` but leaving a chatty \`Server\` header, or hardening headers while a \`/debug\` route still dumps the environment — attackers chain the *weakest* link, so audit all of them.
 
 ### Knowledge check: Security Investigation Toolkit
 
-1. You curl a production API and see \`Server: Apache/2.4.52 (Ubuntu)\` and \`X-Powered-By: Express 4.18\` in the response headers. What is the security concern and what is the fix?
-2. You run \`lsof -iTCP -sTCP:LISTEN\` on a production server and see your database (port 5432) listed as listening on \`0.0.0.0\` instead of \`127.0.0.1\`. Why is this a security finding?
+1. In \`curl -I\` output you see \`X-Powered-By: Express\` and \`Server: Werkzeug/3.0.1 Python/3.12.2\`. What class of finding is each, and how do you fix them?
+2. Why can't \`openssl s_client -connect 127.0.0.1:3000\` inspect your plain-HTTP leaky server, and what are the two honest ways to still practice \`openssl\`?
+3. When you inspect a certificate and see \`subject == issuer\`, what does that tell you, and why does \`curl\` reject it without \`-k\`?
+4. In the Common Log Format line, which awk field is the HTTP status code, and why is it \`$9\` and not \`$8\`?
+5. You run \`lsof -iTCP -sTCP:LISTEN -n -P\` and your server shows \`0.0.0.0:3000\` instead of \`127.0.0.1:3000\`. Why is that a finding, especially for this server?
+6. Why does this course have you attack a server you built rather than \`api.example.com\`?
 
 <details>
 <summary>Show answers</summary>
 
-1. These headers are version disclosure — they tell an attacker exactly which software versions to look up for known CVEs. The fix is to suppress them: in Express, \`app.disable('x-powered-by')\` (or use the \`helmet\` package which does this automatically). For Apache, set \`ServerTokens Prod\` and \`ServerSignature Off\` in the config. The \`Server\` header itself can be removed or set to a generic value.
-2. \`0.0.0.0\` means the process accepts connections on all network interfaces — including the server's public IP. The database should only be accessible from the application on the same host (or from specific internal IPs), not from the internet. Fix: in \`postgresql.conf\`, set \`listen_addresses = '127.0.0.1'\` (or the specific private IP), then restart Postgres. Verify with a port scan from outside: \`nmap -p 5432 <server-ip>\` should show the port as filtered/closed.
+1. \`X-Powered-By: Express\` is **framework disclosure**; \`Server: Werkzeug/... Python/...\` is **version disclosure**. Both are free reconnaissance — they point an attacker straight at matching CVEs. Fix: \`app.disable("x-powered-by")\` (Express) / don't emit it, and strip or genericize the \`Server\` header (omit it in-app; strip at a reverse proxy with e.g. nginx \`server_tokens off;\`). \`helmet\`/\`flask-talisman\` help.
+2. \`openssl s_client\` speaks TLS, and the leaky server is plain HTTP — there's no handshake to inspect. Honest options: (A) point it at a real HTTPS host like \`example.com:443\`; or (B) give your own lab real TLS by generating a self-signed cert with \`openssl req -x509 ...\` and serving HTTPS (Flask \`ssl_context=(...)\`), then inspect \`localhost:3443\`.
+3. \`subject == issuer\` means the certificate is **self-signed** — it vouches for itself, and no trusted Certificate Authority signed it. \`curl\` (like a browser) rejects it because the trust chain can't be verified up to a known root; \`-k\` bypasses that check and is for local labs only.
+4. \`$9\` is the status code. The timestamp is two whitespace-separated tokens — \`[19/Jul/2026:10:00:01\` (\`$4\`) and \`+0000]\` (\`$5\`) — so counting IP(\$1), the two dashes(\$2,\$3), the two date tokens(\$4,\$5), \`"GET\`(\$6), path(\$7), \`HTTP/1.1"\`(\$8) lands the status at \`$9\` and the size at \`$NF\`.
+5. \`0.0.0.0\` binds every network interface, so the server accepts connections from the whole network rather than just this machine. For *this* server it's severe because an unauthenticated \`/debug\` endpoint that dumps the environment would then be reachable by anyone who can route to the host.
+6. Because \`example.com\` can't misbehave *for you* — you can't add a leaky header, an oversharing endpoint, or a growing log file to a host you don't own, and you must never send crafted/attack traffic to systems you're not authorized to test. A local server you built is fully authorized to attack and can be made to exhibit exactly the flaw you're studying.
 </details>
 
-➡️ **Next step:** You can investigate with the right command for a known task. The last gap is writing your own — bash control flow, heavier text processing, and reaching a host that isn't directly in front of you. Continue to **Module 1.7: Advanced CLI: Shell Scripting, Text Processing & SSH Tunneling**.`,
+➡️ **Next step:** You can investigate with the right command for a known task, against a real target you control. The last gap is writing your own tooling — bash control flow, heavier text processing, and reaching a host that isn't directly in front of you. Continue to **Module 1.7: Advanced CLI: Shell Scripting, Text Processing & SSH Tunneling**.`,
     tracker: [
-      "Used curl -v to inspect response headers on a live HTTPS endpoint and identified at least one missing security header",
-      "Used openssl s_client to view a certificate chain and check TLS version support",
-      "Installed jq and used it to parse a curl JSON response (extract a specific field)",
-      "Used lsof or ss to list all listening ports on your machine and verified nothing unexpected is exposed",
-      "Wrote at least one awk one-liner to extract information from a log file",
+      "Built the leaky Node (Express) AND/OR Python (Flask) server and ran it on 127.0.0.1:3000",
+      "Used curl -I against it and identified X-Powered-By / Server disclosure plus the missing security headers",
+      "Exposed the /debug oversharing with curl + jq (env-variable dump)",
+      "Generated a self-signed cert with openssl and inspected a TLS handshake (subject == issuer), or explained why plain-HTTP localhost can't be inspected",
+      "Analyzed the server's own access.log with awk + sort + uniq and can map $1/$7/$9/$NF",
+      "Used lsof or ss to confirm the bind address and understand 127.0.0.1 vs 0.0.0.0",
+      "Applied the fixes (helmet/talisman, disable x-powered-by, gate /debug) and re-ran curl -I to confirm",
       "Answered the knowledge check"
     ]
-  },
-  {
+  }, {
     id: "m1-7",
     phaseId: "p1",
     num: "1.7",
@@ -2868,6 +3835,7 @@ printf 'db_host=10.0.0.5\\napi_key=REDACT_ME\\n' > service-a.conf
 printf 'db_host=10.0.0.5\\napi_key=REDACT_ME\\n' > service-b.conf
 
 # Find every config file, then bulk-redact a placeholder secret in all of them at once:
+# note: 'sed -i' differs by OS — the attached-suffix form '-i.bak' shown here works on both GNU (Linux) and BSD (macOS); macOS with NO backup needs the empty arg: sed -i '' 's/.../'
 find . -name "*.conf" | xargs sed -i.bak 's/REDACT_ME/<set-via-env-var>/g'
 cat service-a.conf
 # .bak backups exist because -i alone gives no undo — always keep one until you've verified the result
@@ -2952,12 +3920,22 @@ Create \`~/appsec-journal/notes/phase-1-web-cli-foundations.md\` and answer, in 
   },
   // ============== PHASE 2 ==============
   {
+    id: "p2_roadmap",
+    phaseId: "p2",
+    num: "2.0",
+    title: "Phase 2 Roadmap — Browser Security",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m2-1",
     phaseId: "p2",
     num: "2.1",
     title: "The Browser Trust Model",
     objective: "Every browser-side attack and defense is defined relative to one concept: the origin. Same-origin policy, CORS, cookies, CSP are all answers to 'which code may read or send which data?' Get origins crisp and the rest is deduction.",
-    body: `> **Why this module is first in the phase.** Every browser-side attack and defense is defined relative to one concept: the **origin**. Same-origin policy, CORS, cookies, CSP — they are all answers to the question "which code is allowed to read or send which data?" If the origin model is fuzzy, the rest is memorization. If it's crisp, the rest is deduction.
+    body: `> **Platform note (applies from Phase 2 onward).** From here on the labs are written for a **bash/zsh** shell — macOS, Linux, or **WSL2** on Windows. On native Windows, run every lab *inside WSL2* (Step 0 of setup), where the commands below — \`chmod\`, \`lsof\`, \`node server.js &\` / \`kill %1\`, and the rest — all work unchanged. Where a native-PowerShell equivalent actually carries a security meaning (for example file permissions: \`chmod 600\` vs \`icacls\`, covered in Module 8.1), it's called out inline. Elsewhere, assume "run it in WSL2" and don't hunt for a PowerShell translation of every command.
+
+> **Why this module is first in the phase.** Every browser-side attack and defense is defined relative to one concept: the **origin**. Same-origin policy, CORS, cookies, CSP — they are all answers to the question "which code is allowed to read or send which data?" If the origin model is fuzzy, the rest is memorization. If it's crisp, the rest is deduction.
 
 ### 🎯 Concept: origins, the same-origin policy, and where state lives
 
@@ -3101,6 +4079,7 @@ The lesson: **encode output for the specific context it's rendered in.** A value
 Open it with a payload in the hash:
 
 \`\`\`bash
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "dom-xss.html#<img src=x onerror=alert('dom-xss')>"
 \`\`\`
 
@@ -3129,6 +4108,7 @@ Trigger it:
 
 \`\`\`bash
 node app.js
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
 \`\`\`
 
@@ -3175,6 +4155,7 @@ app.run(port=3000)
 \`\`\`bash
 python3 -m venv .venv && source .venv/bin/activate && pip install flask
 python3 app.py
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
 \`\`\`
 
@@ -3314,6 +4295,7 @@ Run the attack:
 
 \`\`\`bash
 node csrf-victim.js                         # victim on :3000
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/login"          # become the logged-in victim (sets cookie)
 # serve the attacker page on a DIFFERENT origin (port 8000) and open it:
 ( cd "\$(dirname attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
@@ -3514,6 +4496,7 @@ app.listen(3000, () => console.log("victim API on :3000"));
 
 \`\`\`bash
 node cors-victim.js
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/login"            # victim logs in (cookie set)
 ( cd "\$(dirname cors-attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
 open "http://localhost:8000/cors-attacker.html"   # attacker page reads victim's private data
@@ -3583,6 +4566,7 @@ app.run(port=3000)
 \`\`\`bash
 pip install flask flask-cors
 python3 cors_victim.py
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/login"
 ( cd "\$(dirname cors-attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
 open "http://localhost:8000/cors-attacker.html"   # reads the victim's private data cross-origin
@@ -3651,6 +4635,14 @@ Create \`~/appsec-journal/notes/phase-2-browser-security.md\` and answer, in you
   },
 
   // ============== PHASE 3 ==============
+  {
+    id: "p3_roadmap",
+    phaseId: "p3",
+    num: "3.0",
+    title: "Phase 3 Roadmap — Backend & API",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
   {
     id: "m3_1",
     phaseId: "p3",
@@ -5022,6 +6014,14 @@ Create \`~/appsec-journal/notes/phase-3-backend-api-database.md\` and answer, in
     ]
   },
   {
+    id: "p4_roadmap",
+    phaseId: "p4",
+    num: "4.0",
+    title: "Phase 4 Roadmap — OWASP Labs",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m4_1",
     phaseId: "p4",
     num: "4.1",
@@ -5083,6 +6083,7 @@ Now set up the lab apps you'll exploit in Module 4.2 so they're ready:
 \`\`\`bash
 # OWASP Juice Shop — native arm64, your primary playground:
 docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop
+# 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open http://localhost:3000
 \`\`\`
 
@@ -5440,6 +6441,14 @@ Create \`~/appsec-journal/notes/phase-4-owasp-labs.md\` and answer, in your own 
     tracker: ["Learned the five-part finding report (Title, Severity, Steps, Impact, Recommendation) and why each exists", "Can name Steps to reproduce as the most important section", "Set up ~/appsec-journal/reports/ and wrote a report using the template", "Started the ordered PortSwigger track (Auth → Access control → SQLi → XSS → CSRF → CORS → SSRF → upload → JWT → OAuth → business logic)", "Can rate severity as likelihood × impact without inflating", "Wrote the Phase 4 deliverable journal entry", "Answered the knowledge check"]
   },
   {
+    id: "p5_roadmap",
+    phaseId: "p5",
+    num: "5.0",
+    title: "Phase 5 Roadmap — Testing Workflow",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m5_1",
     phaseId: "p5",
     num: "5.1",
@@ -5732,6 +6741,14 @@ Create \`~/appsec-journal/notes/phase-5-testing-workflow.md\` and answer, in you
 
 </details>`,
     tracker: ["Ran a full Burp-driven assessment of local Juice Shop end to end (recon → auth → authz → XSS → fuzzing → report)", "Completed the capstone: found 6+ distinct vulnerability classes and wrote each up", "Can explain a full assessment as the 5.2 workflow + Burp + 4.3 reporting", "Read and internalized the ethical bug-bounty on-ramp (scope, minimal impact, own-IP recon)", "Can recite the ethical core: bug bounty is not a license to attack; when in doubt, don't", "Wrote the Phase 5 deliverable journal entry", "Answered the knowledge check"]
+  },
+  {
+    id: "p6_roadmap",
+    phaseId: "p6",
+    num: "6.0",
+    title: "Phase 6 Roadmap — Auth & Sessions",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
   },
   {
     id: "m6_1",
@@ -7475,6 +8492,14 @@ Create \`~/appsec-journal/notes/phase-6-auth-sessions.md\` and answer, in your o
     tracker: ["Can explain that WebAuthn removes the shared transmitted secret and which attack classes that kills", "Can explain the origin/RP-ID binding mechanism that makes WebAuthn phishing-resistant vs password+TOTP", "Built the WebAuthn registration ceremony on localhost with Touch ID (Node @simplewebauthn + Python py_webauthn) and watched origin binding refuse a wrong origin", "Can list the six server-side checks on every authentication assertion", "Knows account-recovery is mandatory and must not become a weaker password backdoor", "Completed the Phase 6 cumulative quiz and read the LinkedIn 2012 case study", "Wrote the Phase 6 deliverable journal entry", "Answered the knowledge check"]
   },
   {
+    id: "p7_roadmap",
+    phaseId: "p7",
+    num: "7.0",
+    title: "Phase 7 Roadmap — Secure SDLC",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m7_1",
     phaseId: "p7",
     num: "7.1",
@@ -8118,6 +9143,14 @@ Create \`~/appsec-journal/notes/phase-7-secure-sdlc.md\` and answer, in your own
     ]
   },
   {
+    id: "p7_5_roadmap",
+    phaseId: "p7_5",
+    num: "7.5.0",
+    title: "Phase 7.5 Roadmap — LLM Security",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m7_5_1",
     phaseId: "p7_5",
     num: "7.5.1",
@@ -8637,6 +9670,14 @@ Create \`~/appsec-journal/notes/phase-7-5-llm-security.md\` and answer, in your 
     tracker: ["Can explain why agency (not just generation) is the new risk axis for LLM applications", "Can name at least three OWASP Agentic Top 10 failure modes (excessive agency, tool/description poisoning, memory poisoning, cross-agent impersonation, cascading failures)", "Built the local readFile/runShell agent lab and watched an injected document trigger the dangerous tool call", "Fixed it with a narrower tool set, an allow-list, and a human-approval gate — not a better prompt", "Can name ISO/IEC 42001 and the EU AI Act at breadth level", "Wrote the Phase 7.5 deliverable journal entry", "Answered the knowledge check"]
   },
   {
+    id: "p8_roadmap",
+    phaseId: "p8",
+    num: "8.0",
+    title: "Phase 8 Roadmap — Production",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
+  },
+  {
     id: "m8_1",
     phaseId: "p8",
     num: "8.1",
@@ -8732,6 +9773,22 @@ async function getStripeKey() {
 // every read is logged in CloudTrail; the frontend never sees it — it calls OUR /api/charge,
 // which uses the key server-side. The browser bundle contains zero secrets.
 \`\`\`
+
+### 🔒 Keep a local secret file owner-only (cross-platform)
+
+While a \`.env\` still lives on disk, restrict it to its owner so other local accounts can't read it. "Secret file is owner-only" is a defensive concept you must be able to apply on your *actual* OS — and the mechanism differs by platform:
+
+\`\`\`bash
+chmod 600 .env            # macOS / Linux / WSL2 — Unix permission bits: owner rw, nobody else
+ls -l .env                # -rw-------  (confirm)
+\`\`\`
+\`\`\`powershell
+# Native Windows (PowerShell): NTFS uses ACLs, not permission bits — chmod does nothing here.
+icacls .env /inheritance:r /grant:r "$env:USERNAME:F"   # remove inherited ACEs, grant only you
+icacls .env                                            # confirm only your account is listed
+\`\`\`
+
+> **Why this matters cross-platform.** On native Windows there are no \`600\` permission bits — file access is governed by NTFS **ACLs**, so the equivalent control is \`icacls\` (strip inheritance, grant Full to just your user). Inside WSL2 the Unix \`chmod\` works as written. Either way the goal is identical: the secret file is readable by exactly one account. (This \`chmod\`↔\`icacls\` mapping is the same one taught in the sibling Cyber Guardians course, Module 7.)
 
 ### ⚠️ Pitfalls
 
@@ -9066,7 +10123,7 @@ In 2019 a former AWS engineer exfiltrated 100M+ Capital One credit card applicat
     phaseId: "p8",
     num: "8.4",
     title: "Container & Kubernetes Security",
-    objective: "\"It works in Docker\" ships the vulnerability alongside the feature. Container escape, poisoned base images, Kubernetes misconfiguration, and secrets in environment variables have become the dominant production attack surface for full-stack apps running on cloud infrastructure. This module gives you the hardening checklist for both the container and the orchestrator layer.",
+    objective: "\"It works in Docker\" ships the vulnerability alongside the feature. In this module you don't read about container flaws — you plant them and watch them fire: build a deliberately-bad image, recover its baked-in secret with `docker history`, see it run as root, scan it with Trivy, then rebuild it hardened and re-run the same commands to watch the findings vanish. Then you stand up a real local Kubernetes cluster with `kind`, prove one Pod can reach another with no NetworkPolicy, and lock it down with default-deny networking, restricted Pod Security, and scoped RBAC. Container escape, poisoned base images, and secrets in env vars are the dominant production attack surface for full-stack apps — this is the build-exploit-fix loop for both the container and the orchestrator layer. Assumes Module 0.8 (Docker Fundamentals).",
     body: `> **The core misconception.** Containers are a process isolation and packaging mechanism — they are *not* a security boundary equivalent to a VM. A container running as root with a vulnerable kernel, a mounted Docker socket, or overly-permissive capabilities can be escaped into the host. The security work is in what you *put in* the container and how you *configure* the cluster — not in the container technology itself.
 
 ### 🎯 Container escape — why it happens
@@ -9081,22 +10138,88 @@ The three common container-escape conditions:
 
 **Lesson:** never mount the Docker socket into an application container, never run \`--privileged\`, and never run as root unless the application explicitly requires it (and most don't).
 
-### 🛡️ Dockerfile hardening checklist
+### 🛡️ Ethics & scope
+
+Everything below runs against **images and a cluster you build on your own machine**. \`kind\` creates a throwaway Kubernetes cluster inside Docker on your laptop — you own every node. Never point \`trivy\`, \`kube-bench\`, or \`kubectl\` at infrastructure you don't operate. The whole point is to break *your own* image and cluster so you recognize the same flaws in production before an attacker does.
+
+### ⚔️ Hands-on: build the bad image and see the flaws you planted
+
+Set up a lab folder and a deliberately-insecure image — full base, runs as root, secret baked into a layer:
+
+\`\`\`bash
+mkdir -p ~/container-lab && cd ~/container-lab
+echo 'require("http").createServer((_,res)=>res.end("ok\\n")).listen(3000)' > server.js
+\`\`\`
 
 \`\`\`dockerfile
+# ~/container-lab/Dockerfile.bad — three planted flaws
+FROM node:22                              # flaw 1: full ~1GB base = huge attack surface
+WORKDIR /app
+COPY server.js .
+ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer   # flaw 2: secret baked into a layer
+# flaw 3: no USER line, so the process runs as root
+CMD ["node", "server.js"]
+\`\`\`
+
+\`\`\`bash
+docker build -f Dockerfile.bad -t appsec-lab:bad .
+\`\`\`
+
+**Flaw 2 — recover the "deleted" secret from a layer.** Even if a later step unset it, \`docker history\` reads it straight out of the image (the Module 0.8 lesson, now weaponized):
+
+\`\`\`bash
+docker history --no-trunc appsec-lab:bad | grep -i stripe
+\`\`\`
+\`\`\`
+<missing>  ...  ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer
+\`\`\`
+
+The secret is shippable to anyone who can pull the image. **This is a CRITICAL finding you caused.**
+
+**Flaw 3 — confirm it runs as root:**
+
+\`\`\`bash
+docker run -d --name lab-bad -p 8080:3000 appsec-lab:bad
+docker exec lab-bad whoami
+\`\`\`
+\`\`\`
+root
+\`\`\`
+
+**Why the Docker-socket mount is fatal (reason it through — don't run it in anger).** If this root container had been started with \`-v /var/run/docker.sock:/var/run/docker.sock\`, the process could talk to the host's Docker daemon and launch a *new* container with the host filesystem mounted — i.e. read and write any file on the host. Root-in-container + socket mount = root-on-host. That's why the socket must never be mounted into an app container.
+
+**Scan the image with Trivy** and watch your planted flaws show up as findings:
+
+\`\`\`bash
+brew install trivy                        # macOS; apt/others: see trivy docs
+trivy image --severity CRITICAL,HIGH appsec-lab:bad
+\`\`\`
+\`\`\`
+appsec-lab:bad (debian 12)
+Total: 47 (HIGH: 39, CRITICAL: 8)         # from the full node:22 base
+...
+Secret  STRIPE_KEY  CRITICAL  Stripe secret key baked into image
+\`\`\`
+
+The huge CVE count comes from the fat base; the secret finding is the \`ENV\` you planted. Now fix both.
+
+### 🛡️ Defense: rebuild hardened, then re-run the exact same commands
+
+Write a hardened Dockerfile — multi-stage, distroless runtime, non-root \`USER\`, and **no secret in any layer** (it's injected at runtime instead):
+
+\`\`\`dockerfile
+# ~/container-lab/Dockerfile — hardened
 # 1. Multi-stage build — only copy what the final image needs
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 COPY . .
-RUN npm run build
 
 # 2. Minimal runtime base — distroless has no shell, no package manager
 FROM gcr.io/distroless/nodejs22-debian12 AS runtime
 WORKDIR /app
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app .
 
 # 3. Non-root USER — use a named user, not UID 0
 USER nonroot:nonroot
@@ -9104,38 +10227,103 @@ USER nonroot:nonroot
 # 4. EXPOSE only the port you actually need
 EXPOSE 3000
 
-# 5. No secrets in the image — never ENV SECRET=value
-# Inject secrets at runtime via secret manager, not Dockerfile
+# 5. No secrets in the image — never ENV SECRET=value.
+#    Inject at runtime: docker run -e STRIPE_KEY=... (or --env-file), or a secret manager.
 CMD ["server.js"]
 \`\`\`
 
-**What distroless means:** no shell (\`/bin/sh\`), no \`apt\`/\`yum\`, no debugging tools — dramatically reduces the attack surface if a vulnerability is exploited, because the attacker has no tools to work with.
-
-### 🔍 Container scanning with Trivy
-
-Run Trivy in CI to break the build on unpatched CRITICAL vulnerabilities:
-
 \`\`\`bash
-# Install (macOS)
-brew install trivy
-
-# Scan a Dockerfile for misconfigurations
-trivy config ./Dockerfile
-
-# Scan the built image for OS + package CVEs
-trivy image --exit-code 1 --severity CRITICAL,HIGH my-app:latest
-
-# Scan a local directory (for SCA)
-trivy fs . --scanners vuln,secret,misconfig
+docker build -t appsec-lab:hardened .
 \`\`\`
 
-The \`--exit-code 1\` flag makes Trivy exit non-zero on findings — wire this into your CI \`push\` workflow to block deployment of vulnerable images.
+Now re-run the **same three probes** and watch every finding disappear:
 
-### 🏗️ Kubernetes security fundamentals
+\`\`\`bash
+docker history --no-trunc appsec-lab:hardened | grep -i stripe    # → (no output: secret gone)
+docker run -d --name lab-good -e STRIPE_KEY=EXAMPLE_injected_at_runtime -p 8081:3000 appsec-lab:hardened
+docker exec lab-good whoami                                        # → nonroot (not root)
+trivy image --severity CRITICAL,HIGH appsec-lab:hardened
+\`\`\`
+\`\`\`
+appsec-lab:hardened (debian 12)
+Total: 0 (HIGH: 0, CRITICAL: 0)
+\`\`\`
 
-**RBAC: least-privilege service accounts**
+Same commands, clean results — the "re-run the same command to prove the fix" beat from Module 1.6. **What distroless bought you:** no shell (\`/bin/sh\`), no \`apt\`/\`yum\`, no debugging tools — so even if an attacker gets code execution, they have no tools to pivot with, and the CVE surface of the base collapses to near-zero. Wire \`trivy image --exit-code 1 --severity CRITICAL,HIGH\` into your CI \`push\` workflow (Module 7.1) so a vulnerable image can never reach a registry. Clean up: \`docker rm -f lab-bad lab-good\`.
 
-Every Pod runs with a service account. By default that account can call the Kubernetes API. Create dedicated service accounts with only the permissions each workload needs:
+### ⚔️ Hands-on: a real local Kubernetes cluster with kind
+
+You won't learn cluster security by reading YAML — you'll learn it by watching one Pod reach another that it shouldn't. \`kind\` (Kubernetes-IN-Docker) spins up a throwaway cluster inside the Docker you already have, and it runs on Apple Silicon, Intel Macs, and WSL2 alike.
+
+\`\`\`bash
+brew install kind kubectl        # macOS; others: see kind + kubectl docs
+kind create cluster --name appsec-lab
+kubectl get nodes
+\`\`\`
+\`\`\`
+NAME                        STATUS   ROLES           AGE   VERSION
+appsec-lab-control-plane    Ready    control-plane   40s   v1.31.0
+\`\`\`
+
+**Exploit — prove the cluster is open by default.** Create a namespace and two Pods, then show that one can reach the other with nothing stopping it:
+
+\`\`\`bash
+kubectl create namespace production
+kubectl -n production run victim  --image=nginx --labels=app=victim --port=80
+kubectl -n production expose pod victim --port=80
+kubectl -n production run attacker --image=curlimages/curl -it --rm --restart=Never -- \\
+  curl -s -o /dev/null -w "reached victim: HTTP %{http_code}\\n" http://victim
+\`\`\`
+\`\`\`
+reached victim: HTTP 200
+\`\`\`
+
+Any Pod can hit any other Pod — **east-west traffic is wide open** by default. In a real breach, one compromised Pod pivots freely to every service in the namespace.
+
+> **Honest limitation (the Module 1.6 discipline).** kind's default CNI (\`kindnet\`) does **not enforce** NetworkPolicy — applying the policy below on a default kind cluster will *not* actually block traffic. To see enforcement, create the cluster with a policy-enforcing CNI: \`kind create cluster --config kind-calico.yaml\` (disable the default CNI, then \`kubectl apply\` Calico), or run this half on any managed cluster where NetworkPolicy is enforced. The manifest is correct either way; only enforcement depends on the CNI. Don't let "the demo still returned 200" convince you the policy is wrong — verify your CNI enforces policy first.
+
+**Defense 1 — default-deny ingress.** Without a NetworkPolicy every Pod is reachable; start by denying all ingress, then explicitly allow only what a service needs:
+
+\`\`\`yaml
+# default-deny.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: production
+spec:
+  podSelector: {}           # selects all pods in the namespace
+  policyTypes:
+    - Ingress                # with no ingress rules below, ALL incoming traffic is denied
+\`\`\`
+\`\`\`bash
+kubectl apply -f default-deny.yaml
+# On an enforcing CNI, re-running the attacker Pod now times out instead of printing HTTP 200.
+\`\`\`
+
+**Defense 2 — enforce the \`restricted\` Pod Security Standard** so the namespace refuses privileged, root, or hostPath Pods (exactly the container-escape conditions from the top of this module):
+
+\`\`\`yaml
+# Apply to the namespace; then a Pod that runs as root or privileged is REJECTED at admission.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: restricted   # blocks privileged, root, hostPath
+    pod-security.kubernetes.io/warn: restricted
+\`\`\`
+\`\`\`bash
+kubectl label --overwrite namespace production pod-security.kubernetes.io/enforce=restricted
+kubectl -n production run rooty --image=nginx --overrides='{"spec":{"securityContext":{"runAsUser":0}}}'
+\`\`\`
+\`\`\`
+Error from server (Forbidden): pods "rooty" is forbidden: violates PodSecurity "restricted:latest": ... runAsNonRoot != true
+\`\`\`
+
+The admission controller **rejected the root Pod** — you just watched the escape precondition get blocked before it ever scheduled.
+
+**Defense 3 — scoped RBAC.** Every Pod runs with a service account that can, by default, call the Kubernetes API. Give each workload a dedicated account with only the permissions it needs — a *named* resource, never a wildcard:
 
 \`\`\`yaml
 apiVersion: v1
@@ -9145,7 +10333,6 @@ metadata:
   namespace: production
 automountServiceAccountToken: false   # opt-in only if the app needs K8s API access
 ---
-# Grant only what is needed
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -9154,66 +10341,44 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
-    resourceNames: ["app-config"]     # named resource — not wildcard
+    resourceNames: ["app-config"]     # named resource — not a "*" wildcard
     verbs: ["get"]
 \`\`\`
 
-**Network Policies: default-deny**
+Confirm the account *cannot* do more than you granted:
 
-Without a NetworkPolicy, every Pod can reach every other Pod in the cluster. Start with a default-deny and explicitly allow what you need:
-
-\`\`\`yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-ingress
-  namespace: production
-spec:
-  podSelector: {}           # selects all pods in the namespace
-  policyTypes:
-    - Ingress
-    # Ingress rules block all incoming traffic unless explicitly permitted
+\`\`\`bash
+kubectl auth can-i delete pods --as=system:serviceaccount:production:app-service-account -n production
+\`\`\`
+\`\`\`
+no
 \`\`\`
 
-**Pod Security Standards (enforce restricted)**
+**Scan the live cluster** with the tools that matter — run these against the real \`kind\` cluster so the output is real, not a screenshot:
 
-\`\`\`yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: production
-  labels:
-    pod-security.kubernetes.io/enforce: restricted   # blocks privileged, root, hostPath
-    pod-security.kubernetes.io/warn: restricted
+\`\`\`bash
+kubesec scan default-deny.yaml                          # static analysis of a manifest
+trivy k8s --report summary                              # misconfig scan of the running cluster
+kube-bench run --targets node                           # CIS Kubernetes Benchmark checks
 \`\`\`
 
-**Secrets: environment variables vs Kubernetes Secrets vs external managers**
+**Tear the cluster down** when you're done — it costs nothing to recreate:
+
+\`\`\`bash
+kind delete cluster --name appsec-lab
+\`\`\`
+
+**Secrets in Kubernetes — env vars vs Secrets vs external managers.** This is where the \`docker history\` secret from the container half meets the orchestrator:
 
 | Method | Risk |
 |--------|------|
-| \`ENV SECRET=value\` in Dockerfile | Baked into every image layer — visible in \`docker history\` |
+| \`ENV SECRET=value\` in Dockerfile | Baked into every image layer — visible in \`docker history\` (you proved this above) |
 | Plain env var in Pod spec | Stored in etcd (unencrypted unless etcd encryption-at-rest is configured); visible to anyone with read Pod access |
 | Kubernetes Secret (base64) | Same etcd risk; base64 is NOT encryption |
 | External Secret Operator (ESO) | Syncs from AWS Secrets Manager / GCP Secret Manager / Vault into a K8s Secret; source of truth is the secret manager |
 | Sidecar injection (Vault Agent) | Writes secrets to an in-memory volume; never touches etcd |
 
 For production: use an external secret manager as the source of truth and inject via ESO or a Vault sidecar. At minimum, enable **etcd encryption-at-rest** in your cluster configuration.
-
-### 🔑 Security tools
-
-\`\`\`bash
-# Trivy — container and K8s misconfiguration scanning
-trivy k8s --report summary cluster
-
-# kube-bench — checks cluster against CIS Kubernetes Benchmark
-kubectl apply -f https://raw.githubusercontent.com/aquasecurity/kube-bench/main/job.yaml
-
-# kubesec — static analysis of K8s manifests
-kubesec scan pod.yaml
-
-# Polaris — policy engine for K8s best practices
-helm install polaris fairwinds-stable/polaris
-\`\`\`
 
 ### Real-world case: Tesla Kubernetes dashboard (2018)
 
@@ -9223,12 +10388,20 @@ A Kubernetes dashboard was exposed to the internet without authentication. An at
 
 1. A container runs as root and has \`-v /var/run/docker.sock:/var/run/docker.sock\` mounted. Why is this a critical misconfiguration?
 2. A developer stores a database password as a Kubernetes Secret and says "it's fine because Secrets are base64-encoded." What is wrong with this reasoning?
+3. You baked \`ENV STRIPE_KEY=...\` into an image, then added a later step that deletes it. Which single command proves the secret is still shippable, and *why* can't the later step remove it?
+4. On a fresh \`kind\` cluster you apply a default-deny NetworkPolicy but the attacker Pod still reaches the victim with HTTP 200. Is your policy wrong? What actually explains this?
+5. Why does the \`node:22-slim\` → distroless multi-stage rebuild collapse Trivy's CVE count *and* shrink the blast radius of a code-execution bug?
+6. An RBAC Role grants \`resources: ["configmaps"], verbs: ["get"]\` on \`resourceNames: ["app-config"]\`. Why is that materially safer than \`resources: ["*"], verbs: ["*"]\`, and what one command lets you confirm the account can't exceed it?
 
 <details>
 <summary>Show answers</summary>
 
 1. The Docker socket grants full control over the Docker daemon. Any process inside the container can use it to create a new privileged container with the host filesystem mounted, then chroot or exec into that to read, write, or execute anything on the host. Mounting the Docker socket is functionally equivalent to giving the container root access to the host — it completely undermines container isolation.
 2. Base64 is an encoding, not encryption — it adds no confidentiality whatsoever. Kubernetes Secrets are stored in etcd, and unless etcd encryption-at-rest is explicitly configured, the base64-decoded value is readable by anyone with etcd access, raw etcd backups, or sufficient RBAC permissions to read the Secret. The right approach is to enable etcd encryption-at-rest AND use an external secret manager (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault) as the authoritative source, synced in via the External Secrets Operator.
+3. \`docker history --no-trunc <image> | grep -i stripe\` prints the key verbatim. The later step can't remove it because image layers are **immutable and stacked**: deleting the file adds a *new* layer on top, but the earlier layer that contains the secret is still present and shippable to anyone who can pull the image. The only real fix is to never put the secret in a layer — inject it at runtime (\`-e\`/\`--env-file\`) or use \`--mount=type=secret\` build secrets.
+4. The policy is not wrong — kind's default CNI (\`kindnet\`) does not *enforce* NetworkPolicy, so the manifest is accepted but ignored. To see enforcement you need a policy-enforcing CNI such as Calico (create the cluster with the default CNI disabled and apply Calico), or test on a managed cluster. Never conclude a control works or fails without first confirming the layer that enforces it is actually active.
+5. The fat \`node:22\` base ships hundreds of OS packages, each a potential CVE; \`-slim\` and then a **distroless** runtime strip that down to near-nothing, so Trivy's count drops toward zero. The same removal shrinks blast radius: distroless has no shell, no package manager, and no debugging tools, so an attacker who gets code execution has nothing to pivot with — and a non-root \`USER\` means that code doesn't start with root either.
+6. A wildcard Role lets a compromised Pod's token do *anything* in the namespace (read all secrets, delete workloads, escalate) — it turns one compromised Pod into cluster-wide reach. Scoping to a single named resource and verb bounds the blast radius to exactly \`get app-config\`. Confirm with \`kubectl auth can-i <verb> <resource> --as=system:serviceaccount:<ns>:<sa> -n <ns>\`, which returns \`no\` for anything outside the grant.
 </details>
 
 ➡️ **Next step (Phase 8 complete):** You can ship safely and harden your containers and cluster. Prevention eventually fails — the next phase builds the layer that *catches* failures: structured logging, detection, and incident response. Continue to **Phase 9: Logging, Monitoring, and Incident Response**.
@@ -9254,15 +10427,26 @@ Create \`~/appsec-journal/notes/phase-8-production-security.md\` and answer, in 
 
 </details>`,
     tracker: [
-      "Can write a hardened multi-stage Dockerfile with non-root USER, distroless runtime, and no secrets in layers",
-      "Has run Trivy against a Dockerfile or image and interpreted CVE and misconfiguration output",
-      "Understands why mounting the Docker socket is a container-escape risk",
-      "Can write a Kubernetes NetworkPolicy that denies all ingress by default",
+      "Built the deliberately-bad image and recovered its baked-in secret with `docker history --no-trunc`",
+      "Confirmed the bad image runs as root (`docker exec ... whoami`) and can reason through why the Docker-socket mount is fatal",
+      "Ran Trivy against the bad image, then rebuilt hardened (multi-stage, distroless, non-root USER, no secret) and re-ran the same commands to watch the findings vanish",
+      "Created a real local cluster with `kind` and proved cross-Pod reachability with no NetworkPolicy",
+      "Applied a default-deny NetworkPolicy and understands why kind's default CNI doesn't enforce it (Calico/managed cluster needed)",
+      "Enforced `pod-security.kubernetes.io/enforce: restricted` and watched a root Pod get rejected at admission",
+      "Wrote a scoped RBAC Role (named resource, not wildcard) and confirmed the limit with `kubectl auth can-i`",
+      "Ran kubesec / trivy k8s / kube-bench against the live cluster and tore it down with `kind delete cluster`",
       "Knows the difference between K8s Secrets (base64, etcd), ESO, and Vault Agent for secret injection",
-      "Can explain why `pod-security.kubernetes.io/enforce: restricted` prevents the most common container misconfigurations",
       "Wrote the Phase 8 deliverable journal entry",
       "Answered the knowledge check"
     ]
+  },
+  {
+    id: "p9_roadmap",
+    phaseId: "p9",
+    num: "9.0",
+    title: "Phase 9 Roadmap — Monitoring & IR",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
   },
   {
     id: "m9_1",
@@ -9677,6 +10861,14 @@ Create \`~/appsec-journal/notes/phase-9-monitoring-ir.md\` and answer, in your o
 
 </details>`,
     tracker: ["Can name the six NIST-style IR phases in order and explain why IR is written down in advance", "Knows the two counter-intuitive rules: contain before you erase (preserve evidence first) and rotate, don't just delete", "Can fill in the six-question playbook template and has the ATO playbook format to copy", "Knows the web-app playbook set (ATO, leaked secret, exploited vuln, insider, CVE, exposed DB) and why postmortems must be blameless", "Wrote the Phase 9 deliverable journal entry"]
+  },
+  {
+    id: "p10_roadmap",
+    phaseId: "p10",
+    num: "10.0",
+    title: "Phase 10 Roadmap — Capstones",
+    objective: "The map for this phase: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real topics begin in the next module.",
+    isRoadmap: true
   },
   {
     id: "m10_1",
@@ -10554,6 +11746,50 @@ function CourseCompleteCard({ percent, onGoCyberGuardians }) {
   );
 }
 
+function PhaseRoadmap({ phase }) {
+  const r = phase.roadmap || {};
+  const cardStyle = {
+    backgroundColor: `color-mix(in srgb, var(${phase.colorVar}) 8%, transparent)`,
+    borderColor: `color-mix(in srgb, var(${phase.colorVar}) 35%, transparent)`
+  };
+  const chipStyle = {
+    backgroundColor: `color-mix(in srgb, var(${phase.colorVar}) 15%, transparent)`,
+    color: `var(${phase.colorVar})`,
+    borderColor: `color-mix(in srgb, var(${phase.colorVar}) 40%, transparent)`
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    className: "mb-10 rounded-xl border p-5 lg:p-6",
+    style: cardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "level-badge",
+    style: chipStyle
+  }, "Phase Roadmap"), phase.weeks && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-mono text-[#6b7790]"
+  }, "⏱ " + phase.weeks)), r.promise && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#c7d0e0] text-base leading-relaxed mb-4"
+  }, r.promise), r.canDo && r.canDo.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs uppercase tracking-wide text-[#8a94a8] font-semibold mb-2"
+  }, "By the end you can"), /*#__PURE__*/React.createElement("ul", {
+    className: "space-y-1.5"
+  }, r.canDo.map((it, i) => /*#__PURE__*/React.createElement("li", {
+    key: i,
+    className: "flex items-start gap-2 text-[#9aa5b8] text-sm leading-relaxed"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { color: `var(${phase.colorVar})` },
+    className: "mt-0.5 flex-shrink-0"
+  }, "→"), /*#__PURE__*/React.createElement("span", null, it))))), r.build && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#9aa5b8] text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#c7d0e0] font-semibold"
+  }, "You'll build: "), r.build), r.prereq && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#6b7790] text-xs mt-2"
+  }, r.prereq));
+}
+
 function App() {
   // initial id: URL hash > localStorage > default
   const initialId = () => {
@@ -10694,6 +11930,9 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeModuleId]);
   const activeModule = curriculum.modules.find(m => m.id === activeModuleId) || curriculum.modules[0];
+  // Phase roadmap: show the phase's outcome card only atop the FIRST module of that phase.
+  const activePhaseObj = curriculum.phases.find(p => p.id === activeModule.phaseId);
+  const phaseRoadmap = (activePhaseObj && activePhaseObj.roadmap && (activeModule.isRoadmap || activeModule.id === "m_intro")) ? activePhaseObj : null;
   const toggleTracker = (moduleId, itemIndex) => {
     setProgress(prev => {
       const modProgress = prev[moduleId] || {};
@@ -10916,7 +12155,7 @@ function App() {
     className: "p-4 pb-12"
   }, phaseGroups.map(group => {
     const isExpanded = expandedLevels[group.id] !== false;
-    const groupComplete = group.modules.every(m => isModuleComplete(m.id));
+    const groupComplete = group.modules.filter(m => !m.isRoadmap).every(m => isModuleComplete(m.id));
     return /*#__PURE__*/React.createElement("div", {
       key: group.id,
       className: "mb-4"
@@ -10990,7 +12229,9 @@ function App() {
     className: "text-3xl lg:text-4xl font-bold tracking-tight text-white mb-3 leading-tight"
   }, activeModule.title), /*#__PURE__*/React.createElement("p", {
     className: "text-[#9aa5b8] text-lg leading-relaxed"
-  }, activeModule.objective)), activeModule.body && /*#__PURE__*/React.createElement("section", {
+  }, activeModule.objective)), phaseRoadmap && /*#__PURE__*/React.createElement(PhaseRoadmap, {
+    phase: phaseRoadmap
+  }), activeModule.body && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"
   }, /*#__PURE__*/React.createElement(Prose, {
     text: activeModule.body

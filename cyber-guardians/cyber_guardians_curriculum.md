@@ -323,11 +323,188 @@ Bookmark these — you'll download VMs in Level 2:
 
 ---
 
+## Module 0.5 — Command-Line Field Guide
+
+### 🎯 Mission Briefing
+Modules 1 and 2 have you run `openssl`, `shasum`, `dig`, `traceroute`, `nc`, and `openssl s_client` — powerful commands that feel like magic if the first time you meet them is *inside* a security lab. This module front-loads exactly those commands, one at a time, in a **what → run it → exact output** shape, so nothing in the next two modules is a first encounter. Module 7 (Command Line Fundamentals) later dissects the shell in depth; this is the just-enough field guide to get you there without fear.
+
+### 📘 Theory
+
+#### Why this module exists
+
+Here's a problem hiding in most beginner security courses: the very first labs make you type `openssl s_client`, `dig`, and `traceroute` — powerful commands — *six modules before* the one that actually explains the shell. So the commands feel like spells. This module fixes that. It's a **field guide**: every command Modules 1 and 2 use, taught once here in isolation, so that when you meet it in a lab you're *reading*, not decoding.
+
+You do **not** need to memorize this. You need to have *seen each piece once*. Every entry below follows the same shape: **what it does → a command you can run → the exact output you'll see.**
+
+> **Cross-platform note.** These commands are written for a **bash/zsh** shell — macOS Terminal, any Linux terminal, or **WSL2** on Windows. If you're on Windows, run them inside WSL2 (set up in Module 0) and everything below works unchanged.
+
+#### The three pieces of shell grammar you need first
+
+**Redirect `>` and append `>>`.** `>` sends a command's output *into a file* (replacing it); `>>` adds to the end.
+
+```bash
+echo "hello" > note.txt      # write "hello" into note.txt (overwrites)
+echo "world" >> note.txt     # add "world" on a new line
+cat note.txt                 # cat = show a file's contents
+```
+
+**Pipe `|`.** Sends the output of the command on the left *into* the command on the right, so small tools chain together — the heart of the shell.
+
+```bash
+ls /usr/bin | wc -l          # list programs, then COUNT the lines -> e.g. 1043
+```
+
+Read it as: "list the files, and feed that list into `wc -l`, which counts lines." You'll build every investigation this way — each stage narrows the data.
+
+#### 🔐 openssl enc — encrypt a file (Module 1 uses this)
+
+`openssl` is a Swiss-army knife for cryptography; `enc` means "encrypt/decrypt." Give it a password and it scrambles a file with AES-256:
+
+```bash
+echo "my secret grade: A+" > secret.txt
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc   # prompts for a password
+cat secret.enc            # <- unreadable gibberish: confidentiality holds
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out back.txt && cat back.txt   # -d decrypts
+```
+
+#### 🔎 shasum / sha256sum & openssl dgst — fingerprint a file (Modules 1 & 3)
+
+A **hash** is a fixed-length fingerprint of a file. Change one byte and the fingerprint changes completely — that's how you *prove integrity*.
+
+```bash
+echo "important data" > data.txt
+shasum -a 256 data.txt          # macOS spelling; Linux/WSL2: sha256sum data.txt
+```
+
+> **Same tool, two names.** `shasum -a 256` (macOS) and `sha256sum` (Linux/WSL2) give identical output; `openssl dgst -sha256 data.txt` works everywhere. Change one character in the file, re-run, and watch the entire hash change — the tamper-detection you'll build in Module 1.
+
+#### 🌐 dig — turn a name into an IP address (Module 2)
+
+`dig` asks DNS "what IP is behind this name?" — the phone-book lookup the internet runs on constantly.
+
+```bash
+dig +short example.com          # -> 93.184.216.34   (+short trims it to just the answer)
+```
+
+#### 🛰️ traceroute — see the path your packets take (Module 2)
+
+`traceroute` shows every router ("hop") between you and a destination — proof your data crosses many machines you don't control. (On Windows the command is `tracert`.)
+
+```bash
+traceroute -m 8 example.com     # -m 8 = stop after 8 hops so it returns fast
+```
+
+Each numbered line is one router; `* * *` just means a hop didn't reply — normal.
+
+#### 🔌 nc (netcat) — open a raw connection (Module 2)
+
+`nc` opens a raw TCP connection so you can *see* a server talk. Here it fetches a page by hand, proving HTTP is just text:
+
+```bash
+printf 'GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n' | nc example.com 80
+```
+
+Because this is port 80 (plain HTTP), everything travels as readable text — the exact point Module 2 drives home.
+
+#### 🔒 openssl s_client — inspect a TLS certificate (Module 2)
+
+Where `nc` shows plaintext, `openssl s_client` opens an *encrypted* TLS connection and shows the server's certificate — its cryptographic ID card:
+
+```bash
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates
+```
+
+That block says *who* the certificate is for, *who vouched for it*, and *how long it's valid* — the trust chain behind the padlock. Module 2 walks through reading it.
+
+#### You're ready
+
+Every command in the next two modules now has a home. When Module 1 says `openssl enc` or Module 2 says `openssl s_client`, you'll recognize it instead of meeting it cold. Keep this page as a reference — and know that Module 7 will take the whole shell apart in depth once you're fluent enough to appreciate it.
+
+### 🛠️ Lab: Field-Guide Warm-Up (M2 / Apple Silicon)
+
+> ⚖️ **Ethics box.** Everything here touches only files you create and public sites that exist for exactly this purpose (`example.com`, `neverssl.com`). Nothing you don't own, no network you're not invited onto.
+
+```bash
+mkdir -p ~/cyber-journal/m0-5 && cd ~/cyber-journal/m0-5
+
+# 1) Redirects and a pipe
+echo "hello" > note.txt && echo "world" >> note.txt
+cat note.txt
+ls /usr/bin | wc -l                       # count the programs on your machine
+
+# 2) Encrypt and decrypt a file (Module 1 preview)
+echo "my secret grade: A+" > secret.txt
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc   # choose a password
+cat secret.enc                            # gibberish = confidentiality
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out back.txt && cat back.txt
+
+# 3) Fingerprint, tamper, re-fingerprint (Module 1 preview)
+echo "important data" > data.txt
+shasum -a 256 data.txt                    # Linux/WSL2: sha256sum data.txt
+echo "important datax" > data.txt         # change ONE character
+shasum -a 256 data.txt                     # the whole hash changes = tamper detected
+
+# 4) Name -> IP, and the path there (Module 2 preview)
+dig +short example.com
+traceroute -m 8 example.com
+
+# 5) Speak HTTP by hand, then inspect a TLS cert (Module 2 preview)
+printf 'GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n' | nc example.com 80 | head
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates
+```
+
+**Windows (WSL2):** run the identical commands inside your WSL2 Ubuntu shell, using `sha256sum` in place of `shasum -a 256`. On native PowerShell the closest equivalents are `Get-FileHash` (for hashing) and `Resolve-DnsName` (for `dig`), but WSL2 keeps everything above working unchanged.
+
+### 🌍 Real-World Case Study — Why the commands feel like magic (and why that's dangerous)
+
+Ask ten self-taught beginners how TLS works and many will confidently paste an `openssl s_client` command they copied from a tutorial — but they can't tell you what a single line of the output means, or why the `issuer` field matters. That's the trap of learning tools before concepts: you can run the spell but you can't reason about it, so you can't tell a real certificate warning from a fake one, or notice when a lab's output is wrong. This tiny field-guide module exists to break that pattern early. By running each command once, in isolation, with the output explained, you build the one thing copy-paste never gives you: the ability to *read* what the tool is telling you.
+
+### 🧪 Try It Yourself
+
+1. **You run `shasum -a 256 report.pdf` today and write down the result. A week later you get a completely different value on the same file. What are the two likely explanations, and which is a security concern?**
+   <details><summary>Answer</summary>Either (1) the file genuinely changed — someone edited or replaced it, which if unexpected is an integrity/tampering concern worth investigating — or (2) you're hashing a different file than you think (wrong directory, a re-downloaded copy). A hash only changes when the input bytes change, so an unexplained change on a file you believed was static is exactly the tamper signal Module 1 teaches you to trust.</details>
+2. **Both `nc example.com 80` and `openssl s_client -connect example.com:443` reach the same site. Why does only one let someone on your Wi-Fi read your traffic?**
+   <details><summary>Answer</summary>Port 80 is plain HTTP — `nc` sends and receives readable text, so anyone on the network path can see it. Port 443 with `openssl s_client` negotiates TLS first, encrypting everything after the handshake, so an eavesdropper sees only scrambled bytes. That plaintext-vs-encrypted difference is the whole reason Module 2 insists you never send anything sensitive over http://.</details>
+
+### ✅ Quiz
+1. What does the pipe `|` do, in one sentence, and what does `ls /usr/bin | wc -l` count?
+2. What is the difference between `>` and `>>`?
+3. What is a hash, and why does changing one character of a file change the whole hash?
+4. Which command turns a domain name into an IP address, and which shows the routers your packets pass through?
+5. Why can someone on your Wi-Fi read a plain `nc ... 80` HTTP request but not an `openssl s_client ... :443` TLS session?
+
+### 📝 Progress Tracker
+- [ ] Ran the redirect/append/pipe examples and can read `ls | wc -l` in plain English
+- [ ] Encrypted and decrypted a file I own with `openssl enc`
+- [ ] Fingerprinted a file with `shasum`/`sha256sum`, tampered with it, and watched the hash change
+- [ ] Used `dig` to resolve a name to an IP and `traceroute` to see the hops
+- [ ] Spoke HTTP by hand with `nc` and inspected a TLS certificate with `openssl s_client`
+- [ ] Understand that every command here reappears in Modules 1–2 — and is dissected fully in Module 7
+
+### ➡️ Next Step
+Module 1 — **The CIA Triad**. You now recognize every command the first labs use, so you can focus on the *ideas* — confidentiality, integrity, availability — instead of fighting the terminal.
+
+---
+
 <a id="level-1"></a>
 # 🎖️ LEVEL 1 — RECRUIT (Foundation)
 ### Weeks 1–8 | Goal: Build rock-solid mental models
 
 You finish Level 1 able to explain how the internet works, why passwords fail, what malware is, and how to secure your own devices. Think of this as "digital literacy, but with security x-ray vision."
+
+> ### 🗺️ Level 1 Roadmap — Recruit · Weeks 1–8
+> **The promise:** Level 1 builds the mental models everything else hangs on — the CIA triad, how the internet really works, passwords and malware, and how to harden your own machine — so no later tool ever feels like magic.
+>
+> **By the end you can —**
+> - Map any tool, attack, or defense to the CIA property it protects or breaks
+> - Explain how the internet moves a request from your browser to a server and back
+> - Reason about why passwords fail and how hashing, salting, and MFA fix it
+> - Harden your own OS and work fluently at the command line
+>
+> **You'll build:** a personal security audit of your own devices and accounts (Level 1 capstone, Module 8).
+> **Prerequisite:** basic computer use — no security background needed.
 
 ---
 
@@ -1724,6 +1901,20 @@ Level 2 — **Operator**, beginning with Module 9 — **Networking Deep Dive**. 
 
 You finish Level 2 able to spin up a virtual lab, capture and analyze network traffic, understand the OWASP Top 10, write basic scripts, and think in terms of both offense and defense.
 
+> ### 🗺️ Level 2 Roadmap — Operator · Weeks 9–20
+> **The promise:** Level 2 turns knowledge into capability: you scan networks, capture and read packets, exploit the OWASP Top 10, and stand up your own isolated lab — then defend it like a blue-teamer.
+>
+> **By the end you can —**
+> - Scan and enumerate a network with Nmap, and write your own scanner
+> - Capture and analyze real traffic in Wireshark
+> - Exploit and then defend the OWASP Top 10 on a lab target you own
+> - Build an isolated pentest lab and monitor it for attacks
+>
+> **You'll build:** an attack-and-defend exercise against your own virtual lab (Level 2 capstone, Module 17).
+> **Prerequisite:** Level 1.
+
+> 🖥️ **Platform note for the rest of the course (read once).** From Level 2 on, labs assume a **Unix shell** — macOS, Linux, or **WSL2** on Windows. Windows learners have two equally good options: (1) run every lab inside **WSL2** (set up in Module 0), where the commands work unchanged, or (2) run them inside the **Kali/pentest VM you build in Module 15**, which is the same for Mac and Windows users. Either way, the "M2 / Apple Silicon" label on each lab is about the *host you install on*, not a restriction — the commands themselves are the same across macOS, Linux, and WSL2. Where an OS difference is a genuine *security concept* (for example file permissions — `chmod` vs Windows `icacls`, first shown in Module 7), it's called out inline.
+
 ---
 
 ## Module 9 — Networking Deep Dive: OSI, TCP/IP, Ports
@@ -2269,8 +2460,11 @@ nmap scanme.nmap.org                    # top-1000 TCP ports
 nmap -sV scanme.nmap.org                # + service/version detection
 sudo nmap -sS -p- 127.0.0.1             # SYN scan, ALL ports, on your OWN host
 nmap -sV -p 5432,3306,8080 127.0.0.1    # version-check your own services
-# Your lab VM (use its IP):  nmap -sV 192.168.64.10
+# Your lab VM (optional — you build this VM in Module 15; use scanme.nmap.org / 127.0.0.1 until then):
+#   nmap -sV 192.168.64.10
 ```
+
+> **Heads-up on "your lab VM."** This module (and Modules 13–14) mention *"your lab VM,"* but you don't build it until **Module 15**. Nothing here is blocked by that: every step above uses an authorized public target (`scanme.nmap.org`) or your own `127.0.0.1`. Treat every "lab VM" line as *optional until Module 15* — or, if you'd rather have the VM now, you can do Module 15 early (it also gives Windows learners a single environment where every later lab runs unchanged).
 
 **Flags every operator memorizes:** `-sS` SYN stealth · `-sT` connect · `-sU` UDP · `-sV` version · `-O` OS fingerprint · `-A` aggressive (all) · `-p-` all 65535 ports · `-T4` faster timing · `--script vuln` vuln scripts.
 
@@ -2736,6 +2930,8 @@ A personal home lab is your dojo: you must never practice attacks on systems you
 
 > ⚖️ **Ethics box.** The entire point of a lab is to give you a place where attacking is *authorized* — because you own every machine in it and it's cut off from the internet. This is the dividing line between learning and crime (Rule #1 of the Cyber Guardian's Code). Everything in this module stays inside that isolated boundary.
 
+> 🖥️ **This VM makes host OS irrelevant.** Once this lab is built, **every lab from here on can be run inside this VM regardless of your host OS** — Windows, macOS, and Linux learners all get the same Linux command line, so the "M2 / Apple Silicon" labels on later modules stop mattering. If you're on Windows and haven't been using WSL2, this is the moment your environment fully matches everyone else's. (You can also build this lab *earlier* — right after Module 11 — if you'd like that shared environment sooner; the Nmap/Wireshark modules reference it but don't require it.)
+
 ### 📘 Theory
 
 #### Define the words first
@@ -3074,6 +3270,18 @@ Level 3 — **Specialist**, beginning with Module 18 — **The Ethical Hacking M
 ### Weeks 21–36 | Goal: Specialization, depth, career-readiness
 
 Level 3 isn't just more tools. It's the mindset shift from "learner" to "practitioner." Each module here could easily be its own course. We go deep enough for real competence and point you at where to go further.
+
+> ### 🗺️ Level 3 Roadmap — Specialist · Weeks 21–36
+> **The promise:** Level 3 makes you a specialist: ethical-hacking methodology, threat hunting, forensics, incident response, malware analysis, and cloud/mobile/AI threats — all through a defender's lens.
+>
+> **By the end you can —**
+> - Run a full ethical-hacking methodology and map activity to MITRE ATT&CK
+> - Perform digital forensics and lead an incident response
+> - Safely analyze malware inside an isolated lab
+> - Reason about cloud, mobile, IoT, and AI-driven threats
+>
+> **You'll build:** a final capstone, a defensible portfolio, and a mapped certification path (Modules 27–29).
+> **Prerequisite:** Levels 1–2.
 
 ---
 

@@ -738,19 +738,37 @@ const curriculum = {
     name: "Recruit",
     tagline: "Foundation — Build rock-solid mental models",
     colorVar: "--l1",
-    weeks: "Weeks 1–8"
+    weeks: "Weeks 1–8",
+    roadmap: {
+      promise: "Level 1 builds the mental models everything else hangs on — the CIA triad, how the internet really works, passwords and malware, and how to harden your own machine — so no later tool ever feels like magic.",
+      canDo: ["Map any tool, attack, or defense to the CIA property it protects or breaks", "Explain how the internet moves a request from your browser to a server and back", "Reason about why passwords fail and how hashing, salting, and MFA fix it", "Harden your own OS and work fluently at the command line"],
+      build: "A personal security audit of your own devices and accounts (Level 1 capstone, Module 8).",
+      prereq: "Basic computer use — no security background needed."
+    }
   }, {
     id: 2,
     name: "Operator",
     tagline: "Intermediate — Build technical depth across networks, crypto, web",
     colorVar: "--l2",
-    weeks: "Weeks 9–20"
+    weeks: "Weeks 9–20",
+    roadmap: {
+      promise: "Level 2 turns knowledge into capability: you scan networks, capture and read packets, exploit the OWASP Top 10, and stand up your own isolated lab — then defend it like a blue-teamer.",
+      canDo: ["Scan and enumerate a network with Nmap, and write your own scanner", "Capture and analyze real traffic in Wireshark", "Exploit and then defend the OWASP Top 10 on a lab target you own", "Build an isolated pentest lab and monitor it for attacks"],
+      build: "An attack-and-defend exercise against your own virtual lab (Level 2 capstone, Module 17).",
+      prereq: "Level 1."
+    }
   }, {
     id: 3,
     name: "Specialist",
     tagline: "Advanced — Specialize, go pro, build portfolio",
     colorVar: "--l3",
-    weeks: "Weeks 21–36"
+    weeks: "Weeks 21–36",
+    roadmap: {
+      promise: "Level 3 makes you a specialist: ethical-hacking methodology, threat hunting, forensics, incident response, malware analysis, and cloud/mobile/AI threats — all through a defender's lens.",
+      canDo: ["Run a full ethical-hacking methodology and map activity to MITRE ATT&CK", "Perform digital forensics and lead an incident response", "Safely analyze malware inside an isolated lab", "Reason about cloud, mobile, IoT, and AI-driven threats"],
+      build: "A final capstone, a defensible portfolio, and a mapped certification path (Modules 27–29).",
+      prereq: "Levels 1–2."
+    }
   }],
   modules: [
   // ============== SETUP ==============
@@ -762,7 +780,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **37-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **38-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -772,15 +790,16 @@ Cyber Guardians is a **37-module breadth-first course** that takes you from zero
 
 | Level | Name | Modules | Duration | Outcome |
 |-------|------|---------|----------|---------|
-| **L0** | Setup | Intro + M0 | 1 week | Environment ready, course map understood |
+| **L0** | Setup | Intro + M0 + M0.5 | 1 week | Environment ready, CLI field guide skimmed, course map understood |
 | **L1** | Recruit | M1 – M8 | Weeks 1–8 | Rock-solid foundation: CIA, networking, crypto, hardening |
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 37 modules at a glance
+### All 38 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
+- M0.5: Command-Line Field Guide *(new in this edition)*
 - M1: The CIA Triad
 - M1.5: Security Governance, Risk & the NIST CSF *(new in this edition)*
 - M2: How the Internet Actually Works
@@ -882,18 +901,18 @@ docker --version`
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 37 modules, expect ~47–57 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 38 modules, expect ~48–58 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
   },
   // ============== LEVEL 1 ==============
-  {
+{
     id: "m0",
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 37 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 38 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -1219,6 +1238,218 @@ ls ~/CyberGuardians/`
     }],
     quiz: ["What is the recommended VM software for macOS Apple Silicon, and why does the ARM64 Kali image matter on that platform?", "What is the difference between host-only and NAT VM networking, and when do you use each?", "Name three security tools that should be installed on the HOST machine (not just the Kali VM).", "What is the single most important action to take immediately after setting up a clean Kali VM?", "Why is it essential to verify the SHA256 checksum of a Kali Linux download before installing it?"],
     tracker: ["Package manager installed (Homebrew / winget / apt) and working", "VS Code opens; terminal runs commands; Git, Python, Node all verify", "Nmap, Wireshark, Burp Suite installed on host and verified", "VM software (VMware Fusion Pro / Workstation Pro / UTM / VirtualBox) installed", "Kali Linux VM imported; SHA256 checksum verified; first apt upgrade complete; CLEAN SNAPSHOT taken", "Kali VM network confirmed host-only; ping 8.8.8.8 from Kali FAILS", "Firefox extensions installed: FoxyProxy, uBlock Origin, Cookie AutoDelete, Wappalyzer", "Password manager (Bitwarden) installed with strong master password", "~/CyberGuardians directory structure created; journal started", "Ethics code read and understood — I only test systems I own or have written permission to test"]
+  }, {
+    id: "m0_5",
+    level: 0,
+    num: "M0.5",
+    title: "Command-Line Field Guide",
+    objective: "Modules 1 and 2 have you run openssl, shasum, dig, traceroute, nc, and openssl s_client — commands that feel like magic if the first time you meet them is inside a security lab. This module front-loads exactly those commands, one at a time, in a what → run it → exact output shape, so nothing in the next two modules is a first encounter. Command Line Fundamentals (Module 7) later dissects the shell in depth; this is the just-enough field guide to get you there without fear.",
+    theory: `### Why this module exists
+
+Here's a problem hiding in most beginner security courses: the very first labs make you type \`openssl s_client\`, \`dig\`, and \`traceroute\` — powerful commands — *six modules before* the one that actually explains the shell. So the commands feel like spells. This module fixes that. It's a **field guide**: every command Modules 1 and 2 use, taught once here in isolation, so that when you meet it in a lab you're *reading*, not decoding.
+
+You do **not** need to memorize this. You need to have *seen each piece once*. Every entry follows the same shape: **what it does → a command you can run → the exact output you'll see.** Module 7 later takes the shell apart properly; this is your map until then.
+
+> **Cross-platform note.** These commands are written for a **bash/zsh** shell — macOS Terminal, any Linux terminal, or **WSL2** on Windows. If you're on Windows, run them inside WSL2 (set up in Module 0) and everything below works unchanged.
+
+### The three pieces of shell grammar you need first
+
+**Redirect \`>\` and append \`>>\`.** \`>\` sends a command's output *into a file* (replacing it); \`>>\` adds to the end.
+
+\`\`\`bash
+echo "hello" > note.txt      # write "hello" into note.txt (overwrites)
+echo "world" >> note.txt     # add "world" on a new line
+cat note.txt                 # cat = show a file's contents
+\`\`\`
+\`\`\`
+hello
+world
+\`\`\`
+
+**Pipe \`|\`.** Sends the output of the command on the left *into* the command on the right, so small tools chain together. This is the heart of the shell.
+
+\`\`\`bash
+ls /usr/bin | wc -l          # list programs, then COUNT the lines
+\`\`\`
+\`\`\`
+1043
+\`\`\`
+
+Read it as: "list the files, and feed that list into \`wc -l\`, which counts lines." You'll build every investigation this way — each stage narrows the data.
+
+### 🔐 openssl enc — encrypt a file (Module 1 uses this)
+
+\`openssl\` is a Swiss-army knife for cryptography. \`enc\` means "encrypt/decrypt." You give it a password and it scrambles a file with AES-256:
+
+\`\`\`bash
+echo "my secret grade: A+" > secret.txt
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc   # it prompts for a password
+cat secret.enc            # <- unreadable gibberish: confidentiality holds
+\`\`\`
+\`\`\`
+Salted__8@x?...binary gibberish...
+\`\`\`
+
+Decrypt it back (the authorized action) with \`-d\`:
+
+\`\`\`bash
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out back.txt && cat back.txt
+\`\`\`
+\`\`\`
+my secret grade: A+
+\`\`\`
+
+### 🔎 shasum / sha256sum & openssl dgst — fingerprint a file (Modules 1 & 3)
+
+A **hash** is a fixed-length fingerprint of a file. Change one byte and the fingerprint changes completely. That's how you *prove integrity* — that a file wasn't tampered with.
+
+\`\`\`bash
+echo "important data" > data.txt
+shasum -a 256 data.txt          # macOS spelling
+\`\`\`
+\`\`\`
+9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  data.txt
+\`\`\`
+
+> **Same tool, two names.** \`shasum -a 256\` is the macOS spelling; \`sha256sum data.txt\` is the Linux/WSL2 spelling — identical output. \`openssl dgst -sha256 data.txt\` also works everywhere. Change one character in \`data.txt\`, re-run, and watch the entire fingerprint change — that's the tamper-detection you'll build in Module 1.
+
+### 🌐 dig — turn a name into an IP address (Module 2)
+
+\`dig\` asks DNS "what IP is behind this name?" — the phone-book lookup the internet runs on every time you visit a site.
+
+\`\`\`bash
+dig +short example.com
+\`\`\`
+\`\`\`
+93.184.216.34
+\`\`\`
+
+The \`+short\` flag trims it to just the answer. Without it, \`dig\` shows the full resolution path — which you'll read in Module 2.
+
+### 🛰️ traceroute — see the path your packets take (Module 2)
+
+\`traceroute\` shows every router ("hop") between you and a destination — proof that your data physically crosses many machines you don't control.
+
+\`\`\`bash
+traceroute -m 8 example.com     # -m 8 = stop after 8 hops so it returns fast
+\`\`\`
+\`\`\`
+ 1  router.local (192.168.1.1)  2.1 ms
+ 2  10.0.0.1  9.4 ms
+ 3  * * *
+ ...
+\`\`\`
+
+Each numbered line is one router your packets passed through. The \`* * *\` just means a hop didn't reply — normal. On Windows the command is \`tracert\`.
+
+### 🔌 nc (netcat) — open a raw connection (Module 2)
+
+\`nc\` ("netcat") opens a raw TCP connection so you can *see* a server talk. Here it fetches a web page by hand — proving HTTP is just text:
+
+\`\`\`bash
+printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80
+\`\`\`
+\`\`\`
+HTTP/1.1 200 OK
+Content-Type: text/html
+...
+\`\`\`
+
+You just spoke HTTP yourself. Because this is port 80 (plain HTTP), everything — including anything private — travels as readable text. That's the exact point Module 2 drives home.
+
+### 🔒 openssl s_client — inspect a TLS certificate (Module 2)
+
+Where \`nc\` shows plaintext, \`openssl s_client\` opens an *encrypted* TLS connection and shows the server's certificate — its cryptographic ID card:
+
+\`\`\`bash
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+\`\`\`
+\`\`\`
+subject=CN=example.com
+issuer=CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1
+notBefore=Jan  1 00:00:00 2026 GMT
+notAfter=Apr  1 23:59:59 2026 GMT
+\`\`\`
+
+That block says *who* the certificate is for, *who vouched for it*, and *how long it's valid* — the trust chain that makes the little padlock mean something. Module 2 walks through reading it.
+
+### You're ready
+
+Every command in the next two modules now has a home. When Module 1 says \`openssl enc\` or Module 2 says \`openssl s_client\`, you'll recognize it instead of meeting it cold. Keep this page open as a reference — and know that Module 7 will take the whole shell apart in depth once you're fluent enough to appreciate it.`,
+    lab: {
+      mac: `# 🛠️ Field-guide warm-up — run each command once, in your own sandbox.
+# Ethics: everything here touches only files you create and public sites that
+# exist for exactly this (example.com, neverssl.com). Nothing you don't own.
+
+mkdir -p ~/cyber-journal/m0-5 && cd ~/cyber-journal/m0-5
+
+# 1) Redirects and a pipe
+echo "hello" > note.txt && echo "world" >> note.txt
+cat note.txt
+ls /usr/bin | wc -l                       # count the programs on your machine
+
+# 2) Encrypt and decrypt a file (Module 1 preview)
+echo "my secret grade: A+" > secret.txt
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc   # choose a password
+cat secret.enc                            # gibberish = confidentiality
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out back.txt && cat back.txt
+
+# 3) Fingerprint a file, then tamper and re-fingerprint (Module 1 preview)
+echo "important data" > data.txt
+shasum -a 256 data.txt
+echo "important datax" > data.txt         # change ONE character
+shasum -a 256 data.txt                     # the whole hash changes = tamper detected
+
+# 4) Name -> IP, and the path there (Module 2 preview)
+dig +short example.com
+traceroute -m 8 example.com
+
+# 5) Speak HTTP by hand, then inspect a TLS cert (Module 2 preview)
+printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80 | head
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates`,
+      linux: `# Same warm-up on Linux / WSL2. Only the hash command name differs.
+mkdir -p ~/cyber-journal/m0-5 && cd ~/cyber-journal/m0-5
+
+echo "hello" > note.txt && echo "world" >> note.txt
+cat note.txt
+ls /usr/bin | wc -l
+
+echo "my secret grade: A+" > secret.txt
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc
+cat secret.enc
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out back.txt && cat back.txt
+
+echo "important data" > data.txt
+sha256sum data.txt                         # Linux spelling of shasum -a 256
+echo "important datax" > data.txt
+sha256sum data.txt
+
+dig +short example.com
+traceroute -m 8 example.com                # install: sudo apt install -y traceroute
+
+printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80 | head
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates`
+    },
+    caseStudy: {
+      title: "Why the commands feel like magic (and why that's dangerous)",
+      body: "Ask ten self-taught beginners how TLS works and many will confidently paste an `openssl s_client` command they copied from a tutorial — but they can't tell you what a single line of the output means, or why the `issuer` field matters. That's the trap of learning tools before concepts: you can run the spell but you can't reason about it, so you can't tell a real certificate warning from a fake one, or notice when a lab's output is wrong. This tiny field-guide module exists to break that pattern early. By running each command once, in isolation, with the output explained, you build the one thing copy-paste never gives you: the ability to *read* what the tool is telling you. Every command here reappears in Modules 1 and 2 — but there, you'll be interpreting it, not fearing it."
+    },
+    challenges: [{
+      q: "You run `shasum -a 256 report.pdf` today and write down the result. A week later you run it again on the same file and get a completely different value. What are the two most likely explanations, and which one is a security concern?",
+      a: "Either (1) the file genuinely changed — someone edited or replaced report.pdf, which if unexpected is an integrity/tampering concern worth investigating — or (2) you're hashing a different file than you think (wrong directory, a re-downloaded copy). A hash only changes when the input bytes change, so an unexplained change on a file you believed was static is exactly the tamper signal Module 1 teaches you to trust."
+    }, {
+      q: "Both `nc example.com 80` and `openssl s_client -connect example.com:443` open a connection to the same website. Why does only one of them let a person on the same Wi-Fi read your traffic?",
+      a: "Port 80 is plain HTTP — `nc` sends and receives everything as readable text, so anyone sharing the network path can see it. Port 443 with `openssl s_client` negotiates TLS first, encrypting everything after the handshake, so an eavesdropper sees only scrambled bytes. That difference — plaintext vs. encrypted transport — is the entire reason Module 2 insists you never send anything sensitive over http://."
+    }],
+    quiz: ["What does the pipe `|` do, in one sentence, and what does `ls /usr/bin | wc -l` count?", "What is the difference between `>` and `>>`?", "What is a hash, and why does changing one character of a file change the whole hash?", "Which command turns a domain name into an IP address, and which shows the routers your packets pass through?", "Why can someone on your Wi-Fi read a plain `nc ... 80` HTTP request but not an `openssl s_client ... :443` TLS session?"],
+    tracker: ["Ran the redirect/append/pipe examples and can read `ls | wc -l` in plain English", "Encrypted and decrypted a file I own with openssl enc", "Fingerprinted a file with shasum/sha256sum, tampered with it, and watched the hash change", "Used dig to resolve a name to an IP and traceroute to see the hops", "Spoke HTTP by hand with nc and inspected a TLS certificate with openssl s_client", "Understand that every command here reappears in Modules 1–2 — and is dissected fully in Module 7"]
+  }, {
+    id: "l1_roadmap",
+    level: 1,
+    num: "L1",
+    title: "Level 1 Roadmap — Recruit",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real modules begin next.",
+    isRoadmap: true
   }, {
     id: "m1",
     level: 1,
@@ -2016,7 +2247,7 @@ sudo dpkg-reconfigure -plow unattended-upgrades   # auto security updates`
     level: 1,
     num: "M7",
     title: "Command Line Fundamentals",
-    objective: "The command line is where real security work lives — every lab from here runs in a shell. It's also a security topic itself: the shell is where you set FILE PERMISSIONS, the oldest access control on the machine. Go from zero to fluent and connect permissions to the code that creates secret files in any language.",
+    objective: "The command line is where real security work lives — every lab from here on runs in a shell. This is also a security topic in its own right: the shell is where you read logs, inspect processes, and set file permissions, the oldest access-control mechanism on the machine. You'll go from zero to fluent, and you'll connect Unix permissions to the code that creates secret files in any language.",
     theory: `#### Define the words first
 
 - **Shell** — reads typed text, interprets it, runs other programs. zsh (macOS default), bash, fish, pwsh are shells.
@@ -2177,12 +2408,21 @@ sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS eviden
   },
   // ============== LEVEL 2 ==============
   {
+    id: "l2_roadmap",
+    level: 2,
+    num: "L2",
+    title: "Level 2 Roadmap — Operator",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real modules begin next.",
+    isRoadmap: true
+  },   {
     id: "m9",
     level: 2,
     num: "M9",
     title: "Networking Deep Dive",
     objective: "Every attack traverses a network and every defense monitors one. Make OSI, TCP/UDP, and ports muscle memory — then connect them to the most common accidental exposure a developer ships: binding a service to the whole network (0.0.0.0) instead of localhost.",
-    theory: `#### Define the words first
+    theory: `> 🖥️ **Platform note for the rest of the course (read once).** From Level 2 on, labs assume a **Unix shell** — macOS, Linux, or **WSL2** on Windows. Windows learners have two equally good options: run every lab inside **WSL2** (set up in Module 0), or run them inside the **Kali/pentest VM built in Module 15** (the same environment for Mac and Windows users). The "M2 / Apple Silicon" label on each lab is about the *host you install on*, not a restriction — the commands are identical across macOS, Linux, and WSL2. Where an OS difference is a genuine *security concept* (for example file permissions — \`chmod\` vs Windows \`icacls\`, first shown in Module 7), it's called out inline.
+
+#### Define the words first
 
 - **Protocol** — agreed rules for exchanging data (HTTP, TCP, DNS).
 - **OSI model** — a 7-layer map of networking; lets you reason about WHERE a control or attack lives.
@@ -2619,6 +2859,8 @@ find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'`
     objective: "Before you attack or defend, you MAP. Learn how port scanning works at the TCP level, how to read results, and — as a developer — write a tiny scanner yourself so you understand what a scan IS. This same recon is what attackers run against your services first.",
     theory: `> ⚖️ **Ethics:** scan ONLY machines you own or have written permission to test. This module uses two safe targets: scanme.nmap.org (Nmap authorizes it) and your own localhost / lab VM. Nothing else.
 
+> **Heads-up on "your lab VM."** This module (and Modules 13–14) mention *"your lab VM,"* but you don't build it until **Module 15** — so treat every "lab VM" line as *optional until then*. Nothing here is blocked by that: every step uses an authorized public target (\`scanme.nmap.org\`) or your own \`127.0.0.1\`. If you'd rather have the VM now, you can do Module 15 early — it also gives Windows learners one environment where every later lab runs unchanged.
+
 #### Define the words first
 
 - **Port scan** — send probe packets to a range of ports; infer from replies which services listen.
@@ -2680,7 +2922,8 @@ nmap scanme.nmap.org                    # top-1000 TCP ports
 nmap -sV scanme.nmap.org                # + service/version detection
 sudo nmap -sS -p- 127.0.0.1             # SYN scan, ALL ports, your OWN host
 nmap -sV -p 5432,3306,8080 127.0.0.1    # version-check your own services
-# Lab VM:  nmap -sV 192.168.64.10`,
+# Lab VM (OPTIONAL — you build this VM in Module 15; use scanme.nmap.org / 127.0.0.1 until then):
+#   nmap -sV 192.168.64.10`,
       windows: `winget install Insecure.Nmap
 nmap scanme.nmap.org
 nmap -sV scanme.nmap.org
@@ -2923,6 +3166,8 @@ sudo docker run --rm -d -p 8080:80 vulnerables/web-dvwa`
     title: "Build a Virtual Pentest Lab",
     objective: "A personal home lab is your dojo — the place where attacking is AUTHORIZED because you own every machine and it's cut off from the internet. Build the attacker-plus-target topology, understand why isolation is non-negotiable, make it work on Apple Silicon, and stand up a disposable target in seconds.",
     theory: `> ⚖️ **Ethics:** the point of a lab is a place where attacking is authorized — you own every machine and it's internet-isolated. That's the line between learning and crime (Rule #1). Everything here stays inside that boundary.
+
+> 🖥️ **This VM makes host OS irrelevant.** Once this lab is built, **every lab from here on can be run inside this VM regardless of your host OS** — Windows, macOS, and Linux learners all get the same Linux command line, so the "M2 / Apple Silicon" labels on later modules stop mattering. You can also build this lab *earlier* (right after Module 11) if you want that shared environment sooner; the Nmap/Wireshark modules reference it but don't require it.
 
 #### Define the words first
 
@@ -3272,6 +3517,13 @@ nmap -sV -p- 192.168.56.20 | tee recon.txt && code .`
   },
   // ============== LEVEL 3 ==============
   {
+    id: "l3_roadmap",
+    level: 3,
+    num: "L3",
+    title: "Level 3 Roadmap — Specialist",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first — it's both your motivation and your exit criteria. The real modules begin next.",
+    isRoadmap: true
+  },   {
     id: "m18",
     level: 3,
     num: "M18",
@@ -5626,6 +5878,50 @@ function CourseCompleteCard({ percent }) {
   );
 }
 
+function LevelRoadmap({ level }) {
+  const r = level.roadmap || {};
+  const cardStyle = {
+    backgroundColor: `color-mix(in srgb, var(${level.colorVar}) 8%, transparent)`,
+    borderColor: `color-mix(in srgb, var(${level.colorVar}) 35%, transparent)`
+  };
+  const chipStyle = {
+    backgroundColor: `color-mix(in srgb, var(${level.colorVar}) 15%, transparent)`,
+    color: `var(${level.colorVar})`,
+    borderColor: `color-mix(in srgb, var(${level.colorVar}) 40%, transparent)`
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    className: "mb-10 rounded-xl border p-5 lg:p-6",
+    style: cardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "level-badge",
+    style: chipStyle
+  }, `Level ${level.id} Roadmap`), level.weeks && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-mono text-[#6b7790]"
+  }, "⏱ " + level.weeks)), r.promise && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#c7d0e0] text-base leading-relaxed mb-4"
+  }, r.promise), r.canDo && r.canDo.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs uppercase tracking-wide text-[#8a94a8] font-semibold mb-2"
+  }, "By the end you can"), /*#__PURE__*/React.createElement("ul", {
+    className: "space-y-1.5"
+  }, r.canDo.map((it, i) => /*#__PURE__*/React.createElement("li", {
+    key: i,
+    className: "flex items-start gap-2 text-[#9aa5b8] text-sm leading-relaxed"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { color: `var(${level.colorVar})` },
+    className: "mt-0.5 flex-shrink-0"
+  }, "→"), /*#__PURE__*/React.createElement("span", null, it))))), r.build && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#9aa5b8] text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#c7d0e0] font-semibold"
+  }, "You'll build: "), r.build), r.prereq && /*#__PURE__*/React.createElement("p", {
+    className: "text-[#6b7790] text-xs mt-2"
+  }, r.prereq));
+}
+
 function App() {
   // initial id: URL hash > localStorage > default
   const initialId = () => {
@@ -5764,6 +6060,9 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeModuleId]);
   const activeModule = curriculum.modules.find(m => m.id === activeModuleId) || curriculum.modules[0];
+  // Level roadmap: show the level's outcome card only atop the FIRST module of that level.
+  const activeLevelObj = curriculum.levels.find(l => l.id === activeModule.level);
+  const levelRoadmap = (activeLevelObj && activeLevelObj.roadmap && activeModule.isRoadmap) ? activeLevelObj : null;
   const toggleTracker = (moduleId, itemIndex) => {
     setProgress(prev => {
       const modProgress = prev[moduleId] || {};
@@ -5990,7 +6289,7 @@ function App() {
     className: "p-4 pb-12"
   }, levelGroups.map(group => {
     const isExpanded = expandedLevels[group.id] !== false;
-    const groupComplete = group.modules.every(m => isModuleComplete(m.id));
+    const groupComplete = group.modules.filter(m => !m.isRoadmap).every(m => isModuleComplete(m.id));
     return /*#__PURE__*/React.createElement("div", {
       key: group.id,
       className: "mb-4"
@@ -6067,7 +6366,9 @@ function App() {
     className: "text-3xl lg:text-4xl font-bold tracking-tight text-white mb-3 leading-tight"
   }, activeModule.title), /*#__PURE__*/React.createElement("p", {
     className: "text-[#9aa5b8] text-lg leading-relaxed"
-  }, activeModule.objective)), activeModule.theory && /*#__PURE__*/React.createElement("section", {
+  }, activeModule.objective)), levelRoadmap && /*#__PURE__*/React.createElement(LevelRoadmap, {
+    level: levelRoadmap
+  }), activeModule.theory && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
     icon: "\uD83D\uDCD8",
