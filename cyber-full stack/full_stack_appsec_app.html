@@ -6817,8 +6817,158 @@ Probe it with the *exact same* \`curl\` commands from the lab above — Flask re
 5. All of them: request body, query string, route/path params, headers, and cookies. Identity must come from a verified session/token, not from a request field.
 </details>
 
+---
+
+### 🧪 Workbench: build the skeleton, watch each guard fire
+
+> **What this trains.** The module showed the secure skeleton with \`helmet + zod + express-rate-limit\`. Here you build the *mechanisms* those libraries wrap — a body-size cap, edge validation, and a rate limiter — from scratch in plain \`http\`, so you understand what each is actually doing rather than trusting a black box. Dependency-free; everything is curl-verifiable.
+
+**The rule:** predict each guard's HTTP status before you fire it; write your code before opening a walkthrough.
+
+#### 🟢 Drill 1 — order the pipeline ~5 min
+
+Here are five middleware steps in a scrambled order. In your journal, write the **correct order** for a login endpoint, and for the *two* worst misorderings, name the concrete vulnerability each creates.
+
+\`\`\`
+A. run the /login route handler
+B. rate-limit the request
+C. security headers (helmet)
+D. parse the JSON body with a size limit
+E. authenticate/authorize the caller
+\`\`\`
+
+**Done when.** Your order puts every *gate* before the thing it guards, and you can state what breaks if (i) the route handler runs before auth, and (ii) the body is parsed before the size limit.
+
+<details>
+<summary>Walkthrough — open after you've written your order</summary>
+
+Correct order: **C → B → D → E → A** (headers, rate-limit, size-bounded body parse, auth, then the handler). The precise rule is *"a gate only protects what comes after it."*
+- **Handler before auth (A before E):** the route executes for unauthenticated callers — Broken Access Control (Module 0.4). The auth check might as well not exist.
+- **Body parsed before the size limit (parse before D's limit):** an attacker POSTs a 2 GB body and your server reads it all into memory before any cap applies — memory-exhaustion DoS. The limit has to be *part of* the parse, gating it.
+- (Bonus) **Rate-limit after the expensive work:** if limiting comes after the handler, you've already spent the CPU/DB you were trying to protect — limit early.
+
+Order isn't a style preference here; each wrong position is a specific bug. That's why "middleware order is a security property" is the module's first sentence.
+</details>
+
+#### 🟡 Build 1 — finish the skeleton and prove all three guards ~15 min
+
+This dependency-free server has the **size** and **validation** guards but is **missing its rate limiter**. Add it, then prove all three fire.
+
+\`\`\`bash
+mkdir -p ~/skeleton-workbench && cd ~/skeleton-workbench
+cat > skeleton.js <<'EOF'
+const http = require("http");
+const MAX = 1024;                                  // body-size cap (DoS guard)
+const hits = new Map();                            // ip -> [timestamps]
+
+// TODO (Build 1): implement tooMany(ip) — return true once this IP has made
+// more than 5 requests within the last 60_000 ms. Keep only in-window timestamps.
+function tooMany(ip){
+  return false;   // <-- replace this
+}
+
+http.createServer((req, res) => {
+  const ip = req.socket.remoteAddress;
+  const json = o => { res.setHeader("Content-Type","application/json"); res.end(JSON.stringify(o)); };
+  if (req.method !== "POST" || req.url !== "/login") { res.statusCode=404; return json({error:"not found"}); }
+  if (tooMany(ip)) { res.statusCode=429; return json({error:"Too Many Requests"}); }        // GUARD 3
+  let body="";
+  req.on("data", c => { body+=c; });
+  req.on("end", () => {
+    if (body.length > MAX) { res.statusCode=413; return json({error:"Payload Too Large"}); } // GUARD 1
+    let data; try { data = JSON.parse(body); } catch { res.statusCode=400; return json({error:"Invalid request"}); }
+    const okEmail = typeof data.email==="string" && /^[^@\\s]+@[^@\\s]+$/.test(data.email) && data.email.length<=254;
+    const okPass  = typeof data.password==="string" && data.password.length>=8 && data.password.length<=200;   // GUARD 2
+    if (!okEmail || !okPass) { res.statusCode=400; return json({error:"Invalid request"}); }
+    json({ ok:true, email:data.email });
+  });
+}).listen(4605, ()=>console.log("skeleton on http://localhost:4605"));
+EOF
+\`\`\`
+
+**Goal.** Implement \`tooMany\`, then prove: an oversized body → **413**, a bad email → **400** (generic, no internals), and the **6th** rapid request in a minute → **429**.
+
+**Done when.** \`curl\` shows \`413\` for the big body, \`{"error":"Invalid request"}\` for the bad email, and \`200 200 200 200 200 429\` for six rapid POSTs **on a freshly started server**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`tooMany\` needs to (1) read this IP's timestamp list, (2) drop any older than 60 s, (3) add *now*, (4) store it back, and (5) return whether the count now exceeds 5. One subtlety for your test: the counter counts **every** request in the window — so if you run the size/validation curls first, they eat into the five. Restart the server before the rate-limit test.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built and tested it</summary>
+
+\`\`\`js
+function tooMany(ip){
+  const now = Date.now(), win = 60_000, cap = 5;
+  const arr = (hits.get(ip) || []).filter(t => now - t < win);   // keep only in-window
+  arr.push(now); hits.set(ip, arr);                              // record this request
+  return arr.length > cap;                                       // over the cap?
+}
+\`\`\`
+\`\`\`bash
+node skeleton.js
+# oversized body -> 413
+curl -s -o /dev/null -w "%{http_code}\\n" -X POST localhost:4605/login \\
+  -d "{\\"email\\":\\"a@b.com\\",\\"password\\":\\"$(printf 'x%.0s' {1..2000})\\"}"
+# bad email -> 400 generic
+curl -s -X POST localhost:4605/login -d '{"email":"not-an-email"}'
+# rate limit on a FRESH server -> 200 x5 then 429
+for i in $(seq 1 6); do curl -s -o /dev/null -w "%{http_code} " -X POST localhost:4605/login \\
+  -d '{"email":"a@b.com","password":"password1"}'; done; echo
+\`\`\`
+
+Two things worth taking away. First, the rate limiter is **stateful** — it counts *all* requests in the window, which is why your test only reads cleanly on a fresh server, and why a real limiter needs a shared store (Redis) once you run more than one process. Second, notice this is exactly what \`express-rate-limit\` does under the hood: a per-key sliding window. Rebuilding it once means the library stops being magic — you know what it costs, where its state lives, and how to reason about it behind a load balancer.
+</details>
+
+#### 🔴 Break & Defend — stop the error from talking ~10 min
+
+Add this "debug-friendly" handler to the server and restart:
+\`\`\`js
+// a route that leaks internals when something goes wrong
+if (req.url === "/lookup") {
+  try { throw new Error("ECONNREFUSED postgres://app:hunter2@10.0.0.5:5432/appdb"); }
+  catch (e) { res.statusCode = 500; return json({ error: e.message, stack: e.stack }); }  // ❌ leaks
+}
+\`\`\`
+
+**Your task:**
+1. \`curl\` \`/lookup\` and read what the client receives. Name every sensitive thing it just disclosed.
+2. Rewrite the handler so the client gets a generic 500 while the real detail still reaches *your* logs. Prove via curl that the response no longer leaks.
+3. In your journal: this endpoint also validates its input carefully — so why isn't "we validate input" a sufficient security story for it?
+
+**Done when.** Your fixed \`/lookup\` returns something like \`{"error":"Internal Server Error"}\` with no message/stack/connection-string, the real error still prints server-side, and your journal explains that validation, error-handling, SQL-parameterization, and output-encoding are *different layers* that don't substitute for each other.
+
+<details>
+<summary>Walkthrough — open after you've written the fix</summary>
+
+**1. What leaked.** The client received the exception \`message\` and full \`stack\`. That single response disclosed: the database engine (\`postgres\`), a **live connection string with username and password** (\`app:hunter2\`), an internal host and port (\`10.0.0.5:5432\`), the database name, and — via the stack — your file paths and code structure. That's a map of your internals plus a credential, handed over for free (OWASP A05, Security Misconfiguration / information disclosure).
+
+**2. The fix — log detail, return generic:**
+\`\`\`js
+if (req.url === "/lookup") {
+  try { throw new Error("ECONNREFUSED postgres://app:hunter2@10.0.0.5:5432/appdb"); }
+  catch (e) {
+    console.error("internal:", e.stack);                       // full detail -> YOUR logs only
+    res.statusCode = 500; return json({ error: "Internal Server Error" });   // generic -> client
+  }
+}
+\`\`\`
+\`\`\`bash
+curl -s localhost:4605/lookup
+# {"error":"Internal Server Error"}      <- nothing sensitive; detail is in your terminal
+\`\`\`
+
+**3. Why validation isn't the whole story.** Input validation shrinks the attack surface *coming in* — it does nothing about what leaks *going out* when something fails. This endpoint could validate perfectly and still hand an attacker your DB password the moment a query errors. Each layer covers a different trust boundary: **validate** at the edge (constrain input), **parameterize** at the database (data ≠ code, Module 3.2), **encode** at output (data ≠ markup, Module 2.2), and **fail generic** at the error path (don't disclose internals). Reaching for one and calling it done is the recurring beginner mistake; the skeleton exists precisely so none of the four is the one you forgot.
+
+**Outside the box:** notice the leaked string contained a *secret* (\`hunter2\`). Even after you stop leaking it to clients, it's now been in an error object and possibly your logs — which is why Module 1.3's "scrub secrets from logs" and Phase 9's logging rules matter: the generic-response fix protects the client channel, but the same detail flowing into logs/error-trackers is a second leak path to close.
+</details>
+
+---
+
 ➡️ **Next step:** The most damaging server-side bug is still injection — the same data-vs-code failure from Phase 0, now against your database. Continue to **Module 3.2: SQL Injection and Postgres Safety**.`,
-    tracker: ["Built secure-skeleton.js with helmet, body limit, rate limit, and zod validation", "Probed all three guards and saw the body cap, generic error, and 429 fire", "Read the Flask (talisman/limiter/pydantic) dual-language equivalent", "Can explain why middleware order is a security property", "Can name every client-controlled part of a request", "Answered the knowledge check"]
+    tracker: ["Built secure-skeleton.js with helmet, body limit, rate limit, and zod validation", "Probed all three guards and saw the body cap, generic error, and 429 fire", "Read the Flask (talisman/limiter/pydantic) dual-language equivalent", "Can explain why middleware order is a security property", "Can name every client-controlled part of a request", "Answered the knowledge check", "Workbench: ordered the middleware pipeline and named the bug each misordering creates; implemented a from-scratch rate limiter and proved 413/400/429", "Workbench: fixed an error handler that leaked a DB connection string, and journalled why validation/parameterization/encoding/fail-generic are separate layers"]
   },
   {
     id: "m3_2",
@@ -7010,6 +7160,118 @@ db.execute(text(f"SELECT id, email FROM users WHERE email = '{email}'"))
 4. ORMs parameterize by default, but every ORM has raw-query escape hatches (e.g. \`\$queryRawUnsafe\`, interpolated \`sequelize.query\`). Using those with string interpolation reintroduces injection.
 5. It bounds the damage to what that account can do: with no \`DROP\`/superuser and access only to needed tables, a missed injection can't destroy the schema or read unrelated data — turning a catastrophe into a contained incident.
 </details>
+
+---
+
+### 🧪 Workbench: bypass the login, then make it impossible
+
+> **What this trains.** Module 0.5 showed you the query *string* mutate; here you exploit a **real database** and watch the parameterized fix kill the same payload. No Docker, no \`npm install\` — Node 22 ships an experimental built-in SQLite (\`node:sqlite\`), so this runs anywhere Node does with the \`--experimental-sqlite\` flag.
+
+\`\`\`bash
+mkdir -p ~/sqli-workbench && cd ~/sqli-workbench
+cat > sqli.js <<'EOF'
+const { DatabaseSync } = require("node:sqlite");
+const db = new DatabaseSync(":memory:");
+db.exec("CREATE TABLE users(id INTEGER PRIMARY KEY, email TEXT, password TEXT)");
+db.exec("INSERT INTO users(email,password) VALUES ('admin@example.com','adminpass'),('bob@example.com','bobpass')");
+
+const email = "admin@example.com";
+const password = process.argv[2] || "wrongpass";   // <-- the attacker controls this
+
+// VULNERABLE: input concatenated into the SQL text
+const vuln = "SELECT id,email FROM users WHERE email = '" + email + "' AND password = '" + password + "'";
+console.log("SQL :", vuln);
+console.log("rows:", JSON.stringify(db.prepare(vuln).all()));
+EOF
+\`\`\`
+
+**The rule:** predict what the query becomes before you run each payload; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — log in without the password ~6 min
+
+**Goal.** Pass a \`password\` argument that logs you in as \`admin@example.com\` *without knowing any password* — and makes the query return **every** user, not just admin.
+
+\`\`\`bash
+node --experimental-sqlite sqli.js "wrongpass"    # baseline: returns [] (no match)
+node --experimental-sqlite sqli.js "YOUR_PAYLOAD_HERE"
+\`\`\`
+
+**Done when.** Your payload makes \`rows\` contain **both** users (admin *and* bob), and you can read the printed \`SQL\` line to explain why.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Your input lands *inside* the \`password = '…'\` quotes. Close that quote, then add a condition that's always true so the whole \`WHERE\` matches every row — the same \`' OR '1'='1\` shape from Module 0.5. Watch the printed \`SQL\` line to see your input become part of the code.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+node --experimental-sqlite sqli.js "' OR '1'='1"
+# SQL : SELECT id,email FROM users WHERE email = 'admin@example.com' AND password = '' OR '1'='1'
+# rows: [{"id":1,"email":"admin@example.com"},{"id":2,"email":"bob@example.com"}]
+\`\`\`
+
+The printed SQL is the whole story: your input closed the password string and appended \`OR '1'='1'\`, so the condition became \`(email = 'admin' AND password = '') OR '1'='1'\` — and \`'1'='1'\` is true for *every* row, so the query dumped the entire \`users\` table. You didn't guess a password; you rewrote the query's **logic** by controlling part of its **code**. That's SQL injection in its most classic form, against a genuine database engine — and it's exactly the string experiment from 0.5, now with real consequences (an auth bypass and a full table dump in one request).
+</details>
+
+#### 🟡 Build 1 — write the fix, prove the payload dies ~10 min
+
+**Goal.** Add a second query to \`sqli.js\` that asks the *same question* — does a user match this email and password? — but **parameterized**, and print its rows. Then run your Drill 1 payload against both and show the parameterized one returns \`[]\`.
+
+**Done when.** With the \`' OR '1'='1\` payload, your vulnerable query still dumps both users but your parameterized query returns \`[]\` — the injection is dead against the fix.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`node:sqlite\` uses \`?\` placeholders. Prepare a statement with \`? AND ?\` in place of the two \`'…'\` values, and pass \`email\` and \`password\` as arguments to \`.all(email, password)\` — the values travel *separately* from the SQL text.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+Add to \`sqli.js\`:
+\`\`\`js
+// SECURE: placeholders keep the values out of the SQL code channel
+const fixed = db.prepare("SELECT id,email FROM users WHERE email = ? AND password = ?").all(email, password);
+console.log("FIXED rows:", JSON.stringify(fixed));
+\`\`\`
+\`\`\`bash
+node --experimental-sqlite sqli.js "' OR '1'='1"
+# rows      : [{"id":1,...},{"id":2,...}]   <- vulnerable: dumped
+# FIXED rows: []                            <- parameterized: no match
+\`\`\`
+
+Why it's airtight: with \`?\`, the driver hands SQLite the query template *and* the value array as **separate things**. SQLite parses the query structure first, then binds \`' OR '1'='1\` in as a **literal string to compare against the password column** — it looks for a user whose password is *literally* the characters \`' OR '1'='1\`, finds none, returns \`[]\`. There is no string-building step where the input could become code. Same principle, different placeholder syntax, as \`$1\` (Postgres), \`%s\` (psycopg2), \`:name\` (SQLAlchemy) — learn it once, recognize it everywhere.
+</details>
+
+#### 🔴 Break & Defend — the two things people reach for instead ~12 min
+
+In your journal, take apart two "fixes" that aren't, and one that limits damage:
+
+1. A teammate "fixes" it by **validating the email format** with a strict regex, leaving the query concatenated. Explain why the login is *still* injectable — and through which field.
+2. Another says **"we use an ORM, so we're safe."** Describe the one line in an ORM that reintroduces SQLi anyway, and name it in both a JS and a Python ORM.
+3. Even with a perfect fix, describe how a **least-privilege database user** changes the worst case if an injection *did* slip through somewhere — contrast the app user's rights with a migration/admin user's.
+
+**Done when.** Your answers identify the \`password\` field as still-injectable under email-only validation, name the raw-query escape hatch (e.g. \`$queryRawUnsafe\` / \`text(f"…")\`), and explain that a non-\`DROP\`, non-superuser app account turns "schema destroyed" into "one table read."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**1. Email validation doesn't help — the \`password\` field is still concatenated.** Even if \`email\` must match \`^[^@]+@[^@]+$\`, the *password* input still lands unescaped inside \`password = '…'\`, so \`' OR '1'='1\` in the password field bypasses login exactly as in Drill 1. Validation constrains *one* input's shape; it does nothing about the other, and nothing about the fundamental data-in-code-channel problem. Injection is fixed by **separation**, not by inspecting the input's format. (This is the module's "I validate the email, so injection is impossible" trap, made concrete — you can even prove it by adding an email regex to the lab and re-firing the password payload.)
+
+**2. The ORM escape hatch.** ORMs parameterize their normal methods, but every one exposes a raw path that re-opens injection the moment you interpolate:
+- JS/Prisma: \`$queryRawUnsafe(...)\` built from an interpolated string reintroduces injection (vs the safe *tagged-template* \`$queryRaw\` form, which parameterizes the interpolated values).
+- Python/SQLAlchemy: \`text(f"… '{input}'")\` — an f-string into \`text()\` (vs the safe \`text("… :x")\` with a \`{"x": input}\` params dict).
+"We use an ORM" is true right up until someone reaches for the raw hatch with a template string — which is why you audit for those specific calls rather than trusting the ORM blanket-covers you.
+
+**3. Least privilege = blast-radius control.** Parameterize everywhere and you *shouldn't* have injection — but defense-in-depth assumes you missed one. If the app connects as a user with only \`SELECT/INSERT/UPDATE/DELETE\` on its own tables (no \`DROP\`, not owner, not superuser), then a missed injection can read or tamper with *those* rows — bad, but bounded. If it connects as a superuser/owner, the same bug can \`DROP TABLE\`, read every other database, or write files. A separate admin/migration user (used only during deploys) owns the schema. So the DB-privilege decision is what stands between "attacker read one table" and "attacker destroyed the database" — Module 0.1's least-privilege principle deciding the size of the disaster.
+
+**Outside the box:** all three parts circle the same truth — *the fix for injection is parameterization, and everything else (validation, ORMs, least privilege) is either a non-fix people mistake for one, or a blast-radius limiter for the injection you didn't catch.* Knowing which is which is what stops you from shipping "I escaped the quotes" and calling it secure.
+</details>
+
+---
 
 ➡️ **Next step:** Injection is one server-side failure; the other dominant class is authorization bugs in your APIs — IDOR, mass assignment, excessive data exposure. Continue to **Module 3.3: API Security**.`,
     tracker: ["Ran Postgres in Docker and built the injectable sqli-lab.js login", "Bypassed login with ' OR '1'='1 against a wrong password", "Fixed it with $1/$2 parameters and confirmed the bypass died", "Read the Python (psycopg2 %s + SQLAlchemy text()) dual-language version", "Can explain mechanically why parameterized queries can't be injected", "Can explain how least privilege bounds the blast radius", "Answered the knowledge check"]
@@ -7306,8 +7568,120 @@ class Query:
 6. The "hidden" fields are still present in the JSON response, fully visible in the browser's Network panel or any direct API call. The UI hiding them is client-side only; the data has already left the server. Return DTOs with only safe fields.
 </details>
 
+---
+
+### 🧪 Workbench: promote yourself to admin, then close the door
+
+> **What this trains.** You already exploited IDOR in Module 0.4 (change one id). This Workbench drills the two API bugs you *haven't* felt yet — **mass assignment** (send a field the form never had) and **excessive data exposure** (read fields the UI hides) — and the one fix that kills both: *allow-list what comes in, DTO what goes out.* Dependency-free, curl-verifiable.
+
+\`\`\`bash
+mkdir -p ~/api-workbench && cd ~/api-workbench
+cat > api.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const users = { 1:{id:1,name:"Alice",email:"alice@x.com",isAdmin:false}, 2:{id:2,name:"Bob",email:"bob@x.com",isAdmin:false} };
+function body(req){return new Promise(r=>{let d="";req.on("data",c=>d+=c);req.on("end",()=>{try{r(JSON.parse(d||"{}"));}catch{r({});}});});}
+http.createServer(async (req,res)=>{
+  const u=new URL(req.url,"http://localhost:4607");
+  const caller=Number(req.headers["x-user-id"]);
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  const m=u.pathname.match(/^\\/api\\/users\\/(\\d+)$/);
+  if(m && req.method==="PATCH"){
+    const id=Number(m[1]); const b=await body(req);
+    Object.assign(users[id], b);      // handles the update
+    return json(users[id]);           // returns the record
+  }
+  res.statusCode=404; json({error:"not found"});
+}).listen(4607,()=>console.log("api on http://localhost:4607"));
+EOF
+node api.js     # leave running
+\`\`\`
+
+The intended feature: a user PATCHes their own profile \`name\`. The form only ever sends \`{ "name": "..." }\`.
+
+**The rule:** predict the response before each curl; write the fix before opening a walkthrough.
+
+#### 🟢 Drill 1 — send a field the form never had ~5 min
+
+**Goal.** As Alice (\`X-User-Id: 1\`), PATCH your profile so that you become an **admin** — using a field the UI form never exposes.
+
+**Done when.** The response shows \`"isAdmin":true\` for Alice, even though no admin toggle exists in any form.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The handler does \`Object.assign(users[id], body)\` — it copies *every* field you send onto the record. The client, not the server, decides which fields are in the body. What field would you add to the JSON to flip the admin flag?
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -X PATCH localhost:4607/api/users/1 -H "X-User-Id: 1" -d '{"name":"Alice","isAdmin":true}'
+# {"id":1,"name":"Alice","email":"alice@x.com","isAdmin":true}
+\`\`\`
+
+That's **mass assignment**. The server trusted the *shape* of the request — it spread whatever fields arrived onto the record, so an attacker just adds \`"isAdmin":true\` (or \`"creditBalance":999999\`, \`"ownerId":…\`) and the write goes through. The form having no admin toggle is irrelevant: the form is client-side, and \`curl\` sends any fields it likes. Notice too that the *response* leaked \`email\` and \`isAdmin\` — fields a UI might hide but that are right there in the JSON (**excessive data exposure**). Two OWASP API bugs (BOPLA, API3) in one careless handler.
+</details>
+
+#### 🟡 Build 1 — allow-list in, DTO out ~10 min
+
+**Goal.** Rewrite the PATCH handler so that (a) only the caller may edit their own record (403 otherwise), (b) **only** \`name\` can be written no matter what fields arrive, and (c) the response contains **only** \`id\` and \`name\` — never \`email\`/\`isAdmin\`.
+
+**Done when.** The Drill 1 payload (\`{"name":"Alice","isAdmin":true}\`) now leaves \`isAdmin\` **false** and returns just \`{"id":1,"name":"Alice"}\`; and a cross-user PATCH (caller 1 editing user 2) returns **403**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Three separate additions: an ownership check (\`id !== caller → 403\`) *before* any write; pick fields off the body **individually** (\`if (typeof b.name === "string") users[id].name = b.name\`) instead of \`Object.assign(users[id], b)\`; and return an object you build by hand with only the safe fields.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`js
+if(m && req.method==="PATCH"){
+  const id=Number(m[1]); const b=await body(req);
+  if(id!==caller){ res.statusCode=403; return json({error:"Forbidden"}); }   // authorize the OBJECT
+  if(typeof b.name==="string") users[id].name=b.name;                        // allow-list: ONLY name
+  return json({ id:users[id].id, name:users[id].name });                     // DTO: only safe fields
+}
+\`\`\`
+\`\`\`bash
+curl -s -X PATCH localhost:4607/api/users/1 -H "X-User-Id: 1" -d '{"name":"Alice","isAdmin":true}'
+# {"id":1,"name":"Alice"}          <- isAdmin ignored, email/isAdmin not returned
+curl -s -o /dev/null -w "%{http_code}\\n" -X PATCH localhost:4607/api/users/2 -H "X-User-Id: 1" -d '{"name":"x"}'
+# 403                              <- caller 1 can't edit user 2
+\`\`\`
+
+Three OWASP-class bugs closed by three habits: **authorize the object** (kills BOLA/BFLA), **allow-list writable fields** (kills mass assignment — the attacker's \`isAdmin\` is simply never read), and **return a DTO** (kills excessive exposure — you choose what leaves the server, field by field). The through-line: *the client controls the entire request and every field of it; the server must decide what it accepts and what it emits.* This is the same "distrust the whole request" rule from Module 3.1, applied to object and field granularity.
+</details>
+
+#### 🔴 Break & Defend — the myths that keep these alive ~10 min
+
+In your journal, rebut each of these real developer defenses:
+1. *"The form only sends \`name\`, so \`isAdmin\` can't be set."*
+2. *"The UI never renders \`email\`/\`isAdmin\`, so they're not exposed."*
+3. *"Our object ids are UUIDs, so IDOR is impossible."*
+4. One sentence: what's the difference between **authentication** and **authorization**, and which one did the vulnerable handler have but not use correctly?
+
+**Done when.** Your answers explain that request shape is attacker-controlled, that hidden-in-UI fields are still in the JSON, that unguessable ids still require object authorization (they leak via logs/referrers/other endpoints), and that the handler *authenticated* the caller (knew who Alice was) but never *authorized* the specific object/fields.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Form shape is not a control.** The form is client-side; \`curl\`/Postman/DevTools send any fields they want. You proved this in Drill 1 — the field the form "doesn't have" set \`isAdmin\` anyway. Only a server-side allow-list constrains what's written.
+2. **Hidden ≠ absent.** \`email\` and \`isAdmin\` were in the HTTP response body — visible in the Network panel or a one-line \`curl\`. The UI not rendering them is cosmetic; the data already left the server. DTOs are the fix because they control the bytes on the wire, not the pixels on the screen.
+3. **UUIDs raise the guessing cost, they don't authorize.** An unguessable id still gets exposed — in URLs, \`Referer\` headers, logs, error messages, other API responses, shared links. Once an attacker *has* a valid id (and they often do), an endpoint that doesn't check ownership hands over the object. Authorization must be enforced regardless of how hard the id is to guess. "Security through unguessability" is not access control.
+4. **Authentication = *who you are*; authorization = *what you're allowed to do to this specific thing*.** The vulnerable handler *authenticated* (it read \`X-User-Id\`, so it knew the caller was Alice) but never *authorized* — it didn't check that Alice may edit *this* record or set *these* fields. Almost every bug in this module is that exact gap: knowing the user, but not checking the action against the object.
+
+**Outside the box:** all four myths share one root — trusting something the client controls (form shape, UI rendering, id secrecy) or conflating "logged in" with "allowed." The durable mental model: *the server is the only authority; it must independently decide, per request, who is asking and whether they may do this exact thing to this exact object with these exact fields.* Everything else — forms, UIs, UUIDs — is convenience, not control. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
 ➡️ **Next step:** One API surface deserves its own module because beginners get it wrong constantly and the impact is code execution: file uploads. Continue to **Module 3.4: File Upload Security**.`,
-    tracker: ["Built api-lab.js with IDOR and mass-assignment bugs", "Exploited BOLA by changing an order id, and self-promoted to admin via mass assignment", "Fixed all three with object authorization, field allow-listing, and DTOs", "Read the Flask + pydantic dual-language version (plus the DRF __all__ note)", "Ran DVGA and queried __schema introspection", "Read the Apollo + Strawberry GraphQL hardening sketches", "Answered the API Security quiz"]
+    tracker: ["Built api-lab.js with IDOR and mass-assignment bugs", "Exploited BOLA by changing an order id, and self-promoted to admin via mass assignment", "Fixed all three with object authorization, field allow-listing, and DTOs", "Read the Flask + pydantic dual-language version (plus the DRF __all__ note)", "Ran DVGA and queried __schema introspection", "Read the Apollo + Strawberry GraphQL hardening sketches", "Answered the API Security quiz", "Workbench: self-promoted to admin via mass assignment, then rewrote the handler to allow-list name + DTO + object-authz (403 cross-user)", "Workbench: journalled the four API myths (form shape, hidden fields, UUID ids, authn vs authz)"]
   },
   {
     id: "m3_4",
@@ -7477,8 +7851,137 @@ Run the same forged-\`image/png\` upload against \`/upload-vulnerable\` and it's
 5. Accept with a size limit → verify content type by magic bytes against an allow-list → store with a random server-side name in object storage *outside* the executable/static root (never executed) → serve via signed, time-limited URLs with \`Content-Disposition: attachment\`; strip metadata when needed.
 </details>
 
+---
+
+### 🧪 Workbench: lie about the file, then check the bytes
+
+> **What this trains.** The one habit that kills most upload bugs is *verify the actual bytes, never the declared type or extension*. Here you forge a type to bypass a naive check, then implement the magic-byte check that ignores the forged header entirely. To keep the focus on that idea (not on multipart parsing), the endpoint takes a raw body + declared \`Content-Type\` — the trust boundary is identical.
+
+\`\`\`bash
+mkdir -p ~/upload-workbench && cd ~/upload-workbench
+cat > upload.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const ALLOWED = new Set(["image/png","image/jpeg"]);
+
+// TODO (Build 1): return the REAL type by inspecting the first bytes (magic numbers),
+// or null if it's neither. PNG starts with 0x89 0x50 0x4E 0x47; JPEG with 0xFF 0xD8 0xFF.
+function realType(buf){
+  return null;   // <-- replace this
+}
+
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4608");
+  const chunks=[]; req.on("data",c=>chunks.push(c));
+  req.on("end",()=>{
+    const buf = Buffer.concat(chunks);
+    const declared = req.headers["content-type"];
+    const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+    if (u.searchParams.get("fixed")==="1"){
+      const real = realType(buf);                                   // sniff the bytes
+      if (!real || !ALLOWED.has(real)) { res.statusCode=400; return json({error:"not a real image", declared, sniffed:real}); }
+      return json({accepted:true, realType:real});
+    }
+    if (!String(declared||"").startsWith("image/")) { res.statusCode=400; return json({error:"images only"}); }  // trusts header
+    json({accepted:true, claimed:declared});
+  });
+}).listen(4608,()=>console.log("upload on http://localhost:4608"));
+EOF
+node upload.js     # leave running
+\`\`\`
+
+**The rule:** predict the response before each upload; write \`realType\` before opening its walkthrough.
+
+#### 🟢 Drill 1 — smuggle a non-image past the naive check ~5 min
+
+Make a file that is obviously not an image — an SVG carrying a script:
+\`\`\`bash
+printf '<script>alert(1)<\\/script>' > evil.svg
+\`\`\`
+
+**Goal.** Upload \`evil.svg\` to the **vulnerable** endpoint (\`/upload\`) so the server *accepts it as an image*, by forging the one thing it checks.
+
+**Done when.** The server responds \`{"accepted":true,...}\` for a file that is plainly not an image.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The vulnerable endpoint only checks that the request's \`Content-Type\` starts with \`image/\`. That header is *yours* to set — \`curl\`'s \`-H "Content-Type: image/png"\` overrides whatever the file actually is. Send the file bytes with \`--data-binary @evil.svg\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -X POST localhost:4608/upload -H "Content-Type: image/png" --data-binary @evil.svg
+# {"accepted":true,"claimed":"image/png"}
+\`\`\`
+
+Accepted — a scriptable SVG the server now believes is a PNG. The check inspected the *declared type*, and the declared type is attacker-controlled (you forged headers back in Phase 1). Extensions are no better: renaming \`evil.svg\` to \`evil.png\` would fool an extension check just as easily. **Nothing the client tells you about a file is trustworthy** — not the header, not the name, not the extension. Only the bytes are.
+</details>
+
+#### 🟡 Build 1 — check the magic bytes ~10 min
+
+**Goal.** Implement \`realType(buf)\` so the \`/upload?fixed=1\` endpoint accepts a file **only** if its actual first bytes are a real PNG or JPEG — regardless of what \`Content-Type\` the client claims.
+
+Make a file with genuine PNG magic bytes to test the happy path:
+\`\`\`bash
+printf '\\x89PNG\\r\\n\\x1a\\nrest' > real.png
+\`\`\`
+
+**Done when.** The forged \`evil.svg\` upload (even with \`-H "Content-Type: image/png"\`) is **rejected** by \`?fixed=1\`, while \`real.png\` is **accepted** — even if you send it with \`-H "Content-Type: application/octet-stream"\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`buf\` is a Node \`Buffer\`; \`buf[0]\`, \`buf[1]\`… are the byte values. Compare the leading bytes against the signatures given in the TODO comment (PNG: \`0x89 0x50 0x4E 0x47\`; JPEG: \`0xFF 0xD8 0xFF\`). Return the mime string on a match, \`null\` otherwise.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+function realType(buf){
+  if (buf.length>=4 && buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4E && buf[3]===0x47) return "image/png";
+  if (buf.length>=3 && buf[0]===0xFF && buf[1]===0xD8 && buf[2]===0xFF) return "image/jpeg";
+  return null;
+}
+\`\`\`
+\`\`\`bash
+curl -s -X POST "localhost:4608/upload?fixed=1" -H "Content-Type: image/png" --data-binary @evil.svg
+# {"error":"not a real image","declared":"image/png","sniffed":null}   <- forged header ignored
+curl -s -X POST "localhost:4608/upload?fixed=1" -H "Content-Type: application/octet-stream" --data-binary @real.png
+# {"accepted":true,"realType":"image/png"}                             <- accepted on BYTES, not header
+\`\`\`
+
+The key thing to notice: the real PNG was accepted even though its declared \`Content-Type\` was \`application/octet-stream\` — because the decision is made **entirely from the bytes**, and the client's header is never consulted. That inversion is the whole lesson. In production you'd use a maintained library (\`file-type\` in Node, \`python-magic\` in Python) that knows hundreds of signatures rather than hand-checking two — but you now know exactly what it's doing, and why "I checked the MIME type" is not that. Note also this is an **allow-list** (only png/jpeg pass), never a deny-list of "bad" types — you can't enumerate every dangerous format, so you enumerate the few safe ones.
+</details>
+
+#### 🔴 Break & Defend — the architecture that makes uploads boring ~12 min
+
+Magic-byte checking is necessary but not sufficient. In your journal, answer:
+1. You now reject non-images. Why is storing even a *valid* uploaded file inside the directory your web server serves/executes still dangerous — and where should uploads live instead?
+2. A "valid image" \`profile.svg\` passes many image checks. Why is serving it **inline** from your main domain a stored-XSS bug, and how do you serve user files safely?
+3. Why must you generate the stored filename yourself instead of using the client's (\`what attack does the client filename enable\`)?
+4. Sketch the **default upload architecture** that structurally sidesteps most of these attacks.
+
+**Done when.** Your notes cover: store outside the web-executable root (RCE), serve user content from a separate domain/bucket with \`Content-Disposition: attachment\` + safe \`Content-Type\` (SVG/HTML stored XSS), random server-side names (path traversal), and the allow-list → magic-byte → random-name → object-storage → signed-URL pipeline.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Executable location = RCE.** If uploads land where the server will *execute* files (a CGI/PHP path, or anything later \`require\`d/processed), an attacker who gets *any* runnable file in there — or exploits a processor — reaches code execution. Store uploads **outside** any executable/served root, ideally in object storage (S3/GCS), and never execute them.
+2. **SVG is scriptable XML.** It can contain \`<script>\`; served *inline* (\`Content-Type: image/svg+xml\`, no attachment disposition) from your origin, that script runs *as your site* — stored XSS hitting every viewer. Serve user files from a **separate domain/bucket**, with \`Content-Disposition: attachment\` and a safe \`Content-Type\`, and sanitize or simply refuse SVG/HTML. (This is why magic-byte checking alone isn't enough: an SVG can be a "valid" file and still be an attack.)
+3. **Client filename → path traversal / overwrite.** A name like \`../../etc/cron.d/x\` or \`..\\config\` used to build the storage path escapes the intended folder and can overwrite arbitrary files. Generating a random name (\`crypto.randomBytes\`) removes all client influence over the path; set the *download* name separately via the \`Content-Disposition\` header if you want a friendly name.
+4. **The default pipeline:** accept with a strict **size limit** → **allow-list** the few types you accept and verify by **magic bytes** → store under a **random server-generated name** in **object storage outside** the app's executable root → serve later via **signed, time-limited URLs** with \`Content-Disposition: attachment\` → strip **EXIF** metadata when privacy matters. Each step maps to a specific attack (DoS, type-spoof XSS/RCE, path traversal, RCE, exposure, privacy) — build it this way once and uploads stop being a recurring source of criticals.
+
+**Outside the box:** notice the pattern across this whole phase — the fix is almost never "detect the bad input," it's "structure the system so the bad input can't reach a dangerous sink." Parameterized queries (data can't reach the SQL parser), DTOs (extra fields can't reach the DB), object storage + attachment disposition (uploads can't reach an executor or run inline). *Architecture beats detection* — the same reason allow-lists beat deny-lists. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
 ➡️ **Next step:** You can harden a server, kill injection, and lock down APIs and uploads. The same root causes look different in other languages, and beyond injection there's a whole class of bugs no scanner catches — logic flaws. Continue to **Module 3.5: Polyglot Security — Same Vulns, Every Language**.`,
-    tracker: ["Built upload-lab.js and bypassed its naive mimetype check with a forged image/png", "Fixed it with magic-byte sniffing, an allow-list, a size cap, and a random filename", "Read the Flask + python-magic dual-language version (plus the Django note)", "Can explain how an upload becomes remote code execution", "Can explain why an SVG is a stored-XSS risk and how to serve files safely", "Can recite the default safe upload architecture", "Answered the knowledge check"]
+    tracker: ["Built upload-lab.js and bypassed its naive mimetype check with a forged image/png", "Fixed it with magic-byte sniffing, an allow-list, a size cap, and a random filename", "Read the Flask + python-magic dual-language version (plus the Django note)", "Can explain how an upload becomes remote code execution", "Can explain why an SVG is a stored-XSS risk and how to serve files safely", "Can recite the default safe upload architecture", "Answered the knowledge check", "Workbench: smuggled a scripted SVG past the naive check with a forged image/png header, then wrote a magic-byte validator that ignores the header", "Workbench: journalled the upload architecture — outside web root, attachment disposition, random names, allow-list → magic-byte → object storage → signed URL"]
   },
   {
     id: "m3_5",
@@ -7657,6 +8160,88 @@ Add \`grype --fail-on critical\` to your CI pipeline to break the build on unpat
 2. Hash-style \`where(id: params[:id])\` is parameterised and safe. But you should also grep for \`where("id = #{params...}")\` (string interpolation bypasses the ORM), \`.order(params[:sort])\` (often unparameterised), and any use of \`params.permit!\` (mass assignment). Strong Parameters and auto-escaping in ERB are the other Rails defaults to verify are not accidentally disabled.
 </details>
 
+---
+
+### 🧪 Workbench: read the vuln through the syntax
+
+> **What this trains.** This module's whole claim is that the *root cause is language-independent* — so its Workbench isn't about running one exploit, it's about recognizing the same bug (and the same fix) across unfamiliar syntax, and knowing the grep that finds a disabled safe-default in a codebase you inherited. No install beyond what you have.
+
+#### 🟢 Drill 1 — classify across five languages ~8 min
+
+For each snippet, write in your journal: **(a)** safe or unsafe, **(b)** which of the three root causes it is (injection / broken trust boundary / insecure state), and **(c)** the one-line fix.
+
+\`\`\`text
+1. Python:  cursor.execute(f"SELECT * FROM users WHERE id = {uid}")
+2. Go:      t := template.New("p"); t = text/template ... w.Write([]byte(t.Execute(userHtml)))
+3. Rails:   User.where("name = '#{params[:q]}'")
+4. PHP:     echo "Welcome " . $_GET['name'];
+5. Java:    PreparedStatement ps = c.prepareStatement("... WHERE id = ?"); ps.setString(1, id);
+\`\`\`
+
+**Done when.** You've labeled all five without looking at the module's tables first, and can name the fix for each unsafe one *by pattern*, not by memorizing the language.
+
+<details>
+<summary>Walkthrough — open after you've classified all five</summary>
+
+1. **Unsafe — injection (SQLi).** f-string glues \`uid\` into SQL. Fix: \`cursor.execute("… WHERE id = %s", [uid])\` (psycopg2 placeholder) or the ORM.
+2. **Unsafe — injection (XSS).** \`text/template\` does **not** context-escape; writing user HTML through it is XSS. Fix: use \`html/template\`, which auto-escapes per context.
+3. **Unsafe — injection (SQLi).** String interpolation inside \`.where("…")\` bypasses ActiveRecord's parameterization. Fix: the hash form \`User.where(name: params[:q])\`.
+4. **Unsafe — injection (XSS).** Raw \`$_GET\` echoed into HTML. Fix: \`echo htmlspecialchars($_GET['name'], ENT_QUOTES, 'UTF-8')\`.
+5. **Safe — a \`PreparedStatement\` with \`?\` binding.** Data travels apart from the SQL; nothing to fix.
+
+The point of doing five languages at once: notice you diagnosed **four different syntaxes with one mental model** — "is untrusted data reaching a code/markup interpreter without separation?" You didn't need to *know* Go or PHP; you needed to recognize the injection shape. That transfer is the entire value of this module — a vuln is a property of the dataflow, not the language, so the skill you built in Node reads every stack.
+</details>
+
+#### 🔴 Break & Defend — audit an inherited codebase ~12 min
+
+You inherit a mixed Rails + Flask repo. The frameworks are *safe by default* — so the bugs are wherever someone **opted out** of a default. Your job is to find those opt-outs fast.
+
+Seed a sample and hunt:
+\`\`\`bash
+mkdir -p ~/poly-workbench && cd ~/poly-workbench
+cat > app.rb <<'EOF'
+User.where(id: params[:id])                 # safe
+User.where("id = #{params[:id]}")           # opt-out?
+render html: comment.body.html_safe         # opt-out?
+params.permit!                              # opt-out?
+params.permit(:name, :email)                # safe
+EOF
+cat > views.py <<'EOF'
+cursor.execute("SELECT * FROM u WHERE id = %s", [uid])   # safe
+cursor.execute(f"SELECT * FROM u WHERE id = {uid}")      # opt-out?
+return render_template_string("{{ x|safe }}", x=user)    # opt-out?
+EOF
+\`\`\`
+
+**Goal.** Write the grep commands that surface each *disabled safe-default* — Rails \`html_safe\`, \`permit!\`, and string-interpolated \`.where("…")\`; Flask/Jinja \`execute(f"…")\` and the \`|safe\` filter — while leaving the safe lines unmatched.
+
+**Done when.** Your greps flag exactly the four \`opt-out?\` lines in \`app.rb\`+\`views.py\` (the two f-string/interp SQL, \`html_safe\`, \`permit!\`, and \`|safe\`) and none of the \`# safe\` lines. Then answer in your journal: what does an **SCA** scan (\`npm audit\`, \`pip-audit\`, \`bundle-audit\`, \`grype\`) find that these greps never will?
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Use **basic** \`grep\` (no \`-E\`) so parentheses, \`!\`, and \`|\` are all literal — then you don't fight regex escaping. Search for the exact opt-out tokens: \`html_safe\`, \`permit!\`, \`where("\`, \`execute(f\`, \`|safe\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your greps</summary>
+
+\`\`\`bash
+grep -rn "html_safe" .     # app.rb:3  — XSS escape hatch on user data
+grep -rn "permit!" .       # app.rb:4  — mass-assignment escape hatch
+grep -rn 'where("' .       # app.rb:2  — string-built SQL (hash form is the safe one)
+grep -rn "execute(f" .     # views.py:2 — f-string SQL
+grep -rn "|safe" .         # views.py:3 — Jinja2 autoescape opt-out
+\`\`\`
+Each safe line (\`where(id:…)\`, \`permit(:name…)\`, parameterized \`execute("… %s")\`) is left untouched — because you're grepping for the *specific token that disables the default*, not for the feature itself. This is the real review technique the module's knowledge check points at: on a framework with good defaults, you don't audit every query — you audit the **escape hatches**, and there's a short, greppable list per framework (\`raw\`/\`html_safe\`/\`permit!\` in Rails, \`|safe\`/\`Markup\`/\`render_template_string\` in Jinja, \`$queryRawUnsafe\` in Prisma, \`dangerouslySetInnerHTML\` in React).
+
+**What SCA finds that grep can't:** grep audits *your* code for dangerous patterns (that's SAST-flavored). **SCA** (Software Composition Analysis — \`npm audit\`, \`pip-audit\`, \`bundle-audit\`, \`grype\` on an SBOM) audits your **dependencies** — the code you *didn't* write — against a CVE database. A vulnerable \`lodash\` or \`log4j\` version has no dangerous token in *your* files to grep for; only a scan of the dependency graph against known-CVE feeds surfaces it. The two are complementary: SAST/grep for your patterns, SCA for your supply chain (Module 1.4, and the whole of Phase 7). A CI pipeline runs both, e.g. \`grype … --fail-on critical\` alongside a SAST rule set.
+
+**Outside the box:** the durable habit from this module is *"where did someone turn the safety off?"* Safe-by-default frameworks fail almost exclusively at their opt-outs, so a five-line grep across a new repo — the escape-hatch tokens for its stack — is one of the highest-value first passes you can make on inherited code. You built that list by understanding the defaults; now you can audit a language you've never written.
+</details>
+
+---
+
 ➡️ **Next step:** You know how the same vulnerabilities appear across every language. Now learn to find the ones scanners miss — the flaws in your *business logic*. Continue to **Module 3.6: Business Logic Flaws & Race Conditions**.`,
     tracker: [
       "Can write a parameterised SQL query in at least three languages (Node, Python, Go or Java, PHP or Ruby)",
@@ -7664,7 +8249,9 @@ Add \`grype --fail-on critical\` to your CI pipeline to break the build on unpat
       "Understands why Go's html/template is safer than text/template for HTML output",
       "Has run Syft + Grype against a project and interpreted the output",
       "Knows the common Rails 'opt-out' mistakes that disable built-in protections",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: classified five snippets across Python/Go/Rails/PHP/Java by root cause and fix, without leaning on the language",
+      "Workbench: grepped an inherited repo for disabled safe-defaults (html_safe, permit!, where(\", execute(f, |safe) and can say what SCA finds that grep can't"
     ]
   },
   {
@@ -7796,6 +8383,152 @@ When testing any application for business logic flaws:
 2. Because SELECT and UPDATE are separate operations. Between the check and the update, both threads can read uses=0, both pass the check, and both increment — leaving uses=2 even though it should cap at 1. Fix: use an atomic conditional UPDATE (\`UPDATE coupons SET uses=uses+1 WHERE code=? AND uses<1\`) and check rows-affected; if 0, the code was already used. Alternatively, SELECT FOR UPDATE within a transaction locks the row until the transaction commits, preventing the interleave.
 </details>
 
+---
+
+### 🧪 Workbench: make a one-use coupon pay out thirteen times
+
+> **What this trains.** Logic flaws and races are the bugs *no scanner finds* — you find them by understanding intent and by making concurrency happen. Race conditions are notoriously hard to *see*; this Workbench makes one reproducible on your own machine, then you fix it and watch it die. Dependency-free.
+
+**The rule:** predict the outcome before each run; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — charge yourself a penny ~5 min
+
+\`\`\`bash
+mkdir -p ~/logic-workbench && cd ~/logic-workbench
+cat > checkout.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const CATALOG = { "p1": { name:"Widget", price: 49.99 } };
+function body(req){return new Promise(r=>{let d="";req.on("data",c=>d+=c);req.on("end",()=>{try{r(JSON.parse(d||"{}"));}catch{r({});}});});}
+http.createServer(async (req,res)=>{
+  const u=new URL(req.url,"http://localhost:4610");
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (u.pathname==="/checkout" && req.method==="POST"){
+    const b = await body(req);
+    return json({ productId:b.productId, charged: b.price });   // handles checkout
+  }
+  res.statusCode=404; json({});
+}).listen(4610,()=>console.log("checkout on http://localhost:4610"));
+EOF
+node checkout.js     # leave running
+\`\`\`
+
+**Goal.** Buy the \$49.99 Widget for **one cent** — by sending what the client should never get to decide.
+
+**Done when.** The response shows \`"charged":0.01\` (or any value you chose), and you can name why no scanner would flag this endpoint.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -X POST localhost:4610/checkout -d '{"productId":"p1","price":0.01}'
+# {"productId":"p1","charged":0.01}
+\`\`\`
+
+The server trusted a **client-supplied price**. Nothing is "injected," no rule of any parser is broken — the code does *exactly* what it says, which is why SAST/DAST are blind to it: they'd need to know the *business rule* ("the customer doesn't set the price") to flag it, and that rule lives only in your head. The fix is to ignore the client's price entirely and look up the authoritative one:
+\`\`\`js
+const p = CATALOG[b.productId];
+return json({ productId:b.productId, charged: p.price });   // ✅ server decides the price
+\`\`\`
+Same rule as the whole phase — *the client controls the entire request* — but here the dangerous field isn't a script or a SQL quote, it's a **number the business logic should have owned.**
+</details>
+
+#### 🟡 Build 1 — the race that double-spends ~15 min
+
+This server enforces a **one-use** coupon — correctly, if requests arrive one at a time. Fire them all at once and watch it break.
+
+\`\`\`bash
+cat > race.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+let coupon = { code: "SAVE10", uses: 0 };
+const redemptions = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function getUses(){ await sleep(15); return coupon.uses; }   // simulate DB read latency
+async function setUses(n){ await sleep(15); coupon.uses = n; }     // simulate DB write latency
+
+http.createServer(async (req,res)=>{
+  const u = new URL(req.url,"http://localhost:4609");
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (u.pathname==="/redeem"){
+    // read-then-write: check, then (after an async gap) write
+    const uses = await getUses();
+    if (uses < 1) { await setUses(uses + 1); redemptions.push(Date.now()); return json({redeemed:true}); }
+    res.statusCode=409; return json({redeemed:false, reason:"already used"});
+  }
+  if (u.pathname==="/count") return json({ successful_redemptions: redemptions.length });
+  res.statusCode=404; json({});
+}).listen(4609,()=>console.log("race on http://localhost:4609"));
+EOF
+node race.js     # leave running
+\`\`\`
+
+**Goal, part A — break it.** Send ~20 redemptions *concurrently* (not in a loop one after another) and show the one-use coupon was redeemed **many** times.
+
+**Goal, part B — fix it.** Rewrite the \`/redeem\` handler so that even under the same concurrent burst, it redeems **exactly once** — and prove it.
+
+**Done when.** Part A's \`/count\` reports well more than 1 successful redemption; after your fix, the same burst yields exactly 1.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Part A: a sequential \`for\` loop won't race — the requests must be *in flight simultaneously*. \`seq 1 20 | xargs -P20 -I{} curl -s -o /dev/null http://localhost:4609/redeem\` fires 20 at once (\`-P20\` = 20 in parallel). Part B: the bug is the *gap* between reading \`uses\` and writing it — during that \`await\`, other requests read the same old value. Remove the gap: make the check-and-increment a single, uninterrupted step (no \`await\` between reading and writing), so no two requests can both see \`uses < 1\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run both parts</summary>
+
+**Part A — break it:**
+\`\`\`bash
+seq 1 20 | xargs -P20 -I{} curl -s -o /dev/null http://localhost:4609/redeem
+curl -s http://localhost:4609/count
+# {"successful_redemptions":13}      <- a ONE-use coupon paid out ~13 times
+\`\`\`
+Why it happens (TOCTOU — Time Of Check To Time Of Use): each request \`await getUses()\` reads \`uses = 0\`, and *because of the await*, many requests read that 0 **before any of them writes 1**. All of them pass \`uses < 1\` and all increment — the check and the use were separated by a gap the scheduler filled with other requests. The exact number varies with timing; the point is it's \`> 1\`, which for a coupon, a bank withdrawal, or an inventory count is a real-money bug.
+
+**Part B — fix it (atomic check-and-set, no gap):**
+\`\`\`js
+if (u.pathname==="/redeem"){
+  if (coupon.uses < 1) { coupon.uses += 1; redemptions.push(Date.now()); return json({redeemed:true}); }
+  res.statusCode=409; return json({redeemed:false, reason:"already used"});
+}
+\`\`\`
+\`\`\`bash
+# restart the server, then:
+seq 1 20 | xargs -P20 -I{} curl -s -o /dev/null http://localhost:4609/redeem
+curl -s http://localhost:4609/count
+# {"successful_redemptions":1}       <- exactly once, even under the burst
+\`\`\`
+The check and the increment now run in **one uninterrupted step** (no \`await\` between them), so no two requests can both observe \`uses < 1\`. In a real database this is the difference between read-then-write and an **atomic conditional update**: \`UPDATE coupons SET uses = uses + 1 WHERE code = 'SAVE10' AND uses < 1\` — the database applies the \`WHERE\` and the \`SET\` as one locked operation, and you check *rows-affected* (0 = already used). \`SELECT … FOR UPDATE\` inside a transaction is the other standard tool. The principle: *for anything that must happen once, the check and the action must be a single atomic operation, never two steps with a gap between.*
+</details>
+
+#### 🔴 Break & Defend — the methodology that catches these ~10 min
+
+No code. In your journal:
+1. Why did *no scanner* catch either bug you just exploited? State it in terms of what a scanner can and cannot know.
+2. For a **payment** endpoint, describe how an **idempotency key** prevents a double-charge from a retried/duplicated request — and how it differs from the atomic-update fix.
+3. Write the four questions you'd ask, *at design time*, of any endpoint that changes state or grants value.
+
+**Done when.** Your answers explain that scanners don't know the intended business rule; that an idempotency key deduplicates by a client-supplied unique id (returning the cached result for a repeat) whereas atomicity prevents concurrent interleave; and your four questions cover client-supplied values, step-skipping, concurrency, and one-time actions.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Scanners test the interpreter's rules, not the application's.** A DAST/SAST tool can recognize a SQL quote or an unescaped sink because those violate a *universal* rule. It cannot know that *the customer shouldn't set the price* or that *a coupon is one-use* — those are constraints specific to your domain that exist nowhere in the syntax. The code did exactly what it said; the bug is a *missing rule*, and only a human who knows the intended behavior can spot a missing rule.
+
+2. **Idempotency key vs atomicity — different jobs.** An idempotency key is a unique id the client generates per operation and sends with the request; the server records \`(key → result)\` and, on seeing a key it has already processed, returns the *stored* result instead of doing the work again. It defends against **duplicate/retried requests** (network retries, double-clicks, replays) — the same logical operation arriving more than once. Atomicity (atomic update / \`FOR UPDATE\`) defends against **concurrent interleave** of *different* operations racing over shared state. A robust payment path uses *both*: idempotency so a retry doesn't double-charge, atomic balance updates so two distinct withdrawals can't both pass the funds check.
+
+3. **The design-time checklist** for any state-changing / value-granting endpoint:
+   - *Can the client supply a value the server should own?* (price, total, role, userId, quantity — including negatives/zero.)
+   - *Can a user skip a required step?* (hit \`/confirm\` without \`/pay\`; reach step 3 without 1–2.)
+   - *What happens if two of these run at exactly the same time?* (double-spend, coupon reuse, inventory going negative.)
+   - *Should this be possible only once — and is that enforced atomically?* (redeem, withdraw, claim bonus, cast vote.)
+
+**Outside the box:** every bug in this module shares a shape the rest of the phase doesn't — *the input is valid and the code is "correct," yet the system does the wrong thing.* That's why the defense isn't a sanitizer or an encoder; it's **understanding the intended behavior and encoding it as a server-side invariant** (authoritative price, atomic one-use, idempotent payment). It's also why business logic testing can't be bought as a tool — it's the part of security that most needs an engineer who understands the product. Clean up: \`Ctrl+C\` both servers.
+</details>
+
+---
+
 ➡️ **Next step:** You can harden a server against injection, lock down APIs and uploads, reason across multiple languages, and find the logic flaws scanners miss. One more server-side surface remains: connections that stay open. Continue to **Module 3.7: WebSockets & Real-Time Application Security**.`,
     tracker: [
       "Can explain why business logic flaws don't appear in DAST/SAST output",
@@ -7803,7 +8536,10 @@ When testing any application for business logic flaws:
       "Can demonstrate a race condition test using Burp Turbo Intruder (or single-packet attack concept)",
       "Can implement the atomic conditional UPDATE pattern to prevent coupon double-use",
       "Knows what an idempotency key is and why it prevents duplicate payment processing",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: bought a $49.99 item for one cent via client-supplied price, and fixed it with a server-side lookup",
+      "Workbench: reproduced a real race (20 concurrent redeems of a one-use coupon paid out ~13x), then made it atomic and proved exactly-once",
+      "Workbench: journalled why scanners miss logic flaws, idempotency-key vs atomicity, and the four design-time questions"
     ]
   },
   {
@@ -7980,6 +8716,115 @@ wscat -c wss://app.example.com/chat --header "Cookie: session=abc123"
 2. Because the client is under the user's control. Anyone with the WebSocket URL and a session cookie can send arbitrary messages — they don't need your front-end app at all (wscat, Burp Repeater, or a script can connect directly). Trusting the structure or content of WebSocket messages because "our UI only sends valid ones" is the same mistake as trusting HTTP request body fields from your own forms. All server-side validation rules apply: type-check, length-check, sanitise, parameterise database queries.
 </details>
 
+---
+
+### 🧪 Workbench: hijack the socket at the handshake
+
+> **What this trains.** CSWSH is CSRF's WebSocket cousin, and the whole decision happens in *one moment* — the upgrade handshake. You don't need a full WebSocket stack to feel it: the upgrade is an HTTP request with \`Origin\` and \`Cookie\` headers, and \`curl\` can send exactly that. This lab shows the accept/reject decision (\`101\` vs \`403\`) dependency-free, which is precisely where the security lives.
+
+\`\`\`bash
+mkdir -p ~/ws-workbench && cd ~/ws-workbench
+cat > wsauth.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+function cookies(h) {
+  const o = {};
+  (h || "").split(";").forEach(p => {
+    const i = p.indexOf("=");
+    if (i > 0) o[p.slice(0, i).trim()] = p.slice(i + 1).trim();
+  });
+  return o;
+}
+const server = http.createServer((req, res) => res.end("http ok"));
+server.on("upgrade", (req, socket) => {
+  const c = cookies(req.headers.cookie);
+  const authed = c.session === "valid-session";
+  // TODO (Build 1): also require the Origin to be on an allow-list.
+  const accept = authed;                       // <-- currently cookie-only (the bug)
+  if (accept) socket.write("HTTP/1.1 101 Switching Protocols\\r\\nUpgrade: websocket\\r\\n\\r\\n");
+  else socket.write("HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n");
+  socket.destroy();   // demo: we show only the upgrade DECISION, not a full WS session
+});
+server.listen(4611, () => console.log("ws-auth on http://localhost:4611"));
+EOF
+node wsauth.js     # leave running
+\`\`\`
+
+A reusable set of upgrade headers for curl:
+\`\`\`bash
+UP=(-s -i --max-time 2 -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZQ==")
+\`\`\`
+
+**The rule:** predict \`101\` or \`403\` before each curl; write the Origin check before opening its walkthrough.
+
+#### 🟢 Drill 1 — connect from evil.example ~6 min
+
+**Goal.** Playing a malicious page on \`https://evil.example\`, send the WebSocket **upgrade** request carrying the victim's session cookie, and get the server to **accept** it (status \`101\`).
+
+**Done when.** The response's first line is \`HTTP/1.1 101 Switching Protocols\` — your cross-origin page just got an authenticated socket.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl "\${UP[@]}" -H "Origin: https://evil.example" -H "Cookie: session=valid-session" \\
+  "http://localhost:4611/chat" | head -1
+# HTTP/1.1 101 Switching Protocols
+\`\`\`
+
+Accepted — from \`evil.example\`. That's **Cross-Site WebSocket Hijacking**: exactly like CSRF (Module 2.3), the browser attaches the victim's session cookie to the upgrade request the attacker's page initiates, and the server checked only that the cookie is *valid* — never *where the connection came from*. Now the attacker's page holds a live, authenticated socket to your server and can read/send whatever that user could. The cookie proved *who*; it said nothing about *origin* — the same gap, one protocol over.
+</details>
+
+#### 🟡 Build 1 — reject the foreign origin ~8 min
+
+**Goal.** Add an Origin allow-list to the upgrade handler so a connection is accepted only when the cookie is valid **and** the \`Origin\` is \`https://app.example.com\`.
+
+**Done when.** With your fix: evil-origin + valid cookie → \`403\`; \`https://app.example.com\` + valid cookie → \`101\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Add \`const ALLOWED = new Set(["https://app.example.com"]);\` and change the decision to \`authed && ALLOWED.has(req.headers.origin)\`. The \`Origin\` header is on \`req.headers.origin\` during the upgrade, just like any request header.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`js
+const ALLOWED = new Set(["https://app.example.com"]);
+// ...
+const accept = authed && ALLOWED.has(req.headers.origin);   // cookie AND origin
+\`\`\`
+\`\`\`bash
+curl "\${UP[@]}" -H "Origin: https://evil.example"     -H "Cookie: session=valid-session" "http://localhost:4611/chat" | head -1
+# HTTP/1.1 403 Forbidden
+curl "\${UP[@]}" -H "Origin: https://app.example.com"  -H "Cookie: session=valid-session" "http://localhost:4611/chat" | head -1
+# HTTP/1.1 101 Switching Protocols
+\`\`\`
+Validating \`Origin\` **at the upgrade handshake** is the primary CSWSH defense — because the handshake is *the only moment the browser sends the cookie*, it's the only moment you can gate the connection. Notice this is the same exact-allow-list move as CORS (Module 2.4): enumerate the origins you trust, reject everything else, never reflect.
+</details>
+
+#### 🔴 Break & Defend — why the origin check isn't the whole job ~10 min
+
+The Origin check stops browser-based CSWSH, but a long-lived socket has more surface. In your journal:
+1. You authenticate once, at the upgrade. Why must you *still* validate and authorize **every message** afterward — and who can send messages that never touched your front-end?
+2. The \`Origin\` header stopped \`evil.example\` in a browser. Why is it *not* sufficient on its own for a high-value action, and what do you add?
+3. One sentence each: \`ws://\` vs \`wss://\`, and why a single WebSocket connection is a DoS primitive without rate limiting.
+
+**Done when.** Your answers cover: messages aren't re-authenticated by the cookie (it's only sent at upgrade), so each message is untrusted input that a direct client (\`wscat\`, Burp, a script) can send bypassing your UI entirely; \`Origin\` is spoofable by *non-browser* clients so sensitive ops need a CSRF token in the upgrade URL / first message; \`ws://\` is plaintext (use \`wss://\`); and one socket can flood thousands of messages/sec.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **The cookie is sent only at the upgrade, never per message.** After the handshake the connection is a raw stream; there's no per-message cookie to re-check. So every incoming message is untrusted input that must be type/length/content validated and authorized *per action* (can this user subscribe to *this* room?), exactly like an HTTP body. And crucially — anyone with the URL and a session can connect *directly* with \`wscat\`, Burp Repeater, or a script, sending arbitrary messages your front-end would never produce. "Our UI only sends valid messages" is the same false comfort as "our form only sends these fields" (Module 3.3): the client isn't your UI.
+2. **\`Origin\` is set by browsers but forgeable by everything else.** A \`curl\`/script attacker just sends \`Origin: https://app.example.com\` — you saw in Phase 1 that any header is client-settable. So Origin-checking defeats *browser* CSWSH (a real, common attack) but is not a strong authorization for high-value operations. Add a **CSRF-style token** the attacker can't read (in the upgrade URL or as an authenticated first message), so acceptance depends on a secret, not just a spoofable header — the same reasoning as CSRF tokens over SameSite.
+3. **\`ws://\` is plaintext** (every message readable/modifiable on the wire — use \`wss://\`, the TLS version, always). **A single socket is a DoS primitive** because one connection can send thousands of messages per second, so you must rate-limit both connection count and per-connection message rate or one client can exhaust the server.
+
+**Outside the box:** the theme of the whole phase closes here — *authentication is a moment, authorization is every action.* REST hid this because each request re-sends the cookie, making it easy to check per request. WebSockets strip that away: you authenticate once and then the connection is just a pipe, which forces you to see clearly what was always true — the server must authorize *each action against the caller*, not rely on "they logged in once." Every Phase 3 module has been a variation on that sentence. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
 ➡️ **Next step (Phase 3 complete):** Server secured, API locked down, uploads hardened, business logic defended, WebSocket surface controlled. Now zoom out to the industry-standard map of all major risk categories — and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.
 
 ### Phase 3 Deliverable
@@ -8009,7 +8854,9 @@ Create \`~/appsec-journal/notes/phase-3-backend-api-database.md\` and answer, in
       "Can intercept and replay a WebSocket message in Burp Suite (or describe the steps)",
       "Knows the four defense layers: Origin validation, upgrade auth, message validation, rate limiting",
       "Wrote the Phase 3 deliverable journal entry",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: performed CSWSH — got the server to 101-accept an upgrade from evil.example with the victim cookie — then added the Origin allow-list (403 for evil, 101 for the real origin)",
+      "Workbench: journalled why per-message validation is still required, why Origin alone isn't enough for high-value actions, and ws:// vs wss://"
     ]
   },
   {
