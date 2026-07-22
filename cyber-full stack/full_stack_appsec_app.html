@@ -959,7 +959,7 @@ This course is a practitioner-grade, full-stack application security curriculum 
 
 ### What this course is
 
-**60 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it.
+**60 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it. Foundational modules also close with a **Workbench** — write-it-from-scratch tasks that state an outcome and a way to check yourself, with the worked solution hidden until you've made your own attempt. Reading a command and *producing* one from a blank prompt are different skills, and the Workbench trains the second one.
 
 The course uses Node.js and Express as its primary example language because it is the most common full-stack pairing — but Phase 3.5 explicitly maps every pattern to Python, Go, Java, PHP, and Ruby. The security thinking is language-agnostic; only the syntax differs.
 
@@ -1026,9 +1026,11 @@ The **sidebar skill indicator** tracks your live progress through seven named le
 
 **Knowledge checks** — short self-assessment questions at the end of each module. Most modules have a \`Show answers\` toggle; use it to verify your understanding, not to skip the thinking.
 
+**Workbench** — foundational modules end with hands-on tasks that give you an outcome and a "Done when" check, but *not* the command. You write it, run it, and only then open the walkthrough — which critiques the common wrong attempts rather than just handing you the answer. The one rule: type something and press Enter before you reveal anything. A task you're stuck on for two minutes is the section working, not failing. Some Workbench tasks deliberately reach back to earlier modules — that spaced recall is what turns a command you once read into one you can still write months later.
+
 **Theme toggle** — top-right corner cycles through dark, light, and system theme.
 
-**Pace** — the typical path is 2–4 hours per module for Phase 0–3, 4–6 hours for Phase 4–7, and 6–8 hours for Phase 8–10. Total course: **~200–250 hours** of serious study and lab work. There is no timer — go at the pace that lets you do the labs, not just read them.
+**Pace** — the typical path is 2–4 hours per module for Phase 0–3, 4–6 hours for Phase 4–7, and 6–8 hours for Phase 8–10. Modules with a Workbench add roughly 45–90 minutes of *active* practice on top of the reading — that time is the point, not overhead, and it is where the fluency actually forms. Total course: **~210–260 hours** of serious study and lab work. There is no timer — go at the pace that lets you do the labs and the Workbench, not just read them.
 
 ---
 
@@ -1491,8 +1493,78 @@ You haven't written a defense yet, but you have met the principles that *every* 
 5. Least privilege: every actor should have only the access it needs and nothing more. Process example: running a downloaded app — or your web server — as \`root\` when it only needs to read one directory.
 </details>
 
+---
+
+### 🧪 Workbench: read the machine like a security engineer
+
+> **Why this matters here.** This module's payoff is *seeing* trust boundaries instead of memorizing them — and on a real computer the most legible trust boundary is the permission string on a file. These tasks make you read those bits, spot the one that's wrong, and fix it. It is the same skill Phase 8 turns into a formal finding; you're just meeting it on your own files first.
+
+**The rule:** predict each answer before you run the command that reveals it.
+
+#### 🟢 Drill 1 — read the permission string ~4 min
+
+**Goal.** Create three files with different permissions, then *read* what each one allows — for owner, group, and everyone else — without guessing.
+
+\`\`\`bash
+mkdir -p ~/machine-workbench && cd ~/machine-workbench
+printf 'PORT=3000\\n'        > app.conf
+printf 'AWS_SECRET=not-real\\n' > secrets.env
+printf '#!/bin/sh\\necho hi\\n' > deploy.sh
+chmod 644 app.conf ; chmod 640 secrets.env ; chmod 755 deploy.sh
+ls -l
+\`\`\`
+
+**Done when.** For each file you can say, out loud, exactly who may read / write / execute it — and you can point to the characters in the \`ls -l\` output that prove it.
+
+<details>
+<summary>Walkthrough — open after you've read all three yourself</summary>
+
+Reading left to right, the ten characters are: **type** + **owner rwx** + **group rwx** + **others rwx**.
+
+- \`app.conf\` → \`-rw-r--r--\` (644): owner read+write; group read; others read. A config everyone on the box can read.
+- \`secrets.env\` → \`-rw-r-----\` (640): owner read+write; group read; **others: nothing**. Better for a secret — but the *group* can still read it.
+- \`deploy.sh\` → \`-rwxr-xr-x\` (755): owner read+write+execute; group and others read+execute. Correct for a script meant to be runnable by anyone, wrong for anything sensitive.
+
+The habit worth building: **the permission string is least privilege written down, and you can read it at a glance.** Each triad is a group (owner/group/others); each is r(4) w(2) x(1). When you later audit a server, a stray \`w\` in the "others" triad on a config file *is* the finding — no tool required to see it.
+</details>
+
+#### 🔴 Break & Defend — find the leak, close it ~8 min
+
+**Goal.** One of the files below is misconfigured so that **any user on the machine can modify it** — a real foothold for an attacker. Without opening files one by one, *find* the offending file by its permissions, then fix it so only its owner can read and write it. Prove both the find and the fix.
+
+\`\`\`bash
+cd ~/machine-workbench
+printf 'DB_PASSWORD=not-real\\n' > db.env
+chmod 606 db.env        # <-- the planted misconfiguration; don't inspect it, detect it
+\`\`\`
+
+**Done when.** A single command surfaces \`db.env\` as world-writable (you did *not* just eyeball every file), and after your fix \`ls -l db.env\` shows \`-rw-------\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+You don't want to read contents — you want to search by a *property* of the files. There's a command that finds files by attributes rather than by name or text, and it can match on permission bits: "others have write." Then the fix is the same \`chmod\` arithmetic from the lab.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+find . -type f -perm -o+w      # files where OTHERS have the write bit set
+# ./db.env
+chmod 600 db.env               # owner rw, nobody else anything
+ls -l db.env                   # -rw-------
+\`\`\`
+
+\`db.env\` was \`606\` = \`-rw----rw-\`: owner read+write, group nothing, and **others read+write**. A world-writable file holding a DB password is a double problem — anyone can *read* the secret *and* anyone can *overwrite* the file to point your app at a database they control. \`find -perm -o+w\` is exactly how a real audit locates this class of bug across a whole tree in one pass, which is why "detect, don't eyeball" is the habit: on a server with ten thousand files, reading them one by one is not an option, but one \`find\` is.
+
+**Why \`600\` and not \`640\`?** For a file only the app's own user needs, cut the group's read too — least privilege means the *smallest* set of principals that still lets the system work, and "the group" is rarely that set for a secret. This is the same reasoning Phase 8 formalizes when it flags world-readable secrets in a container image.
+</details>
+
+---
+
 ➡️ **Next step:** You understand the single machine. But web security is about machines *talking to each other* — and the moment data leaves your computer, a whole new set of trust boundaries appears. Continue to **Module 0.2: What the Internet Is**.`,
-    tracker: ["Read the four-things-a-computer-does model and named the trust boundary in each", "Ran the inspect-your-machine lab (ls -la, id, ps aux) and read the permission bits", "Named the four cross-cutting principles (least privilege, isolation, trust boundaries, persistence)", "Answered the knowledge check"]
+    tracker: ["Read the four-things-a-computer-does model and named the trust boundary in each", "Ran the inspect-your-machine lab (ls -la, id, ps aux) and read the permission bits", "Named the four cross-cutting principles (least privilege, isolation, trust boundaries, persistence)", "Answered the knowledge check", "Workbench: read the rwx triads on three files and said exactly who could do what to each", "Workbench: detected the world-writable file with find -perm -o+w (not by eyeballing) and fixed it to -rw-------"]
   }, {
     id: "m0-2",
     phaseId: "p0",
@@ -1565,8 +1637,59 @@ traceroute example.com   # show each network hop between you and the destination
 5. The name in the bar reflects what the browser *intended* to reach; it can be subverted by DNS tampering. Cryptographic proof comes from a valid TLS certificate binding that name to the server.
 </details>
 
+---
+
+### 🧪 Workbench: resolve a name yourself, then check the proof
+
+> **A note on outputs.** Unlike the file Workbenches, these commands hit the live internet, so your exact IPs and hop counts will differ from anyone else's — and that's fine. The "Done when" checks describe the *shape* of a correct result, not specific numbers. The skill is running the query and reading the answer, not matching a fixed string.
+
+**The rule:** predict what each command will tell you before you run it.
+
+#### 🟢 Drill 1 — turn a name into an address ~4 min
+
+**Goal.** Using a tool that asks DNS directly (not your browser), find the IP address(es) that \`example.com\` resolves to, and read the answer section rather than guessing.
+
+**Done when.** You have at least one IPv4 address (four numbers, dots between them) that DNS returned for the name — and you can point to *where* in the output the name-to-address mapping actually appears.
+
+<details>
+<summary>Walkthrough — open after you've run your own query</summary>
+
+\`\`\`bash
+dig example.com A +noall +answer
+# example.com.   249  IN  A  104.20.23.154   (your IP will differ)
+\`\`\`
+
+That last line *is* the mapping: the name on the left, the record type \`A\` (an IPv4 address record), and the address DNS is claiming answers for it. \`dig +short example.com\` gives you just the bare address if that's all you want. The reason we reach past the browser: this is the raw trust step the whole module is about — **the answer is a *claim* returned by whichever resolver you asked**, and nothing in this output proves the address is the *real* \`example.com\`. Hold that thought for Drill 2.
+
+If your resolver returned multiple addresses, that's normal — big sites answer with several so load can spread across them.
+</details>
+
+#### 🔴 Reason it through — the name is a claim, the certificate is the proof ~8 min
+
+No command for this one — it's the reasoning the module hangs on, and you should be able to produce it unaided. In your journal:
+
+**The scenario.** An attacker on your network poisons DNS so that \`yourbank.com\` resolves, on your machine, to *their* server's IP. You type \`https://yourbank.com\` and hit Enter.
+
+1. Whose server does your browser actually connect to, and what does the address bar still say?
+2. What single thing stops the attacker's server from successfully impersonating the bank — and *why* can't the attacker just supply it too?
+3. Optional, if you want to see the proof mechanism directly: run \`echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject\` and read which name the presented certificate is actually *for*.
+
+**Done when.** Your answer names the TLS certificate as the thing that fails for the attacker, and explains that a valid certificate for \`yourbank.com\` requires a private key the attacker doesn't have.
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+1. Your browser connects to the **attacker's** IP — because DNS, the name→address step, was subverted — while the address bar still shows \`yourbank.com\`. DNS resolution and identity are *separate things*, and the attacker corrupted the first.
+2. The **TLS certificate**. To complete an HTTPS connection as \`yourbank.com\`, the server must present a certificate that (a) is issued for \`yourbank.com\` by a certificate authority your browser trusts, and (b) it can prove it owns, by holding the matching **private key**. The attacker can copy the bank's *public* certificate all day, but without the private key they can't complete the handshake, and no trusted CA will issue them a valid certificate for a domain they don't control. So the browser throws a certificate warning instead of connecting — the warning is the system working.
+3. The \`openssl\` command prints \`subject=CN=example.com\`: the certificate names the domain it's valid for. A certificate presented for the wrong name, or self-signed, or from an untrusted issuer, is exactly what a browser refuses.
+
+**The sentence to keep:** *"names are claims, certificates are proof."* DNS tells you where to go; TLS proves you arrived at who you meant. Nearly every network-layer attack you'll study — SSRF, open redirects, MITM — is some version of trusting the claim without checking the proof.
+</details>
+
+---
+
 ➡️ **Next step:** You can get a request from your machine to a server. Now look at what that server sends back and what your browser does with it. Continue to **Module 0.3: What a Website Is**.`,
-    tracker: ["Walked the DNS → connection chain and named where trust is assumed at each step", "Ran the dig / ping / traceroute lab and read the ANSWER section + hop list", "Can state why 'names are claims, certificates are proof'", "Answered the knowledge check"]
+    tracker: ["Walked the DNS → connection chain and named where trust is assumed at each step", "Ran the dig / ping / traceroute lab and read the ANSWER section + hop list", "Can state why 'names are claims, certificates are proof'", "Answered the knowledge check", "Workbench: resolved example.com with dig and read the A record out of the answer section myself", "Workbench: journalled the DNS-poisoning scenario and why a valid TLS cert requires a private key the attacker lacks"]
   }, {
     id: "m0-3",
     phaseId: "p0",
@@ -1654,8 +1777,72 @@ Open it in your browser, click the button (your JS ran), then open DevTools (⌘
 5. XSS means getting your JavaScript to run *in the context of the victim's page*. The Console demonstrates exactly that capability. XSS is "Console access" granted to an attacker.
 </details>
 
+---
+
+### 🧪 Workbench: prove the client is yours
+
+> **Why these are done in the browser.** This module has exactly one thing to install in your gut: *the client is fully attacker-controllable.* You can't feel that by reading it — you feel it by editing a page you "shouldn't" be able to edit and watching it obey you. These tasks are observational (the "Done when" is something you *see* happen), and they need nothing but a browser and its DevTools.
+
+**The rule:** predict what will happen before each action — especially whether you think the page will "let" you.
+
+#### 🟢 Drill 1 — rewrite a page that isn't yours to rewrite ~5 min
+
+Make a trivial page and open it (\`file://\` is fine):
+
+\`\`\`bash
+mkdir -p ~/web-workbench && cd ~/web-workbench
+cat > shop.html <<'EOF'
+<!doctype html>
+<button id="buy" data-price="100">Buy — $100</button>
+<p id="total">Total: $100</p>
+EOF
+# open shop.html in your browser (double-click it, or: open shop.html / xdg-open shop.html)
+\`\`\`
+
+**Goal.** With the page open, use **only** the DevTools console (⌘-⌥-I / Ctrl-Shift-I → Console) to change the displayed total to \`$1\` and change the button's stored price to \`1\` — without editing \`shop.html\` on disk.
+
+**Done when.** The page visibly shows \`Total: $1\` and \`document.getElementById('buy').dataset.price\` returns \`"1"\` — proving you rewrote *the running page*, not the file.
+
+<details>
+<summary>Walkthrough — open after you've made the page obey you</summary>
+
+\`\`\`js
+document.getElementById('total').textContent = 'Total: $1';
+document.getElementById('buy').dataset.price = '1';
+document.getElementById('buy').dataset.price;   // "1"
+\`\`\`
+
+You just changed a price the page's author clearly didn't intend you to change — and nothing stopped you, because **the DOM running in your browser is yours**. The HTML file on disk is untouched; what you edited is the live, in-memory copy that only exists on your machine. Reload and your changes vanish, which is the tell: they were never on the server to begin with.
+
+The point isn't that you can discount a static demo page. It's the generalization: **anything the browser holds — prices, hidden fields, disabled buttons, "client-side validation," a total to be sent to a server — is editable by the person in front of it.** If a real checkout *trusted* that \`data-price\` and charged what the client sent, you'd have just bought a \$100 item for \$1. That exact bug (trusting a client-supplied price) is a recurring real-world finding, and Module 0.4 is about who *should* have decided the price instead.
+</details>
+
+#### 🔴 Reason it through — "hidden" is not "protected" ~5 min
+
+A developer "secures" an admin link by hiding it:
+
+\`\`\`html
+<a href="/admin/delete-all-users" style="display:none" id="danger">admin</a>
+\`\`\`
+
+In your journal, without being told the answer:
+1. Is the link's *destination* actually hidden from a user? Where can they see it, and how would they follow it?
+2. State the one-line rule this illustrates about \`display:none\`, \`hidden\`, and disabled controls.
+
+**Done when.** Your answer explains that the URL is fully present in the DOM (and network tab, and source), readable and reachable by anyone, and that hiding affects only *rendering*, never *access*.
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+The destination is not hidden at all. \`display:none\` only stops the browser from *drawing* the element — the \`<a>\`, its \`href\`, and the URL \`/admin/delete-all-users\` are right there in the DOM, visible in the Elements panel, in "View Source," and trivially reachable: \`document.getElementById('danger').click()\` in the console follows it, or the user just types the URL. You could even reveal it visually with \`document.getElementById('danger').style.display = 'block'\`.
+
+**The rule:** *hiding controls visibility, never access.* \`hidden\`, \`display:none\`, \`disabled\` buttons, and greyed-out menu items are presentation, not permission. The only thing that actually protects \`/admin/delete-all-users\` is the **server** checking, on every request to that route, that the caller is an authorized admin — regardless of whether any link to it was ever shown. This is the through-line into Module 0.4: the frontend can *hint* at what's allowed, but only the backend can *enforce* it.
+</details>
+
+---
+
 ➡️ **Next step:** If the frontend can't be trusted, the server must do the trusting and the enforcing. Let's see what a server actually is. Continue to **Module 0.4: What a Backend Is**.`,
-    tracker: ["Built hello-web.html and rewrote the DOM / ran console JS to prove the client is attacker-controlled", "Can explain why the DOM differs from the HTML file", "Stated the four rules that follow from 'the client is attacker-controlled'", "Answered the knowledge check"]
+    tracker: ["Built hello-web.html and rewrote the DOM / ran console JS to prove the client is attacker-controlled", "Can explain why the DOM differs from the HTML file", "Stated the four rules that follow from 'the client is attacker-controlled'", "Answered the knowledge check", "Workbench: rewrote a running page's price and total from the DevTools console, proving the DOM is mine to control", "Workbench: journalled why display:none hides rendering but never access, and that only the server can protect a route"]
   }, {
     id: "m0-4",
     phaseId: "p0",
@@ -1802,8 +1989,115 @@ def delete_account():
 5. The backend should trust the frontend *not at all* for security decisions: independently authenticate, authorize, and validate on every request as if the frontend doesn't exist.
 </details>
 
+---
+
+### 🧪 Workbench: attack the trust assumption, then fix it
+
+> **Why you play attacker first.** The module's whole thesis is that the backend's one job is *deciding, on its own authority, who may do what to which data* — and that the frontend can be skipped entirely. Reading that is not the same as watching a request you wrote walk straight past the missing check. Here you stand up a tiny server with the flaw, exploit it with a request you compose yourself, then add the one line that makes the exploit fail.
+
+**The rule:** write the attacking request yourself before opening any walkthrough — predict what it will return, then run it.
+
+#### 🟢 Drill 1 — read data that isn't yours ~8 min
+
+Seed a deliberately-flawed account server (run it in one terminal; leave it running):
+
+\`\`\`bash
+mkdir -p ~/backend-workbench && cd ~/backend-workbench
+cat > server.js <<'EOF'
+const http = require("http");
+// Two accounts. Account 1 is someone else's; you are only supposed to see account 2.
+const accounts = { "1": { owner: "alice", balance: 9999 },
+                   "2": { owner: "you",   balance: 12   } };
+http.createServer((req, res) => {
+  const m = req.url.match(/^\\/account\\/(\\d+)$/);
+  if (m) {
+    // THE BUG: it returns whichever account the URL names, with no check
+    // that the caller is allowed to see that account.
+    res.end(JSON.stringify(accounts[m[1]] || {}));
+  } else {
+    res.end("try /account/2");
+  }
+}).listen(4599, () => console.log("vulnerable server on http://localhost:4599"));
+EOF
+node server.js
+\`\`\`
+
+**Goal.** In a *second* terminal, and pretending the app's UI only ever shows you \`/account/2\`, write a request that reads **alice's** account instead.
+
+**Done when.** Your request returns \`{"owner":"alice","balance":9999}\` — data the interface never meant to show you.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The server doesn't care what the frontend "allows" — it answers whatever URL reaches it. You met the tool that speaks HTTP directly in the module's delete-account demo. The account id is right there in the path; nothing is stopping you from changing the number.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+curl -s http://localhost:4599/account/1
+# {"owner":"alice","balance":9999}
+\`\`\`
+
+That is it — you changed a \`2\` to a \`1\` and read another user's data. This is **Broken Access Control** (OWASP A01), specifically the *IDOR / Broken Object-Level Authorization* flavour, and it is consistently one of the most common serious bugs in real applications. Notice what you did **not** need: no password crack, no injection, no clever payload. You simply asked for an object and the server handed it over, because it never asked "is this caller allowed to see object 1?"
+
+The lesson is the module's thesis made physical: **the frontend hiding a button is not security.** The UI only ever links you to \`/account/2\`, but the route is reachable directly, and the server — the one component that *can* enforce the rule — didn't. Whether the caller "should" see account 1 is a decision only the backend can make, and here it abdicated.
+</details>
+
+#### 🔴 Break & Defend — add the missing decision ~10 min
+
+**Goal.** Change the server so that the same \`curl .../account/1\` no longer returns alice's data, while a legitimate request for your *own* account still works. Then, in your journal, explain why your fix belongs on the **server** and could never be enforced by the frontend.
+
+Because real identity comes from an authenticated session (Phase 6 builds that for real), simulate it here: treat a header like \`X-User-Id\` as "who the server has decided the caller is," and enforce that a caller may read **only** their own account.
+
+**Done when.** \`curl -s -H "X-User-Id: 2" http://localhost:4599/account/1\` returns nothing (or a 403), \`curl -s -H "X-User-Id: 2" http://localhost:4599/account/2\` returns your account, and your journal states why the check must live server-side.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The fix is one comparison the original code never made: *does the account being requested belong to the caller the server believes it's talking to?* Read the caller's identity from the request, compare it to the \`owner\`/id of the requested account, and refuse if they don't match — before you return anything.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your own fix</summary>
+
+\`\`\`js
+const http = require("http");
+const accounts = { "1": { owner: "alice", balance: 9999 },
+                   "2": { owner: "you",   balance: 12   } };
+http.createServer((req, res) => {
+  const m = req.url.match(/^\\/account\\/(\\d+)$/);
+  if (m) {
+    const requestedId = m[1];
+    const callerId = req.headers["x-user-id"];        // server-derived identity (a real app reads the session)
+    if (!callerId || callerId !== requestedId) {       // THE DECISION the vulnerable version skipped
+      res.statusCode = 403;
+      return res.end(JSON.stringify({ error: "forbidden" }));
+    }
+    res.end(JSON.stringify(accounts[requestedId] || {}));
+  } else {
+    res.end("try /account/2");
+  }
+}).listen(4599, () => console.log("fixed server on http://localhost:4599"));
+\`\`\`
+
+\`\`\`bash
+curl -s -H "X-User-Id: 2" http://localhost:4599/account/1   # {"error":"forbidden"}  — attack fails
+curl -s -H "X-User-Id: 2" http://localhost:4599/account/2   # your own account       — legit still works
+\`\`\`
+
+**Why this can only live on the server:** the check compares the caller's *real* identity against the object they're requesting, and the caller's real identity is something only the server can establish — the frontend runs on the attacker's machine, so any "am I allowed?" logic there is advisory at best and editable at worst. This is exactly *authentication vs authorization* from the knowledge check: authentication says *who you are* (the \`X-User-Id\`, a session in real life), authorization says *whether you may do this specific thing to this specific object* (the ownership comparison). The vulnerable version had neither.
+
+**One honest caveat about the simulation:** trusting a client-supplied \`X-User-Id\` header would itself be a huge bug in production — anyone could send \`X-User-Id: 1\` and become alice. It stands in here only for a value the server derives from a verified session, which is the entire subject of Phase 6. The transferable part is the *shape*: derive identity server-side, then authorize every object access against it. You'll see this exact pattern hardened for real in Module 3.3 (API security) and Phase 6.
+</details>
+
+---
+
+> **Before you move on.** Stop the practice server (\`Ctrl+C\`, or \`kill %1\` if you backgrounded it). The move you just practised — change one id in a URL and see what comes back — is the single most productive thing a real tester does first, and the check you added is the single most commonly missing one. You will meet this pair, in more elaborate forms, in Phases 3, 4, and 6.
+
 ➡️ **Next step:** The backend guards the data — so now meet the data store it's guarding, and the first place user input becomes dangerous. Continue to **Module 0.5: What a Database Is**.`,
-    tracker: ["Stood up tiny-server.js and deleted Alice with one curl (Broken Access Control, A01)", "Read the fixed Node + Python versions and why server-derived identity is the cure", "Can state authentication vs authorization precisely", "Answered the knowledge check"]
+    tracker: ["Stood up tiny-server.js and deleted Alice with one curl (Broken Access Control, A01)", "Read the fixed Node + Python versions and why server-derived identity is the cure", "Can state authentication vs authorization precisely", "Answered the knowledge check", "Workbench: exploited the IDOR account server by changing one id in the URL, before opening the walkthrough", "Workbench: added the server-side ownership check so the same request now returns 403, and journalled why it can't live on the frontend"]
   }, {
     id: "m0-5",
     phaseId: "p0",
@@ -1904,8 +2198,88 @@ print("attack :", build_query_UNSAFE("' OR '1'='1"))
 5. A crash is recoverable; leaked data cannot be un-leaked — it's copied and combined with other breaches permanently, with lasting harm and legal liability.
 </details>
 
+---
+
+### 🧪 Workbench: make the injection happen, then close it
+
+> **Why you build the bug yourself.** You've *read* that \`' OR '1'='1\` breaks a query. Reading it and constructing the payload that does it — then watching the query text mutate — are different. This Workbench has you play attacker first (with a harmless string, no real database, exactly as the lab did) so the mechanism stops being a fact and becomes something you can *see happen*.
+
+**The rule:** write your attempt before opening any walkthrough. For the attacker task, that means typing an actual input string and predicting the query it produces.
+
+#### 🟢 Drill 1 — watch data become code ~5 min
+
+**Goal.** Recreate the vulnerable query builder and prove that one crafted input turns a "find one user" query into a "return every user" query.
+
+\`\`\`bash
+mkdir -p ~/db-workbench && cd ~/db-workbench
+cat > query.js <<'EOF'
+// A backend building SQL by pasting the user's input straight into the string.
+function buildQuery(email) {
+  return \`SELECT id, email FROM users WHERE email = '\${email}'\`;
+}
+// Print the query for whatever input is passed on the command line:
+console.log(buildQuery(process.argv[2]));
+EOF
+\`\`\`
+
+Now **you** supply the inputs. First a normal email, then an input that makes the \`WHERE\` clause true for every row.
+
+**Done when.** With a normal email the query filters to one address; with your crafted input the query's logic becomes always-true (a trailing \`OR\` condition that's true for every row).
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Your input is being dropped *inside* the single quotes. So the first thing your payload must do is *close* that quote — supply a \`'\` — and then add SQL that's always true, while leaving the string still valid. Think about what \`OR '1'='1\` does to a \`WHERE\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+node query.js "ada@example.com"
+# SELECT id, email FROM users WHERE email = 'ada@example.com'
+
+node query.js "' OR '1'='1"
+# SELECT id, email FROM users WHERE email = '' OR '1'='1'
+\`\`\`
+
+Read the second output as the database will: \`email = ''\` (matches nobody) **OR** \`'1'='1'\` (true for every row) — so the filter collapses and the query returns the entire \`users\` table. You didn't exploit a bug in the database; the database did exactly what the query said. **The bug is that your input got to *write part of the query's code.***
+
+The single most important sentence in this whole module: the database **cannot tell your intended code from the attacker's injected code** — they arrived as one indistinguishable string. That is the root cause of every SQL injection, and it's why "add better input filtering" is a weaker fix than the real one below.
+
+**If your first payload had a trailing quote and broke the SQL** (e.g. \`' OR '1'='1'\` with the closing quote included) — good, that's the authentic attacker experience. Real injection is iterative: you adjust the payload until the resulting statement is *both* always-true *and* still syntactically valid. Getting a syntax error is progress, not failure.
+</details>
+
+#### 🔴 Break & Defend — now make it impossible ~10 min
+
+**Goal.** Rewrite \`buildQuery\` so that the *same* malicious input can no longer change the query's logic — and explain, in your journal, why your fix works at the root cause rather than papering over it.
+
+Because this is the concept, not the live driver (that's Module 3.2), you're showing the *shape* of the fix: the query text must become **fixed and constant**, with the user's value handed to the database **separately** as data that is never parsed as SQL.
+
+**Done when.** Your journal entry shows a version where the query string contains a placeholder instead of the email, the email travels as a separate argument, and you can state why \`' OR '1'='1\` is now just a (failed) login attempt rather than a table dump.
+
+<details>
+<summary>Walkthrough — open after you've written your own version</summary>
+
+The fix is **parameterized queries** (a.k.a. prepared statements). The query text is a constant; the value is passed alongside it:
+
+\`\`\`js
+// Shape of the real thing (Module 3.2 wires up the live pg driver):
+const sql = "SELECT id, email FROM users WHERE email = $1";  // fixed code, a placeholder where data goes
+db.query(sql, [email]);                                       // the value travels SEPARATELY
+\`\`\`
+
+Why this kills the bug at the root: the query **text never contains the user's input**, so there is nothing for the input to "break out of." When \`' OR '1'='1\` arrives, the database treats it as a literal string to compare against the \`email\` column — it looks for a user whose email is *literally* \`' OR '1'='1\`, finds none, and returns nothing. The data and the code arrive on **separate channels**, so the database can finally tell them apart. That separation is the entire idea.
+
+**Why "just filter the input" is the weaker answer:** blocklisting quotes or the word \`OR\` is a game you lose — encodings, comment syntax (\`--\`), and context differences give attackers endless bypasses, and you'll eventually block a legitimate user named O'Brien. Parameterization removes the *category* of bug instead of chasing its instances. Validation is still worth doing as defense-in-depth, but it is never the primary fix.
+
+**The transferable lesson:** "keep code and data on separate channels" is not a SQL trick — it's the same principle behind escaping to stop XSS (Phase 2), using \`execFile\` args instead of a shell string to stop command injection (Phase 3), and \`safetensors\` over \`pickle\` for models (Phase 7.5). Mixing untrusted data into a code channel is arguably *the* recurring root cause in this course; you just met it in its clearest form.
+</details>
+
+---
+
 ➡️ **Next step:** You now know the pieces (machine, network, page, server, data). To operate the security tools ahead, you need calm fluency in the terminal. Continue to **Module 0.6: Terminal Basics Without Fear**.`,
-    tracker: ["Ran the string-injection thought-experiment in Node and saw OR '1'='1' rewrite the query logic", "Read the Python f-string footgun and why it's the same bug", "Can name the SQLi root cause (mixing data and code) and the two database trust failures", "Answered the knowledge check"]
+    tracker: ["Ran the string-injection thought-experiment in Node and saw OR '1'='1' rewrite the query logic", "Read the Python f-string footgun and why it's the same bug", "Can name the SQLi root cause (mixing data and code) and the two database trust failures", "Answered the knowledge check", "Workbench: crafted my own payload that turned the query always-true and watched the query text mutate, before opening the walkthrough", "Workbench: rewrote the builder as a parameterized query and journalled why separating code from data beats filtering input"]
   }, {
     id: "m0-6",
     phaseId: "p0",
@@ -1994,8 +2368,95 @@ ls -l note.txt        # confirm it changed to -rw-------
 5. It downloads a script and immediately executes it as you, with no chance to read it first. You're trusting that URL completely with code execution on your machine.
 </details>
 
+---
+
+### 🧪 Workbench: judgment, then the safe command
+
+> **Why this one is short and sharp.** This module's real skill isn't a long pipeline — it's the half-second of judgment *before* you press Enter: is this command read-only or state-changing, and is it safe? These tasks train that reflex and the one protective action you'll use constantly (tightening a file's permissions). The full toolkit gets its own big Workbench in the very next module.
+
+**The rule:** decide your answer before you run anything — and for the "is this safe?" tasks, decide *without* running the dangerous version at all. Reading a command's intent is exactly the skill.
+
+#### 🟢 Drill 1 — classify before you run ~3 min
+
+**Goal.** For each command below, decide **read-only** or **state-changing** — *before* running it. Then run only the ones you judged read-only and confirm they changed nothing.
+
+\`\`\`bash
+ls -la              # ?
+cat /etc/hostname   # ?
+rm -rf ./build      # ?
+chmod 777 app.js    # ?
+curl -s example.com # ?
+mv notes.txt old.txt # ?
+\`\`\`
+
+**Done when.** You can say, for each, which kind it is and *why* — and you did not run the three that change state.
+
+<details>
+<summary>Walkthrough — open after you've classified all six</summary>
+
+Read-only: \`ls -la\`, \`cat /etc/hostname\`, \`curl -s example.com\` (it fetches, it doesn't alter your machine). State-changing: \`rm -rf ./build\` (deletes), \`chmod 777 app.js\` (alters permissions — and to a *dangerous* value), \`mv notes.txt old.txt\` (renames).
+
+The habit that matters: **the classification is a property of the verb, learnable at a glance.** \`ls cat pwd dig curl(GET) grep head tail wc\` read; \`rm mv cp chmod chown > >> sudo mkdir touch\` change. When you meet an unfamiliar command, the safe default is to assume it changes state until you've checked \`--help\` or a man page. \`chmod 777\` deserves a special flinch — it's not just state-changing, it's granting write+execute to *everyone*, the exact misconfiguration Phase 8 hunts for.
+</details>
+
+#### 🟢 Drill 2 — lock down a secret file ~4 min
+
+**Goal.** In a throwaway folder, create a file named \`.env\` containing a fake secret. Confirm its starting permissions, then restrict it so **only its owner can read and write it, and no one else can do anything**. Prove the change took.
+
+**Done when.** Your final \`ls -l .env\` shows \`-rw-------\`, and you can explain each digit of the number you used.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+mkdir -p ~/term-workbench && cd ~/term-workbench
+printf 'DB_PASSWORD=not-a-real-password\\n' > .env
+ls -l .env          # often -rw-r--r-- : group and others can READ your secret
+chmod 600 .env
+ls -l .env          # -rw------- : owner rw, nobody else anything
+\`\`\`
+
+**Derive \`600\`, don't memorize it.** Three digits = owner, group, others. Each is read(4)+write(2)+execute(1). Owner \`6\` = 4+2 = read+write; group \`0\` and others \`0\` = nothing. So \`600\` is precisely "only I can touch this." A \`.env\` at the common default \`644\` lets *every user on the machine read your database password* — on a shared host or a container image that's a real exposure, not a theoretical one. This is the same arithmetic Module 0.1 introduced and Phase 8 turns into a formal finding.
+</details>
+
+#### 🔴 Break & Defend — the pasted command ~5 min
+
+A tutorial tells you to fix a "permissions problem" by running:
+
+\`\`\`bash
+curl -s https://example.com/fix.sh | sudo sh
+\`\`\`
+
+**Do not run it.** Instead, in your \`~/appsec-journal\`:
+1. Name every distinct reason this single line is dangerous. There is more than one.
+2. Rewrite the workflow into safe steps that achieve "download a script and, if it's fine, run it" *without* the risks you just listed.
+
+**Done when.** Your notes name at least three independent hazards and your rewrite lets you **read the script before any of it executes**.
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+**The hazards, each independent:**
+- **You run code you never read.** The pipe sends the download straight into a shell — you execute whatever the server sent *this second*, and a server can serve different content to \`curl\` than to a browser.
+- **\`sudo\` makes it root.** Any hostility in that script now runs with full administrative power over your machine, not just your user's.
+- **No integrity check.** You've verified nothing about *what* you're running — no hash, no signature, no pinned version. A compromised or swapped-out \`fix.sh\` is undetectable this way.
+- **A transient failure can execute a partial script.** A dropped connection mid-download can leave a half-command that does something you never intended.
+
+**The safe rewrite — separate download, inspect, then decide:**
+\`\`\`bash
+curl -s https://example.com/fix.sh -o fix.sh   # download only, run nothing
+less fix.sh                                     # READ it end to end
+# only if it is genuinely safe and you understand every line:
+sh fix.sh                                        # and add sudo ONLY if a specific step truly needs it
+\`\`\`
+
+The principle generalizes far past this one line: **never let "convenient" mean "unread."** \`curl | sh\` is the developer-facing version of the same trust failure this whole course is about — running input you didn't inspect. You'll see its server-side cousins (unsafe deserialization, injection) throughout Phases 2–3.
+</details>
+
+---
+
 ➡️ **Next step:** You have a calm foundation, and you know the few commands that can actually hurt you. Before Phase 1, spend real time with the command-line field guide — a single reference that introduces every tool, flag, and shell symbol the rest of the course uses, *one at a time*, so you never meet them for the first time in the middle of a security exercise. Continue to **Module 0.7: The Command-Line Field Guide**.`,
-    tracker: ["Ran the safe practice-folder commands (pwd/mkdir/echo/cat) and the chmod 600 demo", "Can classify a command as read-only vs state-changing before pressing Enter", "Understand why curl | sh and reflexive sudo are dangerous", "Answered the knowledge check"]
+    tracker: ["Ran the safe practice-folder commands (pwd/mkdir/echo/cat) and the chmod 600 demo", "Can classify a command as read-only vs state-changing before pressing Enter", "Understand why curl | sh and reflexive sudo are dangerous", "Answered the knowledge check", "Workbench: classified six commands read-only vs state-changing before running any, and locked a .env down to -rw-------", "Workbench: named every hazard in a curl|sudo sh one-liner and rewrote it as download → read → run"]
   },
   {
     id: "m0-7",
@@ -2281,8 +2742,8 @@ user=admin role=user
 
 \`\`\`bash
 # A fake access-log line (this is the exact field layout Module 1.6 uses):
-# 203.0.113.5 - - [19/Jul/2026:10:00:01] "GET /login HTTP/1.1" 200 512
-printf '203.0.113.5 - - [19/Jul/2026:10:00:01] "GET /login HTTP/1.1" 200 512\\n' > access.log
+# 203.0.113.5 - - [19/Jul/2026:10:00:01 +0000] "GET /login HTTP/1.1" 200 512
+printf '203.0.113.5 - - [19/Jul/2026:10:00:01 +0000] "GET /login HTTP/1.1" 200 512\\n' > access.log
 
 awk '{print $1}' access.log          # field 1 = client IP
 awk '{print $NF}' access.log         # last field = response size
@@ -2294,7 +2755,11 @@ awk '{print $1, $NF}' access.log     # both, space-separated
 203.0.113.5 512
 \`\`\`
 
-In that standard log format the useful field positions are: **\`$1\`** = client IP, **\`$6\`** = the quoted \`"GET\` method (with the leading quote), **\`$7\`** = the request path, **\`$9\`** = the HTTP status code, **\`$NF\`** = the response size (last field). A **pattern** filters lines before printing — e.g. only 4xx statuses:
+In that standard log format the useful field positions are: **\`$1\`** = client IP, **\`$6\`** = the quoted \`"GET\` method (with the leading quote), **\`$7\`** = the request path, **\`$9\`** = the HTTP status code, **\`$NF\`** = the response size (last field).
+
+> **Why the status lands at \`$9\` and not \`$8\`.** The timestamp is **two** whitespace-separated tokens, not one: \`[19/Jul/2026:10:00:01\` (\`$4\`) and \`+0000]\` (\`$5\`). Count them: IP (\`$1\`), the two dashes (\`$2\`, \`$3\`), the two date tokens (\`$4\`, \`$5\`), \`"GET\` (\`$6\`), path (\`$7\`), \`HTTP/1.1"\` (\`$8\`) — which puts the status at \`$9\` and the size at \`$NF\`. If a log you're given *omits* the \`+0000\`, every field after the date shifts left by one and \`$9\` becomes the size. When \`awk\` returns nothing and you're sure the data is there, **print \`$0\` and count the fields by hand** before doubting yourself.
+
+A **pattern** filters lines before printing — e.g. only 4xx statuses:
 
 \`\`\`bash
 awk '$9 ~ /^4/ {print $9, $7}' access.log   # ~ means "matches regex"; ^4 = starts with 4
@@ -2482,8 +2947,285 @@ Front-loading the toolkit also means front-loading the ways it can bite:
 7. \`%1\` is the *job spec* for background job 1 — the shell assigned it and printed \`[1] <pid>\` the moment you ran \`node server.js &\`. \`kill %1\` stops that job by its job number, so you never need to look up the PID. If you're unsure which number to use, \`jobs\` lists every background job first.
 </details>
 
+---
+
+### 🧪 Workbench: now write them yourself
+
+> **Why this section exists.** Everything above *showed* you a command and its output. The knowledge check asked you to *explain* commands. Neither one ever asked you to **produce** a command from an empty prompt — and that is the exact skill that deserts people in a real terminal. Reading \`awk '{print $1}'\` and writing it unaided from "show me the client IPs" are different abilities, and only the second one survives contact with a live incident.
+
+Each task below gives you an **outcome** and a **way to check yourself**. No task names the tool you should reach for — working out *which* tool applies is half of what you're practising. The commands you need are all somewhere in this module; scrolling back up to hunt for them is not cheating, it is the intended difficulty.
+
+**The one rule:** open a reveal only *after* you have typed something and pressed Enter — even something wrong. A wrong attempt you then diagnose is what wires the syntax in. An answer you simply read is forgotten by the next module. Being stuck for two minutes is not a sign the section is too hard; it is the section working.
+
+#### Seed the practice data (run this once)
+
+\`\`\`bash
+mkdir -p ~/cli-field-guide/workbench && cd ~/cli-field-guide/workbench
+cat > access.log <<'EOF'
+203.0.113.5 - - [19/Jul/2026:10:00:01 +0000] "GET / HTTP/1.1" 200 5120
+203.0.113.5 - - [19/Jul/2026:10:00:04 +0000] "GET /about HTTP/1.1" 200 2048
+198.51.100.7 - - [19/Jul/2026:10:00:07 +0000] "POST /login HTTP/1.1" 401 220
+198.51.100.7 - - [19/Jul/2026:10:00:08 +0000] "POST /login HTTP/1.1" 401 220
+10.0.0.5 - - [19/Jul/2026:10:00:09 +0000] "GET /api/users HTTP/1.1" 200 128
+198.51.100.7 - - [19/Jul/2026:10:00:10 +0000] "POST /login HTTP/1.1" 401 220
+203.0.113.99 - - [19/Jul/2026:10:00:11 +0000] "GET /admin HTTP/1.1" 404 150
+198.51.100.7 - - [19/Jul/2026:10:00:12 +0000] "POST /login HTTP/1.1" 401 220
+203.0.113.99 - - [19/Jul/2026:10:00:13 +0000] "GET /.env HTTP/1.1" 404 150
+198.51.100.7 - - [19/Jul/2026:10:00:14 +0000] "POST /login HTTP/1.1" 401 220
+203.0.113.5 - - [19/Jul/2026:10:00:15 +0000] "GET /products HTTP/1.1" 200 8410
+203.0.113.99 - - [19/Jul/2026:10:00:16 +0000] "GET /wp-login.php HTTP/1.1" 404 150
+198.51.100.7 - - [19/Jul/2026:10:00:17 +0000] "POST /login HTTP/1.1" 401 220
+192.0.2.44 - - [19/Jul/2026:10:00:18 +0000] "GET / HTTP/1.1" 200 5120
+203.0.113.99 - - [19/Jul/2026:10:00:19 +0000] "GET /backup.zip HTTP/1.1" 404 150
+198.51.100.7 - - [19/Jul/2026:10:00:20 +0000] "POST /login HTTP/1.1" 200 980
+203.0.113.5 - - [19/Jul/2026:10:00:21 +0000] "GET /products HTTP/1.1" 200 8410
+203.0.113.99 - - [19/Jul/2026:10:00:22 +0000] "GET /admin HTTP/1.1" 404 150
+198.51.100.7 - - [19/Jul/2026:10:00:23 +0000] "GET /dashboard HTTP/1.1" 200 6300
+192.0.2.44 - - [19/Jul/2026:10:00:24 +0000] "GET /images/logo.png HTTP/1.1" 200 15400
+203.0.113.99 - - [19/Jul/2026:10:00:25 +0000] "GET /.git/config HTTP/1.1" 404 150
+10.0.0.5 - - [19/Jul/2026:10:00:26 +0000] "GET /api/users HTTP/1.1" 200 128
+203.0.113.5 - - [19/Jul/2026:10:00:27 +0000] "GET /contact HTTP/1.1" 200 1900
+192.0.2.44 - - [19/Jul/2026:10:00:28 +0000] "GET /nope HTTP/1.1" 404 150
+172.16.0.9 - - [19/Jul/2026:10:00:29 +0000] "GET /health HTTP/1.1" 200 64
+EOF
+wc -l access.log     # should print 25
+\`\`\`
+
+That file is 25 requests from a small web app. It is the same combined-log format Module 1.6 will hand you for real, and something bad is hiding in it — but don't go looking yet. Work the drills in order; the last task is where you find it.
+
+---
+
+#### 🟢 Drill 1 — the requested paths ~2 min
+
+**Goal.** Print *only* the requested path from every line of \`access.log\` — nothing else on the line.
+
+**Done when.** You get 25 lines, the first three being \`/\`, \`/about\`, \`/login\`.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '{print $7}' access.log
+\`\`\`
+
+The whole task is knowing the path sits at \`$7\`, and the fastest way to *find that out* rather than memorize it is to print the whole line and count: \`awk '{print $0}' access.log | head -1\`, then count tokens left to right. Experienced people do this constantly — field numbers are looked up, not remembered.
+
+**If you reached for \`cut -d' ' -f7\` instead:** it happens to work here, and knowing why it's fragile is worth more than the answer. \`cut\` treats *every single space* as a delimiter, so two consecutive spaces produce an empty field and shift everything after them. \`awk\` collapses runs of whitespace into one separator. On a log with any alignment padding, \`cut\` silently returns the wrong column while \`awk\` stays correct — prefer \`awk\` for whitespace-separated data, and keep \`cut\` for genuinely single-character delimiters like the \`:\` in \`/etc/passwd\`.
+</details>
+
+#### 🟢 Drill 2 — the five busiest clients ~3 min
+
+**Goal.** Show the five client IPs that made the most requests, most active first, each with its request count.
+
+**Done when.** Your top line reads \`8 198.51.100.7\` and your fifth reads \`2 10.0.0.5\`. (The exact spacing before the number will differ — that's fine.)
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -5
+\`\`\`
+
+This is the single most reused pipeline in the entire course, so take the extra minute to understand each link rather than memorizing the shape: pull the field → **sort so identical values become adjacent** → \`uniq -c\` counts adjacent runs → \`sort -rn\` re-sorts by that count, numerically, biggest first → \`head -5\` trims.
+
+**Two failures worth having made:**
+- **Dropped the first \`sort\`.** \`uniq\` only collapses *adjacent* duplicates, so unsorted input gives you a long list of 1s and 2s that looks plausible and is wrong. This is the classic \`uniq\` trap, and it fails quietly — no error, just bad numbers.
+- **Used \`sort -r\` instead of \`sort -rn\`.** Without \`-n\` you get a *lexicographic* sort, where \`8\` sorts above \`25\` because it compares character by character. On a bigger log this puts the wrong client at the top of your report.
+</details>
+
+#### 🟢 Drill 3 — the failed logins ~3 min
+
+**Goal.** Show every request that returned HTTP **401**, printing the status and the path only.
+
+**Done when.** Exactly six lines, all reading \`401 /login\`.
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '$9 == 401 {print $9, $7}' access.log
+\`\`\`
+
+The \`pattern { action }\` form is what you practised above: the pattern runs first and only matching lines reach the braces.
+
+**If you reached for \`grep 401 access.log\`:** it returns the right six lines *here*, and that is exactly what makes it dangerous. \`grep\` matches the characters \`401\` **anywhere on the line** — in a response size of \`401\`, in a timestamp, in a path like \`/order/4012\`. It has no concept of "the status field." Your habit from here on should be: **when you mean a specific field, compare the field** (\`awk '$9 == 401'\`); use \`grep\` when you genuinely mean "this text, anywhere." Half of all bad log analysis is a \`grep\` that matched something the analyst never intended.
+</details>
+
+#### 🟢 Drill 4 — how much is being probed ~4 min
+
+**Goal.** Produce a single number: how many **distinct** paths returned a 404.
+
+**Done when.** The number is \`6\`. (It may print with leading spaces — \`wc\` pads its output.)
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '$9 == 404 {print $7}' access.log | sort -u | wc -l
+\`\`\`
+
+**The trap is the word "distinct."** There are **seven** 404 *lines* but only **six** distinct paths — \`/admin\` was requested twice. Anyone who wrote \`awk '$9 == 404' access.log | wc -l\` got \`7\`: a defensible number, but not the one asked for. Re-reading the goal after you have an answer is a real habit, and it is the same habit that stops you reporting "7 vulnerable endpoints" when there are 6.
+
+\`sort -u\` is \`sort | uniq\` in one step. Both are correct; \`sort -u\` is shorter and the form you'll see in other people's scripts.
+</details>
+
+---
+
+#### 🟡 Build 1 — a status-code census ~10 min
+
+**Goal.** One command that answers "what is the health of this app?" — every status code that appears, with how many times, most frequent first.
+
+**Done when.** Three lines: \`200\` at 12, \`404\` at 7, \`401\` at 6.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You already wrote this pipeline in Drill 2. Only one thing about it needs to change.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '{print $9}' access.log | sort | uniq -c | sort -rn
+\`\`\`
+
+Identical to Drill 2 except for the field number and the missing \`head\`. **That is the actual lesson of this build:** the count-and-rank pipeline is not a fact about IP addresses, it is a reusable *shape* — "extract a field, count it, rank it" — that answers a whole category of questions. Once you see the shape rather than the specific command, "top attacking IPs", "most-requested endpoints", "commonest user agents", and "noisiest error codes" all stop being four things to learn and become one thing with the field number swapped.
+
+Being able to *reach for a shape* is the difference between someone who has memorized commands and someone who can use a shell.
+</details>
+
+#### 🟡 Build 2 — name the noisiest failure ~10 min
+
+**Goal.** Output **just an IP address** — nothing else, no count, no other text — for the client responsible for the most 401 responses. One pipeline, no reading numbers off the screen and retyping them.
+
+**Done when.** The entire output is \`198.51.100.7\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Getting to \`6 198.51.100.7\` is the easy part, and you can already do it. The remaining problem is stripping the count off — which means treating that output as *fields* too. Anything that reads fields can be used a second time on the output of the first.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+awk '$9 == 401 {print $1}' access.log | sort | uniq -c | sort -rn | head -1 | awk '{print $2}'
+\`\`\`
+
+The move worth taking away is the **final \`awk\`**: \`uniq -c\` emits \`count value\`, so its output is itself a two-field stream you can filter again. Piping \`awk\` into a pipeline that ends in \`awk\` feels redundant the first time and becomes second nature — every stage of a pipe is just text, so any text tool applies at any stage.
+
+Why it matters that no human retyped the IP: a command that produces *only* the answer can be embedded — \`ip=$(...)\` then \`grep "$ip" access.log\` — and that composability is what turns one-off investigation into a reusable script. This is exactly the move Phase 1's log-analysis work is built on.
+
+**\`head -1\` vs \`sort -rn | head -1\`:** don't drop the \`sort -rn\` and assume \`uniq -c\` emits in count order. It doesn't — it emits in *input* order, which here is sorted alphabetically. You'd get the alphabetically-first IP and never notice.
+</details>
+
+#### 🟡 Build 3 — carry-forward from Modules 0.4 and 0.6 ~10 min
+
+Nothing in this task uses the log file, and nothing in it was taught in *this* module — which is the point. Fluency is what survives a few modules of forgetting, so a slice of every workbench from here on reaches backwards.
+
+**Goal.** In a fresh \`~/cli-field-guide/workbench/audit\` folder, create a \`.env\` holding a fake \`DB_PASSWORD\` and an \`app.conf\` holding a port setting. Then, **without opening either file by name**, search the folder to locate which file contains a password, and restrict that file so its owner can read and write it and *no one else can do anything with it*. Prove the change took.
+
+**Done when.** Your search prints the matching file, its line number, and the matching line; and your final listing shows permissions of \`-rw-------\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Three separate steps, each from an earlier module: a recursive content search that reports line numbers (0.7's \`grep\` section), a permission change expressed in octal (0.6's \`chmod 600\` demo), and a long listing to verify it (0.1). The verification step is not optional — a permission change you didn't confirm is a permission change you're guessing about.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run your own attempt</summary>
+
+\`\`\`bash
+mkdir -p ~/cli-field-guide/workbench/audit && cd ~/cli-field-guide/workbench/audit
+printf 'DB_HOST=localhost\\nDB_PASSWORD=not-a-real-password\\n' > .env
+printf 'port=3000\\n' > app.conf
+
+grep -rn "PASSWORD" .        # -r recurse, -n show line numbers
+# ./.env:2:DB_PASSWORD=not-a-real-password
+
+chmod 600 .env               # 6 = rw for owner, 0 = nothing for group, 0 = nothing for others
+ls -l .env
+# -rw-------  1 you  staff  ...  .env
+\`\`\`
+
+**Reading the octal instead of memorizing \`600\`:** each digit is one audience — owner, group, everyone else — and each digit is read + write + execute as 4 + 2 + 1. So \`6\` is 4+2 = read+write, and \`0\` is nothing at all. Once you can *derive* it, \`644\`, \`755\`, and \`600\` stop being three magic numbers to recall and become one rule you apply. Phase 8 will ask you to explain why a world-writable file is a finding; this is that same arithmetic.
+
+**A case-sensitivity trap:** \`grep -rn "PASSWORD"\` finds \`DB_PASSWORD\` but would miss \`db_password\`. In a real secret hunt you want \`grep -rni\` — a lowercase variant you didn't match is a secret you didn't find, and it fails silently. This is precisely why Phase 8 uses a purpose-built scanner (\`gitleaks\`) rather than trusting a hand-written \`grep\`.
+
+**Why the leading dot mattered:** \`.env\` is hidden, so a plain \`ls\` never shows it and \`grep "PASSWORD" *\` never matches it — the glob \`*\` does not expand to dotfiles. Recursing with \`-r\` is what found it. Secrets living in files that ordinary listings don't display is a recurring theme, not a quirk of this exercise.
+</details>
+
+---
+
+#### 🔴 Break & Defend — the thing hiding in the log ~30 min
+
+No single right answer here, and no command is specified. Use the drills you just wrote.
+
+**The scenario.** You are handed \`access.log\` and told only: "something looks off." Two different clients in this file are behaving abnormally. **One of them is loud and harmless. The other is quiet and successful.**
+
+**Your task, written into your \`~/appsec-journal\`:**
+
+1. Two or three commands that isolate each suspicious client's activity. Write the commands down, not just the results — you are building a triage routine you'll reuse, not answering a quiz.
+2. For each client, one sentence on what they appear to have been *attempting*.
+3. **Which one actually matters, and why?** Justify it from the log, not from instinct.
+4. One defensive control that would have stopped the serious one — and be precise about *what* it stops. "Add security" is not an answer; name the mechanism and the moment it intervenes.
+
+**Done when.** Your journal entry names an IP that *succeeded* at something, cites the specific log lines that prove it, and proposes a control you could describe to an engineer.
+
+<details>
+<summary>Nudge — open if you've been stuck more than five minutes</summary>
+
+Loudness and severity are not the same thing, and the log rewards anyone who checks *what happened next*. For each suspicious IP, pull its requests in time order and read the status codes as a **sequence** rather than a set: \`awk '$1 == "SOME.IP" {print $4, $9, $7}' access.log\`. A run of failures is only half a story. What ends the run?
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your journal entry</summary>
+
+**The loud one — \`203.0.113.99\`, six requests, all 404.**
+
+\`\`\`bash
+awk '$1 == "203.0.113.99" {print $9, $7}' access.log
+\`\`\`
+
+\`/admin\`, \`/.env\`, \`/wp-login.php\`, \`/backup.zip\`, \`/.git/config\` — a **content-discovery scan**, an automated tool spraying a wordlist of commonly-exposed paths hoping something answers. It is unmistakable in a log and it is *noisy*. It is also, here, **entirely unsuccessful**: every response is a 404, meaning the server had nothing at any of those paths. Worth noting, worth rate-limiting, but nothing was lost. Traffic like this is constant background radiation for anything exposed to the internet.
+
+**The quiet one — \`198.51.100.7\`.**
+
+\`\`\`bash
+awk '$1 == "198.51.100.7" {print $4, $9, $7}' access.log
+\`\`\`
+\`\`\`
+[19/Jul/2026:10:00:07 401 /login
+[19/Jul/2026:10:00:08 401 /login
+[19/Jul/2026:10:00:10 401 /login
+[19/Jul/2026:10:00:12 401 /login
+[19/Jul/2026:10:00:14 401 /login
+[19/Jul/2026:10:00:17 401 /login
+[19/Jul/2026:10:00:20 200 /login
+[19/Jul/2026:10:00:23 200 /dashboard
+\`\`\`
+
+Six failed logins in thirteen seconds — a **credential brute-force** — and then the sequence changes: a **200 on \`/login\`**, followed by a successful request to \`/dashboard\`. That is not a scan. That is an account takeover, in progress, with the attacker now browsing as a real user. The compromise is entirely invisible in any count-based summary; \`198.51.100.7\` and \`203.0.113.99\` even tie at six 4xx responses each in Build 1's census.
+
+**The lesson that outlives the exercise: severity is a function of *outcome*, not volume.** A junior analyst reports the scanner because it looks dramatic. The finding that matters is the one where a failure sequence *stops failing* — the 200 after a run of 401s. Whenever you have a time-ordered log, read state transitions, not just totals. Aggregates hide exactly the events you were hired to catch.
+
+**Controls, in the order you'd argue for them:**
+- **Rate-limiting and progressive lockout on \`/login\`** — the direct fix. Six attempts in thirteen seconds is trivially detectable; after three failures a per-account backoff makes online guessing uneconomical. Note this stops the *guessing*, so it must be applied per-account, not just per-IP (a distributed attempt from many IPs is the standard bypass of a per-IP limit).
+- **MFA** — the strongest of the three, because it breaks the attacker's assumption that a correct password is sufficient. It is the only control here that still helps if the password was already leaked elsewhere, which is the far more common real-world path than live guessing.
+- **Alert on the transition itself** — "N failures then a success from one IP" is a detection rule you can write today, and it is the thing you just discovered by hand. Rate limits reduce the odds; the alert is what tells you when they weren't enough.
+
+You'll implement the first of these in Phase 3 (Authentication) and write the third as a real detection rule in Phase 9.
+</details>
+
+---
+
+> **Before you continue.** If any drill above needed its walkthrough, close this module, do something else, and come back to *just the drills* tomorrow — from a blank prompt, without scrolling up. A command you can only produce with the answer visible is not yet yours, and the fifteen minutes that second pass costs is the cheapest fifteen minutes in this course. Every later phase assumes this fluency rather than teaching it again.
+
 ➡️ **Next step:** You now know each tool, flag, and shell symbol *in isolation* — so when a later module combines them, you'll be reading, not decoding. One tool the whole course leans on has still never been dissected: Docker. The last module of Phase 0 fixes that — and carries the Phase 0 deliverable that ties the foundations together. Continue to **Module 0.8: Docker Fundamentals**.`,
-    tracker: ["Set up the ~/cli-field-guide practice folder and ran the shell-mechanics examples (quoting, $(...), &&/||, globs)", "Ran the grep/find/sort/uniq examples and can read a piped log-analysis one-liner in plain English", "Ran the awk field examples and can name what $1, $9, and $NF are in an access log", "Used jq to pretty-print and filter a small JSON file", "Backgrounded a command with & and stopped it with kill %1 using its job spec", "Skimmed the curl/openssl/lsof/ss/tmux sections so none will be new in Module 1.6", "Answered the knowledge check"]
+    tracker: ["Set up the ~/cli-field-guide practice folder and ran the shell-mechanics examples (quoting, $(...), &&/||, globs)", "Ran the grep/find/sort/uniq examples and can read a piped log-analysis one-liner in plain English", "Ran the awk field examples and can name what $1, $9, and $NF are in an access log", "Used jq to pretty-print and filter a small JSON file", "Backgrounded a command with & and stopped it with kill %1 using its job spec", "Skimmed the curl/openssl/lsof/ss/tmux sections so none will be new in Module 1.6", "Answered the knowledge check", "Workbench: seeded the practice access.log and wrote Drills 1–4 myself before opening any walkthrough", "Workbench: wrote Build 1 and Build 2 as single pipelines, ending in only the answer", "Workbench: completed the 0.4/0.6 carry-forward (found the secret by search, locked it to -rw-------, verified it)", "Workbench: journalled the Break & Defend triage — named the IP that succeeded, cited the lines, proposed a control", "Re-ran the drills from a blank prompt on a later day without scrolling back"]
   },
   {
     id: "m0-8",
@@ -2686,6 +3428,97 @@ Containers    0       0        0B        0B
 5. A process running as \`root\` inside the container means any code-execution bug in that process starts with root privileges, which is the first link in a container-escape chain (root + a bad mount or capability → host). You fix it with a non-root \`USER\` line in the Dockerfile — which you'll do in Module 8.4.
 </details>
 
+---
+
+### 🧪 Workbench: predict, then run
+
+> **How this one works.** Docker's output is verbose and its state is real, so each task here asks you to **write down what you expect first**, then run the command and compare. The gap between your prediction and the output is where the learning is — a container that behaves as you predicted taught you nothing you didn't already know; a surprise is the lesson. Reuse the \`hello:v1\` and \`leaky:v1\` images you built above; nothing new to install.
+
+**The rule, same as every Workbench:** commit to a prediction (say it out loud or jot it) before you run. Then open the walkthrough.
+
+#### 🟢 Drill 1 — one image, two containers ~4 min
+
+**Goal.** From the single \`hello:v1\` image, start **two** containers at once — one on host port 8080, one on host port 8082 — and list them.
+
+**Predict first.** Can two containers really come from one image without rebuilding? What will \`docker ps\` show — one row or two?
+
+**Done when.** \`docker ps\` shows two running containers, both from \`hello:v1\`, on different host ports, and \`curl -s localhost:8080\` and \`curl -s localhost:8082\` both answer.
+
+<details>
+<summary>Walkthrough — open after you've predicted and run it</summary>
+
+\`\`\`bash
+docker run -d --name hello-a -p 8080:3000 hello:v1
+docker run -d --name hello-b -p 8082:3000 hello:v1
+docker ps
+curl -s localhost:8080 ; echo ; curl -s localhost:8082
+\`\`\`
+
+Two containers, one image, and the build ran zero extra times — because an **image is a read-only template** and each container is just that template plus its own thin writable layer. This is the concept from the top of the module made physical: "ten containers from one image" isn't a figure of speech.
+
+**The two names are not optional.** Drop \`--name\` on the second \`run\` and Docker auto-assigns one, but re-use \`hello-a\` and you get \`Conflict. The container name "/hello-a" is already in use\` — the *container* name must be unique even though the *image* is shared. Clean up when done: \`docker rm -f hello-a hello-b\`.
+</details>
+
+#### 🟢 Drill 2 — who am I inside the box? ~4 min
+
+**Goal.** Without adding anything to a Dockerfile, find out which OS user the process inside a running \`hello:v1\` container executes as.
+
+**Predict first.** What user do you think it runs as? Write down your guess before you look.
+
+**Done when.** Your command prints \`root\`.
+
+<details>
+<summary>Walkthrough — open after you've predicted and run it</summary>
+
+\`\`\`bash
+docker exec hello-a whoami
+# root
+\`\`\`
+
+If you predicted anything other than \`root\`, that surprise *is* the security lesson: unless a Dockerfile says otherwise, a container process runs as **root** — not your host user, and not a limited service account. A remote-code-execution bug in that process therefore starts life with root inside the container, which is the first link in the container-escape chain you'll exploit and then fix in Module 8.4. The fix is a single \`USER\` line; the point of meeting it here is that "it runs as root by default" should feel like a fact you *discovered*, not one you were told.
+
+**\`docker exec\` vs \`docker run\`:** \`exec\` runs a command *inside a container that is already running*; \`run\` starts a *new* container. Reaching for \`docker run hello:v1 whoami\` also prints \`root\`, but it spins up a throwaway container to do it — fine for a one-off, wasteful as a habit when the container you care about is already up.
+</details>
+
+#### 🔴 Break & Defend — recover the secret, then design it out ~15 min
+
+This is the exact skill Module 8.4 will grade, met early. Rebuild the deliberately-bad \`leaky:v1\` image from the lab above (the one whose Dockerfile bakes a token into a layer and then "removes" it on the next line).
+
+**Your task:**
+1. **Write the command yourself** — not copied from the lab — that proves the "removed" secret is still recoverable from the finished image. State what you expect to see before you run it.
+2. In one sentence, explain *why* the later removal line could not actually delete it. Use the words **layer** and **immutable**.
+3. Propose the corrected design: how should that secret have reached the container instead, such that \`docker history\` on the image reveals nothing? Give the concrete flag.
+
+**Done when.** Your history command prints the token verbatim, and your journal names both the reason (immutable stacked layers) and the fix (runtime injection, not a build layer).
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+You are looking *inside the image's build history*, not inside a running container — so no \`exec\`, no \`run\`. The command that dumps every build step in full is the one the lab used to expose the token; pair it with a filter so you don't have to eyeball the whole history.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written your own attempt</summary>
+
+\`\`\`bash
+docker build -t leaky:v1 .
+docker history --no-trunc leaky:v1 | grep -i token
+\`\`\`
+
+The token prints **verbatim**, even though a later Dockerfile line "removed" it. The one-sentence reason: each Dockerfile instruction produces one **immutable**, stacked **layer**, so the removal line adds a *new* layer on top that hides the value but cannot edit or erase the earlier layer that still contains it — and every layer ships with the image. Anyone who can \`docker pull\` it (a registry, a CI cache, a teammate) can read the secret. This is why "I deleted it in the next line" is one of the most expensive false beliefs in container security.
+
+**The fix is architectural, not a better delete.** The secret must never enter a layer at all:
+- \`docker run -d -e API_TOKEN="$API_TOKEN" ...\` — inject at **runtime**, so it lives only in the running container's environment, never in the image.
+- \`--env-file .env\` — same idea for several values, with the \`.env\` kept out of the image *and* out of Git.
+- \`RUN --mount=type=secret,id=tok ...\` (BuildKit build secrets) — when a secret is genuinely needed *during* the build, this exposes it to that one step without persisting it into any layer.
+
+You'll surface this exact finding automatically with \`trivy\` in Module 8.4 — but a scanner telling you is worth far less than knowing, by hand, why the layer is permanent. Clean up the demo image when done: \`docker rmi leaky:v1\`.
+</details>
+
+---
+
+> **Before you move on.** If Drill 2's answer surprised you, sit with it — "containers run as root by default" is the single fact the entire Module 8.4 container-hardening section is built to address, and meeting it as a discovery here means that phase will feel like a payoff rather than new memorization.
+
 ➡️ **Next step:** You now know what an image, a container, and a layer are; how \`docker build\`/\`run\`/\`exec\`/\`logs\` work; and why a baked-in secret is forensically permanent. That's the foundation Module 8.4 assumes when it has you build, break, and harden a real image and cluster. Continue to **Phase 1: Web, Internet, and CLI Foundations**.
 
 ### Phase 0 Deliverable
@@ -2725,7 +3558,7 @@ Create \`~/appsec-journal/notes/phase-0-foundations.md\` and answer, in your own
 - **What you can now explain better:** personal — a common answer is finally understanding that "deleting" a secret (from Git *or* a Docker layer) doesn't remove it, because both are append-only histories.
 
 </details>`,
-    tracker: ["Confirmed Docker is running and pulled/listed a base image with docker images", "Built an image with docker build -t and ran it with docker run -d -p, reaching it via curl", "Used docker ps, docker logs, and docker exec to inspect a running container (and saw it runs as root)", "Injected config at runtime with -e / printenv and understands why that's the right place for secrets", "Baked a demo secret into a layer and recovered it with docker history --no-trunc — proving layers are permanent", "Cleaned up with docker stop/rm/rmi and understands 'stopped' ≠ 'removed'", "Wrote the Phase 0 deliverable journal entry (foundations + containers)", "Answered the knowledge check"]
+    tracker: ["Confirmed Docker is running and pulled/listed a base image with docker images", "Built an image with docker build -t and ran it with docker run -d -p, reaching it via curl", "Used docker ps, docker logs, and docker exec to inspect a running container (and saw it runs as root)", "Injected config at runtime with -e / printenv and understands why that's the right place for secrets", "Baked a demo secret into a layer and recovered it with docker history --no-trunc — proving layers are permanent", "Cleaned up with docker stop/rm/rmi and understands 'stopped' ≠ 'removed'", "Wrote the Phase 0 deliverable journal entry (foundations + containers)", "Answered the knowledge check", "Workbench: predicted then ran two containers from one image, and discovered by hand that the process runs as root", "Workbench: recovered the 'removed' secret from leaky:v1 with docker history and journalled the immutable-layer reason plus the runtime-injection fix"]
   },
   // ============== PHASE 1 ==============
   {
