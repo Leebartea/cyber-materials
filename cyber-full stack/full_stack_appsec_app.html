@@ -9728,8 +9728,113 @@ Now try a live intercept: turn **Intercept → on**, submit the login form in Ju
 5. Ethically/legally, intercepting or testing traffic to systems you don't own/aren't authorized for is unauthorized access; practically, scope keeps your history clean and your testing focused. The scope feature enforces the habit.
 </details>
 
+---
+
+### 🧪 Workbench: build the proxy, so Burp stops being magic
+
+> **What this trains.** Burp feels like a big opaque tool, but its two core powers — *observe every request* and *modify it in flight* — are a hundred lines of code you already understand. Building a minimal intercepting proxy yourself turns "Burp does something mysterious" into "Burp is a MITM I run, and I know exactly what it does." Dependency-free; you'll watch your own proxy rewrite a request the way Repeater/Intercept would.
+
+\`\`\`bash
+mkdir -p ~/proxy-workbench && cd ~/proxy-workbench
+cat > lab.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+
+// TARGET app on :4615 — it trusts the price it receives (the client-trust bug from 3.6)
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4615");
+  res.setHeader("Content-Type","application/json");
+  res.end(JSON.stringify({ item: u.searchParams.get("item"), charged: u.searchParams.get("price") }));
+}).listen(4615, ()=>console.log("target on :4615"));
+
+// INTERCEPTING PROXY on :4616 — forwards to the target. You'll add observe + modify.
+http.createServer((clientReq, clientRes)=>{
+  const u = new URL(clientReq.url, "http://localhost:4616");
+  // TODO (Drill 1): log the method + url you just intercepted.
+  // TODO (Build 1): if there's a 'price' query param, rewrite it to "0.01" before forwarding.
+  const opts = { hostname:"localhost", port:4615, path:u.pathname+u.search, method:clientReq.method, headers:clientReq.headers };
+  const proxyReq = http.request(opts, proxyRes=>{ clientRes.writeHead(proxyRes.statusCode, proxyRes.headers); proxyRes.pipe(clientRes); });
+  clientReq.pipe(proxyReq);
+}).listen(4616, ()=>console.log("proxy on :4616"));
+EOF
+node lab.js     # leave running — starts BOTH the target and the proxy
+\`\`\`
+
+**The rule:** predict what the target receives before each request; write each TODO before opening its walkthrough.
+
+#### 🟢 Drill 1 — observe the traffic ~5 min
+
+**Goal.** Make the proxy **log** every request that passes through it (method + URL), then send a request *through the proxy* (\`:4616\`) and confirm it (a) reaches the target and (b) appears in the proxy's log.
+
+**Done when.** Hitting \`http://localhost:4616/buy?item=widget&price=49.99\` returns the target's JSON, and your proxy terminal prints a line like \`[proxy] saw: GET /buy?item=widget&price=49.99\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Add one \`console.log\` at the top of the proxy handler using \`clientReq.method\` and \`clientReq.url\`. That's the entire "observe" power — HTTP history in Burp is just this, saved to a list.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+console.log(\`[proxy] saw: \${clientReq.method} \${clientReq.url}\`);   // observe
+\`\`\`
+\`\`\`bash
+curl -s "http://localhost:4616/buy?item=widget&price=49.99"
+# {"item":"widget","charged":"49.99"}   (and the proxy logs the request)
+\`\`\`
+That one line *is* Burp's **HTTP history / Site map**: every request the browser makes flows through the proxy, so the proxy sees and records all of it. You now have the "observe" half of an intercepting proxy in one \`console.log\`.
+</details>
+
+#### 🟡 Build 1 — modify in flight (the Repeater move) ~8 min
+
+**Goal.** Make the proxy **rewrite** the \`price\` query parameter to \`0.01\` *before* forwarding — so the target charges a penny even though the client sent \`49.99\`. Prove it by comparing the direct call to the proxied call.
+
+**Done when.** \`curl :4615/buy?...price=49.99\` (direct) returns \`"charged":"49.99"\`, but the *same URL* through the proxy (\`:4616\`) returns \`"charged":"0.01"\` — the proxy changed the request in flight.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Before building \`opts\`, mutate the parsed URL: \`if (u.searchParams.has("price")) u.searchParams.set("price","0.01")\`. Because \`opts.path\` is built from \`u.pathname+u.search\`, the forwarded request carries your edited value.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+if (u.searchParams.has("price")) u.searchParams.set("price", "0.01");   // MODIFY in flight
+\`\`\`
+\`\`\`bash
+curl -s "http://localhost:4615/buy?item=widget&price=49.99"   # direct  -> {"charged":"49.99"}
+curl -s "http://localhost:4616/buy?item=widget&price=49.99"   # proxied -> {"charged":"0.01"}
+\`\`\`
+That is **Burp Repeater / Intercept** in one line — take a request the client sent and change any part of it before the server sees it. Everything Burp adds on top (a GUI, marking positions, replaying with payload lists in Intruder, diffing in Comparer) is *ergonomics* around this exact capability. You proved two things at once: how the tool works, and why the price-trust bug (Module 3.6) is unfixable on the client — the value is editable in transit by anyone running what you just wrote.
+</details>
+
+#### 🔴 Break & Defend — the certificate you choose to trust ~10 min
+
+No code. In your journal:
+1. Your proxy read a plain-\`http\` request effortlessly. If the target were \`https\`, your proxy couldn't read it — until you install the proxy's **CA certificate** in your browser. Explain *why* that step is required, in terms of what TLS guarantees (Phase 1.2).
+2. That same mechanism is how a malicious actor or a corporate "TLS inspection" appliance can read all your HTTPS. State the rule this gives you about your machine's trust store.
+3. A developer protects a checkout by making the price field a **hidden** \`<input>\` and disabling the "admin" button in the UI. Having just built a proxy, explain in one sentence why both are worthless.
+
+**Done when.** Your answers explain that TLS encrypts + authenticates via a trusted cert, so interception requires the browser to trust the proxy's minted certs (hence installing its CA); that anyone whose CA your machine trusts can MITM your HTTPS, so you install CAs only ones you control and only in a testing browser; and that hidden/disabled UI controls are client-side presentation that a proxy edits trivially.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **TLS does two things (Module 1.2): encrypts the traffic and authenticates the server via a certificate signed by a CA your browser trusts.** A proxy in the middle therefore sees only ciphertext *and* can't present a valid certificate for the real site — TLS is working exactly as designed to stop a MITM. To intercept, Burp mints its own certificate for each site on the fly, signed by *Burp's* CA; your browser rejects those unless you've told it to trust that CA. Installing Burp's CA is the deliberate act of *choosing* to let this one MITM succeed. That's why it's a per-site-you-own, testing-browser-only step.
+2. **Anyone whose CA your machine trusts can transparently MITM all your HTTPS** — decrypt, read, modify, re-encrypt — and your browser will show a happy padlock. That's precisely how corporate "TLS inspection" proxies and some spyware work. The rule: **treat your trust store as security-critical — install only CAs you control, understand every CA already in it, and never click "trust" on an unknown certificate.** A single rogue CA silently defeats HTTPS everywhere on that machine.
+3. **Both live only in the browser, which the user fully controls — a hidden field and a disabled button are still in the request (or trivially re-enabled), and a proxy edits them before the server ever sees them.** You just built the tool that does it. The server must set the price authoritatively and authorize the admin action server-side (Modules 3.3/3.6); UI state is never a security boundary.
+
+**Outside the box:** this module closes the loop the whole course opened in Phase 0 — *the client is attacker-controlled.* You've now proven it three ways: DevTools (rewrite the DOM, 0.3), \`curl\` (forge any request, 1.1), and a proxy (modify traffic in flight, here). Burp is just the industrial version of what you built. And the same MITM mechanism that makes the proxy work is the reason your trust store is sacred — the tool and the threat are the same technique pointed in different directions.
+</details>
+
+---
+
 ➡️ **Next step:** A proxy is only as good as the method you drive it with. Let's adopt a repeatable testing workflow and use ZAP for fast baselines. Continue to **Module 5.2: A Repeatable Testing Workflow (and ZAP for Baselines)**.`,
-    tracker: ["Can explain where an intercepting proxy sits and the two powers (observe + modify) it gives", "Can explain why HTTPS interception needs Burp's CA and the trust-store risk it illustrates", "Installed Burp Community (native ARM64) and proxied Firefox + FoxyProxy through it", "Scoped Burp to localhost:3000 and watched the Site map / HTTP history fill", "Live-intercepted and edited the Juice Shop login request", "Answered the knowledge check"]
+    tracker: ["Can explain where an intercepting proxy sits and the two powers (observe + modify) it gives", "Can explain why HTTPS interception needs Burp's CA and the trust-store risk it illustrates", "Installed Burp Community (native ARM64) and proxied Firefox + FoxyProxy through it", "Scoped Burp to localhost:3000 and watched the Site map / HTTP history fill", "Live-intercepted and edited the Juice Shop login request", "Answered the knowledge check", "Workbench: built a dependency-free intercepting proxy that logs traffic and rewrites a price param in flight (charged 0.01 instead of 49.99), demystifying Burp's observe+modify", "Workbench: journalled why HTTPS interception needs a trusted CA, the trust-store MITM risk, and why hidden/disabled UI controls are worthless"]
   },
   {
     id: "m5_2",
@@ -9818,8 +9923,105 @@ docker run --rm -t \\
 5. Only after you've re-run the original reproduction steps against the fix and confirmed the exploit no longer works (retest).
 </details>
 
+---
+
+### 🧪 Workbench: see exactly what the scanner can't
+
+> **What this trains.** The single most important idea in this module is *scanner output is a lead generator, not truth* — and you internalize it best by watching an automated-style check nail the easy findings while staying totally blind to the worst bug. You'll run a header baseline (what a passive scanner catches), then find the IDOR sitting right next to it that no header/pattern scan will ever surface. Dependency-free.
+
+\`\`\`bash
+mkdir -p ~/workflow-workbench && cd ~/workflow-workbench
+cat > app.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const orders = { "100":{id:100,owner:1,total:50}, "200":{id:200,owner:2,total:999} };
+const PREFIX = "/api/orders/";
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4617");
+  // (note: no CSP, no X-Content-Type-Options, no HSTS)
+  res.setHeader("Content-Type","application/json");
+  if (u.pathname.startsWith(PREFIX)){
+    const id = u.pathname.slice(PREFIX.length);
+    return res.end(JSON.stringify(orders[id] || null));   // returns any order by id
+  }
+  res.end("{}");
+}).listen(4617, ()=>console.log("app on http://localhost:4617"));
+EOF
+node app.js     # leave running
+\`\`\`
+
+**The rule:** predict each result before running it; write your answers before opening a walkthrough.
+
+#### 🟢 Drill 1 — run the baseline a scanner runs ~5 min
+
+**Goal.** Write a small check (the manual version of ZAP's passive header scan) that reports which security headers this app is **missing**: \`content-security-policy\`, \`x-content-type-options\`, \`strict-transport-security\`.
+
+**Done when.** Your check prints a WARN for each of the three missing headers — the same kind of "lead" an automated baseline produces in seconds.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`curl -sI\` fetches the response headers. Loop over the header names and \`grep -iq\` each against the output; print OK if found, WARN if not. This is genuinely most of what a passive scanner does for headers.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+H=$(curl -sI "http://localhost:4617/api/orders/100")
+for hdr in content-security-policy x-content-type-options strict-transport-security; do
+  echo "$H" | grep -iq "$hdr" && echo "  OK: $hdr" || echo "  WARN: missing $hdr"
+done
+# WARN: missing content-security-policy
+# WARN: missing x-content-type-options
+# WARN: missing strict-transport-security
+\`\`\`
+Three real findings in one command — and this is exactly the class of thing scanners excel at: *pattern-matchable, context-free facts*. Is a header present? Is a cookie missing \`HttpOnly\`? Does a parameter reflect? A machine answers those fast and reliably, which is why baseline scans belong in CI (Phase 7). Keep this half of the relationship: **scanners are great lead generators for the mechanical stuff.**
+</details>
+
+#### 🟡 Build 1 — find the bug the scanner is blind to ~6 min
+
+Same app, same endpoints. There's a far worse bug than the missing headers.
+
+**Goal.** Acting as the user who owns order **100**, read order **200** (which belongs to a *different* user) — a bug no header/pattern scanner will report — and explain why the baseline from Drill 1 could never have found it.
+
+**Done when.** You retrieve order 200's data (\`total:999\`) though you don't own it, and you can state why an automated scan misses this entirely.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s "http://localhost:4617/api/orders/200"
+# {"id":200,"owner":2,"total":999}   <- another user's order, no authorization checked
+\`\`\`
+That's an **IDOR / BOLA (OWASP A01)** — the exact #1-risk bug from Module 3.3 — and it's *invisible* to the header scanner because finding it requires knowing something the machine can't: **that order 200 belongs to someone else and this caller shouldn't see it.** A scanner sees a well-formed request returning a well-formed \`200 OK\` JSON response; nothing about the *bytes* is anomalous. Only a tester who understands the app's *intent* (ownership) recognizes the violation. This is the **false negative** that matters: the scan was "clean" on authorization while the worst bug in the app sat in plain sight.
+
+The lesson, felt rather than told: a clean scan is **not** "secure" — it's "clean *on the things a scanner can check*." The highest-value testing (object-by-object authorization, business logic) is precisely the human-only work step 6 of the workflow exists for.
+</details>
+
+#### 🔴 Break & Defend — the method and the mindset ~10 min
+
+In your journal:
+1. Order these four testing activities by *expected real-bug yield*, and say which is human-only and why: (a) checking security headers, (b) testing each object for cross-user access, (c) fuzzing parameters for injection, (d) testing business-logic rules (negative quantity, skipped payment).
+2. Give one concrete **false positive** and one **false negative** a scanner might produce on this very app, and state which is more dangerous and why.
+3. Why is "define scope" step 1 of the workflow — for both a practical and a legal reason? And when is a finding allowed to be marked "closed"?
+
+**Done when.** Your ranking puts object-authz and business-logic (human-only, intent-dependent) above headers/injection-fuzzing (partly automatable); your false-negative example is the IDOR (more dangerous than any false positive because it hides a real high-impact bug); and you note scope defines the attack surface *and* the legal boundary, and "closed" requires a failed re-run of the original repro.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Expected yield, highest first:** (b) **cross-user object access** and (d) **business logic** — the richest sources of real, high-impact bugs and both **human-only**, because each requires understanding *intent* (who should access what; what the rule is supposed to be) that no scanner can infer. Then (c) injection fuzzing — partly automatable (scanners find many, miss context-dependent ones). Then (a) headers — fully automatable and lowest-yield-per-severity (real, but rarely the crown jewel). The pattern: **the more a bug depends on the app's meaning rather than its syntax, the more it's human work and the higher its impact.**
+2. **False positive:** a scanner flags "reflected parameter → possible XSS" on an endpoint that actually encodes the value — real-looking, not exploitable, wastes fix effort. **False negative:** the scanner stays silent on the order-200 IDOR (and on any logic flaw). The **false negative is more dangerous** — a false positive costs time and a little credibility, but a false negative ships a real, often critical bug under a banner of "the scan was clean." That asymmetry is why "clean scan = secure" is the trap.
+3. **Scope is step 1** because (practically) everything downstream targets the surface it defines, and (legally) testing anything outside authorized scope is unauthorized access — an offense, not extra thoroughness. A finding is **"closed" only after you re-run the original reproduction steps against the fix and confirm the exploit no longer works** — a fix you didn't retest is a hope, not a closure.
+
+**Outside the box:** the durable relationship with tooling is *method first, tools as instruments.* The scanner and your header check are fast eyes for the mechanical layer; the proxy is your hands; but the **workflow** — run in the same order every time — is what guarantees you actually test authorization object-by-object instead of getting absorbed in the shiny injection bug and forgetting the boring, higher-impact one. Coverage is a property of the method, not the tool count. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
 ➡️ **Next step:** Method and tools in hand, run the full milestone: a complete Burp-driven assessment of Juice Shop, written up like a professional report — and learn the on-ramp to real bug bounty work. Continue to **Module 5.3: End-to-End Assessment and the Bug Bounty Pathway**.`,
-    tracker: ["Memorized the 12-step testing workflow and can run it in order", "Can state why authorization-object-by-object yields the most real bugs and is human-only", "Installed ZAP (native ARM64) and ran a baseline scan against local Juice Shop", "Verified one ZAP lead by hand in Burp/curl and discarded a non-reproducible one", "Can state the scanner mindset (lead generator, not truth) and false positive vs false negative", "Answered the knowledge check"]
+    tracker: ["Memorized the 12-step testing workflow and can run it in order", "Can state why authorization-object-by-object yields the most real bugs and is human-only", "Installed ZAP (native ARM64) and ran a baseline scan against local Juice Shop", "Verified one ZAP lead by hand in Burp/curl and discarded a non-reproducible one", "Can state the scanner mindset (lead generator, not truth) and false positive vs false negative", "Answered the knowledge check", "Workbench: ran a manual header baseline (found 3 missing headers) and then found an IDOR next to it that no header/pattern scan could see", "Workbench: ranked testing activities by yield (object-authz/logic are human-only + highest), and journalled false-negative danger, scope-first, and retest-to-close"]
   },
   {
     id: "m5_3",
@@ -9909,6 +10111,87 @@ Once you can finish the Juice Shop assessment end to end and write clean reports
 5. Cloud-hosted scanners typically violate program/provider Terms of Service and can be high-volume/disruptive; running recon from your own IP within scope keeps you compliant and avoids bans or legal exposure.
 </details>
 
+---
+
+### 🧪 Workbench: enumerate like Intruder, then decide like a professional
+
+> **What this trains.** Two things this module rests on: the mechanical skill (Burp Intruder is a loop that blasts payloads and sorts by response — you'll build it by hand) and the judgment that separates a researcher from a criminal (staying in scope, proving impact minimally). One is code; one is decisions. You need both.
+
+#### 🟢 Drill 1 — Intruder in a for-loop ~6 min
+
+\`\`\`bash
+mkdir -p ~/assess-workbench && cd ~/assess-workbench
+cat > app.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const EXISTS = new Set(["3","7","42","99"]);   // only these user ids exist
+const PREFIX = "/user/";
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4618");
+  if (u.pathname.startsWith(PREFIX)){
+    const id = u.pathname.slice(PREFIX.length);
+    if (EXISTS.has(id)){ return res.end(JSON.stringify({id, name:"user"+id, email:id+"@x.com"})); }
+    res.statusCode = 404; return res.end(JSON.stringify({error:"not found"}));
+  }
+  res.statusCode=404; res.end("{}");
+}).listen(4618, ()=>console.log("app on http://localhost:4618"));
+EOF
+node app.js     # leave running
+\`\`\`
+
+**Goal.** You don't know which user ids exist. Enumerate ids 1–100 and report *only* the ones that are real — using the response difference the server leaks. (This is Burp Intruder's "Numbers payload, sort by status" done in bash.)
+
+**Done when.** Your loop prints exactly \`3\`, \`7\`, \`42\`, and \`99\` as existing — you discovered the valid ids without being told them.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Loop \`i\` over \`$(seq 1 100)\`, request \`/user/$i\`, and capture just the status code with \`curl -s -o /dev/null -w "%{http_code}"\`. Print the id only when the code is \`200\` — existing ids answer \`200\`, missing ones \`404\`. That status difference *is* the enumeration oracle.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+for i in $(seq 1 100); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4618/user/$i")
+  [ "$code" = "200" ] && echo "  id $i EXISTS"
+done
+# id 3 / 7 / 42 / 99 EXISTS
+\`\`\`
+That's Burp **Intruder**: mark a position (\`$i\`), supply a payload list (1–100), fire, and **sort by response** (here, status code) to find the anomalies. The server handed you an *enumeration oracle* — a detectable difference between "exists" (200) and "doesn't" (404). Real apps leak this same way through status codes, response length, timing, or error text (a login that says "wrong password" for real users and "no such user" for others enumerates accounts identically). The defense is to make the responses **indistinguishable** — a generic 404/401 either way — which is why "user not found" vs "wrong password" is a finding. You just built the offensive tool *and* diagnosed the defensive requirement in one loop.
+</details>
+
+#### 🔴 Break & Defend — the scope-and-restraint gauntlet ~12 min
+
+The mechanical skill is easy; the judgment is what keeps you employed and out of court. For each scenario, write your decision and a one-line justification.
+
+1. A bug-bounty program's scope lists \`*.acme.com\`. During recon you find \`acme-internal.net\` clearly run by the same company, with an obvious login bug. **Test it?**
+2. You confirm an IDOR that returns *one* other user's order. To "show real impact," you consider scripting it to pull *all* users' orders. **Do it?**
+3. A program is silent about automated scanning. You have a cloud-hosted scanner that would cover ground fast. **Use it?**
+4. You find an SQL injection on an in-scope host. To prove it, you consider running \`; DROP TABLE\` / dumping the full users table. **How far do you go?**
+5. You're *fairly sure* a subdomain is in scope but the wording is ambiguous. **Proceed?**
+
+**Done when.** Your answers are: 1 — **no** (only the *written* scope authorizes; a different domain isn't covered no matter who owns it). 2 — **no** (prove impact *minimally*; pulling all records is exfiltration and real harm). 3 — **no** (cloud scanners usually violate ToS; recon from your own IP in scope). 4 — stop at a **read-only, minimal** proof (e.g. \`version()\` or a single benign row), never destructive or bulk-exfil. 5 — **no / ask first** (ambiguous = out of scope until confirmed).
+
+<details>
+<summary>Walkthrough — open after you've decided all five</summary>
+
+1. **No.** Scope is the *written* authorization, not "whatever the company owns." \`acme-internal.net\` isn't \`*.acme.com\`; testing it is unauthorized access, full stop — the ownership overlap is irrelevant. If you think it *should* be in scope, ask the program; don't test and find out.
+2. **No.** You've already proven the vulnerability class with one record. Scripting a full pull is **data exfiltration** — real harm to real users, far beyond the minimal proof the program authorized, and the line where "research" becomes "breach." Report the single-record proof and let them assess blast radius.
+3. **No.** Silence isn't permission, and cloud-hosted scanners typically violate the provider's *and* the program's ToS (high volume, third-party origin). Run recon from **your own IP, within scope**, with tools you control. "It didn't say I couldn't" is exactly the reasoning that gets researchers banned.
+4. **Minimal, non-destructive proof only.** Demonstrate the injection with something read-only and harmless — \`SELECT version()\`, a \`sleep\`-based boolean, or retrieving a single non-sensitive row you're authorized to see. **Never** \`DROP\`, never bulk-dump user data, never modify state. The report explains the *potential* impact; you don't *cause* it.
+5. **No — or ask first.** Ambiguity resolves to **out of scope**. The cost of asking the program is an email; the cost of guessing wrong is unauthorized access. "When in doubt, don't" is the whole ethic in four words.
+
+**The core, memorized:** *bug bounty is not a license to attack.* Every one of these is the same principle — **the invitation is only as wide as the written scope, and you prove impact with the lightest touch that demonstrates it.** The technical skills in this phase can cause real damage; what makes you a professional rather than a liability is the discipline to stay inside the lines when you're fully capable of crossing them.
+
+**Outside the box:** notice Drill 1 and this gauntlet are the two halves of the same coin. The enumeration loop is trivial to write and could, pointed at a real system you weren't invited to, be a crime. The skill was never the hard part — *the judgment about where to point it is.* That's the actual graduation from "can exploit" to "can be trusted to exploit," and it's what the whole phase, and this course's ethics-first framing, has been building toward. Clean up: \`Ctrl+C\` the server.
+</details>
+
+---
+
+> **Phase 5 complete.** You built an intercepting proxy to see how Burp works, felt exactly what a scanner can and can't find, drove Intruder by hand, and — the part that matters most — practiced the scope-and-restraint judgment that makes all of it legitimate. You can now assess an app methodically and report it professionally.
+
 ➡️ **Next step:** You can methodically assess an application and report professionally. Now go deep on the area that breaks real products most often and underlies OWASP A01 and A07: authentication, authorization, and session security. Continue to **Phase 6: Authentication, Authorization, and Session Security**.
 
 ### Phase 5 Deliverable
@@ -9931,7 +10214,7 @@ Create \`~/appsec-journal/notes/phase-5-testing-workflow.md\` and answer, in you
 - **What a "full assessment" is made of:** it's the Module 5.2 repeatable testing workflow, executed end to end with Burp as the instrument, with every finding written up to the Module 4.3 report standard — the convergence of the proxy, the method, the Top 10 knowledge, and structured reporting, not a separate skill on its own. **Authorization testing (BOLA/IDOR)** tends to surface the highest-value bugs, and it's human-only because it requires understanding which user is *supposed* to be able to reach which object — the application's intent — and no scanner can infer intent from HTTP traffic alone.
 
 </details>`,
-    tracker: ["Ran a full Burp-driven assessment of local Juice Shop end to end (recon → auth → authz → XSS → fuzzing → report)", "Completed the capstone: found 6+ distinct vulnerability classes and wrote each up", "Can explain a full assessment as the 5.2 workflow + Burp + 4.3 reporting", "Read and internalized the ethical bug-bounty on-ramp (scope, minimal impact, own-IP recon)", "Can recite the ethical core: bug bounty is not a license to attack; when in doubt, don't", "Wrote the Phase 5 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Ran a full Burp-driven assessment of local Juice Shop end to end (recon → auth → authz → XSS → fuzzing → report)", "Completed the capstone: found 6+ distinct vulnerability classes and wrote each up", "Can explain a full assessment as the 5.2 workflow + Burp + 4.3 reporting", "Read and internalized the ethical bug-bounty on-ramp (scope, minimal impact, own-IP recon)", "Can recite the ethical core: bug bounty is not a license to attack; when in doubt, don't", "Wrote the Phase 5 deliverable journal entry", "Answered the knowledge check", "Workbench: drove Burp Intruder by hand — a bash loop that enumerated valid user ids by status-code oracle — and diagnosed the indistinguishable-response defense", "Workbench: worked the five-scenario scope-and-restraint gauntlet (out-of-scope domain, minimal-impact proof, cloud-scanner ToS, non-destructive SQLi proof, ambiguity=out-of-scope)"]
   },
   {
     id: "p6_roadmap",
