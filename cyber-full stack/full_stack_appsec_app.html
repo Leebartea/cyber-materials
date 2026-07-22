@@ -9008,8 +9008,130 @@ The **CWE Top 25 (2025)** is the industry's "most dangerous weaknesses" list. It
 9. Raw CVSS measures severity *in the abstract*, not your actual exposure — a 9.8 in an internal, unreachable component matters less than a 6.5 on your public login page. **EPSS** (Exploit Prediction Scoring System) estimates the probability a CVE will actually be exploited in the next 30 days; **CISA's KEV** catalog lists CVEs with *confirmed* real-world exploitation, which get patched first regardless of CVSS. (Larger teams formalize this further with **SSVC**, a decision tree instead of a single score.)
 </details>
 
+---
+
+### 🧪 Workbench: model the threats, then exploit the newest one
+
+> **What this trains.** The Top 10's value is a *habit* — looking at a feature and naming what can go wrong — so the first task makes you produce that analysis unaided. Then you exploit **A10:2025 (Mishandling of Exceptional Conditions)**, the genuinely new category, because it's the one you can't picture until you've watched a \`catch\` block hand an attacker admin. That part is curl-verifiable and dependency-free.
+
+#### 🟢 Drill 1 — threat-model a real feature ~10 min
+
+The feature: **"Users request a password reset; we email them a link that logs them in to set a new password."**
+
+**Goal.** In your journal, walk the 2025 Top 10 against it and write **at least five** concrete, feature-specific risks — each tagged with its \`Axx\` category. Don't write generic definitions; write what could go wrong *with this feature*.
+
+**Done when.** You have five+ risks, each naming a category and a specific failure (not "A01 access control" but "*A01 — can I request a reset for someone else's email and receive their link?*").
+
+<details>
+<summary>Walkthrough — open after you've written your model</summary>
+
+A strong model finds most of these:
+- **A01 Access Control:** does the reset-link token authorize *only* that account? Can I change a \`userId\` in the set-password request and reset someone else's password? If the flow "imports" a gravatar by URL, is that SSRF?
+- **A06 Insecure Design:** is there a **rate limit** on reset requests (or an attacker floods a victim / brute-forces tokens)? Does the token **expire** and become **single-use**? Is it high-entropy (A04) rather than a guessable sequence? *These are design decisions, made before any code.*
+- **A04 Cryptographic Failures:** is the token generated with a CSPRNG and long enough to be unguessable? Is it stored hashed (so a DB leak doesn't hand out live reset links)?
+- **A07 Authentication Failures:** does using the link **invalidate existing sessions**? Does it require the new password to meet policy? Is the old token invalidated after use?
+- **A09 Logging/Alerting:** do you log reset requests and completions, and would a spike (targeted account takeover attempt) actually **alert** someone?
+- **A02 Misconfiguration / A10 Exceptional:** if the email service throws, does the flow fail *open* (e.g. log the token to a response/error) or closed? Does a verbose error leak whether an email exists (user enumeration)?
+
+The point isn't the specific list — it's that **ten lines of "what could go wrong" surfaced the token-scoping, rate-limit, expiry, entropy, and session-invalidation decisions that make password reset the most-attacked flow in most apps.** That is threat modeling: the Top 10 as your "what can go wrong" prompt, applied to *this* feature. (STRIDE gives the same coverage from the attacker-goal angle — Spoofing→can I get someone else's link, Elevation→can a reset make me admin.)
+</details>
+
+#### 🟡 Build 1 — the catch block that grants admin (A10) ~10 min
+
+Some things you only believe once you've seen them. Here's an admin endpoint whose authorization check is wrapped in a \`try/catch\` — "so a database blip doesn't break the app."
+
+\`\`\`bash
+mkdir -p ~/a10-workbench && cd ~/a10-workbench
+cat > failopen.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+async function isAdmin(user, flaky){
+  if (flaky) throw new Error("DB timeout");     // the auth store has an infra blip
+  return user === "admin";
+}
+http.createServer(async (req,res)=>{
+  const u = new URL(req.url,"http://localhost:4612");
+  const user = req.headers["x-user"] || "guest";
+  const flaky = req.headers["x-flaky"] === "1";
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (u.pathname==="/admin/delete-all"){
+    try {
+      if (await isAdmin(user, flaky)) return json({deleted:true});
+      res.statusCode=403; return json({error:"forbidden"});
+    } catch(e){
+      return json({deleted:true});   // "don't let a DB error break admin" — the bug
+    }
+  }
+  res.statusCode=404; json({});
+}).listen(4612,()=>console.log("a10 on http://localhost:4612"));
+EOF
+node failopen.js     # leave running
+\`\`\`
+
+**Goal, part A — exploit:** as a plain \`guest\`, trigger the admin action \`/admin/delete-all\` *without* being admin, by making the authorization check **throw**.
+
+**Goal, part B — fix:** change the \`catch\` so that an exception on the auth path **denies** instead of granting, and prove the same request is now refused.
+
+**Done when.** Part A: \`X-User: guest\` with \`X-Flaky: 1\` returns \`{"deleted":true}\` (a guest performed an admin action); after your fix, the same request returns a 4xx/5xx denial while a healthy admin request still works.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The \`catch\` runs whenever \`isAdmin\` throws — and it \`return json({deleted:true})\`, i.e. it *grants*. The \`X-Flaky: 1\` header makes \`isAdmin\` throw. So a guest + flaky header lands in the catch → granted. The fix: in the catch, set a 503 (or 403) and return an error — *deny on exception*.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run both parts</summary>
+
+**Part A — exploit:**
+\`\`\`bash
+curl -s -H "X-User: guest" -H "X-Flaky: 1" http://localhost:4612/admin/delete-all
+# {"deleted":true}      <- a GUEST just ran the admin action
+\`\`\`
+Read what happened: the authorization check *threw* (simulating a DB timeout), and the \`catch\` block — written to "not let an error break admin" — called the success path. So an attacker who can induce an error on the auth path (slow the DB, exhaust a connection pool, send input that makes the lookup throw) **bypasses authorization entirely.** The exception *is* the vulnerability. This is A10:2025 in one screen.
+
+**Part B — fix (fail closed):**
+\`\`\`js
+} catch(e){
+  res.statusCode = 503;
+  return json({ error: "authorization unavailable — denied" });   // ✅ deny on exception
+}
+\`\`\`
+\`\`\`bash
+curl -s -o /dev/null -w "%{http_code}\\n" -H "X-User: guest" -H "X-Flaky: 1" http://localhost:4612/admin/delete-all
+# 503      <- denied when auth can't be evaluated
+curl -s -H "X-User: admin" http://localhost:4612/admin/delete-all
+# {"deleted":true}   <- healthy admin path still works
+\`\`\`
+
+**The rule, stated once and applied forever: any exception on a security-relevant code path must deny, never grant.** "Fail closed" isn't a slogan — it's the difference between an infra hiccup being a *reliability* event and being an *authorization bypass*. The same shape hides in middleware whose \`catch\` calls \`next()\`, a permission lookup that defaults to \`true\` on cache-miss, a JWT verify wrapped so a malformed token is treated as "no claims = public access." Audit every \`try/catch\`, every default, every timeout on an auth path and ask: *when this misbehaves, does it open or close?*
+</details>
+
+#### 🔴 Break & Defend — speak the professional vocabulary ~10 min
+
+In your journal, translate findings into the language audits and scanners use:
+1. Assign the precise **CWE** to each: (a) the IDOR from Module 3.3, (b) the reflected XSS from 2.2, (c) the SQL injection from 3.2, (d) this module's fail-open authz.
+2. You have four open CVEs: a CVSS 9.8 in an internal batch job with no network path; a CVSS 6.5 on your public login that's in **CISA KEV**; a CVSS 7.5 with **EPSS 0.02**; a CVSS 7.5 with **EPSS 0.71**. Put them in patch order and justify — *without* using CVSS as the tiebreaker.
+3. One sentence: what does "we target **ASVS L2** and threat-model with **STRIDE**" tell an interviewer that "we follow best practices" doesn't?
+
+**Done when.** Your CWEs are right (79 / 89 / 352 / 862-or-285 family), your patch order leads with the KEV item (confirmed real-world exploitation) then the high-EPSS one, deprioritizing the unreachable 9.8, and you can articulate that ASVS/STRIDE name *verifiable* standards rather than a vibe.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **CWEs:** (a) IDOR/BOLA → **CWE-639** (Authorization Bypass Through User-Controlled Key) / the broader **CWE-862** Missing Authorization; (b) reflected XSS → **CWE-79**; (c) SQL injection → **CWE-89**; (d) fail-open authorization → **CWE-862** Missing Authorization / **CWE-863** Incorrect Authorization (the check exists but its exception path grants). Being able to say "that's a CWE-89" is the lingua franca — scanners, CVEs, and bug-bounty triagers all speak it, and it's more precise than the broad OWASP category.
+
+2. **Patch order:** (1) the **CVSS 6.5 on public login in KEV** — *confirmed* real-world exploitation on an exposed, authentication-critical surface beats every abstract score; KEV membership is a "patch now, full stop" signal. (2) the **CVSS 7.5 with EPSS 0.71** — a 71% modeled probability of exploitation in 30 days is a strong near-term threat. (3) the **CVSS 7.5 with EPSS 0.02** — same severity, but ~2% exploitation likelihood, so it waits. (4) the **CVSS 9.8 internal batch job with no network path** — highest *abstract* severity, lowest *actual* risk, because nothing can reach it; it's last despite the scariest number. The lesson: **triage by exposure × exploitability × confirmation, not by CVSS alone** — the 9.8 you can't reach is less urgent than the 6.5 attackers are using today.
+
+3. **"ASVS L2 + STRIDE"** names a *verifiable standard* and a *systematic method*: ASVS L2 is ~350 concrete testable requirements you can check off (a reviewer can audit against it), and STRIDE is a repeatable per-boundary threat walk. "We follow best practices" names nothing checkable — it's a hope, not a control. Mature security is *falsifiable*: you can point to the requirement and the test.
+
+**Outside the box:** notice the through-line of this whole module — *security maturity is about making things nameable and checkable.* Threat modeling turns "is it secure?" into ten specific questions; CWE turns "there's a bug" into an exact weakness class; EPSS/KEV turn "it's severe" into "it's being exploited"; ASVS turns "best practices" into a checklist. The expert habit isn't knowing more scary words — it's converting vague security feelings into specific, testable claims. That's what lets a team actually *finish* security work instead of worrying about it forever.
+</details>
+
+---
+
 ➡️ **Next step:** Reading about the Top 10 isn't enough — you must *exploit* them with your own hands in a safe lab, including SSRF which you haven't done yet. Continue to **Module 4.2: Hands-On Web Exploitation Labs**.`,
-    tracker: ["Read the 2025 Top 10 table and can state what each category means for a developer", "Threat-modeled the profile-picture feature in nine lines, one per applicable 2025 risk", "Can state the four threat-modeling questions and which one the Top 10 powers", "Can explain why SSRF moved under A01 and what A10:2025 (Mishandling of Exceptional Conditions) means", "Can name all six STRIDE letters and map ASVS L1/L2/L3 to their intended use", "Can distinguish OWASP Top 10 categories from CWE IDs, and explain EPSS/KEV as CVSS-prioritization signals", "Started Juice Shop locally for the Module 4.2 labs", "Answered the knowledge check"]
+    tracker: ["Read the 2025 Top 10 table and can state what each category means for a developer", "Threat-modeled the profile-picture feature in nine lines, one per applicable 2025 risk", "Can state the four threat-modeling questions and which one the Top 10 powers", "Can explain why SSRF moved under A01 and what A10:2025 (Mishandling of Exceptional Conditions) means", "Can name all six STRIDE letters and map ASVS L1/L2/L3 to their intended use", "Can distinguish OWASP Top 10 categories from CWE IDs, and explain EPSS/KEV as CVSS-prioritization signals", "Started Juice Shop locally for the Module 4.2 labs", "Answered the knowledge check", "Workbench: threat-modeled password-reset into five+ category-tagged risks, and exploited an A10 fail-open catch (a guest ran the admin action), then fixed it to fail closed", "Workbench: assigned CWEs to four bugs and put four CVEs in patch order by KEV/EPSS/exposure rather than CVSS alone"]
   },
   {
     id: "m4_2",
@@ -9176,8 +9298,129 @@ def fetch_secure():
 5. **A01 Broken Access Control** (BOLA/IDOR). Fix: authorize the object — scope the query/fetch to the owner (\`WHERE id=$1 AND owner_id=$caller\`) or explicitly verify ownership.
 </details>
 
+---
+
+### 🧪 Workbench: turn the server into your proxy, then take the proxy away
+
+> **What this trains.** SSRF is the one Top-10 category you hadn't attacked by hand, and it's the one whose *aha* — "the server has network access I don't, and I just borrowed it" — you have to feel. This lab is fully local and dependency-free (Node's built-in \`fetch\` + two plain-\`http\` servers): a public app that fetches user URLs, and an "internal-only" service the public app can reach but you can't.
+
+\`\`\`bash
+mkdir -p ~/ssrf-workbench && cd ~/ssrf-workbench
+cat > ssrf.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+// an "internal-only" service — imagine it's only reachable from inside the network
+http.createServer((req,res)=>res.end("INTERNAL SECRET: db-password=hunter2")).listen(4614, ()=>console.log("internal on :4614"));
+
+http.createServer(async (req,res)=>{
+  const u = new URL(req.url,"http://localhost:4613");
+  if (u.pathname==="/fetch"){
+    const target = u.searchParams.get("url") || "";
+    // "import from URL": the server fetches whatever URL the user supplies
+    try { const r = await fetch(target); res.end(await r.text()); }
+    catch(e){ res.statusCode=400; res.end(String(e)); }
+    return;
+  }
+  res.statusCode=404; res.end();
+}).listen(4613, ()=>console.log("public on :4613"));
+EOF
+node ssrf.js     # leave running — starts BOTH servers
+\`\`\`
+
+**The rule:** predict what comes back before each request; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — read an internal service you "can't reach" ~5 min
+
+**Goal.** You can only talk to the **public** app on \`:4613\`. Use its \`/fetch\` feature to read the **internal** service on \`:4614\` — which is supposed to be unreachable from outside.
+
+**Done when.** The public endpoint returns \`INTERNAL SECRET: db-password=hunter2\` — you read an internal service *through* the public app.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s "http://localhost:4613/fetch?url=http://localhost:4614/secret"
+# INTERNAL SECRET: db-password=hunter2
+\`\`\`
+
+That's SSRF. You never connected to \`:4614\` — the **server did, on your behalf**, from inside the network where it has reach you don't. The vulnerable code fetched a URL *you* controlled, so you pointed it at an internal target. In a real cloud environment the money shot is \`url=http://169.254.169.254/latest/meta-data/iam/security-credentials/\` — the instance metadata endpoint that hands out the server's **IAM credentials**, turning one SSRF into full cloud-account compromise. The bug isn't "it made an HTTP request"; it's "it made a request to an attacker-chosen destination using its own privileged position." (Note it's filed under **A01 Broken Access Control** for exactly that reason — the server acted without checking whether *it* should reach that target.)
+</details>
+
+#### 🟡 Build 1 — allow-list the outbound, block the internal ~12 min
+
+**Goal.** Add a \`?fixed=1\` path to \`/fetch\` that only fetches a URL when it (a) is \`https\`, (b) has a hostname on a small allow-list, and (c) does **not** point at an internal/loopback address. Prove the internal URL is now refused while an allow-listed \`https\` host is permitted.
+
+Use this internal-address helper (string-based, so no regex to fight):
+\`\`\`js
+function isInternal(host){
+  const bad = ["localhost","127.0.0.1","0.0.0.0","169.254.169.254","::1","[::1]"];
+  return bad.includes(host) || host.startsWith("10.") || host.startsWith("192.168.") || host.startsWith("169.254.");
+}
+const ALLOWED_HOSTS = new Set(["images.example.com"]);
+\`\`\`
+
+**Done when.** With \`?fixed=1\`: the internal URL (\`http://localhost:4614/\`) is refused, \`https://127.0.0.1/\` is refused, \`https://evil.example/\` is refused, and \`https://images.example.com/x\` is allowed.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Parse with \`new URL(target)\` inside a try/catch. Then four gates in order: reject if \`protocol !== "https:"\`; reject if the hostname isn't in \`ALLOWED_HOSTS\`; reject if \`isInternal(hostname)\`; otherwise fetch. Return a distinct message per gate so you can see which one fired.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+if (u.searchParams.get("fixed")==="1"){
+  let t; try { t = new URL(target); } catch { res.statusCode=400; return res.end("bad url"); }
+  if (t.protocol !== "https:")        { res.statusCode=400; return res.end("https only"); }
+  if (!ALLOWED_HOSTS.has(t.hostname)) { res.statusCode=403; return res.end("host not on allow-list"); }
+  if (isInternal(t.hostname))         { res.statusCode=403; return res.end("internal address blocked"); }
+  const r = await fetch(t.toString()); return res.end(await r.text());
+}
+\`\`\`
+\`\`\`bash
+curl -s "http://localhost:4613/fetch?url=http://localhost:4614/&fixed=1"     # https only
+curl -s "http://localhost:4613/fetch?url=https://127.0.0.1/&fixed=1"          # host not on allow-list
+curl -s "http://localhost:4613/fetch?url=https://evil.example/&fixed=1"       # host not on allow-list
+curl -s "http://localhost:4613/fetch?url=https://images.example.com/x&fixed=1" # allowed
+\`\`\`
+
+Four layers, each closing a bypass: **https-only** kills \`file://\`, \`gopher://\`, and plain-\`http\` internal calls; the **allow-list** means you're naming the few hosts you trust rather than trying to enumerate every dangerous one; the **internal-IP check** is defense-in-depth for the nastier case — an allow-listed hostname whose DNS *resolves* to an internal address (DNS rebinding), which is why production code **resolves the hostname and checks the resulting IP**, and disables redirects (a \`302\` to \`169.254.169.254\` would otherwise sail past a hostname check). The ordering also gives you clean, debuggable rejections.
+</details>
+
+#### 🔴 Break & Defend — why deny-lists lose the SSRF game ~10 min
+
+In your journal:
+1. A teammate "fixes" SSRF with \`if (url.includes("localhost") || url.includes("127.0.0.1")) block\`. List **four** inputs that reach an internal address but slip past that check.
+2. Why is \`169.254.169.254\` the single highest-value SSRF target in the cloud, and what does reaching it usually escalate to?
+3. Why must the IP check happen *after resolving the hostname*, and why disable redirects? Name the attack each defends.
+
+**Done when.** Your bypass list includes at least four of {\`0.0.0.0\`, \`[::1]\`, \`2130706433\` (decimal for 127.0.0.1), \`0x7f000001\` (hex), \`169.254.169.254\`, a DNS name you control that resolves to \`127.0.0.1\`}; you name the metadata endpoint → IAM-credential theft → account takeover; and you name DNS rebinding (resolve-then-check) and redirect-based bypass (disable redirects).
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Deny-list bypasses** (all reach loopback/internal, none contain \`localhost\` or the literal \`127.0.0.1\`):
+   - \`http://0.0.0.0/\` — routes to localhost on most stacks.
+   - \`http://[::1]/\` — IPv6 loopback.
+   - \`http://2130706433/\` — \`127.0.0.1\` as a **decimal** integer; the URL parser expands it.
+   - \`http://0x7f000001/\` — the same address in **hex**. (Also octal \`0177.0.0.1\`.)
+   - \`http://169.254.169.254/\` — the metadata endpoint isn't \`localhost\` at all.
+   - \`http://attacker-domain.com/\` where the attacker set that name's DNS **A record to \`127.0.0.1\`** — passes any string check, resolves internal.
+   The lesson is the one from every module: **a deny-list of "bad" strings loses to an attacker with infinite encodings; allow-list the small set of good destinations instead** (and still resolve-and-check the IP).
+
+2. **\`169.254.169.254\` is the cloud instance metadata service.** It returns, among other things, the instance's **IAM role credentials**. An SSRF that reaches it lets the attacker read those credentials and then act with the *server's* cloud permissions — commonly a path to reading every bucket, spinning up resources, or full account takeover. It's why SSRF went from "interesting" to "critical" in the cloud era (the 2019 Capital One breach was exactly this). Modern clouds mitigate with IMDSv2 (a token-requiring, PUT-first, hop-limited scheme — Phase 8), but the app-layer fix is to never let user URLs reach it.
+
+3. **Resolve-then-check** defeats **DNS rebinding**: an attacker's hostname passes your allow-list, but its DNS returns a public IP on the first lookup and an *internal* IP on the second (the one your \`fetch\` actually uses) — so you must resolve and validate the IP you're about to connect to, ideally pinning it. **Disabling redirects** defeats the **redirect bypass**: an allowed URL returns \`302 Location: http://169.254.169.254/\`, and a client that auto-follows lands on the internal target after your checks already passed. Both are "the thing you validated isn't the thing you fetched" — the recurring shape of SSRF filter bypasses.
+
+**Outside the box:** SSRF is the purest example of the phase's meta-lesson — *the vulnerability is a trust position, not a payload.* Your server is trusted by your internal network; SSRF rents that trust to an attacker. That's why the fix isn't "sanitize the URL" (you can't out-encode the attacker) but "constrain what the trusted party is allowed to reach" — allow-list, resolve-and-verify, no redirects. Same reasoning as least-privilege DB users and allow-listed CORS: *limit what the trusted thing can do, because you can't limit what the untrusted input will try.* Clean up: \`Ctrl+C\` (stops both servers).
+</details>
+
+---
+
 ➡️ **Next step:** You've exploited the Top 10 by hand. To do this professionally — and to write the reports that prove your skill — you need a repeatable methodology and the industry-standard tooling. Continue to **Module 4.3: Structured Reporting and the Required PortSwigger Track**.`,
-    tracker: ["Read the lab ladder (Juice Shop → PortSwigger → WebGoat → DVWA → DVNA) and the Top 10 ↔ lab map", "Built ssrf-lab.js and read the internal-only service through the public endpoint", "Fixed the SSRF with https-only, host allow-list, resolve-then-check private-IP block, and no redirects", "Read the Flask + requests dual-language version and the ipaddress classification idiom", "Reproduced the Juice Shop basket IDOR and wrote it up", "Practiced the hypothesis → test → root-cause → fix → predict loop", "Answered the knowledge check"]
+    tracker: ["Read the lab ladder (Juice Shop → PortSwigger → WebGoat → DVWA → DVNA) and the Top 10 ↔ lab map", "Built ssrf-lab.js and read the internal-only service through the public endpoint", "Fixed the SSRF with https-only, host allow-list, resolve-then-check private-IP block, and no redirects", "Read the Flask + requests dual-language version and the ipaddress classification idiom", "Reproduced the Juice Shop basket IDOR and wrote it up", "Practiced the hypothesis → test → root-cause → fix → predict loop", "Answered the knowledge check", "Workbench: exploited a dependency-free SSRF to read an internal service through the public app, then built the four-layer fix (https-only, allow-list, internal-IP block, no redirects)", "Workbench: journalled four deny-list bypasses, why 169.254.169.254 → IAM theft, and resolve-then-check vs DNS rebinding / redirects"]
   },
   {
     id: "m4_3",
@@ -9262,6 +9505,108 @@ A security finding isn't "I found a bug" — it's a document a developer can act
 5. They are hosted, intentionally vulnerable targets provided by PortSwigger expressly for you to hack as part of learning — authorization is built into their purpose.
 </details>
 
+---
+
+### 🧪 Workbench: write the document that gets the bug fixed
+
+> **What this trains.** This module's skill isn't exploitation — it's *communication*, and you practice it by producing the artifact, not reading about it. You'll grade a bad report, then write a real one for a vulnerability you already exploited (the SSRF from Module 4.2), and calibrate severity honestly. The "Done when" is a rubric you check your own writing against — the same way a triager will.
+
+#### 🟢 Drill 1 — triage a bad report ~6 min
+
+Here's a real-shaped submission. In your journal, list what's wrong with it, mapped to the five-part structure.
+
+\`\`\`
+Title: XSS bug
+Severity: CRITICAL 10/10
+Description: I found an XSS on your site, it's really bad, you should fix ASAP.
+Fix: add a WAF.
+\`\`\`
+
+**Done when.** You've named at least five distinct failures: the vague title (no vuln type precision / no location), the unjustified/inflated severity, the **missing steps-to-reproduce entirely**, the missing concrete impact, and the band-aid recommendation instead of the root-cause code fix.
+
+<details>
+<summary>Walkthrough — open after you've listed the flaws</summary>
+
+Against the five-part structure:
+- **Title — useless.** "XSS bug" names neither the *location* (which endpoint/parameter) nor the *type* (reflected/stored/DOM). A triager can't scan or route it. Fix: \`Reflected XSS in /search via the q parameter\`.
+- **Severity — inflated and unjustified.** "CRITICAL 10/10" with no likelihood×impact reasoning is a credibility killer; triagers see this constantly and downgrade the *reporter*, not just the report. A reflected XSS needing a victim to click a crafted link is usually **Medium**, not a 10.
+- **Steps to reproduce — absent, and this is fatal.** There is *no way to confirm the bug*. This is the single most important section and it's missing; most programs auto-close a report with no repro. Nothing else matters if they can't reproduce it.
+- **Impact — hand-waved.** "really bad" isn't impact. Impact is what the attacker *gains*: "runs JS as the victim, can read JS-accessible tokens and act as the user."
+- **Recommendation — a band-aid.** "Add a WAF" filters symptoms and is bypassable; it doesn't remove the bug. The root-cause fix is output encoding for the context (+ CSP as defense-in-depth).
+
+The meta-lesson: **the report is the product.** Two researchers find the same bug; the one whose report a developer can act on in five minutes gets paid and believed. A brilliant exploit with this writeup is worth nothing professionally.
+</details>
+
+#### 🟡 Build 1 — report your own SSRF ~15 min
+
+You genuinely exploited an SSRF in Module 4.2 (reading an internal service through a public \`/fetch\` endpoint). Write it up as if submitting to the app's team.
+
+**Goal.** Produce a complete five-part Markdown report — **Title, Severity (with likelihood × impact reasoning), Steps to reproduce (exact, copy-pasteable), Impact, Recommendation (root-cause)** — for that SSRF.
+
+**Done when.** Your report passes this rubric, every box checked:
+- [ ] Title names the vuln type *and* the exact location/parameter.
+- [ ] Severity is justified by likelihood × impact (not a bare number).
+- [ ] Repro is a numbered list a stranger could paste and reproduce with no guessing.
+- [ ] Impact states what the attacker *gains*, escalated to the realistic worst case.
+- [ ] Recommendation is the root-cause fix, not a band-aid.
+
+<details>
+<summary>Walkthrough — open after you've written your report</summary>
+
+A model report for the 4.2 SSRF:
+
+\`\`\`markdown
+# SSRF in /fetch via the url parameter allows reading internal services
+Severity: High (likelihood: trivial — a single unauthenticated GET; impact: read
+internal-only services and, in cloud, steal instance IAM credentials).
+
+Steps to reproduce:
+1. Start the app; note the internal-only service on :4614 is not exposed publicly.
+2. Send:  curl -s "http://localhost:4613/fetch?url=http://localhost:4614/secret"
+3. Observe the response returns the internal service body:
+   INTERNAL SECRET: db-password=hunter2
+
+Impact: The server fetches attacker-supplied URLs from its own network position,
+so an attacker reads services reachable only from inside the network. In a cloud
+deployment, url=http://169.254.169.254/latest/meta-data/iam/security-credentials/
+returns the instance IAM credentials, escalating to full cloud-account compromise.
+
+Recommendation: Do not fetch raw user URLs. Enforce https-only, allow-list the
+permitted destination hosts, resolve the hostname and reject private/loopback/link-local
+IPs (including 169.254.0.0/16), and disable redirect-following. (Cloud: require IMDSv2.)
+\`\`\`
+
+Grade yours against the rubric line by line. The two places beginners lose points: **repro that assumes context** ("just send the SSRF request" — no, give the exact \`curl\`), and **impact that stops at the demo** ("reads an internal service" — escalate it: *why does that matter?* → metadata → IAM → account takeover). A triager funds the report that shows them the worst realistic case with a command they can paste.
+
+Notice you didn't need a new exploit — you already *did* the hard part in 4.2. The report is where that work becomes *professionally legible*, which is the entire point of this module: the exploit is private skill; the report is the public product.
+</details>
+
+#### 🔴 Break & Defend — rate four findings honestly ~8 min
+
+Assign a severity (Low / Medium / High / Critical) to each, with a one-line likelihood × impact justification, and mark whether the *given* recommendation is root-cause or band-aid:
+
+1. Stored XSS in a public profile bio; fires for every visitor. *Rec given: "strip script tags on input."*
+2. Reflected XSS requiring a crafted link. *Rec given: "HTML-encode output for context + CSP."*
+3. IDOR letting any user read any other user's invoices by incrementing an id. *Rec given: "make invoice ids UUIDs."*
+4. Verbose 500 error leaking a stack trace on one endpoint. *Rec given: "return a generic error; log detail server-side."*
+
+**Done when.** Your ratings are defensible (roughly: 1 High/Critical — no victim interaction, hits everyone; 2 Medium — needs a click; 3 High — trivial mass data access; 4 Low/Medium — info disclosure), and you've flagged recs 1 and 3 as **band-aids** (input-stripping is bypassable; UUIDs hide but don't authorize) versus 2 and 4 as **root-cause**.
+
+<details>
+<summary>Walkthrough — open after you've rated them</summary>
+
+1. **Stored XSS, fires for every visitor → High–Critical.** No victim interaction needed and it hits *everyone* who views the profile — the worst XSS shape. **Rec is a band-aid:** stripping script tags misses \`<img onerror>\`, event handlers, and dozens of vectors; the root-cause fix is context output-encoding (and a sanitizer library like DOMPurify if HTML must be allowed), plus CSP.
+2. **Reflected XSS → Medium.** Real, but requires luring the victim to a crafted link (likelihood lower than stored). **Rec is root-cause:** context encoding + CSP is exactly right.
+3. **IDOR on invoices → High.** Trivial, near-unauthenticated mass extraction of other users' financial data by incrementing an integer. **Rec is a band-aid:** UUIDs raise guessing cost but *don't authorize* — the id still leaks via logs/referrers/other endpoints, and the fix is to **authorize the object** (scope to the owner). This is the exact "unguessable ≠ access control" trap from Module 3.3.
+4. **Verbose 500 → Low–Medium.** Information disclosure that aids other attacks but isn't directly damaging alone. **Rec is root-cause:** generic client error + server-side logging is correct (Module 3.1).
+
+**Outside the box — the calibration is the professional skill.** Notice how severity tracks *likelihood × impact*, not how "cool" the bug is, and how two of the four "fixes" were plausible-sounding band-aids that a sharp reviewer rejects (strip-on-input, UUIDs-as-authz). Honest rating protects your credibility; root-cause recommendations are what mark you as an engineer rather than a scanner. The report is where all of Phases 0–4 — the exploit, the root cause, the fix, the priority — get compressed into something a busy team will actually act on.
+</details>
+
+---
+
+> **Phase 4 complete.** You can walk the Top 10 as a threat-modeling lens, exploit the categories by hand (including SSRF and fail-open A10), and — the part that makes it a *career* — write the report that turns a finding into a fix. Next: stop trying payloads ad hoc and pick up the professional tooling.
+
 ➡️ **Next step:** You've exploited the Top 10 and learned to report. Now stop trying payloads ad hoc and adopt the professional tooling and a repeatable testing methodology — Burp Suite, ZAP, and a disciplined workflow. Continue to **Phase 5: Burp Suite, ZAP, and Professional Testing Workflow**.
 
 ### Phase 4 Deliverable
@@ -9284,7 +9629,7 @@ Create \`~/appsec-journal/notes/phase-4-owasp-labs.md\` and answer, in your own 
 - **WAF rule vs. code fix:** a WAF rule filters requests that *look like* the attack pattern seen so far — it's a symptom-level band-aid that a slightly different payload can often bypass, and the underlying flaw (unparameterized query, missing object-authorization check, unescaped output) is still sitting in the code waiting for the next bypass. A code fix removes the root cause itself, so the vulnerability is gone regardless of what payload shape someone tries next.
 
 </details>`,
-    tracker: ["Learned the five-part finding report (Title, Severity, Steps, Impact, Recommendation) and why each exists", "Can name Steps to reproduce as the most important section", "Set up ~/appsec-journal/reports/ and wrote a report using the template", "Started the ordered PortSwigger track (Auth → Access control → SQLi → XSS → CSRF → CORS → SSRF → upload → JWT → OAuth → business logic)", "Can rate severity as likelihood × impact without inflating", "Wrote the Phase 4 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Learned the five-part finding report (Title, Severity, Steps, Impact, Recommendation) and why each exists", "Can name Steps to reproduce as the most important section", "Set up ~/appsec-journal/reports/ and wrote a report using the template", "Started the ordered PortSwigger track (Auth → Access control → SQLi → XSS → CSRF → CORS → SSRF → upload → JWT → OAuth → business logic)", "Can rate severity as likelihood × impact without inflating", "Wrote the Phase 4 deliverable journal entry", "Answered the knowledge check", "Workbench: triaged a bad report against the five-part structure, then wrote a rubric-passing SSRF report for my own 4.2 exploit", "Workbench: rated four findings by likelihood × impact and flagged the band-aid recommendations (input-stripping, UUIDs-as-authz) vs root-cause fixes"]
   },
   {
     id: "p5_roadmap",
