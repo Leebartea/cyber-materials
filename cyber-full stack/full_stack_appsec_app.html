@@ -12869,8 +12869,106 @@ When a customer or the US government asks for a "secure development attestation,
 6. NIST SSDF (Secure Software Development Framework, SP 800-218) is the framework the US government requires software producers to attest to for secure development practice. Its four practice groups: **PO** — Prepare the Organization (security requirements, roles); **PS** — Protect the Software (protect code/releases, integrity); **PW** — Produce Well-Secured Software (secure design, review, testing); **RV** — Respond to Vulnerabilities (find, remediate, disclose). The threat modeling from Module 4.1 maps to **PO**.
 </details>
 
+---
+
+### 🧪 Workbench: build the gate that refuses to merge insecure code
+
+> **What this trains.** Shift-left is only real when a machine *blocks the merge* — otherwise it's a suggestion. The core skill is wiring checks into a gate that **fails the build (exit non-zero) on a finding**. You'll build a minimal gate from grep-based SAST + secret checks (offline, verifiable), then reason about which scanner family catches which bug and what each is blind to. In real CI you'd slot \`npm audit\`, \`semgrep\`, and \`gitleaks\` into the same exit-code structure.
+
+#### 🟢 Drill 1 — match the bug to its scanner ~5 min
+
+For each defect, name **which of the four families** catches it (SAST / SCA / secret-scan / DAST) and the **earliest SDLC stage** it can be caught:
+1. \`const q = "SELECT ... '" + req.query.name + "'"\` (concatenated SQL).
+2. A hard-coded \`STRIPE_KEY = "qT7m...pE"\` committed to source.
+3. \`lodash@4.17.4\` in the lockfile has a published CVE.
+4. The running app returns responses with **no** \`Content-Security-Policy\` header.
+
+**Done when.** You've mapped: 1 → **SAST** (Code); 2 → **secret scanning** (Code/Build, on commit); 3 → **SCA** (Build, from the lockfile); 4 → **DAST** (Deploy/Test, needs the app running) — and can say why no single tool catches all four.
+
+<details>
+<summary>Walkthrough — open after you've mapped them</summary>
+
+1. **SAST** — reads your source without running it and traces \`req.query\` (untrusted) into a SQL string sink. Catchable the moment the code is typed (**Code** stage), even in your editor.
+2. **Secret scanning** — pattern/entropy-matches a credential in files and git history. Catchable at commit (**Code/Build**); and remember once committed the fix is *rotate*, not delete.
+3. **SCA** — inspects the dependency tree against a CVE database; it can't see *your* code, only what you imported. Catchable as soon as the lockfile exists (**Build**), and again continuously in **Operate** when a *new* CVE lands for a version you already shipped.
+4. **DAST** — only visible by sending a request to the *running* app and reading the response headers; a static tool can't know the runtime config. Catchable once there's a deployed target (**Deploy/Test**).
+
+Why you need all four: **SAST reads the recipe, SCA checks the ingredients' expiry dates, secret-scan makes sure you didn't write your house key into the recipe, and DAST tastes the finished dish.** Each is blind to the others' domain — which is the whole reason a real gate runs several.
+</details>
+
+#### 🟡 Build 1 — the CI gate that fails the build ~12 min
+
+Seed a repo with a deliberately-bad file and a clean one:
+\`\`\`bash
+mkdir -p ~/gate-workbench/bad ~/gate-workbench/clean && cd ~/gate-workbench
+cat > bad/app.js <<'EOF'
+const q = "SELECT * FROM users WHERE name = '" + req.query.name + "'";   // concatenated SQL
+app.get("/calc", (req,res) => res.send(String(eval(req.query.expr))));    // eval on user input
+const API_KEY = "FAKE_do_not_ship_00000000000000";                        // hard-coded secret
+EOF
+cat > clean/app.js <<'EOF'
+const { rows } = await pool.query("SELECT * FROM users WHERE name = $1", [req.query.name]);
+const API_KEY = process.env.API_KEY;   // from env, not source
+EOF
+\`\`\`
+
+**Goal.** Write \`ci-gate.sh <dir>\` that scans for dangerous sinks (\`eval(\`, \`exec(\`, string-concatenated SQL) and hard-coded credentials, and **exits 1 if anything is found, 0 if clean** — so a CI system would block the merge on the bad code and let the clean code through.
+
+**Done when.** \`./ci-gate.sh bad; echo $?\` prints the findings and exit **1**; \`./ci-gate.sh clean; echo $?\` prints nothing alarming and exit **0**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Use **basic** \`grep -rn\` with multiple \`-e\` patterns (so \`(\` and \`"\` are literal — no regex escaping). \`grep\` returns 0 when it matches, so \`if grep ...; then fail=1; fi\` sets a flag on a hit. At the end, \`exit 1\` if \`fail\`. Search for \`eval(\`, \`exec(\`, \`" +\` (a string being concatenated), and \`KEY = "\` / \`SECRET = "\` etc.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+DIR="\${1:-.}"; fail=0
+echo "== SAST: dangerous sinks =="
+if grep -rn -e "eval(" -e "exec(" -e '" +' "$DIR"; then fail=1; fi
+echo "== secret scan =="
+if grep -rn -e 'KEY = "' -e 'SECRET = "' -e 'TOKEN = "' -e 'PASSWORD = "' "$DIR"; then fail=1; fi
+# In real CI, add as further steps that each fail the build the same way:
+#   npm audit --audit-level=high        # SCA (dependencies)
+#   semgrep --error --config auto        # richer, taint-aware SAST
+#   gitleaks detect --no-banner          # entropy-aware secret scan (incl. git history)
+if [ "$fail" -eq 1 ]; then echo "GATE FAILED — blocking merge"; exit 1; fi
+echo "gate passed"; exit 0
+\`\`\`
+\`\`\`bash
+./ci-gate.sh bad;   echo $?    # ...findings... GATE FAILED   -> 1
+./ci-gate.sh clean; echo $?    # gate passed                  -> 0
+\`\`\`
+The one idea that makes this "shift-left" and not "a script someone runs when they remember": **the non-zero exit code.** A CI runner treats exit≠0 as a failed check and *blocks the merge*, so insecure code cannot reach main — security becomes plumbing, not heroics. Your grep gate is a toy (real SAST like \`semgrep\` does taint tracking your greps can't), but the *structure* is exactly production: run each scanner, let any failure fail the build. Swap the greps for \`semgrep --error\`, \`npm audit --audit-level=high\`, and \`gitleaks detect\`, wire it to run on every PR, and you have the real thing. Notice the gate flagged the same three planted bugs a full toolchain would — SAST (eval + concat SQL), secret (the key) — and the clean file passed because it parameterized and read the key from \`env\`.
+</details>
+
+#### 🔴 Break & Defend — what a green gate does NOT mean ~10 min
+
+In your journal:
+1. Your gate (and a full SAST/SCA/secret/DAST suite) passes clean. Name a **high-impact** bug class that would *still* ship, and which module you met it in — why can no scanner in this list catch it?
+2. For each family, name the one thing it is **blind** to: SAST, SCA, secret-scan, DAST.
+3. "Shift left" is the headline, but why do you *also* need "shift right" (Operate-stage monitoring)? Give the concrete scenario where code you never touched becomes vulnerable.
+
+**Done when.** Your answers name **broken access control / business logic** (Modules 3.3/3.6/5.2/6.5) as the bug scanners miss because it depends on the app's *intent*, not a code pattern; list the blind spots (SAST: runtime/config/reachability & logic; SCA: your own code; secret-scan: unknown patterns / non-secret-shaped values; DAST: unreachable paths & needs a target); and give the shift-right scenario: a **CVE published after you shipped** makes an unchanged dependency vulnerable, so continuous SCA/monitoring in Operate is required.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Broken access control and business logic still ship** — the IDOR/BOLA of 3.3, the multi-tenant leak of 6.5, the price/race bugs of 3.6, all invisible to every scanner here. Why: they depend on the app's *intended rules* ("this order belongs to that user," "the customer doesn't set the price"), which exist nowhere in the syntax. A scanner sees a well-formed request returning a well-formed \`200\`; only a human who knows the intent sees the violation. This is exactly the false-negative lesson from Module 5.2, and it's why a green pipeline is a *floor*, not a certificate — the highest-impact category (A01) is the one automation can't reach.
+2. **Blind spots:** **SAST** can't see runtime config/env, whether a flagged path is actually reachable, or logic/authorization intent (lots of false positives *and* false negatives). **SCA** can't find bugs in *your* code — only in imported code with a *published* CVE (a zero-day or a bug nobody's filed is invisible). **Secret scanning** only catches patterns/entropy it recognizes — a secret that doesn't look secret-shaped, or is split across lines, slips through. **DAST** only tests *reachable, deployed* paths and needs a running target; auth-gated or rarely-triggered flows go untested.
+3. **Shift-right / Operate monitoring** is required because a dependency you shipped six months ago, with code that *never changed*, becomes vulnerable the day a **CVE is published** against its version (the Log4Shell scenario). Nothing in *your* repo moved, so a one-time pre-launch scan would never see it — you need SCA running continuously (Dependabot/Renovate + scheduled scans) plus runtime monitoring, catching the vuln that was *born in the world*, not in your diff. Shift-left catches what you write; shift-right catches what happens to what you already shipped — you need both.
+
+**Outside the box:** the deep point of this module is that security becomes *sustainable* only when it's structural — a gate that fails the build, not a person who remembers to scan. But the same automation that makes the 80% cheap can lull you into thinking it's the 100%. The mature posture is two-handed: **push every mechanical check as early and as automated as possible (so humans never waste attention on them), and reserve human review precisely for the intent-dependent bugs — access control, business logic, design — that no gate can see.** The gate isn't there to make you safe; it's there to *free your attention* for the bugs that actually need a brain. Clean up: nothing running to stop.
+</details>
+
+---
+
 ➡️ **Next step:** You can catch bugs in *your* code at the gate. The bigger blind spot is the code you *didn't* write — the 1,000+ packages in your dependency tree. Continue to **Module 7.2: Software Supply Chain Security**.`,
-    tracker: ["Can explain shift-left as continuous automated checks pushed early, not an earlier pentest", "Can distinguish SAST / SCA / secret-scanning / DAST and each one's blind spot", "Ran Semgrep, gitleaks, and npm audit/trivy/osv-scanner against a self-built vulnerable app", "Read the Python SCA equivalents (pip-audit, safety, hashed lockfiles)", "Can explain why the CI gate (with branch protection) is the only real control vs editor/pre-commit layers", "Read the hardened CI workflow (pull_request trigger, SHA-pinned actions, no '|| true', least-privilege token) for Node and Python", "Answered the knowledge check"]
+    tracker: ["Can explain shift-left as continuous automated checks pushed early, not an earlier pentest", "Can distinguish SAST / SCA / secret-scanning / DAST and each one's blind spot", "Ran Semgrep, gitleaks, and npm audit/trivy/osv-scanner against a self-built vulnerable app", "Read the Python SCA equivalents (pip-audit, safety, hashed lockfiles)", "Can explain why the CI gate (with branch protection) is the only real control vs editor/pre-commit layers", "Read the hardened CI workflow (pull_request trigger, SHA-pinned actions, no '|| true', least-privilege token) for Node and Python", "Answered the knowledge check", "Workbench: mapped four bugs to their scanner family/stage (SAST/secret/SCA/DAST), then built a ci-gate.sh that exits non-zero on the bad app and zero on the clean one", "Workbench: journalled what a green gate does NOT mean — access-control/logic bugs scanners miss, each family's blind spot, and why shift-right (post-ship CVE) is also required"]
   },
   {
     id: "m7_2",
@@ -13012,8 +13110,105 @@ In 2017 Equifax disclosed a breach of 147 million records. Root cause: an unpatc
 - **Why it was a record breach:** the vulnerable web app sat in front of credit data with no network segmentation; once the attacker had RCE they pivoted to a database with 143M SSNs.
 - **Modern fix:** run \`npm audit\` / \`pip-audit\` / \`trivy fs .\` in CI, block on Critical/High, maintain an SBOM per app, map CVE feeds to assets *daily*, and enforce a patch SLA.
 
+---
+
+### 🧪 Workbench: the two mechanisms that make a supply chain defensible
+
+> **What this trains.** Supply-chain security has a lot of scary attack names but rests on two concrete mechanisms you can build in a few lines: the **integrity hash** (why a tampered package *fails to install* instead of silently running) and the **SBOM query** (why "are we affected?" is a database lookup in minutes, not days of grepping). Once you've built both, the lockfile and the SBOM stop being ceremony and become tools you understand. Dependency-free.
+
+#### 🟢 Drill 1 — catch a tampered package by its hash ~6 min
+
+**Goal.** Simulate what a lockfile's integrity hash does: record the SHA-512 of a "package" file (the lockfile's job), then show that after an attacker tampers the file, the recomputed hash **no longer matches** — which is what makes \`npm ci\` *abort* instead of running the malware.
+
+\`\`\`bash
+mkdir -p ~/supply-workbench && cd ~/supply-workbench
+printf 'module.exports = () => "safe original code";\\n' > pkg.js
+\`\`\`
+
+**Done when.** The unmodified file's hash matches your recorded value ("install proceeds"); after you edit \`pkg.js\` (simulating a compromised registry serving a tampered tarball), the hash *differs* ("install fails — malware never runs").
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`shasum -a 512 pkg.js\` (macOS/Linux) or \`sha512sum pkg.js\` prints the hash. Save it in a variable (the "lockfile"). Recompute and string-compare. Then append a malicious line to \`pkg.js\` and recompute — the hash changes completely (that's the avalanche property of a good hash).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+RECORDED=$(shasum -a 512 pkg.js | cut -d' ' -f1)          # the lockfile records this
+[ "$(shasum -a 512 pkg.js | cut -d' ' -f1)" = "$RECORDED" ] && echo "MATCH -> install proceeds"
+printf 'module.exports = () => { steal(process.env); };\\n' > pkg.js   # attacker tampers the tarball
+[ "$(shasum -a 512 pkg.js | cut -d' ' -f1)" = "$RECORDED" ] && echo "match" || echo "MISMATCH -> install FAILS, malware never runs"
+\`\`\`
+That mismatch is the whole security value of the lockfile's \`integrity: "sha512-..."\` field. \`package.json\` says \`"express": "^4.18.0"\` — a *range*, so two installs can resolve differently — but the lockfile freezes the exact version **and its content hash**. On \`npm ci\`, npm downloads each tarball and verifies it hashes to exactly the recorded value; a registry (or man-in-the-middle) that serves a *tampered* tarball produces a different hash, so the install **fails loudly** rather than silently running the attacker's code. This is why the rules are: **commit the lockfile, and use \`npm ci\` (strict) in CI, never \`npm install\`** (which may rewrite the lock). The hash turns "trust the registry" into "verify the bytes."
+</details>
+
+#### 🟡 Build 1 — answer "are we affected?" from an SBOM ~10 min
+
+A critical CVE just dropped: **"lodash before 4.17.21 is vulnerable."** Your boss asks the Log4Shell question — *are we affected?* With an SBOM, that's a query, not a fire drill.
+
+\`\`\`bash
+cd ~/supply-workbench
+cat > sbom.json <<'EOF'
+{ "bomFormat":"CycloneDX", "components":[
+  {"name":"express","version":"4.18.2"},
+  {"name":"lodash","version":"4.17.4"},
+  {"name":"pg","version":"8.11.0"} ] }
+EOF
+\`\`\`
+
+**Goal.** Write a query (node/jq) over \`sbom.json\` that reports whether any component is \`lodash\` at a version **below** \`4.17.21\`.
+
+**Done when.** Your query prints something like \`AFFECTED: lodash@4.17.4\` — and you can state why an org *without* an SBOM would spend days answering the same question.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Load the JSON, filter \`components\` to \`name === "lodash"\`, and compare versions numerically (split on \`.\`, compare major/minor/patch) against \`4.17.21\`. A naive string compare (\`"4.17.4" < "4.17.21"\`) is *false* (lexicographic), so split into numbers.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+const sbom = require("./sbom.json");
+const lt = (a,b) => {                                   // proper numeric version compare
+  const pa=a.split(".").map(Number), pb=b.split(".").map(Number);
+  for (let i=0;i<3;i++){ if(pa[i]<pb[i]) return true; if(pa[i]>pb[i]) return false; }
+  return false;
+};
+const hits = sbom.components.filter(c => c.name==="lodash" && lt(c.version, "4.17.21"));
+console.log(hits.length ? "AFFECTED: "+hits.map(c=>c.name+"@"+c.version).join(", ") : "not affected");
+// AFFECTED: lodash@4.17.4
+\`\`\`
+That query answered in *seconds* what teams without an SBOM answer in *days*. When Log4Shell dropped (Dec 2021), every org's first scramble was "which of our 300 services even use the vulnerable version?" — teams grepping repos and pinging maintainers lost critical days while attackers exploited; teams with an SBOM per release ran exactly this filter and had a list immediately. **The SBOM turns "are we vulnerable?" from archaeology into a database lookup.** Generate one per release (\`trivy fs --format cyclonedx\`, \`syft\`) and store it; the version compare you just wrote is the core of every "affected components" tool. (Note the lexicographic trap you avoided — \`"4.17.4" < "4.17.21"\` is *false* as strings; version comparison must be numeric per segment.)
+</details>
+
+#### 🔴 Break & Defend — the attacks these mechanisms answer ~10 min
+
+In your journal:
+1. "It's a popular package with millions of downloads, so it's safe to add." Rebut this, naming **three** distinct supply-chain attacks where popularity is exactly the point.
+2. Explain **dependency confusion** in three sentences (why the *highest version wins* resolver behavior is the flaw), and the one config change that stops it.
+3. A dependency's \`postinstall\` script runs *when* relative to your code using it, and *with what access*? Why does that make "I'll review it before I \`require()\` it" insufficient — and what two habits reduce the risk?
+
+**Done when.** Your answers cover: popularity is the *target* (typosquatting, maintainer/account takeover, protestware/sabotage — all hit widely-used packages *because* they're widely used); dependency confusion = an attacker publishes your *private* package name to *public* npm at a higher version, and a resolver that checks both registries and prefers the highest version pulls the attacker's — fixed by scoping internal packages and pinning the registry per scope; and \`postinstall\` runs **at install time, before you ever \`require()\` it, with your shell's full access** (so it can steal \`~/.npmrc\`/\`~/.aws\` tokens the moment you \`npm install\`) — reduce risk with \`ignore-scripts\` where feasible + sandboxed CI installs with no prod secrets, plus a cooldown before adopting brand-new releases.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Popularity is not safety — it's the *bullseye*.** An attacker wants maximum blast radius, so they target the popular thing: **typosquatting** (\`crossenv\` next to \`cross-env\` — millions of installs of the real one means many fat-fingers hit the fake), **maintainer/account takeover** (phish the maintainer of a package *everyone* depends on — \`ua-parser-js\`, \`event-stream\` — and push one malicious version to the whole ecosystem), and **protestware/sabotage** (a maintainer weaponizes their *own* widely-used package — \`node-ipc\`, \`colors\`/\`faker\`). In every case the download count is what made it worth attacking. "Popular" tells you it's *useful*, not that it's *safe today*.
+2. **Dependency confusion:** your build depends on a *private* internal package (say \`@acme/auth-utils\`) that lives in your internal registry; an attacker publishes a package with the *same name* to *public* npm at a much higher version; a package manager configured to check *both* registries and prefer the *highest version* fetches the attacker's public package instead of your trusted internal one — code execution in your build with zero social engineering (this hit Apple, Microsoft, and dozens more in 2021). **The fix:** scope internal packages and *pin the registry per scope* (\`@acme:registry=https://internal...\`) so the resolver never looks at public npm for that scope (plus namespace reservation).
+3. **\`postinstall\` runs at *install time* — before you \`require()\` anything, before you read a line of the package — with your shell user's full access** (files, env, network). So "I'll review the code before I use it" is too late: the payload already ran the instant \`npm install\` finished, and its favorite targets are \`~/.npmrc\` tokens, \`~/.aws/credentials\`, and \`.env\`. **Reduce risk with:** \`npm config set ignore-scripts true\` where your dependencies don't genuinely need install scripts; run installs in **sandboxed CI with no production secrets present**; and adopt a **cooldown** (Dependabot/Renovate with a delay) so a malicious version yanked within hours never reaches you.
+
+**Outside the box:** the theme of this module is that *you cannot read a thousand packages, so you defend the supply chain structurally* — exactly the "make the safe thing structural" pattern from 7.1's gate and 6.5's tenant-scoped queries. The integrity hash means you don't have to trust the registry's bytes (you verify them); the lockfile + \`npm ci\` means today's build equals last week's (no silent drift); the SBOM means a future CVE is a query, not a panic; scoped registries mean the resolver can't be confused; cooldowns mean you're never the first victim of a malicious release. You can't audit the code you didn't write — so you build a system where *not having read it* is survivable. Clean up: nothing running.
+</details>
+
+---
+
 ➡️ **Next step:** You can build security into the conveyor belt — gate insecure code at the PR, defend the code you didn't write, and inventory everything you ship. The pipeline is technical; the last piece of Phase 7 is knowing what the law and your auditors actually require. Continue to **Module 7.3: Compliance & Privacy Engineering for Developers**.`,
-    tracker: ["Can explain that a modern app ships far more (transitive) code than it writes, inside one trust boundary", "Can define typosquatting, dependency confusion, maintainer takeover, malicious postinstall, and protestware", "Can explain the lockfile + integrity hash, npm ci vs npm install, and pinning-with-cooldown", "Generated a CycloneDX SBOM and inspected lockfile integrity hashes on the local lab", "Demoed dependency-confusion resolution and the scope-binding fix in .npmrc", "Read the hardened .npmrc and renovate.json and the Equifax 2017 case study", "Answered the knowledge check"]
+    tracker: ["Can explain that a modern app ships far more (transitive) code than it writes, inside one trust boundary", "Can define typosquatting, dependency confusion, maintainer takeover, malicious postinstall, and protestware", "Can explain the lockfile + integrity hash, npm ci vs npm install, and pinning-with-cooldown", "Generated a CycloneDX SBOM and inspected lockfile integrity hashes on the local lab", "Demoed dependency-confusion resolution and the scope-binding fix in .npmrc", "Read the hardened .npmrc and renovate.json and the Equifax 2017 case study", "Answered the knowledge check", "Workbench: recorded a SHA-512 and caught a tampered 'package' by hash mismatch (why npm ci aborts on a bad tarball)", "Workbench: wrote an SBOM 'are we affected?' query (numeric version compare, avoiding the lexicographic trap) and journalled dependency confusion, postinstall timing, and popularity-as-target"]
   },
   {
     id: "m7_3",
@@ -13202,6 +13397,71 @@ app.delete("/api/me", authenticate, async (req, res) => {
 2. Partially correct. If you use Stripe Elements or Stripe.js (so card numbers go directly from the browser to Stripe and your server only ever sees a token), your PCI scope is dramatically reduced to SAQ A — a simple self-assessment. But you still have PCI obligations: you must use HTTPS exclusively on payment pages, never log card data, implement access controls on systems in your CDE, and keep your Stripe integration secure. "Stripe handles it" does not mean you are entirely out of scope — it means your scope is minimised, not eliminated.
 </details>
 
+---
+
+### 🧪 Workbench: build the privacy control, then reason like the auditor
+
+> **What this trains.** Compliance sounds like a lawyer's job, but its *technical substance* is yours: the log line that doesn't leak PII, the deletion that actually cascades, the reporting clock you can't miss. You'll build the one control that appears in almost every framework — a PII-safe logger — then reason through the erasure and PCI questions an auditor (or a breach) will actually ask.
+
+#### 🟢 Drill 1 — the log line that can't leak ~6 min
+
+"Never log PII" is a rule everyone agrees with and everyone violates — because the default \`logger.info("login", user)\` dumps the whole record. Build the projection that makes leaking *structurally* hard.
+
+\`\`\`bash
+mkdir -p ~/privacy-workbench && cd ~/privacy-workbench
+cat > user.json <<'EOF'
+{ "id": 42, "name": "Ada Lovelace", "email": "ada@example.com",
+  "phone": "+15551234567", "ssn": "078-05-1120", "card": "4242424242424242" }
+EOF
+\`\`\`
+
+**Goal.** Write \`logSafe(user)\` that returns an object safe to log: keep the non-identifying \`id\`, keep a **hash** of the email (so you can still correlate events for one user *without* storing their address), and **drop everything else**. Then assert that none of the raw PII values appear in what you'd log.
+
+**Done when.** Your logged object is something like \`{"id":42,"emailHash":"b5fc85e5"}\`, and a check confirms the name, full email, phone, SSN, and card number appear **nowhere** in the log line.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Build the safe object *by allow-list*, not by deleting fields (allow-list = you can't forget to remove a new sensitive field later). \`crypto.createHash("sha256").update(user.email).digest("hex").slice(0,8)\` gives a short correlation hash. To assert cleanliness, JSON.stringify the result and check none of the raw values are substrings.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+const crypto = require("crypto");
+function logSafe(u){
+  return { id: u.id, emailHash: crypto.createHash("sha256").update(u.email).digest("hex").slice(0,8) };
+}
+const safe = logSafe(user);
+const blob = JSON.stringify(safe);
+const leaked = [user.name,user.email,user.phone,user.ssn,user.card].filter(v => blob.includes(v));
+console.log(leaked.length ? "LEAKED: "+leaked : "clean");   // clean
+\`\`\`
+The key design choice is **allow-list, not deny-list**: \`logSafe\` names the few fields that may be logged, so when someone adds a \`homeAddress\` field to the user next quarter, it's *silently excluded* rather than silently leaked — the safe default is built in. The **email hash** is the clever part: you keep the ability to say "these 40 events came from the same user" (correlation) *without* storing their identity in the log store, which is often replicated to third-party log services, screenshots, and support tickets — the "boring channels" of Module 1.3. This one function satisfies a control that appears in GDPR (data minimization), PCI (never log card data), HIPAA (audit logs without over-collection), and SOC 2 (confidentiality) simultaneously. (An EU court has ruled even IP addresses are personal data — so "just log the IP" isn't automatically safe either.)
+</details>
+
+#### 🔴 Break & Defend — the questions an auditor (or a breach) asks ~12 min
+
+In your journal:
+1. A user emails "delete all my data" (GDPR Right to Erasure). List **every place** their data might live that a real deletion must reach — and the **four things** engineering must have *already built* for that deletion to be possible at all.
+2. A teammate says "we use Stripe, so PCI DSS doesn't apply to us." Correct them precisely: what does Stripe Elements actually reduce, and what obligations remain *yours*?
+3. Two reporting clocks: GDPR gives **72 hours** to report a *data breach*; the EU CRA gives **24 hours** to report an *actively-exploited vulnerability*. Why are these different triggers, and why does that mean your incident-response plan needs a *legal/notification* step, not just a technical one?
+
+**Done when.** Your erasure answer covers primary DB + replicas + analytics + logs + backups + third-party processors, and names the data-map, a cascading delete function, third-party deletion requests, and a deletion-confirmation record as prerequisites; your PCI answer says Elements sends the card browser→Stripe so your server sees only a token (SAQ A, dramatically reduced scope) but you still owe HTTPS-only payment pages, no card logging, CDE access controls, and a secure integration (scope *minimized*, not *eliminated*); and your clocks answer notes the triggers differ (personal-data breach vs exploited product vuln, different regulators) so IR must include *who notifies whom, by when*.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Right to Erasure — where the data hides, and what must pre-exist.** A real deletion must reach: the **primary database**, **read replicas**, **analytics tables/warehouses**, **application & access logs**, **backup snapshots** (or a documented overwrite-on-next-cycle schedule), and every **third-party processor** you've shared the data with (email provider, CRM, analytics SaaS, support desk). For any of that to be *possible*, engineering must have already built: (a) a **data map** — an inventory of every table/service holding user data (you can't delete what you can't enumerate); (b) a **cascading delete function** that hits all of them, not just \`DELETE FROM users\`; (c) a **process to request deletion from third parties** (their APIs / DPAs); and (d) a **deletion-confirmation record** (a timestamp/audit entry proving you complied). The lesson full-stack devs miss: erasure isn't a query, it's an *architecture* — and it's far easier if you practiced **data minimization** so there's less scattered to begin with.
+2. **PCI and Stripe — scope minimized, not eliminated.** Stripe Elements/Stripe.js collect the card in an iframe so the number goes **browser → Stripe directly**; your server only ever receives a **token**, which drops you from **SAQ D** (~300+ controls, full audit) to **SAQ A** (a short self-assessment). But obligations remain *yours*: serve payment pages over **HTTPS only** (no downgrade), **never log** card data, apply **access controls** to anything touching the cardholder-data environment, and keep the **integration itself secure** (a compromised page can swap the Stripe script — "e-skimming"/Magecart). "Stripe handles it" means *your scope shrank*, not *disappeared*.
+3. **Two clocks, two triggers.** GDPR's **72h** clock starts on awareness of a **personal-data breach** and runs to your **data-protection supervisory authority**; the CRA's **24h** clock starts on awareness of an **actively-exploited vulnerability in your product** and runs to **ENISA/national CSIRT**. Different events, different regulators, different deadlines — and *both* can be triggered by one incident. That's why your Phase 9 incident-response plan can't be purely technical ("contain, eradicate, recover"): it must encode **who is legally notified, by which deadline, for which trigger**, or you'll do perfect technical remediation and still incur a regulatory violation for missing a clock nobody was watching.
+
+**Outside the box:** the through-line of this whole module is that **privacy/compliance is engineered, not decreed** — every "the law requires X" resolves to a concrete control you build: minimize (collect less → less to protect, delete, or leak), allow-list what you log, map where data lives, cascade deletions, and wire notification deadlines into IR. And notice the *cheapest* control is upstream: the data you never collected needs no encryption, no deletion cascade, no breach notification, and can't leak. **Data minimization is the privacy equivalent of "change the primitive"** — the strongest way to secure data is to not have it. Everything else is protecting what you chose to keep. Clean up: nothing running.
+</details>
+
+---
+
 ➡️ **Next step:** The pipeline is hardened, the supply chain is inventoried, and compliance is built in. If your app uses AI features, those introduce a brand-new trust boundary next. Continue to **Phase 7.5: AI / LLM Application Security**. (If you ship no LLM features, go straight to **Phase 8: Cloud, Deployment, and Production Security**.)
 
 ### Phase 7 Deliverable
@@ -13231,7 +13491,9 @@ Create \`~/appsec-journal/notes/phase-7-secure-sdlc.md\` and answer, in your own
       "Knows the HIPAA 72-hour breach notification rule (it applies to GDPR too) and what triggers it",
       "Has implemented or designed at least one privacy-by-design pattern (data minimisation, log redaction, or a data export endpoint)",
       "Wrote the Phase 7 deliverable journal entry",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: built an allow-list PII log-scrubber (id + email hash only) and asserted no raw name/email/phone/SSN/card leaks into the log line",
+      "Workbench: journalled the erasure data-map + cascade prerequisites, the Stripe/PCI scope-minimized-not-eliminated myth, and the 72h-GDPR vs 24h-CRA reporting clocks"
     ]
   },
   {
