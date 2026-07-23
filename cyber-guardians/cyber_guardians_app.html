@@ -3096,7 +3096,78 @@ nmap -sT -p- 127.0.0.1`
       a: "A functioning server must keep needed ports open (no HTTPS with 443 closed). Security is that every open port is intended, patched, authenticated, and exposed only to those who need it — a known, minimal, hardened surface, not an empty one. Also, 'closed' only describes inbound listeners; outbound and L7 application attacks are unaffected."
     }],
     quiz: ["Which OSI layer does a traditional firewall usually filter at, and what do next-gen firewalls additionally inspect?", "Why does DNS mostly use UDP rather than TCP?", "Your friend says 'I closed all my ports, I'm safe.' What's wrong with that?", "What's the difference between binding to 127.0.0.1 vs 0.0.0.0, and why does it matter for security?", "Tens of thousands of databases were ransomed with no code exploit. What two configuration facts made them vulnerable?"],
-    tracker: ["I can recite the 7 OSI layers with an example protocol each", "I memorized 10+ ports and what each is for", "I scanned my own machine with nmap and lsof and explained every open port", "I can tell from lsof whether a service is bound to 127.0.0.1 or 0.0.0.0", "I can write a Node or Python service that binds to localhost only"]
+    workbench: `> **What this trains.** The lab scanned your own machine. Here you *produce* the single most common accidental exposure a developer ships — a service bound to every interface — and prove the fix on the wire. Scan only your own host.
+
+#### 🟢 Drill 1 — see what's listening, and on which interface ~4 min
+
+**Goal.** From a blank prompt, list the TCP services listening on your Mac and decide, for each, whether it's reachable only from this machine or exposed to the whole network.
+
+**Done when.** Your output distinguishes \`127.0.0.1\`-bound services from \`0.0.0.0\`/\`*\`-bound ones, and you can point to any that are exposed (or confirm none are).
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You want *listening* sockets with their bind address and owning process — \`lsof -iTCP -sTCP:LISTEN -P -n\` (add \`sudo\` to see every process). The address *before* the colon is the bind interface.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+sudo lsof -iTCP -sTCP:LISTEN -P -n
+# NAME column: 127.0.0.1:PORT = localhost-only (good)
+#              *:PORT or 0.0.0.0:PORT = exposed to the whole network
+\`\`\`
+Common wrong attempts: reading only the port number and ignoring the *address* — the port tells you which service, the bind address tells you who can reach it; assuming "it's my laptop, so it's fine" — \`0.0.0.0\` means every interface, including café Wi-Fi. Knowing what's listening and on which interface is step one of defending any host.
+</details>
+
+#### 🟡 Build 1 — ship the exposure bug, then bind it shut ~10 min
+
+**Goal.** Write a tiny server that (by default) listens on all interfaces, confirm it's reachable via your machine's LAN IP, then rebind it to localhost and confirm the LAN address can no longer reach it.
+
+**Done when.** The default server answers on both \`127.0.0.1\` and your LAN IP; after binding to \`127.0.0.1\` it still answers on loopback but a request to your LAN IP is refused.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+A Node \`http\` server with \`.listen(PORT)\` and no host argument binds to \`0.0.0.0\`; adding \`"127.0.0.1"\` as the host restricts it. Find your LAN IP with \`ipconfig getifaddr en0\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// default: no host arg == 0.0.0.0 == all interfaces (the accidental exposure)
+require("http").createServer((q, r) => r.end("reachable\\n")).listen(8090);
+\`\`\`
+\`\`\`bash
+LAN=$(ipconfig getifaddr en0)
+curl -s http://127.0.0.1:8090        # ok
+curl -s http://$LAN:8090             # ALSO ok -> anyone on your Wi-Fi can hit it
+\`\`\`
+Now bind to loopback and re-test:
+\`\`\`javascript
+require("http").createServer((q, r) => r.end("localhost only\\n")).listen(8090, "127.0.0.1");
+\`\`\`
+\`\`\`bash
+curl -s http://127.0.0.1:8090             # ok
+curl -s --max-time 3 http://$LAN:8090     # Connection refused -> no longer exposed
+\`\`\`
+Common wrong attempts: "fixing" exposure with only a firewall rule while leaving the bind at \`0.0.0.0\` — defense in depth is good, but the *root* fix is the bind address; a service that never listens on the network can't be reached even if the firewall is later misconfigured. Relying on "nobody knows the port" — Shodan and mass scanners index every exposed port within hours. The MongoDB/Elasticsearch ransom waves were exactly this bug: reachable + unauthenticated, no code exploit needed.
+</details>
+
+#### 🔴 Break & Defend — the layer tells you the defense ~12 min
+
+**Goal.** Place each of a firewall, TLS, and SQL injection at its OSI layer and state which defense applies where; then dismantle the "I closed all my ports, I'm safe" fallacy. Journal.
+
+**Done when.** You can put a firewall at L3/L4, TLS at L6, SQL injection at L7, explain why a port rule can't stop SQLi, and correct the closed-ports claim.
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+A traditional firewall filters at **L3/L4** (by IP and port); **TLS** protects **L6** (presentation — encrypting the payload); **SQL injection** is an **L7** application-logic problem. That's why "we have a firewall" does nothing against SQLi — no port rule can see the malicious *content* inside an allowed request to port 443; the defense must live at L7 (parameterized queries, input handling). Naming an attack's layer tells you which tool applies: a volumetric DDoS at L3/L4 (flood the pipe) needs scrubbing/rate-limiting, while an L7 request flood needs app-aware limits — different layers, different defenses. **Journal — the closed-ports fallacy:** a working server *must* keep needed ports open (no HTTPS with 443 closed), so "security = zero open ports" is wrong; the real posture is "**every open port is intended, patched, authenticated, and minimally exposed**." And "closed" only describes inbound listeners — it says nothing about outbound connections or L7 application attacks. **Outside the box:** the bind-address bug you fixed and the layer model are the same idea from two angles — *minimize and know your exposed surface, then make each exposed thing independently survive being found*, because it *will* be found.
+</details>`,
+    tracker: ["I can recite the 7 OSI layers with an example protocol each", "I memorized 10+ ports and what each is for", "I scanned my own machine with nmap and lsof and explained every open port", "I can tell from lsof whether a service is bound to 127.0.0.1 or 0.0.0.0", "I can write a Node or Python service that binds to localhost only", "Workbench: classified listening sockets as localhost-only vs exposed, then shipped the 0.0.0.0 accidental-exposure bug and fixed it by binding to 127.0.0.1 (verified on the wire)", "Workbench: placed firewall/TLS/SQLi at their OSI layers, explained why a port rule can't stop an L7 attack, and corrected 'closed all ports = safe'"]
   }, {
     id: "m10",
     level: 2,
@@ -3214,7 +3285,82 @@ echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noou
       a: "An IV must be unique per message. Reuse leaks relationships: with CBC, identical leading blocks produce identical ciphertext, revealing where two messages start the same; with CTR/GCM, nonce reuse is catastrophic and can leak the keystream or auth key. Always use a fresh random nonce per message."
     }],
     quiz: ["If a website's certificate expires, what actually breaks, and why?", "Why are bcrypt and Argon2 intentionally slow, while AES is intentionally fast?", "Why is ECB mode unsafe, and what should you use instead?", "What does an AEAD mode (AES-GCM) give you that plain AES-CBC does not?", "Heartbleed used strong algorithms yet leaked private keys — what does that teach about where crypto fails?", "What does 'harvest now, decrypt later' mean, and why does it make post-quantum migration urgent even before quantum computers are practical?"],
-    tracker: ["Generated a GPG key pair and encrypted/decrypted a file", "Inspected a real TLS certificate's issuer and validity window", "I can explain symmetric vs asymmetric and why HTTPS uses both (hybrid)", "I can write AES-256-GCM encryption (Node or Python) with a random nonce and key-from-env", "I can explain why ECB and reused IVs are dangerous"]
+    workbench: `> **What this trains.** The rule is "don't roll your own crypto" — but you still have to *use* it correctly. Here you watch the classic ECB pattern-leak with your own eyes, then write encryption the right way (AEAD, random nonce, key-from-env) and prove it detects tampering. Node's built-in \`crypto\` — no install.
+
+#### 🟢 Drill 1 — watch ECB leak the pattern ~5 min
+
+**Goal.** Encrypt a plaintext made of two identical blocks under ECB mode and show that identical plaintext blocks become identical ciphertext blocks — the leak that draws the "ECB penguin." Then confirm a proper mode doesn't.
+
+**Done when.** Under ECB, the two ciphertext halves of a doubled block are identical; under GCM (or CBC with a random IV) they aren't.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+ECB encrypts each 16-byte block independently, so repetition survives. Feed exactly two identical 16-byte blocks (32 bytes) through \`aes-128-ecb\` and compare the two output halves.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`javascript
+node -e '
+const crypto = require("crypto");
+const key = crypto.randomBytes(16);
+const block = Buffer.alloc(16, 0x41);          // 16 identical bytes
+const doubled = Buffer.concat([block, block]); // two identical blocks
+const c = crypto.createCipheriv("aes-128-ecb", key, null);
+const ct = Buffer.concat([c.update(doubled), c.final()]);
+console.log("ECB half1 == half2 ?", ct.subarray(0,16).equals(ct.subarray(16,32)));  // true -> pattern leaks
+'
+\`\`\`
+Common wrong attempts: testing with random plaintext (of course it looks random — you need *repeating* blocks to see ECB fail); concluding "AES is broken" (AES is fine; the *mode* leaks — this is a usage failure, the theme of the whole module). The visible consequence at scale is the ECB penguin: an encrypted image whose outline is still perfectly readable.
+</details>
+
+#### 🟡 Build 1 — encrypt the right way, and detect tampering ~12 min
+
+**Goal.** Write AES-256-GCM encryption with a **random nonce per message** and a **key from the environment** (never source), and prove two properties: encrypting the same plaintext twice gives different ciphertext, and flipping a single ciphertext byte makes decryption *fail*.
+
+**Done when.** Two encryptions of the same message differ; and tampering one byte throws / does-not-verify on decrypt (integrity, not just confidentiality).
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`crypto.createCipheriv("aes-256-gcm", key, iv)\` with a fresh \`crypto.randomBytes(12)\` IV each call; store \`iv + authTag + ciphertext\`. On decrypt, \`setAuthTag\` and let \`final()\` throw if the tag doesn't match.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+node -e '
+const crypto = require("crypto");
+const key = crypto.randomBytes(32);   // in real code: from process.env.ENC_KEY_HEX, not source
+function enc(pt){ const iv=crypto.randomBytes(12); const c=crypto.createCipheriv("aes-256-gcm",key,iv);
+  const ct=Buffer.concat([c.update(pt,"utf8"),c.final()]); return Buffer.concat([iv,c.getAuthTag(),ct]); }
+function dec(blob){ const iv=blob.subarray(0,12), tag=blob.subarray(12,28), ct=blob.subarray(28);
+  const d=crypto.createDecipheriv("aes-256-gcm",key,iv); d.setAuthTag(tag);
+  return Buffer.concat([d.update(ct),d.final()]).toString(); }
+const a=enc("attack at dawn"), b=enc("attack at dawn");
+console.log("same plaintext, different ciphertext?", !a.equals(b));   // true (random nonce)
+const t=Buffer.from(a); t[30]^=1;                                     // flip one ciphertext byte
+try { dec(t); console.log("tamper undetected!!"); } catch { console.log("tamper detected -> decrypt refused"); }
+'
+\`\`\`
+Common wrong attempts: reusing a fixed IV/nonce "for simplicity" (nonce reuse in GCM is catastrophic — it can leak the auth key); putting the key in source (a repo leak = every ciphertext readable — the key comes from env or a manager); using plain CBC and thinking you're done (CBC gives confidentiality but *not* integrity — an attacker can flip bits undetected; AEAD's auth tag is what makes tampering fail loudly). The rule set: vetted library, AEAD mode, fresh random nonce per message, key out of code.
+</details>
+
+#### 🔴 Break & Defend — three crypto failures, Heartbleed, and harvest-now ~13 min
+
+**Goal.** For each of "invent my own cipher," "AES-ECB with a fixed IV," and "encryption without integrity," name the failure and the fix; then explain what Heartbleed teaches about *where* crypto breaks, and what "harvest now, decrypt later" means for today's long-lived secrets. Journal.
+
+**Done when.** You can state Kerckhoffs (security rests on the key, not a secret algorithm), ECB/fixed-IV leaks patterns (use AEAD + random nonce), encryption ≠ integrity (use an AEAD auth tag); explain Heartbleed as an *implementation* bug; and explain harvest-now-decrypt-later and why PQC migration is already urgent.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**Invent your own cipher** → security-by-obscurity; it collapses the moment it's reverse-engineered. Kerckhoffs's principle: the system must stay secure even when everything but the *key* is public — which is why vetted, decades-attacked algorithms beat a homemade XOR. **AES-ECB / fixed IV** → identical plaintext blocks map to identical ciphertext (the penguin); a reused nonce breaks the guarantee. Fix: an AEAD mode (AES-256-GCM) with a unique random nonce per message. **Encryption without integrity** → plain AES-CBC gives confidentiality but an attacker can flip ciphertext bits to corrupt the plaintext without the key; AEAD's auth tag detects tampering and refuses. **Heartbleed (2014):** the algorithms were fine — a *bug* in OpenSSL let an attacker over-read up to 64KB of server memory, leaking private keys, cookies, and passwords with no trace, on ~17% of "secure" servers. The lesson: **strong math in buggy or unpatched code is not secure** — keeping crypto libraries current is itself a control (and it's how hybrid post-quantum algorithms will reach you). **Harvest now, decrypt later:** adversaries record today's encrypted traffic to decrypt once a large quantum computer exists — so any secret that must stay confidential for years is *already* at risk, which is why NIST standardized ML-KEM/ML-DSA (2024) and TLS 1.3 is negotiating hybrid key exchange now. **Outside the box:** every failure here is a *usage* failure, not a broken algorithm — the job isn't inventing crypto, it's wiring vetted primitives together correctly and keeping them patched.
+</details>`,
+    tracker: ["Generated a GPG key pair and encrypted/decrypted a file", "Inspected a real TLS certificate's issuer and validity window", "I can explain symmetric vs asymmetric and why HTTPS uses both (hybrid)", "I can write AES-256-GCM encryption (Node or Python) with a random nonce and key-from-env", "I can explain why ECB and reused IVs are dangerous", "Workbench: reproduced the ECB pattern-leak (identical blocks → identical ciphertext), then wrote AES-256-GCM with a random nonce + key-from-env and proved it detects a one-byte tamper", "Workbench: named the fix for each of roll-your-own / ECB-fixed-IV / no-integrity, and explained Heartbleed (implementation bug) + harvest-now-decrypt-later"]
   }, {
     id: "m11",
     level: 2,
