@@ -14630,8 +14630,124 @@ icacls .env                                            # confirm only your accou
 4. The secret is baked into an immutable *image layer* distributed to anyone who can pull the image (and present in registry history). Deleting the file from a running container doesn't remove it from the layer; the real fix is rebuild without it + rotate the secret.
 </details>
 
+### 🧪 Workbench: keep the secret off the wire and out of the bundle
+
+> **What this trains.** A secret should exist in exactly two places — the manager and the running process's memory — and nowhere else. That's easy to *say* and hard to *do*: the leaks come from a file left world-readable, a secret riding into the build output, or a browser holding a key it should never see. You'll build the control for each. One rule: type a command and run it before you open any reveal — a task you're stuck on for two minutes is this section working, not failing.
+
+#### 🟢 Drill 1 — lock the secret to exactly one account ~4 min
+
+A \`.env\` that's still on disk should be readable by *one* account: yours.
+
+**Goal.** Restrict a secret file so that only its owner — you — can read or write it, and prove it straight from the filesystem, not from memory. Don't reach for a specific tool name first; the mechanism differs by OS, and knowing which one *your* machine uses is the skill.
+
+**Done when.** Listing the file's metadata shows no access for anyone but you — on macOS/Linux/WSL2 the permission string reads \`-rw-------\`; on native Windows the ACL lists only your user.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+On Unix the permission is a three-digit octal mode: owner read+write is \`6\`, group and other get \`0\`. On native Windows there are no permission bits — access is governed by NTFS ACLs, so you strip inherited entries and grant Full control to just your user with the ACL tool (\`icacls\`). Either way: set it, then *list* it to confirm.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+chmod 600 .env        # macOS / Linux / WSL2 — owner rw, nobody else
+ls -l .env            # -rw-------  (confirm)
+\`\`\`
+\`\`\`powershell
+icacls .env /inheritance:r /grant:r "$env:USERNAME:F"   # native Windows: only you
+icacls .env
+\`\`\`
+Common wrong attempts: \`chmod 644\` *looks* locked down but the trailing \`4\`s grant read to group and everyone on the box — on a shared host that's your Stripe key handed to every login. \`chmod 640\` still lets the group read it (often every deploy user). \`chmod 700\` is owner-only but the execute bit on a data file is meaningless noise — \`600\` is the exact intent. The principle: **least privilege is a file-permission idea, not just an IAM-role idea** — the same "grant exactly what's needed, to exactly who needs it" you'll apply to cloud roles in 8.3.
+</details>
+
+#### 🟡 Build 1 — the gate that blocks a build carrying a secret ~10 min
+
+Seed a fake build output — one file leaks a key, one is clean:
+\`\`\`bash
+mkdir -p ~/secrets-workbench/dist/assets && cd ~/secrets-workbench
+printf 'const k="sk_live_FAKE_leaked_in_bundle_0000";fetch("/api",{headers:{Authorization:"Bearer "+k}});\\n' > dist/assets/index-abc123.js
+printf 'const api="https://api.example.com";console.log("calling",api);\\n' > dist/assets/config-def456.js
+\`\`\`
+
+**Goal.** Write \`leak-gate.sh <dir>\` that scans a built frontend directory and **exits non-zero** if any secret-shaped value is present in what would ship to browsers — so CI can block a bundle that leaked a key — and exits zero on a clean bundle. (Same exit-code-is-the-control idea you built in Module 7.1, pointed at the *artifact* instead of the source.)
+
+**Done when.** \`./leak-gate.sh dist; echo $?\` prints the offending file and the secret and exits **1**; after you delete the leaking line (or point it at a clean dir), it exits **0**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Basic \`grep -rn\` with \`-e\` patterns (so \`_\` and friends are literal — no regex). \`grep\` returns 0 when it *matches*, so \`if grep ...; then fail=1; fi\` flips a flag on a hit; \`exit 1\` at the end if the flag is set. Match the *shape* of the fake-key convention — \`sk_live_\` and \`sk_test_\` — not one exact literal.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+DIR="\${1:-dist}"; fail=0
+if grep -rn -e 'sk_live_' -e 'sk_test_' "$DIR"; then
+  echo "LEAK — secret-shaped value in a shippable bundle"; fail=1
+fi
+[ "$fail" -eq 1 ] && { echo "GATE FAILED — do not ship"; exit 1; }
+echo "gate passed — no secrets in the bundle"; exit 0
+\`\`\`
+Common wrong attempts: **grepping \`.env\` instead of \`dist/\`** — the whole lesson is that the secret is now *in the JavaScript bundle the browser downloads*, not in the env file; scanning \`.env\` gives a false all-clear. **\`grep -c\`** returns non-zero on *zero* matches, which under \`set -e\` fails the gate backwards — count lines only if you guard it. Matching the **exact key string** is brittle; match the shape so tomorrow's key is caught too. In real CI you'd swap the grep for \`gitleaks detect\` / \`trufflehog\` (they scan git history and use entropy, catching secrets that don't fit a known prefix) — but the *structure* is identical: a scanner, and a non-zero exit that blocks the ship.
+</details>
+
+#### 🔴 Break & Defend — put your backend between the browser and the key ~18 min
+
+The Attack Demo shipped a secret to the browser by prefixing it \`VITE_\`. Renaming or obfuscating the variable doesn't help — anything the browser can run, the browser can read. The only fix is architectural: the secret never leaves the server.
+
+**Goal.** Re-architect the "charge a card" flow so the secret key exists *only* in the server process. Stand up a small backend (a dependency-free Node \`http\` server is perfect) that holds the key in \`process.env\`, exposes an endpoint the browser calls, and talks to the payment service *server-side*; the browser completes a charge without ever receiving, storing, or transmitting the key. Then prove the browser side is clean.
+
+**Done when.** A \`curl\` POST to your \`/api/charge\` returns a charge id; and grepping *everything the browser can fetch* — the served HTML/JS plus that charge response — for the secret returns **nothing**. In your journal: write the secrets lifecycle in your own words, say why a leaked 15-minute STS token is less dangerous than this static key, and name what would have caught this in review (hint: the \`leak-gate.sh\` you just wrote, and the Module 7.1 gitleaks hook — spaced recall).
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Two Node \`http\` servers in one file: a mock "payment processor" on one port that only answers if the request carries \`Authorization: Bearer <secret>\`, and your backend on another port. The backend serves a static page whose script does \`fetch("/api/charge", {method:"POST"})\` — note there is *no key in that script* — and on \`POST /api/charge\` it makes the authorized call to the processor using the secret from \`process.env\`, then relays the result. The browser only ever talks to your origin.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+const http = require("http");
+const SECRET = process.env.STRIPE_SECRET || "sk_live_FAKE_server_only_0000";
+
+// mock payment processor — only the holder of the secret may charge
+http.createServer((req, res) => {
+  if (req.headers.authorization !== "Bearer " + SECRET) { res.writeHead(401); return res.end("no"); }
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ charge: "ch_" + Date.now(), status: "paid" }));
+}).listen(9100);
+
+// OUR backend — the browser only ever talks to this; the secret never leaves it
+http.createServer((req, res) => {
+  if (req.method === "POST" && req.url === "/api/charge") {
+    const up = http.request({ port: 9100, method: "POST", headers: { authorization: "Bearer " + SECRET } }, r => {
+      let b = ""; r.on("data", d => b += d); r.on("end", () => { res.writeHead(200, { "content-type": "application/json" }); res.end(b); });
+    });
+    up.end(); return;
+  }
+  // the "frontend" — contains ZERO secrets
+  res.writeHead(200, { "content-type": "text/html" });
+  res.end('<script>fetch("/api/charge",{method:"POST"}).then(r=>r.json()).then(console.log)<\/script>');
+}).listen(7100, () => console.log("app on 7100"));
+\`\`\`
+\`\`\`bash
+curl -s -X POST http://localhost:7100/api/charge      # -> {"charge":"ch_...","status":"paid"}
+curl -s http://localhost:7100/ | grep -c 'sk_live'    # -> 0  (the page carries no key)
+\`\`\`
+Common wrong attempts: **moving the key to a "server-only" env var but still interpolating it into the served JS** — grep the response and it's right there; env-var *naming* isn't the boundary, *where the value renders* is. **Obfuscating/base64-ing the key in the bundle** is pure theater — it ships either way. **Adding CORS so the browser can call the payment API "safely"** misses the point entirely: CORS governs *who may read a response*, it doesn't hide the key the browser must send. The one true fix: a secret-bearing call is a *server* responsibility; the browser calls *your* endpoint, and your server holds the key. That's why the STS point matters — even the server's copy should ideally be a short-lived credential from a manager, so a leak expires on its own instead of waiting for a human to notice.
+</details>
+
+---
+
 ➡️ **Next step:** Secrets are only one production-environment risk. Continue to **Module 8.2: Production Hardening and Security Headers** — flipping developer-friendly defaults that become vulnerabilities in production.`,
-    tracker: ["Can define a secret as 'possession equals power' and list examples (DB password, API key, signing key)", "Can explain the four gaps of plain env vars (leak, process-wide visibility, no rotation, no audit) and what a secrets manager adds", "Knows the NEXT_PUBLIC_/VITE_/REACT_APP_ footgun publishes secrets into the browser bundle", "Can state the secrets lifecycle: never-in-source, never-in-bundle, injected, short-lived, rotated, audited, per-environment"]
+    tracker: ["Can define a secret as 'possession equals power' and list examples (DB password, API key, signing key)", "Can explain the four gaps of plain env vars (leak, process-wide visibility, no rotation, no audit) and what a secrets manager adds", "Knows the NEXT_PUBLIC_/VITE_/REACT_APP_ footgun publishes secrets into the browser bundle", "Can state the secrets lifecycle: never-in-source, never-in-bundle, injected, short-lived, rotated, audited, per-environment", "Workbench: locked a secret file to owner-only and built leak-gate.sh that exits non-zero when a build output carries an sk_ key", "Workbench: re-architected a direct-to-third-party charge so the secret lives only in the server process, and proved the served page/JS carries no key"]
   },
   {
     id: "m8_2",
@@ -14821,8 +14937,107 @@ Run with \`debug=False\` (the Flask analogue of \`NODE_ENV=production\`), behind
 4. Browsers cache the preload directive (and the preload list is baked into browser releases), so disabling it propagates slowly. Enable it before every subdomain supports HTTPS and browsers refuse HTTP for those subdomains with no quick revert.
 </details>
 
+### 🧪 Workbench: harden the server yourself, then prove the headers
+
+> **What this trains.** \`helmet\` and \`flask-talisman\` are one line each — but if you can't say *what* they set and *why the CSP is real*, you can't tell a hardened server from a decorated one. So you'll set the headers by hand once, build a production error handler that stays quiet, and learn to judge a CSP as real defense or theater. Type a command before every reveal.
+
+#### 🟢 Drill 1 — read a server's posture from the outside ~5 min
+
+Start a deliberately-soft server (dependency-free) and probe it the way an attacker would — black-box, no source:
+\`\`\`bash
+mkdir -p ~/harden-workbench && cd ~/harden-workbench
+printf 'const http=require("http");http.createServer((req,res)=>{res.setHeader("X-Powered-By","Express");if(req.url==="/boom"){res.statusCode=500;return res.end("Error: db pw hunter2 at /var/app/db.js:42");}res.end("hi");}).listen(4000,()=>console.log("soft server on 4000"));\\n' > soft.js
+node soft.js &
+\`\`\`
+
+**Goal.** Without reading the source, determine (a) what tech stack the server discloses and (b) at least three security protections it is *failing* to tell the browser to enforce.
+
+**Done when.** From the response alone you can name the stack-disclosure header and three missing security headers (drawn from CSP, HSTS, \`nosniff\`, Referrer-Policy, Permissions-Policy, COOP, CORP). Then hit \`/boom\` and watch it hand you an internal path and a fake password.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You want the *response headers*, not the body — the curl flag that dumps headers while discarding the body (\`-D -\` to stdout with \`-o /dev/null\`, or \`-I\`). Read what's present (\`X-Powered-By\`) and, more importantly, what's *absent*.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+curl -sD - -o /dev/null http://localhost:4000/     # dump headers, drop body
+curl -s http://localhost:4000/boom                 # the verbose error leak
+\`\`\`
+The header dump shows \`X-Powered-By\` (free tech-stack recon) and **none** of CSP/HSTS/nosniff/Referrer-Policy — so an injected script would run, HTTP isn't forced, and MIME-sniffing is on. \`/boom\` returns the internal file path and the fake password straight to the client. Common wrong attempts: \`curl localhost:4000\` prints only the body — you never see the headers, which is where the posture lives; and *reading the source* defeats the exercise — the attacker can't, and the whole skill is reading a server you can't see inside. Stop it when done: \`kill %1 2>/dev/null\`.
+</details>
+
+#### 🟡 Build 1 — write the hardening layer without a library ~12 min
+
+**Goal.** Write a server (a dependency-free Node \`http\` server is fine) that: sets **no** \`X-Powered-By\`; sets a real CSP using a **per-request nonce** that forbids inline scripts; sets HSTS and \`nosniff\`; and has a production error handler that returns a generic message plus a **correlation id** to the client while the full error goes only to the server log. This is exactly what \`helmet\`/\`flask-talisman\` do for you — you're proving you know what that is.
+
+**Done when.** \`curl -sD - -o /dev/null localhost:4100/\` run **twice** shows a *different* \`nonce-...\` in the CSP each time, shows \`Strict-Transport-Security\` and \`X-Content-Type-Options: nosniff\`, and no \`X-Powered-By\`; and \`curl localhost:4100/boom\` returns generic JSON with a \`correlationId\` and **no** stack trace, while the real error appears only on the server's stderr.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Generate 16 random bytes *per request*, base64 them, and interpolate that into the CSP \`script-src\` as \`'nonce-...'\`. The HTTPS-forcing header carries a \`max-age\`. Wrap your routing in \`try/catch\`; in the catch, make a UUID, \`console.error\` the UUID + the real error, and send the client only \`{error, correlationId}\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+const http = require("http"), crypto = require("crypto");
+http.createServer((req, res) => {
+  const nonce = crypto.randomBytes(16).toString("base64");   // fresh EVERY request
+  res.setHeader("Content-Security-Policy",
+    \`default-src 'self'; script-src 'self' 'nonce-\${nonce}'; object-src 'none'; base-uri 'self'\`);
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  // note: X-Powered-By is simply never set
+  try {
+    if (req.url === "/boom") throw new Error("internal detail that must NOT reach the client");
+    res.end("hi");
+  } catch (err) {
+    const id = crypto.randomUUID();
+    console.error(id, err);                                    // full detail: server-side only
+    res.statusCode = 500;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "Internal error", correlationId: id }));  // quiet to client
+  }
+}).listen(4100, () => console.log("hardened on 4100"));
+\`\`\`
+\`\`\`bash
+curl -sD - -o /dev/null localhost:4100/ | grep -i nonce   # note the value...
+curl -sD - -o /dev/null localhost:4100/ | grep -i nonce   # ...it's different this time
+curl -s localhost:4100/boom                               # {"error":"Internal error","correlationId":"..."}
+\`\`\`
+Common wrong attempts: **computing the nonce once at startup** — a static, guessable nonce is no nonce; it must change per response or an attacker can just include it. Adding **\`'unsafe-inline'\` "so my own inline scripts work"** silently deletes the entire protection (the Break task drives this home). Sending **\`err.message\` to the client** still leaks internal detail — the client gets a *correlation id*, and *you* join it to the full error in the logs. The load-bearing detail is identical in \`helmet\` and \`flask-talisman\`: a per-request nonce is the only thing that makes CSP real XSS defense.
+</details>
+
+#### 🔴 Break & Defend — is this CSP real, or theater? ~12 min
+
+Two policies:
+- **A** — \`default-src 'self'; script-src 'self' 'unsafe-inline'\`
+- **B** — \`default-src 'self'; script-src 'self' 'nonce-<fresh per request>'; object-src 'none'\`
+
+**Goal.** In your journal: (1) State which policy actually stops an injected \`<script>alert(1)<\/script>\` and why the other is theater — point to the exact token that ruins it. (2) Prove your Build's nonce changes per request (two dumps, compare). (3) Spaced recall to Phase 2: even with policy B, why is the \`textContent\`/output-encoding fix from Module 2.2 still your *primary* defense? (4) Name one thing a nonce-CSP does **not** stop.
+
+**Done when.** You can name \`'unsafe-inline'\` as the token that makes A worthless (it permits exactly what reflected/stored XSS injects), your two nonce values differ, and you can articulate CSP as *defense-in-depth behind* fixing the injection — not a substitute for it.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **B defends; A is theater.** An XSS payload *is* an inline script, and \`'unsafe-inline'\` explicitly allows inline scripts — so under A the injected \`<script>\` runs exactly as if there were no CSP. Under B the injected script lacks the current request's \`nonce\`, so the browser refuses to execute it. The single token \`'unsafe-inline'\` is the difference between a real control and a checkbox.
+2. Two \`curl -sD -\` dumps show two different \`nonce-\` values — that per-request freshness is the mechanism; a static nonce is forgeable.
+3. **CSP is the second layer, not the cure.** The Module 2.2 fix — render untrusted data as \`textContent\`/escaped output so it never becomes markup — means the injection never exists in the first place. CSP is what saves you when a *different* XSS bug slips through later: defense-in-depth assumes your primary fix will occasionally fail. Shipping CSP *instead of* fixing the sink is backwards.
+4. A nonce-CSP doesn't stop: exfiltration to an **allow-listed** origin, DOM-based attacks that abuse already-trusted same-origin script, \`data:\`/\`blob:\` sinks if you allow them, or damage done by a script that legitimately carries the nonce. It shrinks the blast radius of XSS; it doesn't make the app immune. **Outside the box:** the same "did I set the policy, or did I set a policy that *works*?" question applies to every header — HSTS without HTTPS everywhere, a wide-open \`Permissions-Policy\`, CORS that reflects any origin. Reading a header's *value*, not just its presence, is the whole skill. Clean up: \`kill %1 2>/dev/null\` for anything still running.
+</details>
+
+---
+
 ➡️ **Next step:** You've hardened the app process. The last piece is the *cloud environment* around it — identity, network exposure, and the SSRF-to-metadata chain. Continue to **Module 8.3: Cloud Posture — IAM, Network Exposure, and SSRF-to-Metadata**.`,
-    tracker: ["Can explain why verbose errors are a vulnerability and state the 'fail closed, fail quiet' principle (generic error + correlation ID to client, full detail to logs)", "Can name the core security headers and what each instructs the browser to do", "Knows CSP is real XSS defense ONLY with a per-request nonce that forbids unsafe-inline", "Can wire hardening in both Express (helmet) and Flask (flask-talisman), including a production error handler"]
+    tracker: ["Can explain why verbose errors are a vulnerability and state the 'fail closed, fail quiet' principle (generic error + correlation ID to client, full detail to logs)", "Can name the core security headers and what each instructs the browser to do", "Knows CSP is real XSS defense ONLY with a per-request nonce that forbids unsafe-inline", "Can wire hardening in both Express (helmet) and Flask (flask-talisman), including a production error handler", "Workbench: read a server's posture black-box with curl -D -, then wrote the hardening layer by hand — per-request CSP nonce, HSTS, nosniff, no X-Powered-By, and a correlation-id error handler", "Workbench: judged CSP A (unsafe-inline) vs B (nonce) and argued CSP as defense-in-depth behind the Module 2.2 XSS fix"]
   },
   {
     id: "m8_3",
@@ -14931,8 +15146,114 @@ Now the patched app resolves the hostname to an IP, sees it's in a blocked range
 
 In 2019 a former AWS engineer exfiltrated 100M+ Capital One credit card applications. The canonical SSRF-to-cloud-takeover chain: (1) a **misconfigured WAF** exposed an SSRF primitive; (2) the attacker forced it to fetch the **EC2 IMDSv1** at \`http://169.254.169.254/latest/meta-data/iam/security-credentials/\`; (3) IMDS returned the IAM **temporary credentials** for the WAF instance role; (4) that role had **over-broad \`s3:GetObject\`** on the customer-data bucket; (5) the attacker enumerated and downloaded from their own laptop. **Lessons:** IMDSv2 by default, least-privilege IAM, WAF/proxy egress filtering of RFC-1918 / link-local ranges, CloudTrail + GuardDuty for anomalous credential use, and SSRF unit tests on every URL-fetching path.
 
+### 🧪 Workbench: make the server hand you its own credentials, then shut the door
+
+> **What this trains.** SSRF-to-metadata is the chain behind Capital One, and it stays abstract until you *run* it. You'll fire it against your own fake metadata service, then close it the way production does — filter by *resolved IP*, not by string — and finish by writing the least-privilege IAM policy that bounds the damage even if the fetch slips through. Everything runs offline on your laptop. Type a command before each reveal.
+
+#### 🟢 Drill 1 — write the egress predicate ~5 min
+
+**Goal.** Write the function an SSRF egress filter calls to decide whether a *resolved IP* must be blocked. It must reject link-local (\`169.254.0.0/16\` — the cloud metadata range), loopback (\`127.0.0.0/8\`), and the private RFC-1918 ranges (\`10/8\`, \`172.16–31/12\`, \`192.168/16\`), and allow a public address.
+
+**Done when.** Your predicate returns \`true\` for \`169.254.169.254\`, \`127.0.0.1\`, \`10.1.2.3\`, \`172.20.0.1\`, and \`192.168.1.1\`, and \`false\` for \`93.184.216.34\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+String-prefix checks are a fine first cut for four of them: \`169.254.\`, \`127.\`, \`10.\`, \`192.168.\`. The only fiddly range is \`172.16\`–\`172.31\` (not all of \`172.\`), which a small regex or a numeric second-octet test handles. Node has no built-in IP-range helper; either approach is fine. (Python's standard library does it for free — \`ipaddress\` gives \`is_private\`, \`is_loopback\`, and \`is_link_local\`.)
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`javascript
+function isBlocked(ip) {
+  return ip.startsWith("169.254.") || ip.startsWith("127.") ||
+         ip.startsWith("10.")      || ip.startsWith("192.168.") ||
+         /^172\\.(1[6-9]|2\\d|3[01])\\./.test(ip);   // 172.16–172.31 only
+}
+\`\`\`
+Common wrong attempts: blocking **all of \`172.\`** breaks \`172.32+\`, which is public — the range is only \`.16\`–\`.31\`. Forgetting **\`169.254.\`** is the fatal one: that *is* the metadata range, so an SSRF filter without it stops nothing that matters. And checking the **hostname string** instead of the resolved IP is the bypass the Break task exploits. The transferable idea: express the deny-list as *IP ranges*, and prefer a vetted library (\`ipaddress\`) over hand-rolled prefixes — it's exhaustive and IPv6-aware, so it also blocks \`[::1]\` and \`fd00::/8\` you'd forget by hand.
+</details>
+
+#### 🟡 Build 1 — reproduce the SSRF, then filter it out ~14 min
+
+Stand up a fake metadata service (dependency-free); then you write the vulnerable fetch endpoint and the fixed one:
+\`\`\`bash
+mkdir -p ~/ssrf-workbench && cd ~/ssrf-workbench
+printf 'require("http").createServer((_,r)=>{r.writeHead(200,{"content-type":"application/json"});r.end(JSON.stringify({AccessKeyId:"FAKEKEY",SecretAccessKey:"FAKESECRET",Token:"FAKE"}));}).listen(8169,()=>console.log("fake IMDS on 8169"));\\n' > imds.js
+node imds.js &
+\`\`\`
+
+**Goal.** (1) Write a \`/preview\` endpoint (Node \`http\` + the built-in \`fetch\`) that fetches whatever URL the caller supplies — the SSRF bug — and use it to make the *server* return the fake credentials. (2) Then add egress filtering (your Drill-1 predicate, on the *resolved* IP) so the identical request is refused.
+
+**Done when.** Pre-fix, \`curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"\` returns the fake-credentials JSON; post-fix, the same request returns \`403 blocked\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+The vulnerable version is almost nothing: read the \`url\` query param, \`fetch\` it, return the body — that *is* the bug. To fix: parse the URL, restrict the scheme to \`http\`/\`https\`, resolve the hostname with \`require("dns").promises.lookup\`, run \`isBlocked\` on the resolved \`address\`, and \`403\` if blocked. Pass \`redirect:"manual"\` to \`fetch\` so a \`302\` to the metadata IP can't sneak past.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// vuln.js — the bug in six lines
+const http = require("http");
+http.createServer(async (req, res) => {
+  const target = new URL(req.url, "http://x").searchParams.get("url");
+  const r = await fetch(target);                 // no restriction whatsoever = SSRF
+  res.end(await r.text());
+}).listen(7000, () => console.log("vuln on 7000"));
+\`\`\`
+\`\`\`javascript
+// fixed.js — resolve, then judge the IP
+const http = require("http"), dns = require("dns").promises;
+function isBlocked(ip){return ip.startsWith("169.254.")||ip.startsWith("127.")||ip.startsWith("10.")||ip.startsWith("192.168.")||/^172\\.(1[6-9]|2\\d|3[01])\\./.test(ip);}
+http.createServer(async (req, res) => {
+  try {
+    const u = new URL(new URL(req.url, "http://x").searchParams.get("url"));
+    if (u.protocol !== "http:" && u.protocol !== "https:") { res.statusCode = 400; return res.end("bad scheme"); }
+    const { address } = await dns.lookup(u.hostname);       // judge the RESOLVED ip
+    if (isBlocked(address)) { res.statusCode = 403; return res.end("blocked: internal address"); }
+    const r = await fetch(u, { redirect: "manual" });       // don't follow a 302 to the metadata ip
+    res.end(await r.text());
+  } catch { res.statusCode = 400; res.end("bad url"); }
+}).listen(7000, () => console.log("fixed on 7000"));
+\`\`\`
+\`\`\`bash
+# with vuln.js running:
+curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"   # -> {"AccessKeyId":"FAKEKEY",...}
+# swap to fixed.js, then:
+curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"   # -> blocked: internal address
+\`\`\`
+Common wrong attempts: filtering \`target.includes("169.254")\` (string check — the Break task walks two ways around it); resolving nothing and trusting the **hostname** (DNS rebinding: an attacker's domain resolves to \`169.254.169.254\`); leaving redirects on (a \`302\` to the metadata IP defeats a filter that only checked the first URL). **Why the target is an IP literal here:** real IMDS lives at \`169.254.169.254\` — an *address*, never a hostname — so the exploit points at \`127.0.0.1\` for the same reason, and a resolved IP is unambiguous. It also sidesteps a real trap worth knowing: on a dual-stack host \`localhost\` can resolve to IPv6 \`::1\`, which this IPv4-only predicate misses entirely — exactly why the Drill pushed you toward \`ipaddress\`, which blocks \`::1\` and \`fd00::/8\` for free. This is the exact same SSRF fix you built in **Module 4.2** — the Flask version there uses \`ipaddress\` with \`allow_redirects=False\`; this is its cloud-specific twin. The reframe: SSRF isn't "a fetch of a bad URL," it's "the server making a request *as itself*, with its own network position and identity" — which is why it can reach \`169.254.169.254\` and you can't.
+</details>
+
+#### 🔴 Break & Defend — the string filter, the two doors, and the blast radius ~18 min
+
+**Goal.** (1) Given a filter \`if (url.includes("169.254")) block()\`, give **two** ways past it and state the correct approach. (2) Walk the SSRF→credentials chain and name which of **IMDSv2**, **egress filtering**, and **least-privilege IAM** breaks which link. (3) Write a least-privilege IAM policy (JSON) for an image-upload workload that needs only \`s3:PutObject\` into one bucket prefix — no \`s3:*\`, no \`Resource: "*"\`.
+
+**Done when.** Your policy has zero wildcards in \`Action\` and \`Resource\` (a named ARN ending in a prefix), you can name the two *independent* defenses, and you can explain why IAM is the door that bounds blast radius *even after* the credentials are stolen. In your journal, map Capital One's five steps each to a defense (spaced recall to the case study and Module 4.2).
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Two bypasses of the string check:** register a domain whose DNS \`A\` record points at \`169.254.169.254\` (the literal \`"169.254"\` never appears in the URL you submit); or encode the IP as **decimal/hex/octal** (\`http://2852039166/\`) so the string match misses but the socket still connects to the metadata service. Correct approach: resolve the hostname and judge the **resolved IP** against IP *ranges*, forbid non-http(s) schemes, disable redirects, and re-validate at connect time (a paranoid client re-checks the IP the socket actually dialed, defeating rebinding between resolve and connect).
+2. **The chain and its doors:** (a) server fetches a user URL unrestricted → **egress filtering** breaks this link; (b) attacker supplies the metadata URL and the server returns live IAM creds → **IMDSv2** (\`HttpTokens: required\`) breaks this, since the simple GET can't obtain the required session token; (c) attacker *uses* the creds to reach data → **least-privilege IAM** breaks this, bounding what a stolen role can do. Independent layers — any one alone leaves a gap, which is why you want all three.
+3. **The policy:**
+\`\`\`json
+{ "Version": "2012-10-17",
+  "Statement": [{ "Effect": "Allow", "Action": "s3:PutObject",
+    "Resource": "arn:aws:s3:::acme-uploads/incoming/*" }] }
+\`\`\`
+If the SSRF you built *were* real and stole this role, the attacker could write objects into one prefix of one bucket — not read customer data, not touch other buckets, not enumerate the account. **That gap between "one prefix" and "the whole account" is the entire value of least privilege**, and it's why IAM is the defense that still helps after every other layer has already failed. Capital One mapped to defenses: WAF SSRF → egress filtering; reach IMDSv1 → IMDSv2; IMDS returns creds → (same layer); over-broad \`s3:GetObject\` → least-privilege IAM; mass download from a laptop → CloudTrail/GuardDuty anomaly detection.
+</details>
+
+---
+
 ➡️ **Next step:** You can ship safely with a hardened cloud posture. One production surface remains — the container and orchestrator layer everything else runs on. Continue to **Module 8.4: Container & Kubernetes Security**.`,
-    tracker: ["Can explain 'identity is the perimeter' and least-privilege IAM as the thing that bounds blast radius", "Can walk the SSRF-to-metadata chain end to end and name its two independent defenses (IMDSv2 + egress filtering), plus how IAM breaks the final link", "Knows to filter SSRF by resolved IP (not hostname string) and why DNS rebinding defeats string checks", "Read the Capital One 2019 case study and can map each step to a defense"]
+    tracker: ["Can explain 'identity is the perimeter' and least-privilege IAM as the thing that bounds blast radius", "Can walk the SSRF-to-metadata chain end to end and name its two independent defenses (IMDSv2 + egress filtering), plus how IAM breaks the final link", "Knows to filter SSRF by resolved IP (not hostname string) and why DNS rebinding defeats string checks", "Read the Capital One 2019 case study and can map each step to a defense", "Workbench: wrote the resolved-IP egress predicate, reproduced the SSRF-to-fake-IMDS exploit, then filtered it to 403 by resolved IP", "Workbench: gave two bypasses of a hostname-string SSRF filter, mapped the chain to IMDSv2/egress/least-priv IAM, and wrote a wildcard-free s3:PutObject IAM policy"]
   },
   {
     id: "m8_4",
@@ -15220,6 +15541,125 @@ A Kubernetes dashboard was exposed to the internet without authentication. An at
 6. A wildcard Role lets a compromised Pod's token do *anything* in the namespace (read all secrets, delete workloads, escalate) — it turns one compromised Pod into cluster-wide reach. Scoping to a single named resource and verb bounds the blast radius to exactly \`get app-config\`. Confirm with \`kubectl auth can-i <verb> <resource> --as=system:serviceaccount:<ns>:<sa> -n <ns>\`, which returns \`no\` for anything outside the grant.
 </details>
 
+### 🧪 Workbench: ship the image and the cluster from a blank prompt
+
+> **What this trains.** The module walked you through the build-exploit-fix loop; now you produce it cold. You'll recover a baked-in secret from image metadata, write a hardened Dockerfile from scratch, and hand-write the three Kubernetes manifests that lock down the orchestrator. Docker runs the image half for real; the cluster half you self-check against the required shape (spin up \`kind\` if you have it). Type or write something before each reveal.
+
+#### 🟢 Drill 1 — recover a "deleted" secret from an image ~4 min
+
+**Goal.** Given an image that once set a secret via \`ENV\` (the \`appsec-lab:bad\` you built in the module works, or build any tiny image with \`ENV STRIPE_KEY=...\`), prove the secret is still shippable to anyone who can pull the image — *without running a container*.
+
+**Done when.** A single command prints the secret straight out of the image's layer metadata.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You don't need to run it — the image's *build history* records every layer's instruction, including the \`ENV\`. There's a \`docker\` subcommand that prints that history; pass the flag that stops it truncating, and filter for your key.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+docker history --no-trunc appsec-lab:bad | grep -i stripe
+# <missing> ... ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer
+\`\`\`
+Common wrong attempts: \`docker exec ... env\` needs the container *running* and misses the point — the secret ships in the *image* whether or not it's running. "Deleting" the secret in a later \`RUN\` hides nothing — the earlier layer still holds it, which is exactly what \`history\` reveals. The principle from Module 0.8, now weaponized: **image layers are immutable and additive** — the only real fix is to never put the secret in a layer, and to *rotate* the one you already leaked.
+</details>
+
+#### 🟡 Build 1 — the hardened Dockerfile, from scratch ~15 min
+
+**Goal.** Write a Dockerfile for a small Node service that fixes all three planted flaws at once: **multi-stage** so build tooling never ships, a **minimal runtime base** (distroless or \`-slim\`) to collapse the CVE surface, a **non-root \`USER\`**, and **no secret in any layer** (inject it at runtime instead). Build it, then re-run the exact probes from the Drill.
+
+**Done when.** \`docker history --no-trunc <img> | grep -i stripe\` prints nothing; \`docker run\` it with the secret passed via \`-e\`, and \`docker exec <c> whoami\` prints a non-root user; the app still responds. (If you have network + Trivy, \`trivy image --severity CRITICAL,HIGH\` should collapse toward zero.)
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Two \`FROM\`s: a \`build\` stage (\`node:22-slim\`) that installs deps, then a runtime stage (\`gcr.io/distroless/nodejs22-debian12\`) that \`COPY --from=build\`s only the app. Add a \`USER nonroot:nonroot\` line. There is **no** \`ENV SECRET=\` line anywhere — the secret arrives at \`docker run\` time via \`-e\` or \`--env-file\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`dockerfile
+# 1. build stage — tooling stays here, never ships
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+# 2. minimal runtime — distroless: no shell, no package manager
+FROM gcr.io/distroless/nodejs22-debian12 AS runtime
+WORKDIR /app
+COPY --from=build /app .
+USER nonroot:nonroot          # 3. never UID 0
+EXPOSE 3000
+# 4. NO secret in any layer — inject at runtime: docker run -e STRIPE_KEY=...
+CMD ["server.js"]
+\`\`\`
+\`\`\`bash
+docker build -t appsec-lab:hardened .
+docker history --no-trunc appsec-lab:hardened | grep -i stripe   # (no output — secret gone)
+docker run -d --name good -e STRIPE_KEY=EXAMPLE_injected_at_runtime -p 8081:3000 appsec-lab:hardened
+docker exec good whoami                                           # nonroot (not root)
+\`\`\`
+Common wrong attempts: adding \`USER node\` but keeping the fat \`node:22\` base (non-root, but you kept 40+ CVEs and a full shell for an attacker to pivot with); "removing" the secret with a later \`RUN unset\` (Drill 1 already showed the layer keeps it); a single-stage build that ships \`node_modules\` build tooling and dev deps. **What distroless bought you:** no \`/bin/sh\`, no \`apt\`, no debuggers — so code execution inside the container has nothing to pivot with, and the base's CVE count falls to near-zero. Wire \`trivy image --exit-code 1 --severity CRITICAL,HIGH\` into the CI push workflow from **Module 7.1** so a vulnerable image can never reach the registry (spaced recall). Clean up: \`docker rm -f good\`.
+</details>
+
+#### 🔴 Break & Defend — lock the orchestrator, from a blank prompt ~20 min
+
+The cluster is open by default: any Pod reaches any other, Pods run as root, and a Pod's service-account token can call the Kubernetes API. Write the three controls that close that — from scratch, no peeking at the module's YAML.
+
+**Goal.** Produce: (1) a **default-deny ingress** NetworkPolicy for a namespace; (2) the **namespace label** that enforces the \`restricted\` Pod Security Standard; (3) a **scoped RBAC Role** granting \`get\` on one named ConfigMap only — no wildcards — plus the one command that proves the service account can't exceed it.
+
+**Done when (self-check against shape).** Your NetworkPolicy has \`podSelector: {}\` and \`policyTypes: [Ingress]\` with **no** ingress rules (that's what makes it deny-all); your Role names the resource (\`resourceNames\`) and has no \`"*"\` in \`resources\` or \`verbs\`; and you can write the \`kubectl auth can-i ... --as=system:serviceaccount:...\` check that returns \`no\`. In your journal: (a) you applied default-deny on a fresh \`kind\` cluster and the attacker Pod *still* got HTTP 200 — is the policy wrong, and what actually explains it? (b) Map each container-escape condition (root / mounted Docker socket / \`--privileged\`) to a control from this phase.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Default-deny is a NetworkPolicy that *selects every Pod* (\`podSelector: {}\`) and declares \`policyTypes: [Ingress]\` but lists **no** \`ingress:\` rules — "select all, allow nothing." The PSS enforcement is a single namespace **label** (\`pod-security.kubernetes.io/enforce: restricted\`). The RBAC Role ties a \`verb\` to a \`resource\` to a specific \`resourceNames\`; confirm the bound with \`kubectl auth can-i <verb> <resource> --as=system:serviceaccount:<ns>:<sa> -n <ns>\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`yaml
+# 1. default-deny ingress — select all pods, allow no ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: production }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# 2. enforce the restricted Pod Security Standard on the namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+# 3. scoped RBAC — get ONE named configmap, nothing else
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: app-role, namespace: production }
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["app-config"]
+    verbs: ["get"]
+\`\`\`
+\`\`\`bash
+kubectl auth can-i delete pods --as=system:serviceaccount:production:app-service-account -n production   # -> no
+\`\`\`
+Answers to the journal prompts: **(a) the policy is not wrong** — kind's default CNI (\`kindnet\`) doesn't *enforce* NetworkPolicy, so the manifest is accepted and ignored; you need a policy-enforcing CNI (Calico) or a managed cluster to see the attacker Pod time out. Never conclude a control works *or* fails without confirming the layer that enforces it is active — the same discipline as Module 1.6. **(b) escape condition → control:** running as root → the \`restricted\` PSS rejects it at admission (you watched \`runAsUser: 0\` get \`Forbidden\`); mounted Docker socket → don't mount it, and \`restricted\` forbids the \`hostPath\` volume you'd need; \`--privileged\`/\`SYS_ADMIN\` → \`restricted\` blocks privileged Pods and added capabilities. Common wrong attempts: a Role with \`resources: ["*"], verbs: ["*"]\` (one compromised Pod's token now owns the namespace — the opposite of least privilege); an "allow-all" NetworkPolicy that lists an empty \`ingress: [{}]\` (that *allows* everything — deny-all means *omitting* the rules, not writing an empty one). **Outside the box:** the through-line of this whole phase is that the fix is almost never in the flashy technology — it's a boring default flipped: a non-root \`USER\`, a namespace label, a named ARN instead of \`*\`. Blast radius is set by the least-privilege line, not the exploit.
+</details>
+
+---
+
 ➡️ **Next step (Phase 8 complete):** You can ship safely and harden your containers and cluster. Prevention eventually fails — the next phase builds the layer that *catches* failures: structured logging, detection, and incident response. Continue to **Phase 9: Logging, Monitoring, and Incident Response**.
 
 ### Phase 8 Deliverable
@@ -15253,7 +15693,10 @@ Create \`~/appsec-journal/notes/phase-8-production-security.md\` and answer, in 
       "Ran kubesec / trivy k8s / kube-bench against the live cluster and tore it down with `kind delete cluster`",
       "Knows the difference between K8s Secrets (base64, etcd), ESO, and Vault Agent for secret injection",
       "Wrote the Phase 8 deliverable journal entry",
-      "Answered the knowledge check"
+      "Answered the knowledge check",
+      "Workbench: recovered a baked-in secret with docker history, then wrote a hardened Dockerfile from scratch (multi-stage, distroless, non-root, runtime-injected secret) and re-ran the probes clean",
+      "Workbench: hand-wrote a default-deny NetworkPolicy, a restricted-PSS namespace label, and a scoped RBAC Role, and explained the kind/kindnet non-enforcement caveat",
+      "Re-ran the Phase 8 Workbench drills (leak-gate, egress predicate, docker history, the hardening headers) from a blank prompt on a later day without scrolling back"
     ]
   },
   {
