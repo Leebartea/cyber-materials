@@ -15896,8 +15896,112 @@ The same two rules carry across both stacks: emit *queryable* JSON with a stable
 5. Log: an authorization *denial* (detects access-control probing). Never log: a password or full session token (a log leak becomes instant account compromise). Other valid pairs accepted.
 </details>
 
+### 🧪 Workbench: log the attack, not the password
+
+> **What this trains.** A security log has to do two contradictory things: record enough to reconstruct an attack, and never record anything that *becomes* an attack when the log leaks. You'll build the structured logger that threads that needle, detect a live attack from its output, then audit a leaky log the way an incident responder would. Type or write something before each reveal.
+
+#### 🟢 Drill 1 — correlate a user without storing who they are ~4 min
+
+**Goal.** You need to tie together many events from the same account in your logs *without* writing the raw email or password anywhere. Produce the value you'd log instead, and prove it correlates: the same email always yields the same token, and the email itself is nowhere in the output.
+
+**Done when.** Hashing \`alice@example.com\` twice gives the *same* short hex string, a different email gives a different one, and neither the raw email nor any password appears in what you logged.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+A cryptographic hash is deterministic (same input → same output) and one-way (you can't read the email back out). Node's \`crypto\` and Python's \`hashlib\` both do SHA-256 in one line; take the first 12 hex chars so it's short enough to read.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+node -e 'const c=require("crypto");const h=s=>c.createHash("sha256").update(s).digest("hex").slice(0,12);console.log(h("alice@example.com"),h("alice@example.com"),h("bob@example.com"))'
+# ff8d9819fc0e ff8d9819fc0e 5ff860bf1190   <- same email = same hash; different email differs
+\`\`\`
+Common wrong attempts: logging the email "just lowercased" or base64-encoded — base64 is reversible, so it's the raw email wearing a hat; a reviewer or a leaked log still has the PII. Truncating to \`ali***\` leaks the prefix *and* isn't stable enough to correlate. The move is a *hash*: stable enough to group, irreversible enough to be safe. (If you ever need to reverse the lookup during an incident, keep that mapping in your access-controlled database — never in the log.)
+</details>
+
+#### 🟡 Build 1 — the structured logger, and catch the attack it records ~12 min
+
+**Goal.** Write a \`logLogin(email, password, ip)\` that appends **one JSON object per line** to a log file, using a stable event taxonomy (\`auth.login.success\`/\`auth.login.failure\`), an \`email_hash\`, \`ip\`, and a \`traceId\` — and that **never** writes the password or the raw email. Drive it with a 40-attempt credential-stuffing burst against one account, then write the one-line aggregation that surfaces the attacking \`email_hash\`.
+
+**Done when.** Your aggregation shows ~40 failures for one \`email_hash\`; and grepping the entire log for the attempted passwords or the raw email returns **nothing**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`logLogin\` builds an object, \`JSON.stringify\`s it, and appends it plus a newline to the file — the \`password\` parameter is used only to decide \`ok\`, never placed in the object. For detection, read the file, keep the \`auth.login.failure\` lines, and count by \`email_hash\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// logger.js — never puts the password or raw email in the record
+const fs = require("fs"), crypto = require("crypto");
+const h = s => crypto.createHash("sha256").update(String(s)).digest("hex").slice(0, 12);
+function logLogin(email, password, ip) {
+  const ok = email === "alice@example.com" && password === "correcthorse";
+  const rec = { ts: new Date().toISOString(),
+    event: ok ? "auth.login.success" : "auth.login.failure",
+    email_hash: h(email), ip, ua: "curl/8.0",
+    traceId: "req_" + crypto.randomBytes(3).toString("hex") };
+  fs.appendFileSync("app.log", JSON.stringify(rec) + "\\n");   // one JSON object per line
+  return ok;
+}
+for (let i = 0; i < 40; i++) logLogin("alice@example.com", "guess" + i, "203.0.113.9");  // stuffing burst
+\`\`\`
+\`\`\`bash
+node logger.js
+# detect: count failures per email_hash
+node -e 'const fs=require("fs");const c={};fs.readFileSync("app.log","utf8").trim().split("\\n").map(JSON.parse).filter(e=>e.event==="auth.login.failure").forEach(e=>c[e.email_hash]=(c[e.email_hash]||0)+1);console.log(c)'
+# -> { ff8d9819fc0e: 40 }
+# prove nothing leaked:
+grep -c -E 'guess[0-9]|alice@example.com' app.log    # -> 0
+\`\`\`
+Common wrong attempts: putting the password in the record "only on failure, to see what they tried" — the single worst logging bug, because users type their *real* password into the wrong account constantly, so your failure log fills with valid credentials for *other* people. Logging the raw email "for readability" turns the log into a PII export the moment it ships to a SaaS aggregator (GDPR). And free-text (\`console.log(\`login failed for \${email}\`)\`) can't be queried — detection degrades from a one-line count to a fragile \`grep\`. The two rules that survive: **structured JSON with a stable taxonomy**, and **redact at the source** so the secret never reaches the log line.
+</details>
+
+#### 🔴 Break & Defend — audit the leaky log ~15 min
+
+Here are four log lines a real app emitted:
+\`\`\`text
+{"event":"login","email":"alice@example.com","password":"hunter2","ok":false}
+{"event":"session","user":"alice","jwt":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.9c7Xk2fakeSig"}
+{"event":"payment","card":"4111111111111111","cvv":"834","amount":1999}
+{"event":"authz.denied","userId":7,"resource":"/org/9/invoices","ip":"203.0.113.9"}
+\`\`\`
+
+**Goal.** For each line decide **keep as-is / redact / never-log**, with the reason and the safe replacement. Then write a \`log-audit\` scanner (shell or your language) that flags a log file containing a plaintext password field, a full JWT, or a full card number, so it can run in CI. In your journal: why is a logged *failed* password especially dangerous, and which earlier module's tool is this scanner a cousin of?
+
+**Done when.** You flag line 1 (password → never log), line 2 (full JWT → log a hash/prefix + \`userId\`), line 3 (full PAN + CVV → CVV *never*, PAN as last-4), and **keep** line 4 (\`authz.denied\` is exactly the signal you *want*); and your scanner exits non-zero on a log containing any of the three leak patterns.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The scanner is the \`leak-gate.sh\` idea from Module 8.1 aimed at logs: extended \`grep\` for a \`"password"\` field, the JWT tell \`eyJ\` (base64 of \`{"\`), and a 16-digit run \`[0-9]{16}\`. Any hit → \`exit 1\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+LOG="\${1:-app.log}"; fail=0
+grep -nE '"password"[[:space:]]*:' "$LOG" && fail=1        # plaintext password field
+grep -nE 'eyJ[A-Za-z0-9_-]+\\.eyJ' "$LOG" && fail=1         # full JWT (header.payload)
+grep -nE '[0-9]{16}' "$LOG" && fail=1                       # full card number
+[ "$fail" -eq 1 ] && { echo "LEAKY LOG — redact at the source"; exit 1; }
+echo "log clean"; exit 0
+\`\`\`
+Line by line: **line 1** — the password, and here it's a *failed* attempt, which is worse: it's very likely the user's real password mistyped into the wrong field → never log; keep the \`email_hash\`. **line 2** — a full JWT is a bearer credential anyone reading the log can replay until it expires → log \`jwt_hash\` or its first 8 chars plus the \`userId\`. **line 3** — a full PAN is a PCI-DSS violation and the CVV must *never* be stored anywhere → keep \`"card_last4":"1111"\`, drop the CVV. **line 4** — *keep it*: an \`authz.denied\` with userId/resource/ip is the enumeration signal Module 9.2 alerts on, and it holds no secret. **Why the failed password is the trap:** people fat-finger their real password into the username or the wrong account constantly, so "log what they tried" quietly becomes a valid-credential dump. **Spaced recall:** the \`eyJ\`/16-digit scan is the same discipline as the 8.1 \`leak-gate.sh\` and the 7.3 PII scrubber — a redact-at-source scanner you also wire into CI. **Outside the box:** the strongest version of this control isn't a scanner that catches leaks *after* they're written — it's a logging *wrapper* every service calls, where the only way to add a field is a function that hashes/allow-lists it, so a raw secret is structurally unable to reach a log line. Detection is the backstop; the design is the fix.
+</details>
+
+---
+
 ➡️ **Next step:** A log nobody reads is just disk usage. Continue to **Module 9.2: Detection, Alerting, and Monitoring** — turning recorded evidence into timely awareness.`,
-    tracker: ["Can state 'you cannot log the past' and list the security-relevant events to record and why each one", "Knows the never-log list (passwords, full tokens/JWTs, full card numbers, unminimized PII) and the 'logs leak' principle", "Can explain structured JSON logging + a stable event taxonomy + per-request traceId, and why it makes detection a one-line query", "Knows to hash/redact at the source, and can write structured logging in both Node and Python"]
+    tracker: ["Can state 'you cannot log the past' and list the security-relevant events to record and why each one", "Knows the never-log list (passwords, full tokens/JWTs, full card numbers, unminimized PII) and the 'logs leak' principle", "Can explain structured JSON logging + a stable event taxonomy + per-request traceId, and why it makes detection a one-line query", "Knows to hash/redact at the source, and can write structured logging in both Node and Python", "Workbench: built a structured JSON security logger that hashes email at the source and never logs the password, then detected a credential-stuffing burst with a one-line count", "Workbench: audited leaky log lines (password / full JWT / full PAN+CVV), gave the safe form of each, and wrote a log-audit scanner that exits non-zero on a leak"]
   },
   {
     id: "m9_2",
@@ -15992,8 +16096,108 @@ The \`[ALERT]\` line fires the moment failures cross 20 for one account. This is
 4. A successful login is the event that *grants access* — if it's the attacker's login, everything after is the breach. Context that flips it: new device/IP/country/ASN, impossible travel, login right after a password reset or MFA disable, or a privileged account logging in off-hours.
 </details>
 
+### 🧪 Workbench: turn a log into an alarm, without crying wolf
+
+> **What this trains.** Detection is just a query run continuously with a threshold and a destination — and the hard part isn't writing it, it's tuning it so the channel never gets muted. You'll write the live alerting loop, then do the judgement work: which signals deserve to *page* a human, which are just dashboard noise. Type or write something before each reveal.
+
+#### 🟢 Drill 1 — the detection query ~5 min
+
+Reuse the \`app.log\` from 9.1 (or regenerate the burst).
+
+**Goal.** Write the single aggregation a monitoring system would run continuously: rank accounts by failed-login count, so the credential-stuffing target sits at the top.
+
+**Done when.** The output's top line is the attacked \`email_hash\` with a failure count clearly the highest.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Keep only \`auth.login.failure\` events, group by \`email_hash\`, count, sort descending. One \`sort | uniq -c | sort -rn\` pipeline works, or a few lines of your language. This is the \`sort → uniq -c → sort -rn\` shape from Phase 0/1 — spaced recall.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+grep '"auth.login.failure"' app.log | sed -E 's/.*"email_hash":"([^"]+)".*/\\1/' | sort | uniq -c | sort -rn | head
+#   40 ff8d9819fc0e      <- the attacked account, unmistakable at the top
+\`\`\`
+Common wrong attempts: forgetting the *first* \`sort\` before \`uniq -c\` (\`uniq\` only collapses *adjacent* duplicates, so an unsorted stream miscounts), and \`sort -r\` instead of \`sort -rn\` (lexical reverse puts \`9\` above \`40\`). The pipeline is identical to the log-analysis muscle from Modules 0.7/1.6 — a detection query is just a *saved* version of it.
+</details>
+
+#### 🟡 Build 1 — the alerting loop with a threshold ~12 min
+
+**Goal.** Write a detector that *tails* the log and fires a single \`[PAGE]\` line the instant failures for one \`email_hash\` cross a threshold you set — and, separately, emits an \`[info]\` line (not a page) when a login *succeeds from a new IP*. Encode the difference in severity: a failure threshold-breach pages; a new-IP success is informational.
+
+**Done when.** A 30-attempt burst fires exactly **one** \`[PAGE]\` for the attacked account (not one per failure), and a single successful login from an unseen IP prints an \`[info]\` line — never a page.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Keep a count of failures per hash; fire the page only on the transition *to* the threshold (\`=== THRESHOLD\`, not \`>=\`, so it fires once). Track a \`Set\` of IPs seen per account; a success whose IP isn't in the set is the \`[info]\` event. Tail by re-reading the file and processing only the newly-appended bytes.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// alert.js — tail app.log, PAGE on threshold, info on new-IP success
+const fs = require("fs");
+const THRESHOLD = 20;
+const fails = {}, ipsSeen = {};
+let offset = 0;
+setInterval(() => {
+  const buf = fs.readFileSync("app.log", "utf8");
+  const fresh = buf.slice(offset); offset = buf.length;
+  for (const line of fresh.split("\\n").filter(Boolean)) {
+    let e; try { e = JSON.parse(line); } catch { continue; }
+    if (e.event === "auth.login.failure") {
+      fails[e.email_hash] = (fails[e.email_hash] || 0) + 1;
+      if (fails[e.email_hash] === THRESHOLD)                 // fires ONCE, on the crossing
+        console.log(\`[PAGE] credential stuffing: \${THRESHOLD}+ failures for \${e.email_hash} from \${e.ip}\`);
+    }
+    if (e.event === "auth.login.success") {
+      const seen = ipsSeen[e.email_hash] || (ipsSeen[e.email_hash] = new Set());
+      if (!seen.has(e.ip)) { seen.add(e.ip); console.log(\`[info] new-IP login for \${e.email_hash} from \${e.ip}\`); }
+    }
+  }
+}, 300);
+\`\`\`
+Common wrong attempts: paging on \`>= THRESHOLD\` (fires on *every* failure past 20 — a self-inflicted alert storm), or paging on the new-IP success (a legitimate user on a new phone would wake you at 3 a.m.; new-IP alone is *info*, escalating only when it coincides with impossible travel or a fresh password reset). The mechanism is a production pipeline in miniature: **tail a stream, evaluate rules, route by severity** — swap \`console.log\` for PagerDuty vs. a dashboard and the logic is unchanged.
+</details>
+
+#### 🔴 Break & Defend — kill the alert fatigue, then write the five ~15 min
+
+A teammate shipped this alerting config — it pages on all of it:
+\`\`\`text
+- page: every failed login
+- page: every HTTP 500
+- page: every successful login
+- page: any request slower than 200ms
+- page: a new admin user is created
+- page: nightly backup finished
+\`\`\`
+
+**Goal.** For each rule decide **page / dashboard-metric / delete**, applying the one rule of thumb — *page only on high-confidence, high-severity events that have a documented response action.* Then write *your* app's top-five **paging** alerts, each with a one-line response action, and add the one alert most people forget. In your journal, map each of your five to the attack (and the module) it catches.
+
+**Done when.** You've demoted "every failed login / 500 / success / slow request" to metrics (or deleted them), kept "new admin user" as a page, given each of your five paging alerts a documented response action, and added the **"no logs arriving" (log-silence) alert** — each mapped to its attack.
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+- **every failed login → metric.** One failure is noise; the *rate* is the signal. Chart it; page only on the *spike* (your Build threshold).
+- **every 500 → metric/dashboard.** A 500 *spike* matters; a single 500 doesn't. Page on error-rate over baseline, not each one.
+- **every successful login → delete as a page** (keep it as a queryable event). Paging on normal behavior is instant fatigue; a success is signal only *in combination* (new country + privileged account + post-reset).
+- **any request >200ms → delete.** Latency is an SLO/dashboard concern, not a security page — the textbook fatigue generator.
+- **new admin user → page.** High-confidence, high-severity, rare, clear response (confirm it was authorized; if not, it's a live privilege-escalation incident). The model of a good page.
+- **backup finished → delete as a page** (it's a success notice); *invert* it — page when the backup *didn't* finish.
+
+A solid top five: (1) **auth-failure spike** per account/IP → credential stuffing (Modules 3.1/9.2); response: confirm, throttle/temporarily lock, force MFA. (2) **new-country success on a privileged account**, especially post-reset → account takeover (Module 6.2); response: run the ATO playbook. (3) **authz-denial burst** from one principal → IDOR/enumeration (Modules 3.3/6.5); response: check for a broken object-authz path, consider blocking. (4) **data-export/volume far above baseline** → exfiltration; response: verify the actor, revoke if unauthorized. (5) **new admin user / IAM role change** → privilege escalation (Module 8.3); response: confirm authorization, revoke if not. Plus the one people forget: **log silence** — expected log volume drops toward zero → an attacker may have disabled logging; response: check the pipeline and the host. **Outside the box:** every one of these five is a *saved version of a query you can already write* pointed at a stable baseline — the engineering is trivial; the discipline is refusing to page on anything without a documented action, because a muted channel detects nothing at all.
+</details>
+
+---
+
 ➡️ **Next step:** You can detect. Now learn to *respond* without making it worse. Continue to **Module 9.3: Incident Response — Playbooks for Web Apps**.`,
-    tracker: ["Can explain the difference between logging (evidence) and monitoring (timely awareness) and that detection is a continuous query + threshold + destination", "Can list detection rules across auth/authz/volume/integrity anomalies, each tied to an attack", "Knows the two alerting failure modes and the rule of thumb: only page on high-confidence, high-severity events that have a documented response action", "Can sketch a starter five-alert plan and knows to baseline first and alert on log silence"]
+    tracker: ["Can explain the difference between logging (evidence) and monitoring (timely awareness) and that detection is a continuous query + threshold + destination", "Can list detection rules across auth/authz/volume/integrity anomalies, each tied to an attack", "Knows the two alerting failure modes and the rule of thumb: only page on high-confidence, high-severity events that have a documented response action", "Can sketch a starter five-alert plan and knows to baseline first and alert on log silence", "Workbench: wrote the failed-login aggregation (sort | uniq -c | sort -rn) and a tail-and-alert loop that pages once on a threshold crossing and only info-logs a new-IP success", "Workbench: triaged a page-on-everything config into page/metric/delete by the 'documented response action' rule, and wrote a top-five paging plan (incl. the log-silence alert) mapped to attacks"]
   },
   {
     id: "m9_3",
@@ -16097,6 +16301,90 @@ Write one playbook (using the six-question template) for each realistic worst ca
 5. The attacker likely created additional sessions/tokens/API keys you can't see; killing one leaves others live. It should say "invalidate **all** active sessions for the account, force password reset, re-enroll MFA, and check for attacker-created credentials/recovery-address changes."
 </details>
 
+### 🧪 Workbench: write the decision before the 3 a.m. incident
+
+> **What this trains.** A playbook is a decision made calmly in advance so your panicking future self doesn't have to invent it under attack. There's no server to run here — the deliverable *is* the written decision. You'll order a live response, write a playbook from the template, and tear apart a plausible-but-wrong runbook. Write your answer before opening any reveal.
+
+#### 🟢 Drill 1 — order the response, name the phase ~5 min
+
+Scenario: your SSRF alert (Module 8.3) fired — a server-side fetch reached the metadata service and an attacker may now hold your workload's cloud credentials.
+
+**Goal.** Put these actions in the right order and tag each with its IR phase: (a) patch the SSRF egress filter; (b) rotate/revoke the instance's IAM credentials; (c) snapshot the host and preserve the relevant logs; (d) run a blameless postmortem; (e) confirm the credentials are dead and watch for re-entry.
+
+**Done when.** Your order is **c → b → a → e → d**, and you can name the phases: snapshot and rotate are **Containment** (evidence first, *then* stop the bleeding), patch is **Eradication**, confirm-and-watch is **Recovery**, postmortem is **Post-incident**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Two rules govern the order: *contain before you erase* (preserve evidence **first**) and *rotate, don't just delete* (assume anything the stolen creds could touch, they touched). Everything else follows.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've ordered them</summary>
+
+The order is **c → b → a → e → d**. **(c) Snapshot/preserve first** — the instant you change anything you destroy the forensic trail that tells you *what the creds accessed*; capture it before you touch the box. **(b) Rotate the IAM credentials** — the action that actually stops the abuse; the attacker already holds the creds, so patching the SSRF bug alone leaves them logged in. Preserve-then-rotate *is* short-term **Containment**. **(a) Patch the egress filter** is **Eradication** — remove the root cause so it can't recur. **(e) Confirm the old creds are dead and monitor** for re-entry is **Recovery**. **(d) Blameless postmortem** is **Post-incident**. The classic beginner move is to do (a) first — "fix the bug!" — which feels productive but leaves stolen, still-valid credentials live the whole time. Rotate is the fix; the patch only stops the *next* theft.
+</details>
+
+#### 🟡 Build 1 — write a playbook from the six-question template ~15 min
+
+The module worked the *Account Takeover* playbook. Write a different one from scratch: pick **"a secret leaked in a public repo"** *or* **"the production database is exposed to the internet."**
+
+**Goal.** Produce a complete playbook answering the six questions — **Detect, Contain (preserving evidence), Investigate scope, Recover, Notify, Improve** — with the two counter-intuitive rules visibly baked in (rotate rather than delete; preserve before you contain) and a regulatory-notification step where customer data is in scope.
+
+**Done when (self-check against the rubric).** Your playbook: (1) has all six sections; (2) its *first* containment action for the leaked secret is **rotate the key** (not "delete the commit"), or for the exposed DB is **preserve access logs, then close the network path**; (3) scopes by asking *what could this credential/exposure reach* and *was it used during the exposure window*; (4) has a **Notify** step naming who + any breach-notification deadline; (5) ends with a concrete *Improve* (pre-commit secret scan / cloud-posture check) — not "be more careful."
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Copy the six-question skeleton and fill each line for *this* incident. The trap in the leaked-secret case is ordering — the secret is scraped within minutes, so rotation is the *first* real action and the git-history purge is only cleanup afterward.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`text
+PLAYBOOK: Secret leaked in a public repo / log
+TRIGGER: gitleaks/GitHub secret-scanning alert, or an API-key/DB-password string spotted
+         in a public commit or a shipped log.
+
+1. DETECT / CONFIRM   Which secret, which commit/log line, when did it go public, still valid?
+2. CONTAIN (evidence first)  Record the exposure window from commit/push timestamps, THEN rotate/
+   revoke the key immediately at the provider. Do NOT start by deleting the commit — that neither
+   un-leaks it (already scraped) nor stops abuse.
+3. INVESTIGATE SCOPE  What could this key do? Pull the provider's access logs for the exposure
+   window — used from an unfamiliar IP? What data/actions were reachable with it?
+4. RECOVER  Confirm the old key is dead; deploy the rotated one; verify service; keep watching logs.
+5. NOTIFY  Security lead; if the key could reach customer data and there's evidence of use,
+   legal/privacy (breach-notification deadlines — e.g. GDPR 72h).
+6. IMPROVE  Pre-commit + CI secret scanning (Phase 7); move the secret into a manager (Module 8.1);
+   purge git history as the final cleanup. Blameless postmortem: why did a secret reach source at all?
+\`\`\`
+The load-bearing move is that **rotate comes first and delete comes last** — the reverse of the panicked instinct. Same shape for the exposed DB: *preserve the access logs, close the network exposure, then assume compromise and rotate DB credentials* — never "close the port and hope."
+</details>
+
+#### 🔴 Break & Defend — tear apart a bad runbook ~15 min
+
+An on-call engineer wrote this during a real intrusion (attacker found via a webshell on a prod host):
+\`\`\`text
+1. Delete the webshell file and restart the server.
+2. Kill the attacker's current session.
+3. Reimage the box from a clean image tonight.
+4. Ask the team who wrote the vulnerable endpoint so we know who to blame.
+5. Get back to feature work — it's handled.
+\`\`\`
+
+**Goal.** Find every mistake and rewrite the runbook correctly. In your journal, name the two counter-intuitive rules it violates and the transferable principle.
+
+**Done when.** You've caught: **(1)** deletes evidence before preserving it (snapshot the host/disk and logs *first* — contain before you erase); **(3)** reimaging destroys forensics for the same reason, and doing it *tonight* leaves the attacker in all day; **(2)** kills only one session — rotate broadly: invalidate all sessions, rotate every credential the host could reach, assume persistence (cron, new users, extra webshells); **(4)** blame is toxic — a blameless postmortem, or people hide the next incident; **(5)** no eradication, scope, notify, or lessons — "handled" skips half the lifecycle.
+
+<details>
+<summary>Walkthrough — open after you've written your rewrite</summary>
+
+Every numbered line is a canonical mistake. **Line 1** is the \`rm the webshell\` reflex: it destroys the one artifact that tells you *how they got in* and *what they ran*, so you'll be breached the same way next week — snapshot the host and preserve logs **before** touching anything. **Line 3**, reimaging, is the same evidence-destruction at larger scale, and scheduling it "tonight" hands the attacker a full day of access — *isolate the host from the network now* (contain) instead. **Line 2** treats the visible session as the whole intrusion; an attacker with code execution has almost certainly created more sessions, tokens, cron jobs, or users — **rotate every credential the host could reach and invalidate all sessions**, don't snipe one. **Line 4** is a blameful postmortem, which teaches everyone to hide the *next* incident — the most destructive habit in IR; make it blameless and systemic. **Line 5** declares victory having done zero eradication (the entry vulnerability is still open), zero scoping (you never learned what they took), and zero notification (a breach touching customer data may carry a legal 72-hour clock). Correct rewrite: **preserve → contain (isolate host, rotate creds, invalidate all sessions) → investigate scope → eradicate (patch the entry point, remove persistence) → recover (rebuild clean, verify attacker gone) → notify → blameless postmortem.** **The two rules it breaks:** *contain before you erase* (lines 1, 3) and *rotate, don't just delete* (line 2). **Spaced recall:** "rotate, don't delete" is the Module 1.4 lesson — once a secret hits git history you can't un-leak it, only rotate — and Module 8.1's secrets lifecycle. **Outside the box:** the meta-principle is that *incidents destroy judgment*, so the right move is to have written the calm decision down beforehand. The value of this whole phase isn't any single playbook — it's that "what do I do first?" was answered on a quiet afternoon, not invented at 3 a.m. under attack.
+</details>
+
+---
+
 ➡️ **Next step (Phase 9 complete):** You can now prevent (Phases 2–8), detect, and respond. The last phase makes all of it *visible* to employers and collaborators: portfolio capstones that prove you can do this work on real, full-stack code. Continue to **Phase 10: Portfolio Capstones**.
 
 ### Phase 9 Deliverable
@@ -16119,7 +16407,7 @@ Create \`~/appsec-journal/notes/phase-9-monitoring-ir.md\` and answer, in your o
 - **The ATO playbook gap:** "kill the suspicious session" only handles the one session you noticed — an attacker who took over an account has likely also created additional sessions, API keys, or tokens you can't see just by killing one. The playbook should instead say: invalidate **all** active sessions for the account, force a password reset, re-enroll MFA, and check for attacker-created credentials or changes to recovery email/phone — closing every door the attacker might have opened, not just the one you happened to spot.
 
 </details>`,
-    tracker: ["Can name the six NIST-style IR phases in order and explain why IR is written down in advance", "Knows the two counter-intuitive rules: contain before you erase (preserve evidence first) and rotate, don't just delete", "Can fill in the six-question playbook template and has the ATO playbook format to copy", "Knows the web-app playbook set (ATO, leaked secret, exploited vuln, insider, CVE, exposed DB) and why postmortems must be blameless", "Wrote the Phase 9 deliverable journal entry"]
+    tracker: ["Can name the six NIST-style IR phases in order and explain why IR is written down in advance", "Knows the two counter-intuitive rules: contain before you erase (preserve evidence first) and rotate, don't just delete", "Can fill in the six-question playbook template and has the ATO playbook format to copy", "Knows the web-app playbook set (ATO, leaked secret, exploited vuln, insider, CVE, exposed DB) and why postmortems must be blameless", "Wrote the Phase 9 deliverable journal entry", "Workbench: ordered an SSRF-credential-theft response (preserve → rotate → patch → recover → postmortem) and tagged each IR phase", "Workbench: wrote a leaked-secret (or exposed-DB) playbook from the six-question template, and tore apart a bad webshell runbook — naming contain-before-erase and rotate-don't-delete", "Re-ran the Phase 9 Workbench drills (structured logger + leak audit, the detection query + alert loop) from a blank prompt on a later day without scrolling back"]
   },
   {
     id: "p10_roadmap",
