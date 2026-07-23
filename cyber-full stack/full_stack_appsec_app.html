@@ -10648,8 +10648,99 @@ def confirm_reset(conn, token, new_password):
 8. Stop enforcing: composition rules ("1 upper, 1 number, 1 symbol") and forced periodic/scheduled rotation (only force a change on evidence of compromise) — also drop password hints and security questions. Start enforcing: screening new/changed passwords against known-breached corpora (e.g. HIBP's k-anonymity range API or an offline bloom filter), plus a minimum length of 15 characters when the password is the sole authenticator (8+ within MFA), supporting up to at least 64 characters with spaces and full Unicode.
 </details>
 
+---
+
+### 🧪 Workbench: measure why slow-and-salted wins
+
+> **What this trains.** You can *read* "SHA-256 is too fast and unsalted hashes leak twins" — but you *believe* it once you've measured a ~10,000× cracking-speed gap on your own laptop and watched two identical passwords produce identical hashes. All of this runs on Node's **built-in** \`crypto\` (\`scryptSync\` is a genuine slow, memory-hard hash) — no \`argon2\`/\`hashcat\` install, no wordlist download.
+
+**The rule:** predict each result before running; write the measurement loop before opening its walkthrough.
+
+#### 🟢 Drill 1 — watch the salt kill the twin ~5 min
+
+\`\`\`bash
+mkdir -p ~/pw-workbench && cd ~/pw-workbench
+\`\`\`
+
+**Goal.** Two users, Alice and Bob, both chose the password \`hunter2\`. Show that (a) with a **bare SHA-256** their stored hashes are *identical*, and (b) with a **per-user random salt** their hashes *differ* — using \`node -e\` or a small script.
+
+**Done when.** Your unsalted hashes for Alice and Bob match exactly; your salted hashes differ — and you can say which naive-storage problem each part demonstrates.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`crypto.createHash("sha256").update(p).digest("hex")\` is the fast hash. For salting, generate \`crypto.randomBytes(16)\` *per user* and hash \`Buffer.concat([salt, Buffer.from(p)])\`. Same password + different salt → different digest.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+const crypto = require("crypto");
+const sha = p => crypto.createHash("sha256").update(p).digest("hex");
+console.log("unsalted alice:", sha("hunter2"));
+console.log("unsalted bob:  ", sha("hunter2"));   // IDENTICAL — the leak
+const salted = (p,s) => crypto.createHash("sha256").update(Buffer.concat([s, Buffer.from(p)])).digest("hex");
+const sA = crypto.randomBytes(16), sB = crypto.randomBytes(16);
+console.log("salted alice:  ", salted("hunter2", sA));
+console.log("salted bob:    ", salted("hunter2", sB));   // DIFFERENT — safe from rainbow tables
+\`\`\`
+Identical unsalted hashes are **Reason B** from the module: an attacker instantly sees which users share a password, and one precomputed **rainbow table** cracks all of them at once. The per-user salt makes each hash unique, so a precomputed table is worthless — the attacker must crack each user *individually*. Note the salt isn't secret (you store it beside the hash); its only job is to be *unique* so work can't be amortized across users. But — crucial — you've only fixed Reason B. The hash is still SHA-256-fast, which the next drill measures.
+</details>
+
+#### 🟡 Build 1 — measure the cracking-speed gap yourself ~10 min
+
+**Goal.** Write a small benchmark: for ~1 second each, count how many **SHA-256** hashes vs how many **scrypt** hashes (a purpose-built slow hash) your machine computes per second. Then compute the ratio.
+
+Use scrypt params in the OWASP ballpark: \`crypto.scryptSync(pw, salt, 32, { N: 16384, r: 8, p: 1 })\`.
+
+**Done when.** SHA-256 reports on the order of *hundreds of thousands to millions* per second, scrypt reports *tens to low hundreds* per second, and your ratio shows the slow hash cuts an attacker's guessing rate by **thousands of times** (expect ~10,000–50,000×).
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+A timed loop: record \`Date.now()\`, run the hash in a \`while (Date.now()-start < 800)\` loop incrementing a counter, then \`count / seconds\` is the rate. Do it once with \`createHash("sha256")\` and once with \`scryptSync(...)\`. Vary the input each iteration (\`"pw"+i\`) so nothing is cached.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+const crypto = require("crypto");
+function rate(fn, ms=800){ let n=0; const t=Date.now(); while(Date.now()-t < ms){ fn(n++); } return Math.round(n/((Date.now()-t)/1000)); }
+const fast = rate(i => crypto.createHash("sha256").update("pw"+i).digest());
+const slow = rate(i => crypto.scryptSync("pw"+i, "salt", 32, { N:16384, r:8, p:1 }));
+console.log("SHA-256:", fast, "hashes/sec");
+console.log("scrypt: ", slow, "hashes/sec");
+console.log("attacker slowed by ~" + Math.round(fast/slow) + "x");
+// e.g. SHA-256: ~1,000,000/sec   scrypt: ~22/sec   -> ~45,000x slower to crack
+\`\`\`
+There's the whole module in one number. The **one-way** property of a hash is irrelevant when guessing is free — an attacker with your table just hashes a 14-billion-word list and matches. At a million SHA-256/sec that list falls fast; at ~22 scrypt/sec (and ~16 MB of RAM *per guess*, which throttles parallelism too) it's economically hopeless. **You didn't reverse anything — you raised the price of a guess by ~10,000–50,000×,** and that price is the entire defense. Argon2id (the production first choice) is the same idea with even better memory-hardness; scrypt is here because it ships with Node and lets you *measure* the effect without installing anything.
+</details>
+
+#### 🔴 Break & Defend — the myths auditors still catch ~10 min
+
+In your journal:
+1. A teammate says *"I switched to SHA-256 **with a per-user salt**, so passwords are secure now."* Using your two drills, explain precisely why they're still wrong — which problem the salt fixed and which it did nothing for.
+2. NIST SP 800-63B-4 (2025) **forbids** two things most legacy systems still do, and **requires** one thing most homegrown systems skip. Name all three.
+3. Why must you compare stored and computed hashes with a **constant-time** function, and what does a naive \`===\` leak? And what does a **pepper** protect against that a salt doesn't?
+
+**Done when.** Your answers state: the salt fixed rainbow-tables/twins (Reason B) but not *speed* (Reason A) — a fast salted hash is still cracked fast; NIST now forbids **composition rules** and **scheduled rotation**, and requires **screening against breach corpora** (plus length ≥15 when sole factor); \`===\` on digests can leak *timing* (early-exit on first differing byte) so use \`crypto.timingSafeEqual\`; and a pepper (a secret *not* in the DB) means a database-only leak can't crack anything because the attacker lacks the pepper.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **The salt fixed Reason B, not Reason A.** Drill 1 showed the salt makes identical passwords hash differently — killing rainbow tables and the "who shares a password" leak. But Drill 2 showed the *real* problem is **speed**: a salted SHA-256 is still a million-guesses-per-second hash, so an attacker who steals the table just cracks each salted user individually and *fast*. Salting and slowness are **orthogonal**; you need both, and "salted SHA-256" has only one. The complete fix is a slow, salted, purpose-built password hash (Argon2id/bcrypt/scrypt) — which does both, with the salt embedded in the output string.
+2. **NIST SP 800-63B-4 forbids:** (a) **composition rules** ("must contain 1 upper / 1 number / 1 symbol" — they push users to predictable patterns like \`P@ssw0rd1\` and add little entropy); (b) **forced periodic rotation** (expiring passwords on a schedule drives weaker incrementing passwords \`Spring2026!\`→\`Summer2026!\`; rotate only on *evidence of compromise*). **It requires:** (c) **screening new passwords against known-breach corpora** (e.g. the HIBP k-anonymity range API) and rejecting matches — the single control most homegrown auth systems miss, and the one that actually stops credential stuffing. (Plus: min length 15 when the password is the sole authenticator, support 64+ chars and all printable Unicode, no security questions/hints.)
+3. **Constant-time comparison:** a naive \`hashA === hashB\` (or \`==\`) typically **returns as soon as it hits the first differing byte**, so the *time* it takes leaks how many leading bytes matched — an attacker can, byte by byte, reconstruct a valid value from timing. \`crypto.timingSafeEqual\` always compares the full length. (The Argon2/bcrypt \`verify\` functions already do this internally — another reason not to hand-roll.) **Pepper vs salt:** the salt is stored *with* the hash (defeats precomputation, not secret); a **pepper** is a single secret kept *out of the database* (secrets manager/HSM). If an attacker steals only the DB — the common case via SQL injection or a leaked backup — they have the salts but **not** the pepper, so they can't compute any candidate hash at all. Salt defeats amortization; pepper defeats a database-only breach.
+
+**Outside the box:** notice the shape of every defense here — *you cannot stop the attacker from guessing, so you make each guess ruinously expensive and each breach incomplete.* Slow hashing prices the guess; salting denies bulk precomputation; peppering denies the DB-only thief the ingredients; breach-screening removes the guesses most likely to win before they're ever stored. It's the same economics-not-absolutes thinking as rate limits and least privilege — security as raising cost, not building an impregnable wall. The password you can't afford to protect perfectly, you protect by making it worthless to steal at scale.
+</details>
+
+---
+
 ➡️ **Next step:** You can now store and reset passwords safely — but a correct login still issues a *session*, and a mishandled session undoes all of this work. Continue to **Module 6.2: Sessions and Cookies**.`,
-    tracker: ["Can derive why plaintext, SHA-256, and salted-SHA-256 each fail", "Cracked self-generated SHA-256 hashes with hashcat in under a second, then watched Argon2id collapse the rate", "Can define salt vs pepper and where each is stored", "Can explain Argon2id (hybrid) and memory-hardness as an economic attack", "Read the Node + Python secure register/login (constant-time verify, transparent rehash, dummy-hash timing defense)", "Read the secure password-reset flow (unguessable hashed single-use token, short TTL, kill sessions, notify)", "Knows the bcrypt 72-byte trap and the HMAC-pepper pattern", "Answered the knowledge check"]
+    tracker: ["Can derive why plaintext, SHA-256, and salted-SHA-256 each fail", "Cracked self-generated SHA-256 hashes with hashcat in under a second, then watched Argon2id collapse the rate", "Can define salt vs pepper and where each is stored", "Can explain Argon2id (hybrid) and memory-hardness as an economic attack", "Read the Node + Python secure register/login (constant-time verify, transparent rehash, dummy-hash timing defense)", "Read the secure password-reset flow (unguessable hashed single-use token, short TTL, kill sessions, notify)", "Knows the bcrypt 72-byte trap and the HMAC-pepper pattern", "Answered the knowledge check", "Workbench: proved (built-in crypto) that unsalted twins hash identically while salted ones differ, and MEASURED SHA-256 vs scrypt to see a ~10,000x+ cracking-speed gap", "Workbench: journalled why salted-SHA-256 is still broken (speed vs rainbow-table), the NIST forbids/requires trio, and constant-time compare + pepper"]
   },
   {
     id: "m6_2",
@@ -10906,8 +10997,127 @@ def logout():
 7. A server-side session is a row you delete to instantly kill it everywhere; a signed stateless JWT stays valid until it expires regardless, so revoking it early needs extra machinery (blocklists, short TTLs + refresh).
 </details>
 
+---
+
+### 🧪 Workbench: plant a session, then rotate it out from under the attacker
+
+> **What this trains.** Session fixation is one of those bugs that sounds abstract until you *do* it: plant an id you know in a victim's browser, wait for them to log in, and inherit their authenticated session. Then you add the one line that defeats it. Dependency-free; curl plays both attacker and victim.
+
+\`\`\`bash
+mkdir -p ~/session-workbench && cd ~/session-workbench
+cat > sess.js <<'EOF'
+const http = require("http");
+const crypto = require("crypto");
+const { URL } = require("url");
+const sessions = {};  // sid -> { user }
+function cookies(h){const o={};(h||"").split(";").forEach(p=>{const i=p.indexOf("=");if(i>0)o[p.slice(0,i).trim()]=p.slice(i+1).trim();});return o;}
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4619");
+  const c = cookies(req.headers.cookie);
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (u.pathname==="/login"){
+    // BUG: reuses whatever sid the browser already had, instead of issuing a fresh one.
+    let sid = c.sid;
+    if (!sid){ sid = crypto.randomBytes(12).toString("hex"); res.setHeader("Set-Cookie", "sid=" + sid); }
+    sessions[sid] = { user: "victim" };
+    return json({ loggedIn:true, sessionId: sid });
+  }
+  if (u.pathname==="/whoami"){
+    const s = sessions[c.sid];
+    return json({ user: s ? s.user : null });
+  }
+  res.statusCode=404; json({});
+}).listen(4619, ()=>console.log("sess on http://localhost:4619"));
+EOF
+node sess.js     # leave running
+\`\`\`
+
+**The rule:** predict each response before running; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — fixate the session ~6 min
+
+**Goal.** Playing the attacker, plant the session id \`ATTACKER123\` as the victim's cookie, have the victim log in *carrying that cookie*, then prove that **you** — reusing \`ATTACKER123\` — are now logged in as the victim.
+
+**Done when.** After the victim's login, \`curl\` with \`sid=ATTACKER123\` on \`/whoami\` returns \`{"user":"victim"}\` — the attacker's known id is an authenticated session.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`curl -b "sid=ATTACKER123"\` sends that cookie. The victim's login request carries the planted cookie (that's the "attacker set it in the victim's browser first" step). Then a *separate* \`curl -b "sid=ATTACKER123"\` to \`/whoami\` is you, the attacker, reusing the now-authenticated id.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -b "sid=ATTACKER123" "http://localhost:4619/login"    # victim logs in carrying the planted id
+# {"loggedIn":true,"sessionId":"ATTACKER123"}                 <- the server kept the attacker's id!
+curl -s -b "sid=ATTACKER123" "http://localhost:4619/whoami"   # attacker reuses it
+# {"user":"victim"}                                           <- attacker is now the victim
+\`\`\`
+That's **session fixation**. The server, on login, *reused* the id the browser already had instead of issuing a fresh one — so an id the attacker planted *before* login (via an XSS, a subdomain cookie, or a login CSRF) becomes a valid authenticated session the moment the victim signs in. The victim did nothing wrong; the server failed to change the credential at the exact moment the privilege level changed.
+</details>
+
+#### 🟡 Build 1 — rotate on login ~8 min
+
+**Goal.** Fix \`/login\` so it **always issues a brand-new random session id** (and \`Set-Cookie\`s it) at login, ignoring whatever id the browser sent — then prove the attacker's planted id is worthless.
+
+**Done when.** On a **freshly restarted** server (state matters — see the note), the victim's login returns a *new* random \`sessionId\`, and \`curl -b "sid=ATTACKER123" /whoami\` returns \`{"user":null}\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+In \`/login\`, unconditionally generate \`sid = crypto.randomBytes(12).toString("hex")\`, \`Set-Cookie\` it, and store the session under *that* id — never under \`c.sid\`. **Restart the server before testing**: the sessions map persists in memory, so an id you authenticated during Drill 1 is still valid until the process restarts (that's why your fixed test must start fresh).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+if (u.pathname==="/login"){
+  const sid = crypto.randomBytes(12).toString("hex");           // ALWAYS a fresh id at login
+  res.setHeader("Set-Cookie", \`sid=\${sid}; HttpOnly; SameSite=Lax\`);
+  sessions[sid] = { user: "victim" };                            // store under the NEW id only
+  return json({ loggedIn:true, sessionId: sid });
+}
+\`\`\`
+\`\`\`bash
+# restart the server first (sessions map is in-memory), then:
+curl -s -b "sid=ATTACKER123" "http://localhost:4619/login"
+# {"loggedIn":true,"sessionId":"f26e1dee6426975c35b77efd"}   <- a NEW id, not ATTACKER123
+curl -s -b "sid=ATTACKER123" "http://localhost:4619/whoami"
+# {"user":null}                                              <- the planted id was never authenticated
+\`\`\`
+One line — *issue a new id at the privilege boundary* — kills the whole class. This is exactly what Express's \`req.session.regenerate()\` and Flask-Session's \`session.clear()\`-then-set do for you; you just built the mechanism by hand. (And note the \`HttpOnly; SameSite=Lax\` you added to the \`Set-Cookie\`: those are the flags the next task is about — the cookie is now unreadable by JS and unsent on cross-site POSTs.) **Restarting to test is itself the lesson**: sessions are *stateful*, which is precisely why server-side sessions can be *revoked* — a property JWTs will struggle with in 6.3.
+</details>
+
+#### 🔴 Break & Defend — one flag, one attack ~10 min
+
+In your journal, match each cookie flag / rule to the *single* attack it stops, and state the trap:
+1. \`HttpOnly\` — what it stops, and the thing it does **not** stop even when set.
+2. \`Secure\` — the attack, and the dev→prod gotcha.
+3. \`SameSite=Lax\` — what it blocks and the case it *doesn't* (so you still need a CSRF token).
+4. \`__Host-\` prefix — what it enforces and the subdomain attack it prevents.
+5. Server-side (stateful) vs signed-cookie/JWT (stateless): which lets you *revoke* a session instantly, and why that matters for logout-everywhere and breach response.
+
+**Done when.** Your notes read roughly: \`HttpOnly\` stops XSS *reading* the cookie but XSS can still *act* as the user via the auto-attached cookie; \`Secure\` stops plaintext-HTTP leakage (gate it on prod, verify it's actually on); \`Lax\` blocks cross-site POST/fetch CSRF but not state-changing GETs / \`None\` widgets (keep tokens for sensitive POSTs); \`__Host-\` forces Secure+Path=/+host-only so a subdomain can't set/read your session cookie; and stateful sessions are a row you delete (instant revoke) while a signed JWT stays valid until expiry.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **\`HttpOnly\`** makes the cookie invisible to \`document.cookie\`, so an XSS payload can't *exfiltrate* the session (Module 2.1's storage lesson, enforced). **It does not stop XSS from *acting* as the user** — injected script can still fire authenticated requests in-page using the auto-attached cookie. \`HttpOnly\` protects the cookie's *confidentiality*, not the session's *integrity*; you must still fix the XSS.
+2. **\`Secure\`** sends the cookie only over HTTPS, stopping a single plaintext request (a typo'd \`http://\` link, an image, a captive portal) from leaking the session on the wire. **Gotcha:** it's easy to leave off in dev and forget in prod — gate it on \`NODE_ENV === "production"\` and *verify* it's set in prod (a session cookie without \`Secure\` in production is a finding).
+3. **\`SameSite=Lax\`** blocks the cookie on cross-site POST/fetch/iframe — killing classic form-POST CSRF — while still sending it on top-level link navigations. **Doesn't cover:** state-changing *GET* requests (an \`<img src=".../delete">\`), \`SameSite=None\` widgets, and old browsers — so keep anti-CSRF **tokens** on sensitive POSTs as belt-and-suspenders (Module 2.3).
+4. **\`__Host-\` prefix** makes the browser *enforce* \`Secure\` + \`Path=/\` + **no \`Domain\`** (host-only). It prevents a **subdomain cookie attack**: without it, a compromised or attacker-controlled \`coupons.example.com\` could set a \`Domain=.example.com\` cookie that overrides or reads your session on the main site. Host-only scoping shuts that door.
+5. **Stateful (server-side) sessions are a row in Redis/Postgres — delete it and the session is dead *everywhere, instantly*.** That's what makes "log out everywhere," admin-forced logout, and "we detected a breach, killing all sessions" trivial. A **signed cookie / JWT is self-contained and stays valid until it expires**, so revoking it early needs extra machinery (a server-side blocklist, or very short TTLs + refresh tokens) — the central tension you'll meet head-on in 6.3.
+
+**Outside the box:** every item is the same principle — *the session id is a credential, so treat its whole lifecycle like one.* Make it unforgeable (random, server-looked-up), unreadable (\`HttpOnly\`), unsniffable (\`Secure\`), unsendable cross-site (\`SameSite\`/\`__Host-\`), *rotated* at every privilege change (login), and *revocable* on demand (stateful store). A password stored perfectly (6.1) and then handed to a session that's fixatable or JS-readable is still an account takeover — which is why these two modules are one idea in two halves. Clean up: \`Ctrl+C\`.
+</details>
+
+---
+
 ➡️ **Next step:** Stateless sessions are increasingly done with JWTs — powerful, but riddled with subtle failure modes (the infamous \`alg:none\`). Continue to **Module 6.3: JWTs**.`,
-    tracker: ["Can explain why sessions exist (HTTP statelessness) and why a raw uid cookie is forgeable", "Can state each cookie flag (HttpOnly, Secure, SameSite, __Host-) and the exact attack it stops", "Ran the Juice Shop localStorage token-read demo and felt why HttpOnly matters", "Can explain session fixation and that regenerate() on login defeats it", "Read the Express + Flask secure session setup (server-side store, hardened cookie, idle+absolute timeouts)", "Can explain why server-side sessions revoke trivially and signed cookies/JWTs do not", "Answered the knowledge check"]
+    tracker: ["Can explain why sessions exist (HTTP statelessness) and why a raw uid cookie is forgeable", "Can state each cookie flag (HttpOnly, Secure, SameSite, __Host-) and the exact attack it stops", "Ran the Juice Shop localStorage token-read demo and felt why HttpOnly matters", "Can explain session fixation and that regenerate() on login defeats it", "Read the Express + Flask secure session setup (server-side store, hardened cookie, idle+absolute timeouts)", "Can explain why server-side sessions revoke trivially and signed cookies/JWTs do not", "Answered the knowledge check", "Workbench: performed session fixation (planted sid=ATTACKER123 became an authenticated victim session), then fixed it by rotating the id on login (planted id -> null)", "Workbench: journalled each cookie flag against the single attack it stops (HttpOnly/Secure/SameSite/__Host-) and stateful-vs-JWT revocation"]
   },
   {
     id: "m6_3",
@@ -11205,8 +11415,131 @@ def refresh(conn, presented):
 7. If the key is resolved from a token-controlled \`kid\`/\`jku\`/\`x5u\`, an attacker points you at a key they control (or SSRFs your server), and your verifier validates their forgery. Resolve keys only from a hard-coded, trusted JWKS endpoint and ignore token-supplied key URLs.
 </details>
 
+---
+
+### 🧪 Workbench: forge an admin JWT with no secret, then make it impossible
+
+> **What this trains.** The \`alg:none\` / decode-without-verify bug is famous *because* it's shocking: you become admin by editing JSON, with no cracking and no secret. You'll do exactly that against a toy verifier, then write the pinned-signature verification that bounces it. All on Node's built-in \`crypto\` — no \`jsonwebtoken\`, no \`jwt_tool\`, no key files.
+
+\`\`\`bash
+mkdir -p ~/jwt-workbench && cd ~/jwt-workbench
+cat > jwt.js <<'EOF'
+const http = require("http");
+const crypto = require("crypto");
+const { URL } = require("url");
+const SECRET = "dev-secret";
+const b64 = o => Buffer.from(typeof o==="string"?o:JSON.stringify(o)).toString("base64url");
+const unb64 = s => JSON.parse(Buffer.from(s,"base64url").toString());
+function signHS256(header, payload){
+  const data = b64(header)+"."+b64(payload);
+  return data+"."+crypto.createHmac("sha256",SECRET).update(data).digest("base64url");
+}
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4620");
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (u.pathname==="/token") return json({ token: signHS256({alg:"HS256",typ:"JWT"},{sub:"42",role:"user"}) });
+  const token = (req.headers.authorization||"").replace("Bearer ","");
+  if (u.pathname==="/admin"){
+    // BUG: reads the payload WITHOUT verifying the signature.
+    const claims = unb64(token.split(".")[1]);
+    return claims.role==="admin" ? json({data:"SECRET ADMIN DATA"}) : (res.statusCode=403, json({error:"nope"}));
+  }
+  res.statusCode=404; json({});
+}).listen(4620, ()=>console.log("jwt on http://localhost:4620"));
+EOF
+node jwt.js     # leave running
+\`\`\`
+
+**The rule:** predict each result before running; write the verifier before opening its walkthrough.
+
+#### 🟢 Drill 1 — become admin by editing JSON ~7 min
+
+The server hands out a \`role:user\` token at \`/token\` and guards \`/admin\`. You have **no secret**.
+
+**Goal.** Forge a token that makes \`/admin\` return the secret data — by editing the payload to \`role:admin\` and setting the header to \`alg:none\` (so there's no signature to produce).
+
+**Done when.** \`curl /admin\` with your forged token returns \`{"data":"SECRET ADMIN DATA"}\`, and you understand why you needed neither the secret nor any cracking.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+A JWT is just \`base64url(header).base64url(payload).signature\`. For \`alg:none\` the signature part is empty (a trailing dot). Build it with node: base64url-encode \`{"alg":"none","typ":"JWT"}\` and \`{"sub":"42","role":"admin"}\`, join with dots, leave the third part blank. The vuln server only reads the *payload* — it never checks the signature — so a missing signature doesn't matter to it.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+FORGED=$(node -e 'const b=o=>Buffer.from(JSON.stringify(o)).toString("base64url");
+  console.log(b({alg:"none",typ:"JWT"})+"."+b({sub:"42",role:"admin"})+".")')
+echo "$FORGED"
+curl -s "http://localhost:4620/admin" -H "Authorization: Bearer $FORGED"
+# {"data":"SECRET ADMIN DATA"}
+\`\`\`
+You just committed **two** of the module's mistakes at once and it took ten seconds. **Mistake #1 (decode ≠ verify):** the server read the payload without checking the signature, so it trusted attacker-authored JSON. **Mistake #2 (\`alg:none\`):** because nothing verifies the signature, you didn't even need to fake one — you declared "no algorithm" and wrote \`role:admin\`. No secret, no cracking, no cleverness: the security of this token was *decorative*. Base64url is encoding, not a lock; the signature was the only thing standing between a user and admin, and the server never looked at it.
+</details>
+
+#### 🟡 Build 1 — pin the algorithm, verify the signature ~12 min
+
+**Goal.** Add a \`?fixed=1\` path to \`/admin\` that properly verifies the token: recompute the HMAC-SHA256 signature over \`header.payload\` with \`SECRET\`, compare it (constant-time) to the token's signature, and — critically — **reject any token whose header \`alg\` isn't \`HS256\`**. Prove all three cases.
+
+**Done when.** With \`?fixed=1\`: your \`alg:none\` forgery is **rejected** (\`alg not allowed\`); an \`HS256\` token you forge with the *wrong* secret is **rejected** (\`bad signature\`); and the *legit* \`/token\` value verifies (returns \`nope\` because its role is genuinely \`user\` — but it passed verification).
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Split the token into \`[h, p, sig]\`. Decode the header and **throw if \`header.alg !== "HS256"\`** (this single check kills both \`alg:none\` and RS256→HS256 confusion). Recompute \`crypto.createHmac("sha256", SECRET).update(h+"."+p).digest("base64url")\` and compare to \`sig\` with \`crypto.timingSafeEqual\` (guard for equal length first). Only if it matches do you trust the payload's \`role\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+function verify(token){
+  const [h,p,sig] = token.split(".");
+  const header = JSON.parse(Buffer.from(h,"base64url").toString());
+  if (header.alg !== "HS256") throw new Error("alg not allowed");       // pin -> kills alg:none + confusion
+  const expected = crypto.createHmac("sha256",SECRET).update(h+"."+p).digest("base64url");
+  const a=Buffer.from(sig||""), b=Buffer.from(expected);
+  if (a.length!==b.length || !crypto.timingSafeEqual(a,b)) throw new Error("bad signature");
+  return JSON.parse(Buffer.from(p,"base64url").toString());
+}
+// in /admin?fixed=1:  try { const c = verify(token); ... } catch(e){ 401 e.message }
+\`\`\`
+\`\`\`bash
+curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED"     # {"error":"alg not allowed"}
+# HS256 forged with the WRONG secret:
+FORGED2=$(node -e 'const c=require("crypto");const b=o=>Buffer.from(JSON.stringify(o)).toString("base64url");
+  const d=b({alg:"HS256",typ:"JWT"})+"."+b({sub:"42",role:"admin"});
+  console.log(d+"."+c.createHmac("sha256","WRONG").update(d).digest("base64url"))')
+curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED2"    # {"error":"bad signature"}
+\`\`\`
+Two lines carry the whole defense: **pinning \`alg\` to \`HS256\`** (never trusting the token's own \`alg\` field) and **recomputing + constant-time-comparing the signature**. The pin is the crucial one — it's what defeats *both* \`alg:none\` and the RS256→HS256 confusion attack (where an attacker signs with your public key as an HMAC secret). The rule, memorized: **the token never gets to tell you how to verify it.** This is exactly what \`jwt.verify(t, key, { algorithms: ['HS256'] })\` does — you just built its safety-critical core by hand and can now never be fooled by "my library is safe by default."
+</details>
+
+#### 🔴 Break & Defend — the two things people still get wrong ~10 min
+
+In your journal:
+1. \`base64url\` decode the payload of the \`/token\` value (\`node -e\` or an online decoder). What does this prove about putting a user's email, a role, or anything sensitive in a JWT payload?
+2. You've made forgery impossible. But a user logs out / you ban them — and their token *keeps working*. Explain the **JWT revocation problem** and how the **access-token / refresh-token split** resolves it (including why the refresh token is *opaque and server-stored*).
+3. Your service is one of ten microservices that all verify the same tokens. Why must you switch from HS256 to **RS256** (asymmetric), and what would go wrong if all ten shared the HS256 secret?
+
+**Done when.** Your answers state: the payload is only encoded (trivially readable), so it provides *no confidentiality* — never store secrets/PII there; a JWT is valid until \`exp\` with nothing to delete, so you bound the window with a short-lived access JWT and revoke via a long-lived *opaque, server-stored (deletable) refresh token* rotated on use; and across services you need RS256 so verifiers hold only the *public* key (verify-not-forge), whereas a shared HS256 secret means *any* of the ten services (or anyone who leaks the secret) can mint tokens.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. \`node -e 'console.log(Buffer.from("PASTE_PAYLOAD_PART","base64url").toString())'\` prints the JSON in the clear. **A JWT is signed, not encrypted** — the payload is public to anyone who holds the token (the user, their browser, any proxy, your logs). So the signature buys *integrity and authenticity*, never *confidentiality*: putting an email, a phone number, internal flags, or a secret in the payload is publishing it. Claims should be non-sensitive identifiers the bearer is already entitled to see.
+2. **The revocation problem:** a JWT is self-contained and validated by signature alone, so there's no server-side row to delete — once issued it's valid until \`exp\`, and logout/ban/theft don't stop it. **The access/refresh split:** issue a *short-lived* access JWT (5–15 min) for API calls — a stolen one dies in minutes — plus a *long-lived, opaque, server-stored* refresh token (a hashed row in your DB) used only to mint new access tokens. Logout or ban = **delete the refresh row**; the next refresh fails and the access token expires within minutes, closing the gap. **Rotate** the refresh token on every use so a replayed (already-rotated) one signals theft → revoke the whole family. The opaqueness + server storage is the point: it re-introduces exactly the *revocability* that made server-side sessions (6.2) safe, layered under the stateless speed of JWTs.
+3. **Across services you need RS256 (asymmetric):** the auth server holds the **private** key and signs; the ten services hold only the **public** key and can *verify but not forge*. With **shared HS256**, every one of the ten services must know the signing *secret* — so any single compromised or careless service (or one leaked secret in one repo/log) lets an attacker **mint arbitrary valid tokens** for the whole system. Asymmetric keys mean a breach of a *verifier* leaks only the public key, which forges nothing. (And never mix them in one allow-list — accepting HS256 *and* RS256 is the key-confusion door.)
+
+**Outside the box:** the JWT saga is the sharpest version of the course's deepest theme — *never trust a field the attacker controls, and be precise about which property a mechanism actually gives you.* The \`alg\` header is attacker input, so pinning it server-side is non-negotiable; the signature gives integrity but people *assume* confidentiality; statelessness buys speed but *silently gives up revocation* until you engineer it back. Every JWT bug is someone trusting the token about how to handle the token, or conflating "signed" with "secret," or forgetting that "can't revoke" is the price of "no lookup." Read the guarantees exactly and the minefield becomes a checklist. Clean up: \`Ctrl+C\`.
+</details>
+
+---
+
 ➡️ **Next step:** When you don't want to manage passwords or tokens yourself, you delegate identity to Google/GitHub/Okta. That delegation has its own sharp edges. Continue to **Module 6.4: OAuth and OIDC**.`,
-    tracker: ["Can explain the header.payload.signature anatomy and that base64 is not encryption", "Can distinguish HMAC (symmetric) vs RSA/ECDSA (asymmetric) and when each is correct", "Forged an admin token via alg:none with jwt_tool against a local decode-only verifier, then watched the pinned-algorithm fix bounce it", "Can explain alg:none and RS256→HS256 confusion and that pinning algorithms stops both", "Can state the JWT revocation problem and the access/refresh-token split with rotation", "Read the Node + Python secure verify and issue/refresh code", "Answered the knowledge check"]
+    tracker: ["Can explain the header.payload.signature anatomy and that base64 is not encryption", "Can distinguish HMAC (symmetric) vs RSA/ECDSA (asymmetric) and when each is correct", "Forged an admin token via alg:none with jwt_tool against a local decode-only verifier, then watched the pinned-algorithm fix bounce it", "Can explain alg:none and RS256→HS256 confusion and that pinning algorithms stops both", "Can state the JWT revocation problem and the access/refresh-token split with rotation", "Read the Node + Python secure verify and issue/refresh code", "Answered the knowledge check", "Workbench: forged an alg:none admin JWT with no secret and got SECRET ADMIN DATA from a decode-only verifier", "Workbench: wrote a pinned-HS256 verifier (constant-time) that rejects alg:none + wrong-secret forgeries, and journalled base64!=encryption + the revocation/refresh split + HS256-vs-RS256"]
   },
   {
     id: "m6_4",
@@ -11427,8 +11760,131 @@ def callback():
 7. It protects against account takeover via an email the OAuth user never proved they own — only trust the email for account-matching when \`email_verified\` is true.
 </details>
 
+---
+
+### 🧪 Workbench: log a victim into the attacker's account
+
+> **What this trains.** "Sign in with Google" hides a delegated-auth dance whose most common bug — a missing \`state\` check — is a *login CSRF* that quietly logs your victim into the **attacker's** account (so everything the victim then does lands in attacker-controlled hands). You'll perform it against a mock callback, then add the one check that stops it. Dependency-free — no real OAuth provider needed, because the bug lives entirely in *your* callback.
+
+\`\`\`bash
+mkdir -p ~/oauth-workbench && cd ~/oauth-workbench
+cat > oauth.js <<'EOF'
+const http = require("http");
+const crypto = require("crypto");
+const { URL } = require("url");
+const sessions = {};
+const CODE_TO_USER = { "victim-code":"victim", "attacker-code":"attacker" };  // AS maps a code to an identity
+function cookies(h){const o={};(h||"").split(";").forEach(p=>{const i=p.indexOf("=");if(i>0)o[p.slice(0,i).trim()]=p.slice(i+1).trim();});return o;}
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4621");
+  const c = cookies(req.headers.cookie);
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  let sid = c.sid;
+  if (!sid){ sid = crypto.randomBytes(8).toString("hex"); res.setHeader("Set-Cookie","sid="+sid); }
+  sessions[sid] = sessions[sid] || {};
+  if (u.pathname==="/login"){
+    const state = crypto.randomBytes(8).toString("hex");
+    sessions[sid].state = state;                       // stash state in the session
+    return json({ redirectTo: "AS/authorize?state="+state, yourSessionState: state });
+  }
+  if (u.pathname==="/callback"){
+    const code = u.searchParams.get("code");
+    // BUG: binds the session to whatever code arrives — never checks the state param.
+    sessions[sid].user = CODE_TO_USER[code] || null;
+    return json({ loggedInAs: sessions[sid].user });
+  }
+  res.statusCode=404; json({});
+}).listen(4621, ()=>console.log("oauth on http://localhost:4621"));
+EOF
+node oauth.js     # leave running
+\`\`\`
+
+**The rule:** predict each result before running; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — the login CSRF ~7 min
+
+**Goal.** The victim has started a login (has a session). Playing the attacker, deliver **your** authorization code (\`attacker-code\`) to the *victim's* callback so the victim ends up logged in as **attacker**.
+
+\`\`\`bash
+curl -s -c victim.txt "http://localhost:4621/login" >/dev/null   # victim gets a session
+\`\`\`
+
+**Done when.** \`/callback\` on the victim's session returns \`{"loggedInAs":"attacker"}\` — the victim is now operating inside the attacker's account.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The victim's session is in \`victim.txt\` (\`curl -b victim.txt\`). The attacker doesn't need the victim's code — they trick the victim's browser into hitting the callback with the *attacker's* code (\`code=attacker-code\`). The vulnerable callback binds the session to whatever code arrives.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -b victim.txt "http://localhost:4621/callback?code=attacker-code&state=anything"
+# {"loggedInAs":"attacker"}
+\`\`\`
+That's **login CSRF**. The attacker completed *their own* OAuth flow, captured *their* authorization code, and lured the logged-in-progress victim to hit the callback with it — so the victim's session is silently bound to the **attacker's** identity. Now anything the victim saves (a payment method, a document, a note) goes into the *attacker's* account, where the attacker later reads it. The callback's sin: it bound the session to a code without ever confirming *this code belongs to this browser's login attempt* — which is exactly what \`state\` is for.
+</details>
+
+#### 🟡 Build 1 — verify the state ~8 min
+
+**Goal.** Add a check so the callback only accepts a code whose \`state\` matches the one *this session* generated at \`/login\`. Prove the attack from Drill 1 is now rejected, and that a legitimate flow (same session's real state) still works.
+
+**Done when.** The attacker's callback (mismatched \`state\`) returns a **403 / rejection**, while a callback carrying the session's *own* \`yourSessionState\` value succeeds.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+At \`/login\` you already stored \`sessions[sid].state\`. In \`/callback\`, read \`state\` from the query and reject (403) unless it *exactly equals* \`sessions[sid].state\`. The attacker can't know the victim session's random state (it never left the victim's session), so their forged callback fails.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+if (u.pathname==="/callback"){
+  const code = u.searchParams.get("code"), state = u.searchParams.get("state");
+  if (!sessions[sid].state || state !== sessions[sid].state){   // bind the code to THIS login attempt
+    res.statusCode = 403; return json({ error: "state mismatch — rejected" });
+  }
+  sessions[sid].user = CODE_TO_USER[code] || null;
+  return json({ loggedInAs: sessions[sid].user });
+}
+\`\`\`
+\`\`\`bash
+# attacker's forged callback — mismatched state:
+curl -s -b victim.txt "http://localhost:4621/callback?code=attacker-code&state=guess"     # {"error":"state mismatch — rejected"}
+# legit: use the real state the session got at /login (the yourSessionState value)
+S=$(curl -s -c v2.txt "http://localhost:4621/login" | sed 's/.*yourSessionState":"//;s/".*//')
+curl -s -b v2.txt "http://localhost:4621/callback?code=victim-code&state=$S"               # {"loggedInAs":"victim"}
+\`\`\`
+\`state\` is a random value you generate before redirecting, bind to the session, and verify on return — so a callback is only honored if it belongs to a login *this browser actually started*. The attacker can't produce the victim session's state (it's random and never left that session), so their forged callback is rejected. This is the same anti-CSRF-token idea from Module 2.3, applied to the OAuth callback: **prove the request came from a flow you initiated, not just that it carries a valid code.** (A vetted library — \`openid-client\`, Authlib — does this for you; you just built why it matters.)
+</details>
+
+#### 🔴 Break & Defend — the three OAuth footguns ~10 min
+
+In your journal:
+1. Your AS validates \`redirect_uri\` with \`redirect_uri.startsWith("https://app.example.com")\`. Give an attacker \`redirect_uri\` that passes but delivers the code to the attacker, and state the correct matching rule.
+2. A teammate logs users in by taking the **access token** the provider returned and reading the user id out of it. Why is that a real, exploitable bug — and which token should identity come from instead, with which claim checked?
+3. Your app matches a Google account to a local one by \`email\`. Why is that an account-takeover risk, what claim gates it, and what should you key the local account on instead?
+
+**Done when.** Your answers give a \`startsWith\` bypass (e.g. \`https://app.example.com.evil.com\` or \`https://app.example.com@evil.com\`) and require **exact-match against a pre-registered allow-list**; explain that an **access token is a scoped credential for the resource server, not proof of identity** (it may be issued for another \`aud\`/app and replayed), so identity must come from the **\`id_token\`** with **\`aud\` == your client_id** (and \`iss\`/\`exp\`/sig) verified; and note that unverified emails let an attacker claim the victim's address, so gate on **\`email_verified\`** and key the account on the stable **\`sub\`**.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **\`startsWith\` bypass:** \`redirect_uri=https://app.example.com.evil.com/cb\` (the trusted string is a *prefix* of an attacker domain) or \`https://app.example.com@evil.com/\` (everything before \`@\` is userinfo; the host is \`evil.com\`). Either passes a prefix check and delivers the authorization code to the attacker. **Correct rule: exact-equality match against a pre-registered allow-list of redirect URIs** — no prefixes, no wildcards, no \`?next=\` params. (Same lesson as the open-redirect in 1.1 and CORS \`endsWith\` in 2.4 — reasoning about a *substring* of attacker-controlled text always loses.)
+2. **Access-token-as-identity is exploitable** because an access token is an opaque, scoped credential meant for the *resource server* — it says nothing reliable about *who* logged into *your* app, and a token minted for a *different* \`aud\`/application (or a malicious app the user also used) can be replayed to your login endpoint to impersonate someone. Identity must come from the **\`id_token\`** (an OIDC JWT minted for you), and you must verify its **signature**, **\`aud\` == your \`client_id\`**, **\`iss\`**, **\`exp\`**, and **\`nonce\`**. "Valet key vs ID card": the access token is the valet key.
+3. **Email-keyed accounts** let an attacker register an OIDC identity carrying the *victim's* email (some providers allow unverified emails) and thereby log into / merge with the victim's local account — account takeover. Only trust the email when **\`email_verified: true\`**, and key the local account on the **stable, provider-scoped \`sub\`** (which the user can't change), using email only as a display/contact field.
+
+**Outside the box:** notice every OAuth bug here is a *trust-boundary* mistake dressed in protocol clothing — trusting a code without proving it belongs to this login (\`state\`), trusting a redirect target chosen by substring (exact-match), trusting a token for the wrong job (access vs id), or trusting an identity claim the provider never verified (\`email_verified\`). OAuth doesn't introduce new *categories* of bug; it introduces new *places* to make the same "I trusted something the attacker controls" error you've been fixing since Phase 0. Using a vetted library removes most of them — but only if you still supply the parts that are *yours*: exact redirect URIs, consuming the \`id_token\`, and keying on \`sub\`. Clean up: \`Ctrl+C\`.
+</details>
+
+---
+
 ➡️ **Next step:** Authentication (who you are) is now solid. The other half — *what you're allowed to do* — is where the bulk of real-world breaches actually live. Continue to **Module 6.5: Authorization Models**.`,
-    tracker: ["Can state in one sentence what OAuth does and what OIDC adds", "Can explain why identity must come from the id_token, never the access token", "Can walk Authorization Code + PKCE and name the attack state/nonce/PKCE each prevent", "Built a local OAuth flow and demoed login CSRF from a missing state check, then fixed it", "Knows the four developer bugs: open redirect_uri, missing state, token confusion, unverified email", "Read the openid-client (Node) and Authlib (Python) secure-login code and the library footguns", "Answered the knowledge check"]
+    tracker: ["Can state in one sentence what OAuth does and what OIDC adds", "Can explain why identity must come from the id_token, never the access token", "Can walk Authorization Code + PKCE and name the attack state/nonce/PKCE each prevent", "Built a local OAuth flow and demoed login CSRF from a missing state check, then fixed it", "Knows the four developer bugs: open redirect_uri, missing state, token confusion, unverified email", "Read the openid-client (Node) and Authlib (Python) secure-login code and the library footguns", "Answered the knowledge check", "Workbench: performed login-CSRF (bound the victim's session to the attacker's identity via a missing state check), then fixed it by verifying state against the session", "Workbench: journalled the startsWith redirect_uri bypass + exact-match, access-token-vs-id_token identity confusion, and email_verified/key-on-sub"]
   },
   {
     id: "m6_5",
@@ -11719,8 +12175,109 @@ def update_task(tid):
 7. UUIDs only make IDs harder to guess (obscurity); they don't authorize anything. If the endpoint doesn't check ownership, a leaked/known UUID still works — you must authorize regardless of ID shape.
 </details>
 
+---
+
+### 🧪 Workbench: the admin who reads another company's data
+
+> **What this trains.** You've already exploited plain IDOR (0.4, 3.3) and mass assignment (3.3). The bug this module adds — and the one that quietly powers real SaaS breaches — is subtler: a check that **correctly verifies the role** and *still* leaks data, because it never checked the *tenant*. You'll watch an admin of Org A read Org B's secrets, then close it structurally. Dependency-free.
+
+\`\`\`bash
+mkdir -p ~/authz-workbench && cd ~/authz-workbench
+cat > authz.js <<'EOF'
+const http = require("http");
+const { URL } = require("url");
+const projects = { "1":{id:1,org:"A",name:"OrgA-Secret"}, "2":{id:2,org:"B",name:"OrgB-Secret"} };
+const users = { "alice":{name:"alice",org:"A",role:"admin"}, "bob":{name:"bob",org:"B",role:"admin"} };
+const PREFIX = "/api/projects/";
+http.createServer((req,res)=>{
+  const u = new URL(req.url,"http://localhost:4622");
+  const caller = users[req.headers["x-user"]] || null;   // stands in for the authenticated session
+  const json=o=>{res.setHeader("Content-Type","application/json");res.end(JSON.stringify(o));};
+  if (!caller){ res.statusCode=401; return json({error:"no auth"}); }
+  if (u.pathname.startsWith(PREFIX)){
+    const p = projects[u.pathname.slice(PREFIX.length)];
+    // BUG: verifies the caller is an admin, but NOT that the project is in the caller's tenant.
+    if (caller.role !== "admin"){ res.statusCode=403; return json({error:"admins only"}); }
+    return json(p);
+  }
+  res.statusCode=404; json({});
+}).listen(4622, ()=>console.log("authz on http://localhost:4622"));
+EOF
+node authz.js     # leave running
+\`\`\`
+
+\`alice\` is an admin of **Org A**; \`bob\` is an admin of **Org B**. Project 1 belongs to Org A, project 2 to Org B.
+
+**The rule:** predict each result before running; write the fix before opening its walkthrough.
+
+#### 🟢 Drill 1 — cross-tenant read ~5 min
+
+**Goal.** As \`alice\` (a legitimate admin, but of **Org A**), read Org B's project — data she has no business seeing — even though the endpoint "checks authorization."
+
+**Done when.** \`curl -H "X-User: alice" .../api/projects/2\` returns Org B's secret, despite alice belonging to Org A.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/1"   # {"id":1,"org":"A",...}  her own — fine
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2"   # {"id":2,"org":"B","name":"OrgB-Secret"}  LEAK
+\`\`\`
+The endpoint *did* check authorization — it confirmed alice is an \`admin\` — and still handed her another company's data. That's the deadly multi-tenant bug: **"is admin" was verified, "is admin *of this resource's tenant*" was not.** In real SaaS this is how one customer reads another's records by changing an id, and it returns a perfectly normal \`200\` — nothing errors, which is why scanners miss it and why A01 tops the OWASP list. Role checks stop BFLA (a viewer writing); they do *nothing* for cross-tenant object access.
+</details>
+
+#### 🟡 Build 1 — scope every query to the tenant ~8 min
+
+**Goal.** Add a \`?fixed=1\` path where a project is returned **only if it belongs to the caller's own org**. Prove alice can no longer read Org B's project, but still reads her own.
+
+**Done when.** With \`?fixed=1\`: \`alice → project 2\` returns **404**, \`alice → project 1\` returns her project, and \`bob → project 2\` (his own) works.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Compare the *project's* \`org\` to the *caller's* \`org\` and 404 if they differ (404, not 403, so you don't even confirm the id exists in another tenant). In a real DB you'd bake this into the query — \`WHERE id = ? AND org_id = ?\` — so an out-of-tenant id simply returns no row and cross-tenant access is *structurally* impossible, not a check you might forget.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+if (u.searchParams.get("fixed")==="1"){
+  if (!p || p.org !== caller.org){ res.statusCode=404; return json({error:"not found"}); }  // tenant scope
+  return json(p);
+}
+\`\`\`
+\`\`\`bash
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2?fixed=1"   # {"error":"not found"}   cross-tenant blocked
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/1?fixed=1"   # her own project
+curl -s -H "X-User: bob"   "http://localhost:4622/api/projects/2?fixed=1"   # Bob's own project
+\`\`\`
+The fix binds the object lookup to the caller's tenant. The **structural** version — \`WHERE id = ? AND org_id = $session_org\` on *every* tenant query, or Postgres **Row-Level Security** — is far safer than a per-handler \`if\`, because it makes cross-tenant access impossible *by construction* rather than relying on every developer remembering the check on every new endpoint. That's the whole philosophy of authorization: **make the safe thing structural, because "remember to check" always eventually forgets one.** Note also you 404 (not 403) an out-of-tenant id — don't confirm to an attacker that id 2 exists somewhere.
+</details>
+
+#### 🔴 Break & Defend — the authorization rules ~10 min
+
+In your journal:
+1. Your app has an \`isAdmin\` middleware on every admin route. Which of these does it stop, and which does it **not**: (a) a viewer calling an admin-only endpoint (BFLA); (b) an admin of Org A reading Org B's data (cross-tenant IDOR)? Why?
+2. A new endpoint ships without an explicit authorization check. Under "deny by default," what should happen when someone calls it — and why is that the correct default?
+3. A teammate proposes fixing IDOR by switching sequential ids to UUIDs. Why is that not an authorization fix?
+
+**Done when.** Your answers state: \`isAdmin\` middleware stops (a) BFLA but **not** (b) — role ≠ tenant/ownership, so you also need an object-level tenant check; a new endpoint under deny-by-default should be **inaccessible (403) until explicitly authorized**, so a *forgotten* check fails closed instead of open; and UUIDs only reduce *guessability* (obscurity) — a known/leaked UUID still works if the endpoint never authorizes, so you must check ownership regardless of id shape.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **\`isAdmin\` middleware stops (a) BFLA — a viewer is blocked from the admin endpoint — but does *nothing* for (b).** Role middleware answers "does this caller have the admin *role*?", which is orthogonal to "does this *object* belong to the caller's tenant?" alice passes \`isAdmin\` and still reads Org B, exactly as you saw. **You need two checks, always: the function-level role check (BFLA) *and* the object-level ownership/tenant check (BOLA).** The single most common real authz bug is having the first and forgetting the second.
+2. **The call should be *denied* (403) until authorization is explicitly granted.** Under **deny-by-default / fail-closed**, an endpoint with no policy is *inaccessible*, so a developer who forgets to add the check ships something that *rejects* everyone (a loud, safe bug you'll notice) rather than something that *allows* everyone (a silent, catastrophic bug you won't). Authz bugs cluster on new/recently-changed endpoints precisely because the default was "open" — flip the default and forgetting becomes safe.
+3. **UUIDs are obscurity, not authorization.** They make ids hard to *guess*, but ids leak constantly — in URLs, \`Referer\` headers, logs, error messages, other API responses, shared links. Once an attacker *has* a valid id (and they routinely do), an endpoint that never checks ownership hands over the object regardless of how random the id looked. Authorization must be enforced **independently of id guessability** — the id shape is a speed bump, never the gate.
+
+**Outside the box:** every rule here reduces to one idea — *authorization must be enforced at the data, on the server, structurally, and fail closed.* The UI is decoration (an attacker uses \`curl\`); the id is a speed bump (it leaks); the role is half the check (tenant is the other half); the per-handler \`if\` is fragile (make it a scoped query or RLS). Broken access control is #1 on the OWASP list not because it's clever but because it's *quiet* — it returns \`200\` and the wrong data — so the only durable defense is to make the *unsafe* thing hard to write: deny by default, scope every query, centralize the policy, and assume every layer will one day be forgotten (which is why you keep all of them). Clean up: \`Ctrl+C\`.
+</details>
+
+---
+
 ➡️ **Next step:** The strongest way to shrink the entire authentication attack surface is to stop using passwords at all. Continue to **Module 6.6: WebAuthn and Passkeys**.`,
-    tracker: ["Can distinguish authn from authz and explain why A01 tops OWASP and evades scanners", "Can state that the server, not the UI, is the authorization boundary", "Built the multi-tenant authz lab and demoed IDOR, BFLA, mass-assignment, and stale-token bugs", "Can define IDOR/BOLA and BFLA and the specific fix for each", "Can name RBAC/ABAC/ReBAC use-cases and the multi-tenant scoping bug", "Read the Express + Flask centralized-authz code (tenant scope, ownership, role decorator, pydantic allow-list) and Postgres RLS", "Answered the knowledge check"]
+    tracker: ["Can distinguish authn from authz and explain why A01 tops OWASP and evades scanners", "Can state that the server, not the UI, is the authorization boundary", "Built the multi-tenant authz lab and demoed IDOR, BFLA, mass-assignment, and stale-token bugs", "Can define IDOR/BOLA and BFLA and the specific fix for each", "Can name RBAC/ABAC/ReBAC use-cases and the multi-tenant scoping bug", "Read the Express + Flask centralized-authz code (tenant scope, ownership, role decorator, pydantic allow-list) and Postgres RLS", "Answered the knowledge check", "Workbench: made an admin of Org A read Org B's project (role check passed, tenant check missing), then fixed it by scoping the lookup to the caller's tenant (cross-tenant -> 404)", "Workbench: journalled that role-middleware stops BFLA but not cross-tenant IDOR, deny-by-default fails closed, and UUIDs aren't authorization"]
   },
   {
     id: "m6_6",
@@ -11941,6 +12498,67 @@ In 2012 LinkedIn lost 6.5M (later revised to 167M) password hashes — unsalted 
 - **Why it spread:** reused passwords meant the same credentials unlocked countless other sites — a classic credential-stuffing supply chain.
 - **Modern fix:** bcrypt/argon2 with per-user salt, breached-password checks (Have I Been Pwned), passkey rollout, and forced rotation on suspicion.
 
+---
+
+### 🧪 Workbench: build the handshake nobody can phish
+
+> **What this trains.** WebAuthn's magic feels opaque until you build its *core primitive* — a challenge-response signature where the private key never moves. You can't run Touch ID from a terminal, but you can build the exact cryptographic ceremony the authenticator and server perform, with Node's built-in \`crypto\` (P-256, the same curve passkeys use). Once you've watched a fresh challenge defeat replay and a missing private key defeat forgery, the six server-side checks stop being a checklist and become obvious.
+
+#### 🟢 Drill 1 — sign a challenge without sending the secret ~10 min
+
+**Goal.** Write the ceremony: (1) generate a P-256 keypair — the *authenticator's*, where the server stores **only the public key**; (2) the server issues a fresh random **challenge**; (3) the authenticator **signs** the challenge with the private key; (4) the server **verifies** with the stored public key. Then prove two attacks fail.
+
+**Done when.** Your valid signature over the issued challenge **verifies (true)**; the *same* signature checked against a *different* challenge **fails (false)**; and a signature made with a *different* (attacker's) private key **fails (false)** — and you can state that the private key was never transmitted.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+\`crypto.generateKeyPairSync("ec", { namedCurve: "P-256" })\` gives \`{ publicKey, privateKey }\`. The server keeps only \`publicKey\`. Challenge: \`crypto.randomBytes(32)\`. Sign: \`crypto.sign("SHA256", challenge, privateKey)\`. Verify: \`crypto.verify("SHA256", challenge, publicKey, signature)\` → boolean. For the replay test, verify the *same* signature against a *new* \`randomBytes\` challenge.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`js
+const crypto = require("crypto");
+// authenticator (your device): keypair made once at registration; server stores ONLY the public key
+const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+
+const challenge = crypto.randomBytes(32);                                   // 1) server issues a fresh challenge
+const signature = crypto.sign("SHA256", challenge, privateKey);            // 2) device signs it (key never leaves)
+console.log("valid   :", crypto.verify("SHA256", challenge, publicKey, signature));        // true
+
+const other = crypto.randomBytes(32);
+console.log("replay  :", crypto.verify("SHA256", other, publicKey, signature));            // false — different challenge
+const forged = crypto.sign("SHA256", challenge, crypto.generateKeyPairSync("ec",{namedCurve:"P-256"}).privateKey);
+console.log("forged  :", crypto.verify("SHA256", challenge, publicKey, forged));           // false — not the real key
+\`\`\`
+There is the entire security model of WebAuthn in fifteen lines. **Nothing the user knows or transmits is involved** — the private key stayed on the device, so there is no secret to phish, replay, log, or steal from a database. The *replay* test shows why the server must issue a **fresh, single-use challenge** each time: a signature is only valid over the exact challenge it was made for, so a captured signature is worthless next time. The *forged* test shows why storing only the public key is safe: the public key verifies but cannot sign, so a breach of the server's credential table leaks *nothing* an attacker can use. Compare that to Module 6.1, where the server had to store something that could verify a password *and* therefore had to be protected from cracking — here there's simply no secret on the server at all.
+</details>
+
+#### 🔴 Break & Defend — why the browser, not the human, is the defense ~12 min
+
+In your journal:
+1. You saw a fresh challenge defeat replay in code. Name the **other five** checks a server must make on every authentication assertion (beyond "signature verifies"), and what each defends.
+2. State the **exact mechanism** that makes WebAuthn *phishing-resistant* where password-plus-TOTP is not. Why does "the browser checks the domain, not the human" matter so much?
+3. Passkeys can be lost with a broken/lost device, so you build account recovery. Describe the **recovery-backdoor trap** and how to avoid undoing WebAuthn's whole benefit.
+4. What does a **decreasing** signature counter tell you?
+
+**Done when.** Your answers cover: challenge (single-use, server-stored — replay), origin match, RP-ID-hash match, user-presence/verification flags, and signature-counter-increased (clone detection); the phishing mechanism = the credential is scoped to an RP ID and the authenticator signs over the *real* origin, so the browser refuses to use a \`bank.com\` credential on \`bank-login.evil.com\` (the human never gets to make the mistake); the recovery trap = a password/email reset path weaker than the passkey reintroduces phishing/stuffing, so recovery must be first-class (recovery codes / re-enrollment, not a password backdoor); and a decreasing counter signals a **cloned authenticator**.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **The six checks (you built #2):** ① signature verifies against the stored public key; ② **challenge** matches the single-use, server-issued value (replay — you demoed this); ③ **origin** is exactly your expected origin; ④ **RP-ID hash** matches your RP ID; ⑤ **user-presence/verification flags** are satisfied (someone was actually there / verified); ⑥ **signature counter** advanced past the stored value (clone detection). A library enforces these — the failure mode is *swallowing its exceptions* or skipping the counter.
+2. **Phishing resistance = the domain check is made by software, not by a person.** The credential is bound to a **RP ID** (your eTLD+1), and when it signs, it signs over the **actual origin the browser is on**. On \`bank-login.evil.com\`, the browser sees the RP ID doesn't match the credential registered for \`bank.com\` and **refuses to sign** — there is no usable signature to steal. Contrast TOTP/SMS: a convincing fake page asks for the code and a *human* happily types it, and an adversary-in-the-middle relays it to the real site in real time. WebAuthn wins because it **removes the human from the trust decision** — and humans are the reliably-phishable component. This is why it's the strongest fix in the whole phase: it doesn't harden the secret, it deletes the secret and the human judgment call together.
+3. **The recovery backdoor:** "lost your passkey? reset with an emailed link + a password" quietly re-adds the exact phishable, stuffable, leakable shared secret you removed — an attacker just takes the *recovery* path instead of the front door, and your phishing resistance is gone. **Avoid it** by making recovery first-class and *not weaker* than the passkey: one-time **recovery codes** generated at enrollment (stored offline by the user), and/or **re-enrollment** gated on strong verification — never a plain password/email reset that grants full access. Enroll **multiple credentials** (laptop + phone + hardware key) so recovery is rarely needed at all.
+4. **A decreasing (or non-advancing) signature counter signals a cloned/duplicated authenticator** — the same credential being used from more than one copy. The server should flag or deny it; it's the one signal that a supposedly device-bound key may have been exported/copied.
+
+**Outside the box:** this module is the course's thesis in its purest form — *the only way to eliminate a class of bug is to remove the thing that causes it.* Phases 6.1–6.5 are increasingly sophisticated damage control around a shared secret; WebAuthn deletes the shared secret and, with it, phishing, credential stuffing, and password-storage breaches *for that account*. You proved the mechanism costs the server nothing to store (a public key verifies but can't sign) and costs the attacker everything (no secret in transit, a fresh challenge every time, the browser refusing the wrong domain). The transferable lesson reaches far past auth: when you find yourself piling mitigations on a fundamentally dangerous primitive (a shared secret, a string built into SQL, a client-trusted value), the highest-leverage move is often to *change the primitive* so the bug can't exist — parameterized queries, DTOs, allow-lists, and passkeys are all the same idea. Clean up: nothing to stop (this drill is a script, not a server).
+</details>
+
+---
+
 ➡️ **Next step (Phase 6 complete):** You can now store credentials, manage sessions, issue and verify tokens, delegate identity, enforce authorization, and remove passwords entirely. The next leap is moving security *left* — catching these bugs in the pipeline before they ship, and defending the code you *didn't write* (your dependencies). Continue to **Phase 7: Secure SDLC, DevSecOps, and Supply Chain**.
 
 ### Phase 6 Deliverable
@@ -11963,7 +12581,7 @@ Create \`~/appsec-journal/notes/phase-6-auth-sessions.md\` and answer, in your o
 - **What WebAuthn removes, and the signature counter:** WebAuthn eliminates the **shared, transmitted secret** — with a password (or even password+TOTP), the user still produces something (a password, a 6-digit code) that can be phished, replayed, or leaked from a breached database. WebAuthn's private key never leaves the authenticator and never crosses the network; the browser itself checks that the credential's origin matches the site being visited, so a human can't be tricked into "typing" a valid signature into a look-alike site. A decreasing or duplicate signature counter matters because it indicates the same credential is being used from more than one copy — evidence of a cloned authenticator, which should be flagged or denied.
 
 </details>`,
-    tracker: ["Can explain that WebAuthn removes the shared transmitted secret and which attack classes that kills", "Can explain the origin/RP-ID binding mechanism that makes WebAuthn phishing-resistant vs password+TOTP", "Built the WebAuthn registration ceremony on localhost with Touch ID (Node @simplewebauthn + Python py_webauthn) and watched origin binding refuse a wrong origin", "Can list the six server-side checks on every authentication assertion", "Knows account-recovery is mandatory and must not become a weaker password backdoor", "Completed the Phase 6 cumulative quiz and read the LinkedIn 2012 case study", "Wrote the Phase 6 deliverable journal entry", "Answered the knowledge check"]
+    tracker: ["Can explain that WebAuthn removes the shared transmitted secret and which attack classes that kills", "Can explain the origin/RP-ID binding mechanism that makes WebAuthn phishing-resistant vs password+TOTP", "Built the WebAuthn registration ceremony on localhost with Touch ID (Node @simplewebauthn + Python py_webauthn) and watched origin binding refuse a wrong origin", "Can list the six server-side checks on every authentication assertion", "Knows account-recovery is mandatory and must not become a weaker password backdoor", "Completed the Phase 6 cumulative quiz and read the LinkedIn 2012 case study", "Wrote the Phase 6 deliverable journal entry", "Answered the knowledge check", "Workbench: built the WebAuthn challenge-response primitive with node:crypto (P-256) — valid verifies, replay fails, forgery fails, private key never sent", "Workbench: journalled the six server-side checks, the browser-checks-the-domain phishing-resistance mechanism, the recovery-backdoor trap, and clone detection"]
   },
   {
     id: "p7_roadmap",
