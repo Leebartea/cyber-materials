@@ -1556,7 +1556,87 @@ openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out secret.txt`
       a: "Yes. Double-extortion ransomware: the attacker copies the database (confidentiality), may alter records to cover tracks (integrity), then encrypts/deletes the originals and locks you out (availability). LockBit, BlackCat, and Royal routinely hit all three."
     }],
     quiz: ["Which CIA property fails when a website is knocked offline by a DDoS?", "A hospital's patient records are leaked online. Which property failed — and could a second property fail in the same incident?", "You hash a file and store the hash next to it. Why is that weak, and where should the hash live instead?", "Your friend says 'I don't care if my photos leak, I have nothing to hide.' Make the strongest counter-argument using the full triad."],
-    tracker: ["I can explain Confidentiality, Integrity, and Availability to a 10-year-old", "I derived why there are exactly three legs (read / change / deny)", "I ran the lab and personally broke each property on my own file", "I can trace the cross-property chain in a real incident (Colonial Pipeline)", "I can spot a self-validating false-confidence check"]
+    workbench: `> **What this trains.** The lab broke each CIA property *for* you. Here you break and *restore* them from a blank prompt, then meet your first false-confidence trap — an integrity check the attacker also controls. Everything runs on a throwaway file in your own home folder.
+
+#### 🟢 Drill 1 — detect a one-character tamper without looking ~4 min
+
+**Goal.** Take a file you own, capture a fingerprint of it now, then change a single character and prove the change happened *from the fingerprint alone* — without reading the file with your eyes.
+
+**Done when.** Your verification step reports a mismatch/FAILED after the edit, and you never had to \`cat\` the file to know it changed.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+A cryptographic hash is a fingerprint — save the file's hash to a baseline file, edit one character, then ask the same tool to *check* the file against that baseline. On macOS the tool is \`shasum -a 256\` (the \`-c\` flag verifies against a saved list).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m1 && cd ~/cyber-journal/wb-m1
+echo "Balance: 100" > acct.txt
+shasum -a 256 acct.txt | tee baseline.sha256     # capture the fingerprint
+sed -i '' 's/100/999/' acct.txt                  # tamper one field (Linux: drop the '')
+shasum -a 256 -c baseline.sha256                 # acct.txt: FAILED  <- detected, eyes-free
+\`\`\`
+Common wrong attempts: \`cat\`-ing the file and comparing by eye — that doesn't scale to 10,000 files and misses a single flipped bit; re-hashing with no saved baseline (a hash alone tells you nothing without something to compare against). The principle: **integrity means "unchanged unless authorized," and you prove it with a fingerprint captured *before* the change and checked *after*.**
+</details>
+
+#### 🟡 Build 1 — break then restore all three CIA legs, each with proof ~12 min
+
+**Goal.** On one file you own, demonstrably *break and then restore/detect* each leg: make the secret unreadable in stored form (confidentiality), detect a tamper (integrity), and recover the file after deletion (availability) — each with a command whose *output* is the proof, not your say-so.
+
+**Done when.** Searching the encrypted blob for the secret returns nothing; a one-field edit trips the hash check; and after you delete the original you rebuild it from the encrypted copy.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Confidentiality = encrypt with a passphrase, then \`grep\`/\`strings\` the ciphertext for a word you know is inside — it should be absent. Integrity = the baseline-and-check from Drill 1. Availability = keep the encrypted copy, \`rm\` the plaintext, then decrypt it back. macOS ships \`openssl enc\` (AES) and \`shasum\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+cd ~/cyber-journal/wb-m1
+echo "Final grade: A+. Balance: 100." > secret.txt
+shasum -a 256 secret.txt | tee good.sha256                         # fingerprint for later
+# CONFIDENTIALITY:
+openssl enc -aes-256-cbc -pbkdf2 -salt -in secret.txt -out secret.enc
+strings secret.enc | grep -i grade    # (no output) -> secret unreadable in stored form
+# INTEGRITY:
+sed -i '' 's/A+/F-/' secret.txt
+shasum -a 256 -c good.sha256          # secret.txt: FAILED -> tamper detected
+# AVAILABILITY:
+rm secret.txt && cat secret.txt 2>&1  # No such file -> availability = 0
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out secret.txt   # restore from protected copy
+\`\`\`
+Common wrong attempts: "proving" confidentiality by eyeballing the \`.enc\` and calling it gibberish — *grep it* for the real secret so the proof is mechanical; deleting the plaintext *before* you have a protected copy (now availability is gone for real — backups exist for exactly this); comparing tampered versions by eye instead of by hash. The reframe: each CIA leg has its *own* control — encryption, hashing, backups — and you just built and verified all three.
+</details>
+
+#### 🔴 Break & Defend — the baseline the attacker can also rewrite ~15 min
+
+The Drill stored the fingerprint right next to the file. An attacker who can edit the file can usually edit the baseline too.
+
+**Goal.** Demonstrate the trap: tamper the file *and* regenerate its baseline, then run the check and watch it falsely "pass." Then design a baseline the attacker can't silently fix, and in your journal trace a real double-extortion ransomware incident across all three CIA legs.
+
+**Done when.** You can show an OK verification on data you just tampered (the theater), name at least two places an integrity baseline must live to be trustworthy, and map one incident to confidentiality *and* integrity *and* availability.
+
+<details>
+<summary>Walkthrough — open after you've tried it</summary>
+
+\`\`\`bash
+cd ~/cyber-journal/wb-m1
+echo "Balance: 100" > ledger.txt
+shasum -a 256 ledger.txt | tee base.sha256
+sed -i '' 's/100/999/' ledger.txt          # attacker edits the data...
+shasum -a 256 ledger.txt | tee base.sha256 # ...and regenerates the "baseline"
+shasum -a 256 -c base.sha256               # ledger.txt: OK   <- FALSE confidence
+\`\`\`
+The check passes on forged data because the attacker controlled *both* the file and its fingerprint — a self-validating check is theater (Challenge 2's lesson made concrete). A trustworthy baseline lives where the file's owner **can't** reach it: a **read-only/WORM volume**, a **separate append-only logging host**, a **signed manifest** whose key is offline, or an HSM. This scales up: file-integrity monitors (Tripwire/AIDE) ship hashes off-box; code-signing verifies against a key you don't store next to the artifact. **Journal — the cross-leg chain:** e.g. LockBit/BlackCat double-extortion *copies* the database (confidentiality), may *alter* records to cover tracks (integrity), then *encrypts and deletes* the originals and locks you out (availability). Real incidents rarely stay in one leg — as Colonial Pipeline went leaked-credential → shutdown. **Outside the box:** a control's trust is only as good as its weakest dependency — always ask "what does this check *assume*, and who controls that?"
+</details>`,
+    tracker: ["I can explain Confidentiality, Integrity, and Availability to a 10-year-old", "I derived why there are exactly three legs (read / change / deny)", "I ran the lab and personally broke each property on my own file", "I can trace the cross-property chain in a real incident (Colonial Pipeline)", "I can spot a self-validating false-confidence check", "Workbench: captured a hash baseline and detected a one-character tamper eyes-free, then broke-and-restored all three CIA legs on my own file with mechanical proof", "Workbench: demonstrated the self-validating-baseline trap (tampered file + regenerated hash still 'passes'), named attacker-out-of-reach baseline locations, and traced one incident across all three CIA legs"]
   }, {
     id: "m1_5",
     level: 1,
@@ -1736,7 +1816,66 @@ cat /etc/resolv.conf`
       a: "Over plaintext HTTP, anyone on the network (or any router in between) reads the full URL, all headers, cookies/session tokens, and the POSTed username and password — and can even modify the page in flight to inject scripts. The one change that defeats them: HTTPS (TLS), which encrypts the entire request/response so intermediaries see only THAT you talked to the host, not WHAT you said. This is why 'no login, no need for HTTPS' is wrong."
     }],
     quiz: ["What is the difference between an IP address and a domain name, and which system maps one to the other?", "Why does TLS matter? Name two concrete things an attacker can do on plaintext HTTP that TLS prevents.", "Your friend says 'I don't need HTTPS on my blog, there's no login.' Give the strongest argument for HTTPS anyway.", "You have perfect HTTPS but use default plaintext DNS on public Wi-Fi. What can a snooping observer still learn?"],
-    tracker: ["I ran traceroute on 3 sites and counted hops", "I explained the DNS → TCP → TLS → HTTP sequence in my own words", "I inspected a real TLS certificate's issuer and dates", "I read a plaintext HTTP response and understood what an attacker would capture", "I can explain why the padlock proves encryption, not honesty"]
+    workbench: `> **What this trains.** The lab walked you through the DNS→TCP→TLS→HTTP chain. Here you drive each step yourself and read what it returns — because "I typed google.com" hides four separate systems with four separate weaknesses. These commands hit the live internet, so your exact IPs and hop counts will differ from anyone else's; the checks describe the *shape* of a right answer, not fixed values.
+
+#### 🟢 Drill 1 — resolve a name to its address yourself ~4 min
+
+**Goal.** Turn a domain name into the IP address a browser would actually connect to, and read the answer out of the tool's output — don't guess it.
+
+**Done when.** You can state the resolved IPv4 address for a host of your choice, and name one thing an on-path observer learned just from watching that lookup happen.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The system that maps names to addresses is DNS; the classic query tool is \`dig\` (macOS ships it). \`dig <name> +short\` prints just the address; without \`+short\` you see the full answer section with record type and TTL.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+dig example.com +short           # -> one or more A records (IPv4 addresses)
+dig example.com                  # full answer: QUESTION, ANSWER section, TTLs
+\`\`\`
+Common wrong attempts: \`ping\`-ing the host and reading the IP off ping (works, but ping is often blocked and tells you nothing about the resolution *path*); trusting \`+short\` without noticing the full answer section (record type, TTL) you'll want later. The security point: **classic DNS is unencrypted**, so anyone on your network — coffee-shop Wi-Fi, your ISP — saw *which host you looked up* before any HTTPS began. The name lookup and the encrypted data transfer are separate steps with separate weaknesses.
+</details>
+
+#### 🟡 Build 1 — walk the whole chain and read the cert ~12 min
+
+**Goal.** With your own commands, (1) read a real HTTPS site's TLS certificate — who issued it and when it expires — and (2) pull a response from a *plaintext* HTTP host and see what an on-path attacker would capture.
+
+**Done when.** You can name the certificate's issuer and validity dates for an HTTPS host, *and* show a plaintext HTTP response from a no-TLS host — and state what differs in what an eavesdropper sees between the two.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The cert is presented during the TLS handshake — \`openssl s_client -connect host:443\` starts one; pipe into \`openssl x509 -noout -issuer -subject -dates\` to read it. For plaintext, speak HTTP by hand to port 80 with \`nc\` (or \`curl -v http://...\`) against a host that intentionally serves HTTP — \`neverssl.com\` exists for exactly this.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+# TLS: read the certificate the server presents
+echo | openssl s_client -connect github.com:443 -servername github.com 2>/dev/null | openssl x509 -noout -issuer -subject -dates
+# PLAINTEXT: everything below is readable by any router in between
+printf 'GET / HTTP/1.1\\r\\nHost: neverssl.com\\r\\nConnection: close\\r\\n\\r\\n' | nc neverssl.com 80 | head -20
+\`\`\`
+Common wrong attempts: reading only \`curl -I https://...\` (you see headers but never inspect the *certificate* — the thing that proves identity); concluding "HTTP and HTTPS look the same" because the page renders — the difference isn't visible in the browser, it's what an intermediary can *read*. Over plaintext the observer sees the full URL, headers, cookies, and any posted credentials; over TLS they see only *that* you talked to the host, not *what* you said. The padlock proves **encryption and that the cert chains to a trusted CA — not that the site is honest**; a phishing site can hold a perfectly valid cert.
+</details>
+
+#### 🔴 Break & Defend — perfect HTTPS, leaky DNS ~15 min
+
+**Goal.** Even with flawless HTTPS on every site, a network observer still learns something. Pin down exactly what, demonstrate the separation of the two steps, and in your journal map the Dyn/Mirai outage to the CIA leg it broke.
+
+**Done when.** You can state precisely what a snooping observer on your Wi-Fi still learns despite universal HTTPS (and why), name the defense that closes it, and explain why a DNS-layer flood took "up but unreachable" sites offline — which CIA property failed.
+
+<details>
+<summary>Walkthrough — open after you've written your answer</summary>
+
+The leak is the **DNS query itself**: classic DNS is plaintext, so even if every site you visit is HTTPS, an observer sees the *names* you resolve — the list of who you talk to, if not what you say. Demonstrate the separation: \`dig example.com\` travels over plaintext UDP/53 while the page load that follows is TLS — two steps, two trust models. The defense is **encrypted DNS** (DoH/DoT), which wraps the lookup in TLS so only the resolver sees the names; note it *moves* trust rather than erasing it (the resolver still knows), exactly like a VPN. **Journal — Dyn/Mirai (2016):** a Mirai botnet of default-password IoT devices flooded Dyn, a DNS provider; Twitter/Spotify/Netflix were *up* but *unreachable* because name resolution — phase 1 of loading any site — was down. That's an **availability** failure at the DNS layer, and it teaches the module's core lesson: your hardened HTTPS origin is useless if the lookup in front of it dies. **Outside the box:** most people model "one connection to the site"; the reality is a chain of independent systems (resolver, routers, CA, server), and an attacker picks the weakest link — often the one you forgot was there.
+</details>`,
+    tracker: ["I ran traceroute on 3 sites and counted hops", "I explained the DNS → TCP → TLS → HTTP sequence in my own words", "I inspected a real TLS certificate's issuer and dates", "I read a plaintext HTTP response and understood what an attacker would capture", "I can explain why the padlock proves encryption, not honesty", "Workbench: resolved a name to its IP and read the answer myself, then read a real TLS cert's issuer/dates and pulled a plaintext HTTP response to see what an eavesdropper captures", "Workbench: pinned down what plaintext DNS still leaks under universal HTTPS, named the encrypted-DNS defense, and mapped the Dyn/Mirai outage to the availability leg"]
   }, {
     id: "m3",
     level: 1,
@@ -1839,7 +1978,91 @@ john --format=raw-md5 --show myhashes.txt`
       a: "The password's entropy is unchanged, but the attacker's COST per guess is ~2.5 billion times higher. A brute force that took hours against a fast hash takes geologic time against a slow one. Memory-hardness (scrypt/Argon2) further removes the attacker's GPU/ASIC advantage. Slow is a feature, not a bug."
     }],
     quiz: ["What is the precise difference between encryption and hashing?", "Why is plain SHA-256 a poor choice for password storage, and what should you use instead?", "Why is SMS-based MFA weaker than an authenticator app or a passkey?", "Why can a correctly built site never email you your existing password?", "According to NIST SP 800-63B-4, name two common password practices that are now discouraged."],
-    tracker: ["I can explain hashing vs. encryption without hesitating", "I cracked my own MD5 hashes with John and watched weak ones fall instantly", "I timed a bcrypt hash and understand why 'slow' is the defense", "MFA enabled on email, social, financial (app or passkey, not SMS)", "20+ unique passwords in a manager; ran a Vault health report", "At least one account migrated to a passkey (GitHub or Google)"]
+    workbench: `> **What this trains.** The lab handed you the hashing and cracking commands. Here you produce the three arguments a security engineer must be able to *demonstrate*, not just recite: the avalanche effect, why unsalted hashes leak reuse, and why "slow" is the whole defense. Runnable with tools already on your Mac.
+
+#### 🟢 Drill 1 — avalanche, and the reuse tell ~4 min
+
+**Goal.** From a blank prompt, show two things about a hash: (1) a one-character change to the input scrambles the whole digest, and (2) the *same* input always produces the *same* digest — which is exactly why unsalted password hashes leak who reused a password.
+
+**Done when.** \`hello\` and \`hello!\` produce completely different digests, while hashing \`password\` twice produces byte-identical output.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+A hash is deterministic and one-way. On macOS pipe a string into \`shasum -a 256\` with \`echo -n\` (the \`-n\` avoids a trailing newline changing the input).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+echo -n "hello"    | shasum -a 256      # baseline
+echo -n "hello!"   | shasum -a 256      # ~half the hex differs — the avalanche effect
+echo -n "password" | shasum -a 256
+echo -n "password" | shasum -a 256      # identical -> reverse it once, recognize it everywhere
+\`\`\`
+Common wrong attempts: forgetting \`-n\`, so \`echo\` appends a newline and you're hashing \`"hello\\n"\` not \`"hello"\` (still deterministic, but now it won't match a known digest); concluding the avalanche effect makes a fast hash *safe for passwords* — it doesn't. Avalanche is what makes a hash a good *fingerprint*; it does nothing about the two real password problems, **speed** and **missing salt**, which the next tasks attack.
+</details>
+
+#### 🟡 Build 1 — prove that "slow, salted" changes the economics ~12 min
+
+**Goal.** Measure, don't assume: time a *fast* hash and a *slow, memory-hard* one on the same password, and show the fast one is thousands of times cheaper per guess — then show that adding a per-user salt makes two identical passwords hash differently.
+
+**Done when.** Your slow-hash timing is orders of magnitude larger than the fast hash's, you can state the resulting guesses/second gap, and the same password under two different salts yields two different digests.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Python's standard library has both — \`hashlib.sha256\` (fast) and \`hashlib.scrypt\` (slow, memory-hard, no install needed). Time each with \`time.perf_counter()\`. For the salt point, prepend a random salt before hashing and compare two salts on the same password. (bcrypt/Argon2id are the production choices; scrypt is the one already on your machine.)
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+python3 - <<'PY'
+import hashlib, os, time
+pw = b"correct horse battery staple"
+t=time.perf_counter(); [hashlib.sha256(pw).hexdigest() for _ in range(1000)]
+fast=(time.perf_counter()-t)/1000
+t=time.perf_counter(); hashlib.scrypt(pw, salt=b"s", n=2**14, r=8, p=1)
+slow=time.perf_counter()-t
+print(f"sha256:  {fast*1e9:8.0f} ns/guess")
+print(f"scrypt:  {slow*1e3:8.1f} ms/guess   (~{slow/fast:,.0f}x slower per guess)")
+# salt kills the twins:
+s1, s2 = os.urandom(16), os.urandom(16)
+h1 = hashlib.scrypt(pw, salt=s1, n=2**14, r=8, p=1).hex()
+h2 = hashlib.scrypt(pw, salt=s2, n=2**14, r=8, p=1).hex()
+print("same password, different salt -> same hash?", h1==h2)   # False
+PY
+\`\`\`
+Common wrong attempts: timing a single \`sha256\` call (too fast to measure — hash a thousand and divide); thinking a longer *password* is what slows the attacker here (no — the *work factor* raises the cost of every guess regardless of the password); treating the salt as secret (it isn't — it's stored *with* the hash; its job is to make each hash unique so one precomputed table can't reverse millions at once). The economics: a GPU does ~10^10 fast hashes/sec; at hundreds of ms per scrypt guess the same hardware manages a handful. That multiplier is why a strong password survives a leak of a *slow, salted* hash and dies in a leak of an unsalted fast one.
+</details>
+
+#### 🔴 Break & Defend — reverse an unsalted hash, then watch salt defeat you ~15 min
+
+**Goal.** Build the attacker's tool in miniature: a tiny precomputed table of common-password → hash (a "rainbow table" in spirit), use it to *instantly* reverse a leaked *unsalted* hash, then show the same table is useless once each password is salted. In your journal, answer the "site emailed me my current password" red flag and connect reuse to the LinkedIn blast radius.
+
+**Done when.** Your lookup reverses an unsalted hash of a common password with no brute force; after salting, the same leaked hash isn't in your table; and you can state what a site emailing your existing password proves and the correct fix.
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+python3 - <<'PY'
+import hashlib
+common = ["123456","password","linkedin","letmein","iloveyou","dragon"]
+# attacker precomputes once: hash -> password (a rainbow table in spirit)
+table = {hashlib.sha256(p.encode()).hexdigest(): p for p in common}
+leaked = hashlib.sha256(b"linkedin").hexdigest()      # an UNSALTED leaked hash
+print("unsalted, reversed instantly ->", table.get(leaked))   # 'linkedin'
+salted = hashlib.sha256(b"linkedin" + b"user42salt").hexdigest()   # per-user salt
+print("salted, found in table? ->", salted in table)          # False
+PY
+\`\`\`
+The unsalted hash falls in *one dictionary lookup* — no cracking, just recognition — which is exactly how ~90% of the 2012 LinkedIn hashes (unsalted SHA-1) fell within days, and why identical passwords sharing a hash instantly reveals reuse. Salt breaks the precomputation: the attacker must now attack each hash *individually*, and a slow hash makes even that expensive. **Journal:** a site that emails you your *current* password has proven it stores the password **reversibly** (plaintext or two-way encryption) — a correctly-hashing site *cannot* recover it; the fix is to rotate that password everywhere you reused it and treat the site as untrustworthy. And the reuse chain is the real damage: cracked LinkedIn passwords were immediately **credential-stuffed** against victims' email and banking — one leak, many accounts — which is the whole argument for unique per-site passwords in a manager. **Outside the box:** the attacker never "broke" SHA-256's math; they exploited *how it was used* (fast + unsalted). Most real crypto failures are usage failures, not broken algorithms.
+</details>`,
+    tracker: ["I can explain hashing vs. encryption without hesitating", "I cracked my own MD5 hashes with John and watched weak ones fall instantly", "I timed a bcrypt hash and understand why 'slow' is the defense", "MFA enabled on email, social, financial (app or passkey, not SMS)", "20+ unique passwords in a manager; ran a Vault health report", "At least one account migrated to a passkey (GitHub or Google)", "Workbench: demonstrated the avalanche effect and the unsalted-reuse tell, then timed sha256 vs scrypt to prove 'slow, salted' changes the cracking economics", "Workbench: built a mini rainbow-table that instantly reversed an unsalted hash, showed salt defeats it, and explained the emailed-my-password red flag + the reuse→credential-stuffing blast radius"]
   }, {
     id: "m4",
     level: 1,
@@ -2001,7 +2224,83 @@ dig +short TXT _dmarc.apple.com`
       a: "LLMs generate fluent, error-free, well-targeted text instantly. The classic 'spot the typo' advice is obsolete. Shift trust to structural signals you can verify: the sending domain, the link's real destination, the mail-authentication verdict, and above all independent-channel confirmation for anything consequential. Never let message QUALITY substitute for VERIFICATION."
     }],
     quiz: ["What is the key structural difference between a worm and a virus, and why does it change which defense stops each?", "Why does urgency work so effectively on humans, even smart ones?", "What is the single safest way to verify whether an email from 'your bank' is real?", "The visible From says security@apple.com. What three mechanisms let a receiving server tell whether that claim is genuine, and which DMARC policy actually drops spoofed mail?", "As a developer, why must an 'approve by replying to this email' workflow never authorize a payment on its own?"],
-    tracker: ["I saved a real email's raw source and read its Authentication-Results line", "I generated my own sample header and parsed the spoof signals with grep", "I checked a real domain's SPF and DMARC with dig", "I can name all six Cialdini levers", "I can explain SPF vs DKIM vs DMARC and why p=reject matters", "I taught one family member to verify through an independent channel"]
+    workbench: `> **What this trains.** The lab had you read one email's headers. Here you produce the defender's tools: extract the spoof verdict from raw mail, write the code that refuses a spoofed sender, and dismantle a phish the way you'd teach a colleague to. No live sending — everything is read-only analysis of mail you generate or own.
+
+#### 🟢 Drill 1 — read the receiver's verdict, not the From line ~4 min
+
+**Goal.** From a raw email's headers, pull the authentication verdict the receiving server already computed and the classic spoof tell — *without* trusting the visible sender name.
+
+**Done when.** From the headers alone you can state pass/fail for SPF, DKIM, and DMARC, and point to a From vs. Return-Path/Reply-To mismatch that flags a forgery.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The receiving mail server writes its verdict into an \`Authentication-Results\` header; the forging tells live in \`From:\`, \`Return-Path:\`, and \`Reply-To:\`. \`grep -iE\` the raw \`.eml\` for those field names.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m4 && cd ~/cyber-journal/wb-m4
+cat > evil.eml <<'EOF'
+From: Apple Support <security@app1e-support.co>
+Return-Path: <bounce@xq7-mailer.ru>
+Reply-To: <collect@apple-verification.xyz>
+Authentication-Results: mx.example.com; spf=fail; dkim=fail; dmarc=fail
+Subject: URGENT: Your Apple ID has been suspended
+EOF
+grep -iE "Authentication-Results|spf=|dkim=|dmarc=" evil.eml   # the verdict: all fail
+grep -iE "^From:|Return-Path:|^Reply-To:" evil.eml            # trusted-looking From, foreign Return-Path
+\`\`\`
+Common wrong attempts: reading the \`From:\` display name and stopping there — that text is 100% attacker-controlled (SMTP never proved it); assuming a trustworthy-looking sender is safe without checking the \`Authentication-Results\` verdict. The tell here is layered: a lookalike domain (\`app1e\` with a digit \`1\`), a \`Return-Path\` on an unrelated \`.ru\`, a \`Reply-To\` on a third domain, and \`dmarc=fail\`. The root cause of nearly all phishing is that **email trusts an unauthenticated \`From:\`** — so you read the cryptographic verdict, not the claim.
+</details>
+
+#### 🟡 Build 1 — refuse spoofed inbound mail (the developer's job) ~12 min
+
+**Goal.** Write the function an app should call before acting on an inbound email: it trusts the \`Authentication-Results\` verdict, not the \`From\` line, and rejects anything where SPF, DKIM, or DMARC didn't pass. Prove it rejects the spoof and accepts an authenticated message.
+
+**Done when.** Your function rejects \`evil.eml\` (all fail) and accepts a sample whose header shows \`spf=pass; dkim=pass; dmarc=pass\` — and you can say why even a passing message shouldn't authorize money on its own.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Parse the raw mail, read the \`Authentication-Results\` header, and require all three of spf/dkim/dmarc to say \`pass\`. Node or Python both work; the module's Python code already has a rejecting example to adapt.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+python3 - <<'PY'
+import email
+def sender_is_authenticated(raw: bytes) -> bool:
+    msg = email.message_from_bytes(raw)
+    auth = (msg["Authentication-Results"] or "").lower()
+    # trust the MX's cryptographic verdicts, NOT msg["From"]
+    return all(v in auth for v in ("spf=pass", "dkim=pass", "dmarc=pass"))
+
+spoof = b"From: ceo@yourco.com\\nAuthentication-Results: mx; spf=fail; dkim=fail; dmarc=fail\\n\\n"
+good  = b"From: ceo@yourco.com\\nAuthentication-Results: mx; spf=pass; dkim=pass; dmarc=pass\\n\\n"
+print("spoof accepted?", sender_is_authenticated(spoof))   # False -> refused
+print("authed accepted?", sender_is_authenticated(good))   # True
+PY
+\`\`\`
+Common wrong attempts: \`if msg["From"] == "ceo@yourco.com"\` — the exact bug; the From line is forgeable header text, so a spoofed email just authorized your wire transfer. Requiring only \`spf=pass\` (SPF alone doesn't tie the authorized sending IP to the *visible* From — DMARC does; you want all three). And the deeper rule: even a fully authenticated email must **never** single-handedly authorize money or credentials — high-value actions need an **out-of-band** confirmation, because a real account can still be compromised.
+</details>
+
+#### 🔴 Break & Defend — dismantle the phish, retire the grammar myth ~12 min
+
+**Goal.** Given a phishing sample, enumerate every red flag a defender would cite, then explain why the old "bad grammar = fake" heuristic is now dangerous. In your journal, write the two rules that replace it — one for humans, one for developers.
+
+**Done when.** You list at least five *structural* red flags (lookalike domain, From/Return-Path mismatch, urgency lever, link-text vs. real href, \`dmarc=fail\`), explain why LLM-written phishing has perfect grammar, and state verify-through-an-independent-channel (human) and never-let-email-authorize-a-privileged-action (developer).
+
+<details>
+<summary>Walkthrough — open after you've written your list</summary>
+
+For \`From: Apple Support <security@app1e-support.co>\` with a "Verify My Account Now" link to \`http://apple-verification.xyz/login\`, "URGENT... within 24 hours," "Dear Customer": the flags are (1) lookalike domain \`app1e\` (digit \`1\`) on the wrong TLD; (2) generic "Dear Customer" — Apple knows your name; (3) urgency + a deadline — the pressure lever that suppresses careful thought; (4) link *text* says Apple but the real *href* is \`apple-verification.xyz\`; (5) the \`Return-Path\`/\`dmarc=fail\` — the apple.com identity can't be proven; (6) a threat of permanent account closure — fear/authority. Notice what's *not* on the reliable list: typos. Modern phishing is LLM-written — fluent, personalized, no grammar tells — so "the grammar was perfect, so it's real" is now exactly backwards. **The two replacement rules:** *Humans* — verify anything consequential through an **independent channel you initiate** (type the bank's URL yourself, call the number on your card), never act on inbound urgency. *Developers* — treat all inbound messages as hostile and **never let an unverified message trigger a privileged action**; require out-of-band confirmation for money or credentials. **Outside the box:** social engineering skips the math entirely — the 2020 Twitter hack used zero malware and phone calls to reach Obama's and Musk's accounts. The strongest crypto in this course is bypassed the instant a human with access is manipulated, which is why least privilege and out-of-band confirmation are technical controls, not soft skills.
+</details>`,
+    tracker: ["I saved a real email's raw source and read its Authentication-Results line", "I generated my own sample header and parsed the spoof signals with grep", "I checked a real domain's SPF and DMARC with dig", "I can name all six Cialdini levers", "I can explain SPF vs DKIM vs DMARC and why p=reject matters", "I taught one family member to verify through an independent channel", "Workbench: extracted the spf/dkim/dmarc verdict and the From/Return-Path mismatch from raw mail, then wrote a function that refuses inbound email unless all three pass", "Workbench: enumerated 5+ structural phishing red flags, retired the 'bad grammar = fake' heuristic, and stated the human (independent channel) and developer (no email-authorized privileged action) rules"]
   }, {
     id: "m5",
     level: 1,
@@ -2126,7 +2425,74 @@ curl -sI https://github.com | grep -i "set-cookie"`
       a: "HttpOnly stops JavaScript from reading the cookie, so an XSS payload can't exfiltrate the session via document.cookie. It does NOT help against CSRF — the browser still attaches the cookie to cross-site requests automatically; that's what SameSite (and CSRF tokens) are for. Different flags defend different attacks: defense in depth."
     }],
     quiz: ["A VPN encrypts your traffic. Does it make you anonymous? Why or why not?", "Your friend says incognito makes them invisible online. Correct them precisely.", "What is browser fingerprinting, and why is it hard to defend against by clearing cookies?", "As a developer, what do the Secure, HttpOnly, and SameSite cookie flags each defend against?", "Why is Cambridge Analytica a privacy failure even though 'no one was hacked'?", "An EU user's data is breached. How long do you have to notify the regulator, and under which law?"],
-    tracker: ["Firefox hardened with Strict ETP, HTTPS-Only, and 3+ privacy extensions", "Ran the EFF Cover Your Tracks test with and without blocking", "Inspected a real site's Set-Cookie flags with curl", "Audited and trimmed app permissions on my Mac and phone", "I can explain what Secure, HttpOnly, and SameSite each defend against"]
+    workbench: `> **What this trains.** The lab showed you cookie flags on the wire. Here you produce them: read a real site's cookie posture, then *set* the three protective flags yourself as a developer, and reason about which flag stops which attack. The cookie server is dependency-free.
+
+#### 🟢 Drill 1 — read a site's cookie posture from the wire ~4 min
+
+**Goal.** Fetch a real site's response headers and determine which of the three protective cookie flags it sets — without opening a browser.
+
+**Done when.** From the \`Set-Cookie\` header alone you can list which of \`Secure\`, \`HttpOnly\`, \`SameSite\` are present.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You only need the *headers*, not the page — \`curl -sI\` (or \`curl -sD -\`) fetches them; then \`grep -i set-cookie\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+curl -sI https://github.com | grep -i set-cookie
+# look for: Secure; HttpOnly; SameSite=Lax/Strict  — the three flags you'll set as a dev
+\`\`\`
+Common wrong attempts: opening DevTools and eyeballing (fine for a human, but you can't script or diff it); fetching the body (\`curl -s\`) and wondering where the cookie info is — the flags live in *headers*. A site may set several cookies with different flags; a *session* cookie should carry all three.
+</details>
+
+#### 🟡 Build 1 — set the three flags yourself ~10 min
+
+**Goal.** Write a minimal server (dependency-free Node \`http\`) that issues a session cookie carrying all three protective flags, and prove from the wire that each is present.
+
+**Done when.** \`curl -i\` of your server shows a \`Set-Cookie\` with \`HttpOnly\`, \`SameSite=Lax\` (or Strict), and \`Secure\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Set the \`Set-Cookie\` response header to \`name=value; HttpOnly; Secure; SameSite=Lax\`. (\`Secure\` means the browser only *sends* it back over HTTPS — on plain-HTTP localhost the header still appears in your \`curl\`; the browser just wouldn't return it until you're on TLS.)
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+require("http").createServer((req, res) => {
+  res.setHeader("Set-Cookie", "session=abc123; HttpOnly; Secure; SameSite=Lax");
+  res.end("ok\\n");
+}).listen(7200, () => console.log("cookie server on 7200"));
+\`\`\`
+\`\`\`bash
+curl -si http://localhost:7200 | grep -i set-cookie
+# Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+\`\`\`
+Common wrong attempts: setting only \`HttpOnly\` and calling it done (each flag defends a *different* attack — next task); putting the session id in a *non*-HttpOnly cookie "so the frontend JS can read it" (that hands the session to any XSS); omitting \`SameSite\` and relying on nothing for CSRF. Same three flags in every language because they're an HTTP standard.
+</details>
+
+#### 🔴 Break & Defend — which flag stops which attack ~12 min
+
+**Goal.** For each of the three flags, name the exact attack it blunts and one attack it does *not* help with. Then, in your journal, correct the two most common privacy myths (incognito, VPN) precisely.
+
+**Done when.** You can state HttpOnly→blocks JS/XSS reading the cookie (but not CSRF), SameSite→blocks the browser auto-sending it cross-site/CSRF+tracking (but not XSS), Secure→stops plaintext-HTTP leakage (but not a compromised site); and you can correct "incognito = invisible" and "VPN = anonymous."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+- **HttpOnly** — JavaScript can't read \`document.cookie\`, so an **XSS** payload can't exfiltrate the session. It does **nothing** for CSRF: the browser still *attaches* the cookie to cross-site requests automatically.
+- **SameSite** (Lax/Strict) — the browser won't send the cookie on cross-site requests, blunting **CSRF** and cross-site **tracking**. It does nothing against XSS running *on your own origin*.
+- **Secure** — the cookie is sent only over HTTPS, so it can't leak over plaintext on hostile Wi-Fi. It doesn't protect a cookie stolen via XSS or from a compromised server.
+
+Different flags defend different attacks — defense in depth in one header. **Journal — the myths:** *Incognito* only stops your *local* browser saving history/cookies after the window closes; the sites, your ISP, your employer/school network, and DNS still see every request live, and it does nothing against fingerprinting — it protects you from the next person on your device, not from the network. A *VPN* only *moves* trust: it hides your IP from sites and your traffic from local Wi-Fi/ISP, but the provider now sees everything and any account you log into identifies you regardless of IP — confidentiality on untrusted networks, not anonymity (that's Tor + compartmentalization). **Outside the box:** fingerprinting needs *no* cookie at all — canvas/WebGL + fonts + timezone can single you out with cookies cleared and incognito on — which is why "I blocked third-party cookies" is a floor, not a solution.
+</details>`,
+    tracker: ["Firefox hardened with Strict ETP, HTTPS-Only, and 3+ privacy extensions", "Ran the EFF Cover Your Tracks test with and without blocking", "Inspected a real site's Set-Cookie flags with curl", "Audited and trimmed app permissions on my Mac and phone", "I can explain what Secure, HttpOnly, and SameSite each defend against", "Workbench: read a real site's cookie flags from the wire, then wrote a server that sets Secure/HttpOnly/SameSite and proved all three on the wire", "Workbench: mapped each cookie flag to the attack it stops (and doesn't), and precisely corrected the incognito-is-invisible and VPN-is-anonymous myths"]
   }, {
     id: "m6",
     level: 1,
@@ -2241,7 +2607,80 @@ sudo dpkg-reconfigure -plow unattended-upgrades   # auto security updates`
       a: "Binding a port below 1024 needs privilege, so you start with it just long enough to grab the port. Dropping to an unprivileged account immediately means that for the entire LIFETIME of request handling — where bugs and exploits live — the process has no root power. A successful exploit is confined to what appuser can touch. Least privilege applied across time: privileged for a moment, unprivileged forever after."
     }],
     quiz: ["What does FileVault protect you from, and what does it NOT protect you from?", "If an app requests Full Disk Access on macOS, what should you consider before granting it?", "Why is automatic updating arguably the single most important security setting?", "What is least privilege, and how does 'bind port 80 as root, then drop to a low-privilege user' apply it?", "Why should a production web app process never run as root?"],
-    tracker: ["FileVault on, recovery key stored offline; verified with fdesetup status", "Firewall enabled; Gatekeeper and SIP confirmed enabled", "Automatic updates on", "Daily work happens in a standard (non-admin) account", "Reviewed installed apps and revoked unneeded permissions", "I can explain how dropping privileges after binding a port applies least privilege"]
+    workbench: `> **What this trains.** The lab had you flip macOS defenses. Here you *verify* them from the command line (the way an auditor does), write the hardening-check script you'll reuse in the Level 1 capstone, and produce the developer version of hardening — least privilege for a service. macOS-native, read-only.
+
+#### 🟢 Drill 1 — verify your core defenses from the CLI ~4 min
+
+**Goal.** Confirm, from the terminal (not the Settings GUI), that your Mac's three foundational defenses are on: full-disk encryption, the unsigned-app gatekeeper, and system-file protection.
+
+**Done when.** Three commands report FileVault On, Gatekeeper assessments enabled, and SIP enabled.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Each has a status subcommand — encryption is \`fdesetup status\`, the app gatekeeper is \`spctl --status\`, system integrity is \`csrutil status\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run them</summary>
+
+\`\`\`bash
+fdesetup status     # "FileVault is On."
+spctl --status      # "assessments enabled"   (Gatekeeper)
+csrutil status      # "System Integrity Protection status: enabled"  (never disable)
+\`\`\`
+Common wrong attempts: opening System Settings and eyeballing toggles (fine for a human, but you can't script or evidence it — and this is the exact output your capstone report needs); disabling SIP because a tutorial said to (SIP blocks even root from tampering with system files — leaving it on is the point).
+</details>
+
+#### 🟡 Build 1 — write the hardening-check script ~10 min
+
+**Goal.** From a blank prompt, write a script that reports the state of at least five macOS defenses in one run — the evidence-gatherer for your Module 8 capstone.
+
+**Done when.** Running it prints a labeled status line for FileVault, Gatekeeper, SIP, the firewall, and automatic updates.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Wrap the Drill's commands plus the firewall global-state read (\`defaults read /Library/Preferences/com.apple.alf globalstate\`) and the update setting, each behind an \`echo\` label using \`$(...)\` command substitution. These reads are unprivileged — no \`sudo\` needed.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+cat > ~/cyber-journal/harden-check.sh <<'EOF'
+#!/usr/bin/env bash
+echo "FileVault : $(fdesetup status)"
+echo "Gatekeeper: $(spctl --status 2>&1)"
+echo "SIP       : $(csrutil status)"
+echo "Firewall  : globalstate=$(defaults read /Library/Preferences/com.apple.alf globalstate 2>/dev/null) (0=off 1=on 2=strict)"
+echo "AutoUpdate: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null)"
+EOF
+bash ~/cyber-journal/harden-check.sh
+\`\`\`
+Common wrong attempts: hard-coding "enabled" instead of reading the live value (the whole point is to report *reality*); reaching for \`sudo\` (these reads are unprivileged); one giant unlabeled dump (a report needs labeled evidence). This tiny script is exactly what a config-audit tool does at scale — read each control's real state and flag drift.
+</details>
+
+#### 🔴 Break & Defend — least privilege for a service + what FileVault won't do ~15 min
+
+**Goal.** Write the developer version of hardening — a service that binds its privileged port and then permanently drops to an unprivileged user — and, in your journal, state precisely what full-disk encryption does and does not protect.
+
+**Done when.** Your code binds the port *then* calls the group-drop before the user-drop (order matters); you can explain why the drop is irreversible and what blast radius it bounds; and you can name three things FileVault does NOT protect (a running unlocked machine, malware, phishing/network) versus the one thing it does (data at rest).
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`javascript
+// bind the privileged port as root, then drop forever
+const server = require("http").createServer(handler);
+server.listen(80, () => {
+  process.setgid("appuser");   // group first...
+  process.setuid("appuser");   // ...then user — irreversible; root cannot be regained
+});
+\`\`\`
+Only the brief *bind* of a port below 1024 needs privilege; after the drop, the entire lifetime of request-handling — where bugs and exploits live — runs unprivileged, so a code-execution bug is confined to what \`appuser\` can touch instead of owning the host. Order matters: drop the group *before* the user, because after \`setuid\` you've already lost the privilege needed to \`setgid\`. (Even better in practice: listen on :3000 and let nginx/systemd own the privileged port.) **Journal — FileVault's boundary:** it protects **data at rest** — a lost or powered-off device is unreadable without the key. It does **not** protect a running, unlocked machine (the disk is decrypted in use), nor against malware, phishing, network attacks, or someone who knows your login password. One layer in defense-in-depth, exactly like each cookie flag in M5 defends only its own attack. **Outside the box:** hardening is attack-surface *management*, and it always trades against convenience — Lockdown Mode deliberately *removes* features to shrink the surface for high-risk users. There's no universal "secure," only the right surface for a given threat model.
+</details>`,
+    tracker: ["FileVault on, recovery key stored offline; verified with fdesetup status", "Firewall enabled; Gatekeeper and SIP confirmed enabled", "Automatic updates on", "Daily work happens in a standard (non-admin) account", "Reviewed installed apps and revoked unneeded permissions", "I can explain how dropping privileges after binding a port applies least privilege", "Workbench: verified FileVault/Gatekeeper/SIP from the CLI and wrote a hardening-check.sh that reports five macOS defenses' live state (capstone evidence-gatherer)", "Workbench: wrote the bind-then-drop-privileges service (setgid before setuid) and journalled exactly what FileVault does and does not protect"]
   }, {
     id: "m7",
     level: 1,
@@ -2339,7 +2778,81 @@ chmod 600 .env && ls -l .env`
       a: "There's a RACE WINDOW between the open (which creates the file world-readable) and the chmod. In that gap — even microseconds — another process can open and read the secret. Creating the file restricted from the first instant (os.open(..., 0o600) or writeFileSync(..., {mode:0o600})) eliminates the window. Security bugs love the gap between 'do the thing' and 'secure the thing.'"
     }],
     quiz: ["What does the | character do, and why does it embody the Unix philosophy?", "What does chmod 600 mean, bit by bit, and why is it right for a secrets file?", "Why is grep -r both powerful and risky on a large drive?", "Why is creating a file with mode 0o600 safer than creating it default and chmod-ing it afterward?", "Why does SSH refuse to use a private key that is group- or world-readable?"],
-    tracker: ["I can navigate the filesystem with no GUI", "I built a 3+ stage pipeline (ps | grep | wc -l)", "I can read -rw-r--r-- and translate to/from octal", "I set a secrets file to 600 and understand why", "I can write code (Node or Python) that creates a 600 file atomically"]
+    workbench: `> **What this trains.** This module *is* the write-from-scratch skill in miniature — the shell is where security work lives. You'll set a secret file's permissions, compose an investigation pipeline from nothing, and write code that creates a secret file safely, closing the race window the naive approach leaves open.
+
+#### 🟢 Drill 1 — lock a secret file to its owner ~3 min
+
+**Goal.** Create a file holding a secret and restrict it so only your account can read or write it, proving it from the listing.
+
+**Done when.** The long listing shows \`-rw-------\` (owner read/write, nobody else).
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The permission is a three-digit octal mode — owner read+write is \`6\`, group and other \`0\`. \`chmod\` sets it; \`ls -l\` shows it.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m7 && cd ~/cyber-journal/wb-m7
+printf 'API_KEY=abc123\\n' > .env
+ls -l .env        # likely -rw-r--r-- (644): readable by EVERYONE on the box
+chmod 600 .env
+ls -l .env        # -rw------- : owner only — SSH-grade hygiene
+\`\`\`
+Common wrong attempts: \`chmod 644\`/\`640\` (still lets group or everyone read your key — on a shared host that's credential theft); \`chmod 700\` (the execute bit on a data file is meaningless; \`600\` is the exact intent); trusting that "it's my laptop" makes permissions irrelevant — the moment a second account or a file-read bug exists, the bits are the boundary between "one bug" and "full credential theft." SSH itself *refuses* a private key that's group/world-readable.
+</details>
+
+#### 🟡 Build 1 — compose an investigation pipeline ~10 min
+
+**Goal.** From a blank prompt, answer a real question with a single multi-stage pipeline — e.g. "what are my five largest files?" or "how many node processes are running?" — where each stage narrows the data.
+
+**Done when.** Your pipeline prints *only* the answer (exactly five lines, or a single count), not raw unfiltered output.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Chain small tools with \`|\`. Largest files: disk-usage → sort by size descending → take the top five (\`du -ah | sort -hr | head -5\`), discarding permission errors with \`2>/dev/null\`. Count a process: list → keep matches → drop the grep line itself → count (\`ps aux | grep -i node | grep -v grep | wc -l\`).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+du -ah ~ 2>/dev/null | sort -hr | head -5           # top 5 biggest files/dirs
+ps aux | grep -i node | grep -v grep | wc -l        # count of node processes
+\`\`\`
+Common wrong attempts: \`sort\` without \`-h\` (a lexical sort puts \`9K\` above \`2G\`); forgetting \`grep -v grep\` (your own grep process inflates the count by one); no \`2>/dev/null\`, so permission-denied noise buries the answer. Each stage *transforms* the previous stage's output — the Unix philosophy: small tools, one job each, composed. This is the same muscle you use to read logs and hunt processes for the rest of the course.
+</details>
+
+#### 🔴 Break & Defend — create a secret file with no race window ~12 min
+
+**Goal.** Write code (Node or Python) that creates a \`600\` secrets file **atomically** — owner-only from the first instant — and explain the race the naive open-then-\`chmod\` approach leaves open.
+
+**Done when.** The file your code writes is \`-rw-------\` from creation (verify with \`ls -l\`), and you can describe the exact window in which a "write then chmod" version is world-readable.
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// Node — owner-only AT creation (no gap)
+require("fs").writeFileSync(".env", "API_KEY=sk_live_FAKE_000", { mode: 0o600 });
+\`\`\`
+\`\`\`python
+# Python — open with the restrictive mode from the start
+import os
+fd = os.open(".env", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f:
+    f.write("API_KEY=sk_live_FAKE_000")
+\`\`\`
+\`\`\`bash
+ls -l .env    # -rw-------  from the first instant
+\`\`\`
+The naive version — \`open(path,"w")\` then \`os.chmod(path, 0o600)\` on the next line — creates the file with the default (often world-readable \`644\`) and only restricts it a moment later. In that gap, however brief, another process can open and read the secret; the window is small but real, and attackers live in exactly these gaps between "do the thing" and "secure the thing." Setting the mode **at creation** eliminates it. **Outside the box:** this is the same principle as M1's "who controls the baseline?" and M6's "drop privileges before handling requests" — secure the resource *at the moment it comes into existence*, never as a cleanup step, because every "I'll lock it down right after" is a window. (The secret above is an obvious fake — never write a real key into example code.)
+</details>`,
+    tracker: ["I can navigate the filesystem with no GUI", "I built a 3+ stage pipeline (ps | grep | wc -l)", "I can read -rw-r--r-- and translate to/from octal", "I set a secrets file to 600 and understand why", "I can write code (Node or Python) that creates a 600 file atomically", "Workbench: locked a secret file to 600 and proved it, then composed a multi-stage investigation pipeline that prints only the answer", "Workbench: wrote code that creates a 600 secrets file atomically and explained the race window the naive open-then-chmod leaves open"]
   }, {
     id: "m8",
     level: 1,
@@ -2404,7 +2917,66 @@ sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS eviden
       a: "A finding alone documents risk but reduces none of it. The value of an assessment is in driving FIXES. Recording the remediation and date makes the work verifiable, lets you re-test, and turns the report into an audit trail. In professional engagements, 'finding without fix' is how breaches happen despite a clean-looking report on the shelf."
     }],
     quiz: ["Why scope the audit to ONLY your own systems, and how does that mirror professional engagements?", "For a bank account, which CIA properties matter most and why?", "Why is recording severity + evidence + remediation for each finding the professional standard?"],
-    tracker: ["Scope defined and inventory complete", "CIA mapping done for top 5 accounts", "Auth audit complete (MFA on critical accounts)", "Endpoint audit complete (encryption, firewall, updates)", "Privacy audit complete", "Findings table with severity + evidence + remediation", "Three risks ranked with mitigations", "Report saved to portfolio"]
+    workbench: `> **What this trains.** The capstone is a report; this Workbench trains the two skills a report needs and reading can't give you — writing a finding that would survive a reviewer, and gathering *real* evidence from the command line to back it. Then you grade yourself the way the rubric will.
+
+#### 🟢 Drill 1 — write one finding in the professional format ~6 min
+
+**Goal.** Pick one real weakness in your own setup and write it as a single finding with every required field: Finding / Severity / Evidence / Impact / Remediation (+ date).
+
+**Done when.** Your finding has all five fields, the severity is justified by the impact (not guessed), and the remediation names what you did and *when*.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Copy the worked example's skeleton from this module. The two fields beginners skip are Evidence (the actual proof — command output, a screenshot) and a dated Remediation (what you fixed, when).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`text
+Finding F-01 — Reused password on 7 accounts.   Severity: High.
+Evidence:    Password-manager health report flags 7 reused credentials, 2 in a known breach (HIBP).
+Impact:      Credential stuffing — one leaked password unlocks 7 accounts, including email.
+Remediation (applied 2026-07-23): generated unique 20-char passwords for all 7; enabled an
+             authenticator app on the 3 highest-value. Re-ran the report: 0 reused.
+\`\`\`
+Common wrong attempts: a severity with no justification ("High" because it feels bad — tie it to *what an attacker gains*); "Evidence: I checked and it's bad" (evidence is the *artifact*, not a claim); a finding with no remediation — which the next task shows is "just anxiety." A finding a stranger can't verify isn't a finding.
+</details>
+
+#### 🟡 Build 1 — gather real evidence from the CLI ~10 min
+
+**Goal.** Produce the Evidence line for a real endpoint finding by running the read-only checks yourself and pasting the actual output — not describing it.
+
+**Done when.** Your finding's Evidence field contains genuine command output (encryption state, Gatekeeper/SIP, a cookie-flag observation), copied from your terminal.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Reuse the M6 checks (\`fdesetup status\`, \`spctl --status\`, \`csrutil status\`) and the M5 cookie read (\`curl -sI ... | grep -i set-cookie\`). Run them, copy the lines, label them.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've gathered it</summary>
+
+\`\`\`bash
+{ echo "== endpoint =="; fdesetup status; spctl --status; csrutil status; echo "== cookie awareness =="; curl -sI https://github.com | grep -i set-cookie; } | tee ~/cyber-journal/m8-evidence.txt
+\`\`\`
+Paste those real lines into the Evidence field of the matching finding. Common wrong attempts: writing "FileVault: on (I'm pretty sure)" instead of the literal \`fdesetup status\` output; screenshotting a Settings pane when a one-line command is more reproducible and greppable. Real evidence is *reproducible by the reader* — that's what separates an assessment from an opinion.
+</details>
+
+#### 🔴 Break & Defend — grade yourself, and why a finding needs a fix ~12 min
+
+**Goal.** Apply the module's 100-point rubric to your audit honestly, name your single weakest area with a concrete next action, and explain why a finding without a dated remediation reduces zero risk.
+
+**Done when.** You have a filled rubric with a score per row, your weakest area identified with a specific fix, and you can state why "finding without remediation is just anxiety" — and how the dated remediation turns the report into an audit trail.
+
+<details>
+<summary>Walkthrough — open after you've graded yourself</summary>
+
+Score each rubric row against *evidence*, not vibes — the area most people over-score is "critical accounts MFA'd (app/passkey)": SMS doesn't count (SIM-swappable, M3), and "MFA on my main email" isn't the same as MFA on *every* high-value account. Every finding needs a dated remediation because **a finding alone documents risk but reduces none of it** — the value of an assessment is driving the *fix*. Recording the remediation and date makes the work verifiable, lets you re-test, and turns the report from a snapshot into an audit trail; in real engagements, "finding without fix" is how a breach happens despite a clean-looking report on the shelf. **Outside the box:** the discipline you just practiced — scope, evidence, severity, dated remediation, self-grade — is the *same* skeleton behind every professional deliverable in Levels 2 and 3 (the pentest report, the IR write-up). You're not doing homework; you're rehearsing the artifact your future job is judged on. Keep this document — you'll re-run and re-score it at the end of Level 3 to measure real growth.
+</details>`,
+    tracker: ["Scope defined and inventory complete", "CIA mapping done for top 5 accounts", "Auth audit complete (MFA on critical accounts)", "Endpoint audit complete (encryption, firewall, updates)", "Privacy audit complete", "Findings table with severity + evidence + remediation", "Three risks ranked with mitigations", "Report saved to portfolio", "Workbench: wrote one finding in the full professional format (severity justified, dated remediation) and backed a finding with real CLI evidence instead of a claim", "Workbench: self-graded the audit against the 100-point rubric, named the weakest area, and explained why a finding without a dated remediation reduces zero risk"]
   },
   // ============== LEVEL 2 ==============
   {
@@ -5999,7 +6571,7 @@ function App() {
   // Build search index over all module text content
   const searchIndex = useMemo(() => {
     return curriculum.modules.map(m => {
-      const blob = [m.num, m.title, m.objective || "", m.theory || "", (m.challenges || []).map(c => c.q + " " + c.a).join(" "), (m.quiz || []).join(" "), (m.tracker || []).join(" "), m.caseStudy ? m.caseStudy.title + " " + m.caseStudy.body : "", m.lab ? Object.values(m.lab).join(" ") : ""].join(" ").toLowerCase();
+      const blob = [m.num, m.title, m.objective || "", m.theory || "", m.workbench || "", (m.challenges || []).map(c => c.q + " " + c.a).join(" "), (m.quiz || []).join(" "), (m.tracker || []).join(" "), m.caseStudy ? m.caseStudy.title + " " + m.caseStudy.body : "", m.lab ? Object.values(m.lab).join(" ") : ""].join(" ").toLowerCase();
       return {
         id: m.id,
         num: m.num,
@@ -6423,7 +6995,16 @@ function App() {
     className: "text-[#22d3ee] font-mono text-sm shrink-0"
   }, "Q", i + 1), /*#__PURE__*/React.createElement("p", {
     className: "text-[#e8ecf2] leading-relaxed"
-  }, q))))), activeModule.tracker && activeModule.tracker.length > 0 && /*#__PURE__*/React.createElement("section", {
+  }, q))))), activeModule.workbench && /*#__PURE__*/React.createElement("section", {
+    className: "mb-10"
+  }, /*#__PURE__*/React.createElement(SectionHeading, {
+    icon: "🧪",
+    title: "Workbench — Write It Yourself"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-[#9aa5b8] text-sm mb-4"
+  }, "The lab handed you the commands. Here you produce them from a blank prompt — the skill that deserts you in a real terminal. Type something and run it before opening any reveal."), /*#__PURE__*/React.createElement(Prose, {
+    text: activeModule.workbench
+  })), activeModule.tracker && activeModule.tracker.length > 0 && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
     icon: "\u2705",
