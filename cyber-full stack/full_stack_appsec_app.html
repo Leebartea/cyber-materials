@@ -16463,8 +16463,95 @@ secure-express-app/
 
 The diff between the two branches *is* the lesson — make it readable, and let every commit message name the vulnerability class it fixes.
 
+### 🧪 Workbench: turn a fix you made into an artifact a hiring manager can read
+
+> **What this trains.** The capstone's real deliverable isn't the code — it's the *writeup* and the *readable diff* that prove you understand what you fixed. Anyone can \`npm install\` a fix; a reviewer wants the finding that explains *why it works* and a two-branch diff they can read in thirty seconds. You'll produce both for one bug, then grade your capstone the way a hiring manager will. Write something before each reveal.
+
+#### 🟢 Drill 1 — write one rubric-passing finding ~8 min
+
+Pick a vulnerability you already exploited-and-fixed earlier in the course (the SQLi from 3.2, the IDOR/BOLA from 3.3/6.5, the stored XSS from 2.2 — your choice).
+
+**Goal.** Write it up as a single \`REPORT.md\` finding with all seven fields: **Title | Severity | OWASP category | Evidence (a request/response or payload) | Impact | Remediation | Why-it-works.** The last field must name the *root-cause principle*, not "added validation."
+
+**Done when.** Your finding has all seven fields; the Severity is *justified* by the impact (not guessed); and the Why-it-works line states the principle a developer internalizes rather than restating the fix.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Steal the structure from the finding format in this module: one line per field. The two fields beginners skip are **Impact** (the *business* consequence — "any user can read any other user's invoices," not "the endpoint is vulnerable") and **Why-it-works** (the principle). If your Why-it-works could be pasted onto a *different* bug's fix, it's too generic — make it name *this* bug's root cause.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`text
+TITLE:        Broken object-level authorization on GET /api/invoices/:id (IDOR/BOLA)
+SEVERITY:     High  (authenticated cross-tenant read of financial data)
+OWASP:        API1:2023 Broken Object Level Authorization / A01:2021 Broken Access Control
+EVIDENCE:     Logged in as user 7 (org A). GET /api/invoices/1042 -> 200 + org B's invoice.
+              Changing only the id 1042->1043 returns a different org's invoice.
+IMPACT:       Any authenticated user can read every invoice in the system by enumerating the
+              numeric id — full cross-tenant disclosure of financial records.
+REMEDIATION:  Scope the query by owner: SELECT ... WHERE id=$1 AND org_id=$2, with org_id from
+              the SERVER-side session, never the request. Return 404 (not 403) so ids aren't
+              confirmable.
+WHY-IT-WORKS: Authorization must be decided against the *object's* owner, not merely "is the
+              caller logged in." A valid session proves identity, never entitlement to a
+              specific row — so every object fetch must re-verify ownership server-side.
+\`\`\`
+Common weak attempts: a Severity with no justification ("High" because it feels bad — tie it to *who can do what to which data*); an Evidence line with no concrete request (a reviewer can't reproduce "it's vulnerable"); and a Why-it-works that says "we added an ownership check" — that's the *what*. The line that gets you hired describes the *principle*, because it shows you won't ship the same class of bug in code the reviewer hasn't seen.
+</details>
+
+#### 🟡 Build 1 — make the branch diff the lesson ~12 min
+
+A reviewer's fastest read is \`git diff vulnerable secure\`. Make that diff say everything.
+
+**Goal.** In a throwaway repo, create a \`vulnerable\` branch with one deliberately-broken endpoint and a \`secure\` branch with *only* the security fix on top, with a commit message that names the vulnerability class. Prove the diff is clean and readable.
+
+**Done when.** \`git diff vulnerable secure -- app.js\` shows *only* the security-relevant change (no unrelated churn), and \`git log secure --oneline\` shows a commit whose message names the vuln class.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`git init\`; write the vulnerable \`app.js\`; commit on a \`vulnerable\` branch. Branch \`secure\` from there; on \`secure\`, change *only* the vulnerable line; commit with a class-naming message. Keep formatting/whitespace identical so the diff is one hunk.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+mkdir -p ~/capstone-diff && cd ~/capstone-diff && git init -q
+cat > app.js <<'EOF'
+app.get("/u", (req, res) => db.query("SELECT * FROM users WHERE name = '" + req.query.n + "'"));
+EOF
+git add app.js && git commit -qm "feat: user lookup endpoint" && git branch -m vulnerable
+git branch secure && git switch -q secure
+cat > app.js <<'EOF'
+app.get("/u", (req, res) => db.query("SELECT * FROM users WHERE name = $1", [req.query.n]));
+EOF
+git commit -qam "fix: parameterize query to close SQL injection (CWE-89)"
+git diff vulnerable secure -- app.js      # one clean hunk: concat string -> $1 + params
+git log secure --oneline | head -1        # ...fix: parameterize query to close SQL injection
+\`\`\`
+The point is reviewer *legibility*: one endpoint, one hunk, a message that names the class. A capstone whose "secure" branch also reformats the whole file, renames variables, and adds features buries the security lesson in noise — the reviewer can't find the fix, so the fix doesn't count. Each security commit should be *atomic and self-describing*; the diff, not the README, is where a technical reviewer looks first.
+</details>
+
+#### 🔴 Break & Defend — grade your capstone like the person deciding to hire you ~12 min
+
+**Goal.** Apply the five-axis **universal rubric** to your capstone-in-progress — **Reproducible / Explains-why / Demonstrates-impact / Maps-to-framework / Ethical-and-self-owned** — score each honestly, and name the single weakest axis plus the concrete next action to fix it. Then close the reproducibility trap: what stops a reviewer on a *different* OS/CPU from running it?
+
+**Done when.** You have a filled five-row rubric with a one-line justification each, the weakest axis identified with a concrete fix, and you've named the cross-platform gotcha (an x86-only image needs \`--platform linux/amd64\` on an Apple-Silicon/ARM64 host, and the README must say so) — because "runs on my laptop" is not a portfolio piece.
+
+<details>
+<summary>Walkthrough — open after you've graded yourself</summary>
+
+The axis beginners score themselves highest on and reviewers score lowest is **Demonstrates-impact**: a repo full of fixes with no *proof the exploit ever worked* reads as "I read about these bugs," not "I found and fixed them." Record the exploit firing (a script, a short recording, a before/after \`curl\`) *before* the fix — that evidence converts a tutorial-follower into a security engineer in the reader's mind. The second most common miss is **Reproducible**: pinned toolchain? seed data included? does \`docker compose up\` actually work from a clean clone on another architecture? The \`--platform\` note matters because many security-lab images are x86-only and silently fail (or emulate slowly) on ARM64 — a reviewer who hits that in the first two minutes closes the tab. **Outside the box:** grade yourself against these five *before* you write a line of the capstone, not after — they aren't a final exam, they're the spec. The strongest portfolio piece is one where every commit was already aimed at "a stranger on a different machine can reproduce this and understand *why* each fix works."
+</details>
+
+---
+
 ➡️ **Next step:** A second capstone proves breadth. Continue to **Capstone 2: PortSwigger Web Security Academy Portfolio** — turning labs into employer-readable writeups.`,
-    tracker: ["Built an intentionally vulnerable Node/Express/Postgres app with a vulnerable branch and a secure branch", "Fixed SQLi, XSS, CSRF, insecure cookies, missing auth rate limiting, broken object-level authorization, and missing security headers — each annotated with its root-cause principle", "Wired a gitleaks/Semgrep/Trivy CI pipeline that blocks regressions", "Wrote a final security report that demonstrates impact, explains *why* each fix works, and maps each issue to OWASP", "Mapped the secured app against OWASP ASVS 5.0 L2 for at least 3 chapters (Auth, Session, Access Control); noted which requirements are met and which are consciously not"]
+    tracker: ["Built an intentionally vulnerable Node/Express/Postgres app with a vulnerable branch and a secure branch", "Fixed SQLi, XSS, CSRF, insecure cookies, missing auth rate limiting, broken object-level authorization, and missing security headers — each annotated with its root-cause principle", "Wired a gitleaks/Semgrep/Trivy CI pipeline that blocks regressions", "Wrote a final security report that demonstrates impact, explains *why* each fix works, and maps each issue to OWASP", "Mapped the secured app against OWASP ASVS 5.0 L2 for at least 3 chapters (Auth, Session, Access Control); noted which requirements are met and which are consciously not", "Workbench: wrote one seven-field REPORT finding (Title/Severity/OWASP/Evidence/Impact/Remediation/Why-it-works) whose Why-it-works names the root-cause principle", "Workbench: built the vulnerable→secure two-branch git structure so `git diff` shows only the security change with a class-naming commit, and graded the capstone against the 5-axis universal rubric"]
   },
   {
     id: "m10_2",
@@ -16512,8 +16599,88 @@ The **Developer Lesson** line is the one a pure finder can't write and you can �
 
 Host the portfolio as a public repo (one markdown file per category, or a small static site). A reviewer should be able to skim the index and immediately see the breadth (50 labs, 6 categories) and the depth (the developer-lesson lines).
 
+### 🧪 Workbench: write the line a pure bug-finder can't
+
+> **What this trains.** Fifty solved labs prove persistence; fifty *writeups* prove you can hand a finding to the developer who has to fix it — and the one line that separates you, a full-stack dev, from a pure finder is the **Developer Lesson**. You'll drill that line, write one complete report, then fix a weak one. Write before you reveal.
+
+#### 🟢 Drill 1 — the Developer-Lesson line, three times ~6 min
+
+**Goal.** For three bug classes you studied — **SQL injection, IDOR/BOLA, and stored XSS** — write the one-sentence *Developer Lesson*: the root-cause principle a developer internalizes so they never ship that class again. No payloads, no tool names — the *principle*.
+
+**Done when.** Each line names a transferable rule (not the specific lab), and none of the three would make sense pasted onto another class's finding.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Ask "what did the developer *believe* that made this bug possible?" SQLi: they believed string-building a query was fine. IDOR: they believed a valid login meant authorized access. XSS: they believed data placed into a page stays data. The lesson corrects the belief.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+- **SQLi:** *User input and query structure must travel in separate channels — parameterize every query so data can never be parsed as code, no matter how "clean" it looks.*
+- **IDOR/BOLA:** *A session proves who you are, never what you may access — every object fetch must re-verify ownership against the object, server-side, on every request.*
+- **Stored XSS:** *Data rendered into a page must be encoded for its output context; the moment untrusted input can become markup, it becomes code the browser runs for every viewer.*
+Weak versions name the payload ("don't allow \`' OR 1=1\`") or the tool ("use an ORM") — those describe *one* instance and don't generalize. The strong version corrects the *belief* that caused the bug, which is exactly what stops a developer shipping the next variant.
+</details>
+
+#### 🟡 Build 1 — one complete writeup, all five parts ~12 min
+
+**Goal.** Take one bug you actually exploited earlier in this course (or a PortSwigger lab) and write the full five-part report: **Summary | Impact | Steps-to-reproduce | Fix | Developer-Lesson** — with the header line naming the OWASP category and difficulty.
+
+**Done when.** All five parts are present; Steps-to-reproduce is numbered and copy-pasteable (a stranger could follow it); Fix is code-level, not "sanitize input"; and the Developer-Lesson is the strongest line in the writeup.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The two parts people short-change are **Impact** (name the credible business consequence — account takeover, cross-tenant data theft — not "this is bad") and **Steps** (an actual numbered sequence of requests/payloads, not a paragraph). Copy the five-field skeleton from this module and fill each.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`text
+LAB: Auth bypass via SQL injection in login   (A03:2021 Injection — PortSwigger: Apprentice)
+
+SUMMARY   The login form concatenates the username into the SQL query, so a crafted username
+          comments out the password check and logs in as the first user.
+IMPACT    Full authentication bypass — an unauthenticated attacker logs in as the administrator,
+          gaining every privilege the app grants. Critical.
+STEPS     1. POST /login with username = administrator'--  and any password.
+          2. The query becomes ...WHERE user='administrator'--' AND pass='x' — the password
+             clause is commented out.
+          3. Observe a 302 to /my-account as administrator.
+FIX       Parameterize: db.query("SELECT * FROM users WHERE user=$1 AND pass=$2", [user, hash]);
+          never build SQL by string concatenation.
+DEV LESSON  Input and query structure must travel in separate channels — a parameter placeholder
+          makes it structurally impossible for a username to alter the query, whatever it contains.
+\`\`\`
+The **Dev Lesson** is deliberately the strongest line — it's the one a pure finder can't write and the one a hiring manager remembers. Make every writeup earn it: if you can't state the principle, you fixed the symptom, not the cause.
+</details>
+
+#### 🔴 Break & Defend — fix a writeup that says "what" but never "why" ~10 min
+
+Here's a submitted writeup:
+\`\`\`text
+LAB: XSS
+Found XSS in the search box. Put <script>alert(1)<\/script> and it popped.
+Fix: add a filter to block <script>.
+\`\`\`
+
+**Goal.** List everything wrong with it and rewrite it to pass the five-part rubric. In your journal, add the ethics/scope line every writeup needs.
+
+**Done when.** You've flagged: no OWASP tag/severity, no *impact* (what does XSS here actually let an attacker do?), a *blocklist* "fix" that's trivially bypassed (\`<img onerror>\`, \`<svg onload>\`, case/encoding tricks — the real fix is context-aware output encoding, Module 2.2), no reproducible steps, and no Developer-Lesson; and your rewrite includes the "target is a PortSwigger lab / an app I own — authorized" scope line.
+
+<details>
+<summary>Walkthrough — open after you've rewritten it</summary>
+
+The original fails four of five rubric axes and actively *teaches the wrong fix*. **No impact:** stored/reflected XSS can steal session cookies (if not \`HttpOnly\`), perform actions as the victim, or deface — say which applies here. **The "block \`<script>\`" fix is the classic trap:** XSS doesn't need a \`<script>\` tag — \`<img src=x onerror=alert(1)>\`, \`<svg onload=...>\`, and dozens of encodings sail past a blocklist. The root fix is **context-aware output encoding** (render untrusted data as text; encode for the HTML/JS/attribute/URL context as appropriate — Module 2.2), optionally backed by a nonce-CSP (Module 8.2) as defense-in-depth. A rewrite: category + severity in the header, a concrete stored-vs-reflected impact, numbered reproduction, the encoding fix with a code line, and a Developer-Lesson ("data placed into a page must be encoded for its rendering context; a blocklist enumerates badness and always loses"). **The scope line** — "target: PortSwigger's deliberately-vulnerable lab, an authorized target" — is non-negotiable: a security writeup with no authorization statement reads as a confession, not a portfolio piece.
+</details>
+
+---
+
 ➡️ **Next step:** Capstones 1 and 2 cover building/fixing and finding/writing-up. Capstone 3 proves you can run a *structured assessment* end to end. Continue to **Capstone 3: API Pentest Report**.`,
-    tracker: ["Completed the target lab counts: 10 authentication, 10 access control, 10 SQLi, 10 XSS, 5 CSRF/CORS/SSRF, 5 JWT/OAuth/business-logic", "Wrote each lab up in the Summary / Impact / Steps-to-reproduce / Fix / Developer-lesson format", "Made the Developer-lesson line (the full-stack differentiator) the strongest line in every writeup", "Published the portfolio as a public, skimmable repo or static site with clear category breadth"]
+    tracker: ["Completed the target lab counts: 10 authentication, 10 access control, 10 SQLi, 10 XSS, 5 CSRF/CORS/SSRF, 5 JWT/OAuth/business-logic", "Wrote each lab up in the Summary / Impact / Steps-to-reproduce / Fix / Developer-lesson format", "Made the Developer-lesson line (the full-stack differentiator) the strongest line in every writeup", "Published the portfolio as a public, skimmable repo or static site with clear category breadth", "Workbench: drilled the Developer-Lesson line for SQLi/IDOR/XSS (principle, not payload) and wrote one full five-part PortSwigger-style writeup", "Workbench: rewrote a 'what but no why' XSS writeup to pass the rubric — impact, reproducible steps, context-encoding fix (not a blocklist), Dev-Lesson, and an authorization/scope line"]
   },
   {
     id: "m10_3",
@@ -16562,8 +16729,119 @@ API-PENTEST-REPORT.md
 
 Severity-rate each finding (BOLA on payment objects is critical; a missing rate limit on a read endpoint is low) so the report reads like a real assessment, not a checklist. The *Why-it-works* line on each remediation is, again, your full-stack differentiator.
 
+### 🧪 Workbench: prove the BOLA, then report it like an assessor
+
+> **What this trains.** An API assessment is two skills a lab doesn't teach: *probing* a live endpoint for the API-Top-10 bugs, and *reporting* them with severity and evidence like a real engagement. You'll exploit a seeded BOLA and a mass-assignment bug, write the fix, then practice the assessor's judgement — severity, positive findings, remediation order. Type or write before each reveal.
+
+#### 🟢 Drill 1 — prove the BOLA ~6 min
+
+Seed a tiny, deliberately-broken API (dependency-free):
+\`\`\`bash
+mkdir -p ~/api-workbench && cd ~/api-workbench
+cat > api.js <<'EOF'
+const http = require("http");
+const invoices = { 1: { id:1, org:"A", total:100 }, 2: { id:2, org:"B", total:999 } };
+http.createServer((req, res) => {
+  const m = req.url.match(/^\\/invoices\\/(\\d+)$/);
+  if (m) { res.setHeader("content-type","application/json");
+    return res.end(JSON.stringify(invoices[m[1]] || {})); }   // BUG: no ownership check
+  res.statusCode = 404; res.end();
+}).listen(6001, () => console.log("api on 6001"));
+EOF
+node api.js &
+\`\`\`
+
+**Goal.** You are org A and you own invoice 1. Demonstrate the object-level authorization flaw: read an object that isn't yours by changing only its id.
+
+**Done when.** One request returns org B's invoice (\`total:999\`) — an object you should never see — proving the endpoint authorizes nobody.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The id is right there in the path. Request your own (\`/invoices/1\`), then change one character and request \`/invoices/2\`. If the second returns another org's data, that's BOLA/IDOR.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+curl -s localhost:6001/invoices/1     # {"id":1,"org":"A","total":100}   <- yours
+curl -s localhost:6001/invoices/2     # {"id":2,"org":"B","total":999}   <- NOT yours = BOLA
+\`\`\`
+The bug is that the handler looks up the object by id and returns it with **no check that the caller owns it** — a valid request path is treated as authorization. In a report this is API1:2023 (BOLA), typically High-to-Critical when the object holds financial or personal data, because the attacker just enumerates ids (\`1,2,3,…\`) to vacuum the whole table. The fix is the Module 3.3/6.5 lesson: scope every object fetch by the caller's identity taken from the *server-side* session (\`WHERE id=$1 AND org=$2\`), and return 404 so ids aren't confirmable. Clean up: \`kill %1 2>/dev/null\`.
+</details>
+
+#### 🟡 Build 1 — the mass-assignment self-promote, and the allow-list fix ~12 min
+
+Extend the API with a user-update endpoint that trusts the whole body:
+\`\`\`bash
+cat > api2.js <<'EOF'
+const http = require("http");
+const users = { 7: { id:7, name:"you", role:"user" } };
+http.createServer((req, res) => {
+  if (req.method === "PATCH" && req.url === "/users/7") {
+    let b = ""; req.on("data", d => b += d); req.on("end", () => {
+      Object.assign(users[7], JSON.parse(b));   // BUG: mass assignment — trusts every field
+      res.end(JSON.stringify(users[7]));
+    }); return;
+  }
+  res.statusCode = 404; res.end();
+}).listen(6002, () => console.log("api2 on 6002"));
+EOF
+node api2.js &
+\`\`\`
+
+**Goal.** (1) Send a PATCH that promotes yourself to \`admin\` by including a field the client should never control. (2) Then write the fix — an allow-list of client-updatable fields — and show the same PATCH no longer escalates.
+
+**Done when.** Pre-fix, your PATCH returns \`"role":"admin"\`; after applying an allow-list (only \`name\` is client-updatable), the same PATCH leaves \`role:"user"\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The exploit is just adding \`"role":"admin"\` to the JSON body — \`Object.assign\` copies it straight onto the user. The fix: never spread the raw body; pick only the fields a client may set (\`const { name } = JSON.parse(b); users[7].name = name;\`) — an allow-list, never a blocklist.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+curl -s -X PATCH localhost:6002/users/7 -d '{"name":"you","role":"admin"}'
+# {"id":7,"name":"you","role":"admin"}    <- self-promoted via mass assignment
+\`\`\`
+The fix replaces \`Object.assign(users[7], JSON.parse(b))\` with an allow-list:
+\`\`\`javascript
+const body = JSON.parse(b);
+const allowed = ["name"];                 // the ONLY fields a client may set
+for (const k of allowed) if (k in body) users[7][k] = body[k];
+\`\`\`
+Now \`role\` (and \`id\`, \`orgId\`, \`isAdmin\`, …) can't be set from the request no matter what the client sends. This is API6/API3 territory (mass assignment / broken property-level authorization) and it's an *allow-list* problem specifically: a blocklist of "fields to reject" always misses one, but an allow-list of "fields to accept" fails safe. Same principle as the 3.3 exploit — the client never gets to nominate its own privileges. Clean up: \`kill %1 2>/dev/null\`.
+</details>
+
+#### 🔴 Break & Defend — think like the assessor, not the scanner ~15 min
+
+You've found five issues on the API. Turn a bug list into a *report*:
+\`\`\`text
+A. BOLA on GET /invoices/:id — any user reads any org's invoices.
+B. Mass assignment on PATCH /users/:id — client can set role=admin.
+C. Missing rate limit on GET /orders (a read endpoint).
+D. Response includes a password_hash field on GET /users/:id.
+E. Login endpoint has no rate limit.
+\`\`\`
+
+**Goal.** Severity-rate each (Critical/High/Medium/Low) with a one-line justification, order them for remediation by risk, and add one *positive finding* (something the API did right) so the report reads like a real assessment, not a checklist. In your journal: why does a scanner miss A and B but catch D?
+
+**Done when.** Your ordering puts the auth/authz bugs (A, B, E) above the informational ones; each severity is justified by *impact × exploitability*, not vibe; you've written a credible positive finding; and you can state that A/B depend on the app's *intent* (which object belongs to whom) so only a human who knows that intent — not a pattern-matching scanner — can see them (the Module 5.2/7.1 false-negative lesson).
+
+<details>
+<summary>Walkthrough — open after you've rated them</summary>
+
+A reasonable rating: **A — Critical/High** (authenticated cross-tenant read of financial data, trivially enumerable). **B — Critical/High** (privilege escalation to admin from an ordinary account). **E — High** (login with no rate limit = credential stuffing/brute force at scale). **D — Medium** (excessive data exposure — a password *hash* isn't a live credential, but it leaks the format and aids offline cracking; never ship it). **C — Low** (a missing rate limit on a *read* endpoint is mostly a cost/DoS concern). Remediation order follows risk: **B, A, E, D, C** (privilege escalation and cross-tenant read first). A positive finding might be "all tested queries are parameterized — no SQL injection found," which builds credibility and signals you actually looked. **Why a scanner catches D but not A/B:** D is a *pattern* — a field literally named \`password_hash\` in a response — so a tool can flag it. A and B are *authorization* bugs: the request is well-formed and returns a well-formed 200; nothing in the syntax is wrong. Only someone who knows invoice 2 *belongs to a different org*, or that \`role\` *shouldn't be client-settable*, sees the violation — which is why a green scan is a floor, not a certificate, and why object-level and business-logic bugs are the ones that pay bug bounties.
+</details>
+
+---
+
 ➡️ **Next step:** The final capstone shifts from finding to *preventing at the pipeline level* — the secure-deployment story that ties Phases 7, 8, and 9 together. Continue to **Capstone 4: Secure Deployment Checklist and CI Pipeline**.`,
-    tracker: ["Built or used a local API with users, organizations, roles, payments/orders, file uploads, and webhooks", "Tested the full set: auth, object authorization (BOLA/IDOR), input validation, rate limits, mass assignment, excessive data exposure, SQL injection, and logging gaps", "Produced a structured report with scope/methodology, severity-rated findings mapped to the API Top 10, evidence, and remediations", "Included positive findings and a risk-ordered remediation summary so it reads like a real assessment"]
+    tracker: ["Built or used a local API with users, organizations, roles, payments/orders, file uploads, and webhooks", "Tested the full set: auth, object authorization (BOLA/IDOR), input validation, rate limits, mass assignment, excessive data exposure, SQL injection, and logging gaps", "Produced a structured report with scope/methodology, severity-rated findings mapped to the API Top 10, evidence, and remediations", "Included positive findings and a risk-ordered remediation summary so it reads like a real assessment", "Workbench: proved a BOLA (id-swap reads another org's object) and a mass-assignment self-promote against a seeded API, and wrote the allow-list fix", "Workbench: severity-rated five API findings by impact×exploitability, ordered remediation, added a positive finding, and explained why scanners miss BOLA/mass-assignment"]
   },
   {
     id: "m10_4",
@@ -16602,8 +16880,88 @@ The load-bearing property is that **the pipeline fails the build on a real findi
 
 - **Reproducible**, **explains *why* each gate exists**, **demonstrates impact** (show a regression being blocked), **maps to a framework**, and **ethical/self-owned**.
 
+### 🧪 Workbench: make the pipeline block the regression
+
+> **What this trains.** The capstone's whole claim is that security is *durable* — wired into the pipeline so a regression is blocked automatically, not caught by a human three releases later. You've built the pieces (the CI gate in 7.1, the leak-gate in 8.1); here you compose them, prove a regression gets blocked, and write the human layer (checklist + runbook) around them. Type or write before each reveal.
+
+#### 🟢 Drill 1 — the production checklist from memory ~5 min
+
+**Goal.** Write the production-environment checklist as a tickable list — the developer-mode defaults you flip before shipping — from memory, not from scrolling up.
+
+**Done when.** Your list includes, at minimum: production mode on (\`NODE_ENV=production\` / \`debug=False\`), HTTPS enforced (+ HSTS), no public source maps, no \`.env\` baked into the image, IMDSv2 required, least-privilege IAM, and a private (non-public) database — each phrased as a checkable item.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Walk the phases: 8.2 gives you production-mode + HTTPS/HSTS + no source maps; 8.1 gives no \`.env\` in the image; 8.3 gives IMDSv2 + least-privilege IAM + private DB. Phrase each as "[ ] ...".
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+\`\`\`text
+[ ] NODE_ENV=production / debug=False        (no verbose stack traces to clients — 8.2)
+[ ] HTTPS enforced + HSTS                     (no downgrade; force TLS — 8.2)
+[ ] Real CSP with a per-request nonce         (XSS defense-in-depth — 8.2)
+[ ] No public source maps                      (don't ship your source — 8.1)
+[ ] No .env in the image; secret injected      (image layers are forever — 8.1)
+[ ] IMDSv2 required (HttpTokens: required)      (breaks SSRF-to-credentials — 8.3)
+[ ] Least-privilege IAM (no *:*)                (bounds blast radius — 8.3)
+[ ] Database on a private subnet, not public    (no Shodan-indexed DB — 8.3)
+\`\`\`
+The value of a *written* checklist is that it moves these from "things I vaguely remember" to "gates someone verifies before every release." The best ones live in the repo and are referenced from the PR template, so shipping without ticking them is a visible omission, not a silent one.
+</details>
+
+#### 🟡 Build 1 — compose the gate, then watch it block a regression ~14 min
+
+**Goal.** Write a \`ci-gate.sh\` that runs *two* checks — a secret scan and a dangerous-sink SAST grep — and **fails the build (exit 1)** on any finding. Then introduce a regression (a hard-coded secret) and prove the gate blocks it; remove it and prove the gate passes. That "regression is blocked" proof *is* the capstone's load-bearing deliverable.
+
+**Done when.** With a clean \`src/\`, \`./ci-gate.sh; echo $?\` prints pass and exits **0**; after you add a line containing \`sk_live_...\` (or an \`eval(\`), the same command prints the finding and exits **1** — the merge would be blocked.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+This is your 7.1 \`ci-gate.sh\` + your 8.1 \`leak-gate.sh\` combined: run each \`grep -rn\` check, set a \`fail\` flag on any hit, \`exit 1\` at the end if set. In real CI these greps become \`gitleaks detect\`, \`semgrep --error\`, \`npm audit\`, \`trivy image --exit-code 1\` — same exit-code structure.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+mkdir -p ~/deploy-workbench/src && cd ~/deploy-workbench
+printf 'const key = process.env.API_KEY;\\nconst q = db.query("SELECT 1");\\n' > src/app.js   # clean
+cat > ci-gate.sh <<'EOF'
+#!/usr/bin/env bash
+DIR="\${1:-src}"; fail=0
+echo "== secret scan =="; if grep -rn -e 'sk_live_' -e 'sk_test_' "$DIR"; then fail=1; fi
+echo "== SAST: dangerous sinks =="; if grep -rn -e 'eval(' -e 'exec(' "$DIR"; then fail=1; fi
+[ "$fail" -eq 1 ] && { echo "GATE FAILED — blocking merge"; exit 1; }
+echo "gate passed"; exit 0
+EOF
+chmod +x ci-gate.sh
+./ci-gate.sh; echo "exit=$?"                                  # gate passed -> 0
+printf 'const stripe = "sk_live_FAKE_regression_0000";\\n' >> src/app.js   # the regression
+./ci-gate.sh; echo "exit=$?"                                  # ...GATE FAILED -> 1
+\`\`\`
+The one property that makes this real is the **non-zero exit** — a CI runner treats exit≠0 as a failed check and blocks the merge, so the regression physically cannot reach \`main\`. A pipeline that only *prints warnings* is decoration; developers scroll past warnings. Wire this to run \`on: pull_request\` with branch protection, swap the greps for the real tools, and you have the capstone's load-bearing control: security a person can't forget to run.
+</details>
+
+#### 🔴 Break & Defend — a green pipeline is a floor, not a ceiling ~12 min
+
+**Goal.** Your gate passes clean. In your journal: (1) name a high-impact bug class that would *still* ship past this pipeline and every scanner in it, and why no scanner can catch it. (2) Write the *first containment action* (one line each) for the three incident runbooks the capstone requires — account takeover, leaked secret, exposed database — the core of \`RUNBOOK.md\`.
+
+**Done when.** You name **broken access control / business logic** (the IDOR/BOLA/mass-assignment/price-and-race bugs from Modules 3.3/3.6/6.5) as what ships past a green pipeline — because it depends on the app's *intent*, not a code pattern — and your three first-actions are: **ATO → invalidate all sessions + force reset/MFA** (not "kill the one session"), **leaked secret → rotate the key first** (not "delete the commit"), **exposed DB → preserve access logs, then close the network path** (not "just close the port").
+
+<details>
+<summary>Walkthrough — open after you've written yours</summary>
+
+**(1) What still ships:** broken access control and business-logic flaws — the object-authz bug of 3.3/6.5, the price/race conditions of 3.6. A scanner sees a well-formed request returning a well-formed 200; the violation exists only relative to the app's *intended rules* ("this invoice belongs to that org," "the customer doesn't set the price"), which live nowhere in the syntax. That's the Module 5.2/7.1 false-negative lesson, and it's why the highest-value bugs are the ones automation can't reach — a green pipeline exists to *free your attention* for exactly these. **(2) The three first-actions**, each embodying a Phase 9 rule: ATO → *invalidate every session, force password reset, re-enroll MFA* (the attacker made more sessions than the one you saw); leaked secret → *rotate/revoke the key immediately* (it's already scraped; deleting the commit changes nothing); exposed DB → *snapshot the access logs, then close the network exposure and rotate DB credentials* (preserve evidence before you contain; assume compromise). **Outside the box (the course lands here):** prevention (the gate) is necessary but never sufficient, so you pair it with detection (Phase 9) and a *pre-written* response, and you reserve human attention for the intent-dependent bugs no gate can see. Automate the mechanical 80%, spend your judgement on the 20% — that two-handed posture is the job.
+</details>
+
+---
+
 ➡️ **Next step (course complete):** You've built the full arc — foundations, browser/frontend, backend/API/DB, the OWASP lens, a testing workflow, auth/sessions, secure SDLC + supply chain, LLM security, cloud/production hardening, logging/monitoring/IR, and a portfolio that proves all of it. From here, return to the broad Cyber Guardians curriculum for blue-team/SOC, cloud security depth, forensics, and the other branches — you now have the AppSec foundation the rest of that path builds on.`,
-    tracker: ["Added security headers, secret scanning, dependency scanning, static analysis, and Docker/container scanning to a real or sample full-stack app's CI", "Wrote a production env checklist (NODE_ENV/debug, HTTPS, no public source maps, no .env in image, IMDSv2, least-privilege IAM, private DB)", "Wrote an incident runbook with at least the ATO, leaked-secret, and exposed-DB playbooks", "Proved the pipeline FAILS the build on a real finding by showing a deliberately-introduced regression being caught and blocked"]
+    tracker: ["Added security headers, secret scanning, dependency scanning, static analysis, and Docker/container scanning to a real or sample full-stack app's CI", "Wrote a production env checklist (NODE_ENV/debug, HTTPS, no public source maps, no .env in image, IMDSv2, least-privilege IAM, private DB)", "Wrote an incident runbook with at least the ATO, leaked-secret, and exposed-DB playbooks", "Proved the pipeline FAILS the build on a real finding by showing a deliberately-introduced regression being caught and blocked", "Workbench: wrote the production-hardening checklist from memory and composed a ci-gate.sh (secret scan + SAST) that exits non-zero, proving a hard-coded-secret regression is blocked and a clean tree passes", "Workbench: named the bug class a green pipeline still ships (access control/business logic) and wrote the correct first-containment action for the ATO / leaked-secret / exposed-DB runbooks", "Re-ran the Phase 10 Workbench drills (a rubric-passing finding, the vulnerable→secure diff, the BOLA/mass-assignment probes, the build-failing CI gate) from a blank prompt on a later day"]
   }],
 };
 
