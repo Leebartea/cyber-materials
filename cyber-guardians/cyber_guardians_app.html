@@ -4730,7 +4730,117 @@ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | u
       a: "Failed-login events with username + source IP + timestamp let a SIEM correlate patterns — many failures from one IP (brute force) or one username across many IPs (spraying/stuffing) — to detect attacks in progress and trigger rate-limiting/blocking. Never log the attempted password because (a) it's a secret that makes the log store a breach target, and (b) failed attempts often contain users' REAL passwords mistyped — logging them leaks live credentials."
     }],
     quiz: ["Strengths and weaknesses of signature-based vs anomaly-based detection?", "Why is dwell time the metric blue teams obsess over?", "What's the difference between an IDS and an IPS?", "As a developer, which security events should you log, and what must you never put in logs?", "Target had an alert and still got breached — what does that teach about detection vs response?"],
-    tracker: ["Analyzed my own auth logs and built a top-offending-IP pipeline", "Deployed at least one monitoring tool (Wazuh or similar) on a lab VM", "I can explain signature vs anomaly detection and IDS vs IPS", "I understand the Pyramid of Pain and dwell time", "I can write security logging (Node or Python) that emits structured, secret-free events a SIEM can correlate"]
+    workbench: `> **What this trains.** Deploying Wazuh teaches you a product. This teaches you the thing underneath it, which outlives any product: **detection is a query over events you had the foresight to record.** So you'll write the detection first — over raw log text, the way a defender improvises at 2am — then go upstream and write the logging that makes detection possible, including the redaction that keeps your own log store from becoming the breach. All addresses below are documentation ranges (RFC 5737); no real hosts.
+
+#### 🟢 Drill 1 — find the brute-force in raw log text ~8 min
+
+**Goal.** Generate a realistic \`auth.log\` containing normal traffic plus one burst of failed logins, then build a shell pipeline that ranks source IPs by failed-login count — no SIEM, no tooling, just text processing (M11.5). Identify the attacker.
+
+**Done when.** Your pipeline prints a ranked list where one address has an order-of-magnitude more failures than any other, and you can say which field you extracted and why you filtered on \`Failed password\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The IP always follows the literal word \`from\`, so you don't need a fragile column number — have \`awk\` scan the fields for \`from\` and print the next one. Then the classic defender's tail: \`sort | uniq -c | sort -rn\`. That four-command idiom answers a huge fraction of log questions.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# make-auth-log.py — normal noise plus one brute-force burst
+import random, datetime
+random.seed(7)
+t = datetime.datetime(2026,7,25,9,0,0); lines = []
+for i in range(40):
+    t += datetime.timedelta(seconds=random.randint(5,90))
+    ok = random.random() < 0.8
+    ip = random.choice(["10.0.0.5","10.0.0.9"])
+    verb = "Accepted" if ok else "Failed"
+    user = random.choice(["alice","bob","carol"])
+    lines.append(f"{t:%b %d %H:%M:%S} host sshd[{1000+i}]: {verb} password for {user} from {ip} port 5{i:04d} ssh2")
+for i in range(25):                                   # the burst
+    t += datetime.timedelta(seconds=2)
+    lines.append(f"{t:%b %d %H:%M:%S} host sshd[{2000+i}]: Failed password for root from 203.0.113.77 port 6{i:04d} ssh2")
+open("auth.log","w").write("\\n".join(lines) + "\\n")
+\`\`\`
+\`\`\`bash
+python3 make-auth-log.py
+grep "Failed password" auth.log \\
+  | awk '{ for (i=1;i<=NF;i++) if ($i=="from") print $(i+1) }' \\
+  | sort | uniq -c | sort -rn | head -5
+#   25 203.0.113.77      <- the burst: 25 failures, all against root, seconds apart
+#    4 10.0.0.5
+#    3 10.0.0.9
+\`\`\`
+**Notice what made it detectable.** Not the *presence* of failed logins — alice fumbles her password too, and 4 failures is Tuesday. It was the **rate and the shape**: 25 failures from one source, in under a minute, all targeting \`root\`, a user that should never be logging in remotely at all. That contrast *is* the signature-versus-anomaly distinction made concrete. A **signature** rule says "more than N failures from one IP in M minutes" — cheap, explainable, and trivially evaded by an attacker who slows down or spreads across source addresses. An **anomaly** approach says "this account has never authenticated from this ASN at 3am" — catches the slow attacker, but needs a baseline and produces false positives that untuned teams learn to ignore, which is how Target's alert got dismissed. Real programs run both, and the useful question is never "which is better" but "what does each one *miss*, and what covers that gap?"
+
+Common wrong attempts: using a fixed \`$9\`-style column index and breaking the moment a hostname or message format shifts (anchor on the \`from\` keyword instead); forgetting \`sort\` before \`uniq -c\` (\`uniq\` only collapses *adjacent* duplicates, so you get a scattered undercount — this is the single most common log-pipeline bug); grepping for \`failed\` lowercase and getting nothing; counting all lines rather than filtering to failures, so a busy legitimate user out-ranks the attacker.
+</details>
+
+#### 🟡 Build 1 — write the logging that makes detection possible, without leaking secrets ~15 min
+
+**Goal.** Your Drill-1 pipeline only worked because sshd logged the right fields. Now write that layer for your **own** app: a \`securityEvent(name, fields)\` helper that emits **one JSON object per line** with a timestamp, an event name, and the caller's fields — and that **redacts** any field named \`password\`, \`token\`, \`secret\`, \`authorization\`, \`cookie\`, and friends. Deliberately pass it a password and a token, then prove neither reaches the output.
+
+**Done when.** Four events (\`auth.login.failed\`, \`auth.login.ok\`, \`authz.denied\`, \`user.role.changed\`) appear as parseable JSON lines, and \`grep\` for the secret values finds **nothing**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+One line of JSON per event (\`JSON.stringify\`) is what makes logs machine-parseable — a SIEM can filter on \`event\` and \`srcIp\` without regex archaeology. Build the redactor as a lowercase key **set** and rewrite matching values to a marker string, so adding a new sensitive field name is a one-word change.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// seclog.js
+const REDACT = new Set(["password","token","secret","authorization","cookie","ssn","card"]);
+const scrub = obj => Object.fromEntries(Object.entries(obj)
+  .map(([k, v]) => [k, REDACT.has(k.toLowerCase()) ? "[REDACTED]" : v]));
+
+function securityEvent(event, fields) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), level: "SECURITY", event, ...scrub(fields) }));
+}
+
+securityEvent("auth.login.failed", { user:"alice", srcIp:"203.0.113.77", password:"hunter2", reason:"bad_password" });
+securityEvent("auth.login.ok",     { user:"alice", srcIp:"10.0.0.5" });
+securityEvent("authz.denied",      { user:"bob", srcIp:"10.0.0.9", resource:"/admin", token:"eyJhbGciOi..." });
+securityEvent("user.role.changed", { actor:"admin", target:"bob", from:"user", to:"admin" });
+\`\`\`
+\`\`\`bash
+node seclog.js > events.jsonl
+cat events.jsonl
+# {"ts":"...","level":"SECURITY","event":"auth.login.failed","user":"alice","srcIp":"203.0.113.77","password":"[REDACTED]","reason":"bad_password"}
+grep -E 'hunter2|eyJhbGciOi' events.jsonl || echo "no secrets present"      # -> no secrets present
+
+# now the SAME detection as Drill 1, but over structured data — no regex needed:
+grep '"event":"auth.login.failed"' events.jsonl \\
+  | python3 -c 'import sys,json,collections
+c=collections.Counter(json.loads(l)["srcIp"] for l in sys.stdin)
+[print(n, ip) for ip,n in c.most_common()]'
+\`\`\`
+**Three design choices worth naming.** *Structured, not prose* — \`"srcIp":"203.0.113.77"\` is a field a SIEM can pivot on, correlate across services, and alert on; \`"login failed for alice from 203.0.113.77"\` is a string somebody has to write a brittle regex against, and you just felt the difference between the two pipelines above. *The right events* — authentication outcomes, authorization **denials**, privilege and role changes, password/MFA changes, and data exports. These are the events an investigator needs and that a generic error log never contains, because none of them are errors: \`user.role.changed\` is a perfectly successful operation and also exactly how an attacker persists. *Redaction by default* — the naive instinct is to log the failed password "to debug it," but that turns your log store into a **credential database**, one that is typically replicated to a SIEM, backed up, and readable by more people than production. And since users mistype their *real* password constantly, a failed-login log full of near-miss passwords is arguably worse than the user table, which at least is hashed.
+
+Common wrong attempts: redacting with a substring match on the value (you can't recognise a secret by looking at it — key-based redaction is the only reliable rule); relying on the redactor to save you and then interpolating a secret straight into the *message text*, where no key exists to match (structured fields exist precisely so this stops happening); logging the full \`Authorization\` header or whole request body "just in case"; emitting multi-line pretty-printed JSON that breaks every line-oriented tool; and forgetting that \`user.role.changed\` needs the **actor** as well as the target — "bob became admin" is useless without "admin did it," and that's the field an investigator will want first.
+</details>
+
+#### 🔴 Break & Defend — the Pyramid, dwell time, and Target's ignored alert ~13 min
+
+**Goal.** Journal three answers. (1) You block \`203.0.113.77\` at the firewall. Using the Pyramid of Pain, explain how much that costs the attacker and what detection would cost them more. (2) Define dwell time and explain why blue teams treat it as *the* metric. (3) Target's tooling generated an alert and the breach happened anyway — state the lesson in one sentence, then name three concrete reasons a real team ignores a real alert, with a fix for each.
+
+**Done when.** You can rank IP / hash / tool / TTP by attacker cost and justify the ordering, and your three reasons for a missed alert are organisational, not "they were careless."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The Pyramid of Pain.** Bianco's ranking of indicators by what it costs the adversary to change them. At the base, **hash values** — trivial, one recompile or one byte changes them. Then **IP addresses** — cheap: a new VPS costs a few dollars and minutes, so blocking \`203.0.113.77\` buys you hours at best and the attacker may not even notice. Then **domain names** — mildly annoying, they cost money and registration time. Then **network/host artifacts** — a distinctive user-agent, a named service, a registry key — now you're forcing real rework. Then **tools** — detect the *tool* (a specific credential dumper, a specific C2 framework) and they must find, buy, or write another and retrain on it. At the apex, **TTPs** — the *behaviour*: "an interactive login to a service account," "a burst of authorization denials followed by a role change," "archive-then-exfiltrate at 3am." Detecting a TTP means the attacker has to change **how they operate**, which is expensive, slow, and often outside their skill set. That's why your Drill-1 rule generalises poorly (it keys on an IP) while a rule on *"any account exceeding its historical failure rate, especially \`root\`"* keys on behaviour and survives the attacker moving house. **Practical reading:** block the IP anyway — it's free — but never mistake it for a control, and spend your scarce detection-engineering time as high up the pyramid as your data allows.
+
+**(2) Dwell time.** The interval between an attacker's initial compromise and the moment defenders detect them (sometimes split into time-to-detect and time-to-contain). It matters because **breach severity is largely a function of time**: intrusions are not instantaneous events but campaigns — the initial foothold is rarely where the value is, and everything expensive happens *during* dwell. An attacker detected in an hour has a foothold; the same attacker at ninety days has mapped the network, escalated privileges, established multiple persistence mechanisms, found the crown-jewel data, and staged exfiltration. It's the honest metric because it concedes the point every mature program concedes — **prevention will eventually fail** — and then measures the thing you can actually still influence. It also drives the right investments: detection and response capacity, not just thicker walls. Corollary: an organisation that has never detected an intrusion should not conclude it has never had one.
+
+**(3) Target, in one sentence: detection without response is decoration** — the alert fired, and the control failed anyway because no one acted on it. Three organisational reasons and their fixes. *Alert fatigue* — a console emitting thousands of daily alerts at uniform priority trains analysts to dismiss them; the real signal arrives indistinguishable from noise. **Fix:** tune ruthlessly, delete rules nobody actions, and measure precision per rule — a rule with a 2% true-positive rate is actively harmful because it consumes the attention the good rules need. *No ownership or runbook* — the alert appears and it is nobody's specific job at 3am, with no documented next step, so it is triaged as "monitor." **Fix:** every rule ships with a named owner, a severity, and a runbook saying exactly what to do; if you can't write the runbook, don't ship the rule. *No authority to act* — the analyst sees it but cannot isolate a host or block a payment path without approvals nobody grants overnight. **Fix:** pre-authorise containment actions for defined scenarios, and rehearse them (M23's tabletop) so the first time isn't during a breach. **Outside the box:** every one of these is a *human system* failure, not a technology failure — which is the real reason blue team is where the jobs are. The tooling is largely commodity; the hard, valuable part is building an organisation that reliably notices and acts, and that is also why the logging you wrote in Build 1 matters more than any dashboard: it decides what is *knowable* long before anyone asks the question.
+</details>`,
+    tracker: ["Analyzed my own auth logs and built a top-offending-IP pipeline", "Deployed at least one monitoring tool (Wazuh or similar) on a lab VM", "I can explain signature vs anomaly detection and IDS vs IPS", "I understand the Pyramid of Pain and dwell time", "I can write security logging (Node or Python) that emits structured, secret-free events a SIEM can correlate", "Workbench: built a failed-login ranking pipeline from raw log text and identified the brute-force source by rate and shape", "Workbench: wrote a securityEvent() helper emitting one JSON line per event with key-based redaction, and proved no password or token reached the log", "Workbench: ranked indicators on the Pyramid of Pain, defined dwell time, and gave three organisational reasons a real alert gets ignored with a fix for each"]
   }, {
     id: "m16_5",
     level: 2,
