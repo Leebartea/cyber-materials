@@ -6668,7 +6668,135 @@ def rotate_signing_key():
       a: "For up to 24 hours the attacker keeps full access while you can do nothing — that's waiting, not containment. Real containment needs a REVOCATION path: server-side sessions you can delete, or a per-user token version (or kid/key rotation) checked on every request, so all outstanding tokens for that user (or everyone) can be invalidated immediately. You can only respond as fast as your architecture allows — build the kill switch BEFORE the incident."
     }],
     quiz: ["What are the NIST IR phases, and which most determines the outcome?", "Why is containment (isolate) preferred over immediate power-off or wipe?", "Why is premature eradication risky?", "Why is paying a ransom not a simple 'make it stop' decision?", "As a developer, what design lets you actually contain a compromised account quickly?"],
-    tracker: ["I can list the NIST IR phases and explain why preparation dominates", "I ran the ransomware tabletop and wrote a decision tree", "I can explain isolate-and-preserve vs power-off/wipe", "I understand why ransom payment is a legal/strategic decision, not a reflex", "My app (or a design sketch) has a session-revocation + key-rotation kill switch"]
+    workbench: `> **What this trains.** When an account is compromised at 2am, "we'll rotate it next sprint" is not an answer — you need a **kill switch that already exists**. So you'll first prove the trap in stateless tokens (you *can't* revoke a JWT you designed naively), build the fix, then encode an IR runbook whose phases gate each other so nobody reboots the evidence away. All local, no dependencies.
+
+#### 🟢 Drill 1 — discover you can't revoke your own token, then fix it ~11 min
+
+**Goal.** Mint a self-signed 24-hour JWT, verify it statelessly, then simulate discovering the account is compromised and try to revoke it — and watch the stateless check keep saying "valid." Then add a server-side **token version**: a per-user counter embedded in the token and checked on every request, so bumping it revokes **every** outstanding token for that user instantly.
+
+**Done when.** The naive check still accepts the token after "revocation," and the token-version check rejects it the moment you increment the user's version — with no change to the token itself.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+An HS256 JWT is \`base64url(header).base64url(payload).HMAC\` — buildable with \`crypto\` alone, no library. Put a \`tv\` (token version) claim in the payload and keep a \`{user: version}\` map on the server; the request is valid only if the token's \`tv\` equals the server's current version for that user.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// jwt-killswitch.js
+const crypto = require("crypto");
+const SECRET = "demo-signing-key";
+const b64 = o => Buffer.from(JSON.stringify(o)).toString("base64url");
+
+function sign(payload) {
+  const h = b64({ alg: "HS256", typ: "JWT" }), p = b64(payload);
+  return h + "." + p + "." + crypto.createHmac("sha256", SECRET).update(h + "." + p).digest("base64url");
+}
+function verifyStateless(t) {
+  const [h, p, s] = t.split(".");
+  const expect = crypto.createHmac("sha256", SECRET).update(h + "." + p).digest("base64url");
+  if (s !== expect) return { ok: false, why: "bad signature" };
+  const payload = JSON.parse(Buffer.from(p, "base64url"));
+  if (payload.exp * 1000 < Date.now()) return { ok: false, why: "expired" };
+  return { ok: true, payload };
+}
+
+// server-side state: one integer per user. Bumping it revokes all their tokens.
+const tokenVersion = { alice: 1 };
+function verifyWithKillSwitch(t) {
+  const base = verifyStateless(t);
+  if (!base.ok) return base;
+  if (base.payload.tv !== tokenVersion[base.payload.sub]) return { ok: false, why: "revoked (token version stale)" };
+  return base;
+}
+
+const now = Math.floor(Date.now() / 1000);
+const token = sign({ sub: "alice", tv: 1, iat: now, exp: now + 86400 });   // valid 24h
+console.log("stateless:", verifyStateless(token).ok, "| kill-switch:", verifyWithKillSwitch(token).ok);
+tokenVersion.alice = 2;                                                     // <-- the revocation
+console.log("after revoke -> stateless STILL:", verifyStateless(token).ok);         // true (!!)
+console.log("after revoke -> kill-switch:", verifyWithKillSwitch(token).why);       // revoked
+\`\`\`
+\`\`\`bash
+#   stateless: true | kill-switch: true
+#   after revoke -> stateless STILL: true          <- cannot be revoked
+#   after revoke -> kill-switch: revoked (token version stale)
+\`\`\`
+**This is the module's challenge, and the trap is fundamental to the design.** A stateless JWT is valid because its **signature** is valid — the server keeps no record of it, which is the whole appeal (no session lookup, scales horizontally). But "the server keeps no record" means **the server has nothing to invalidate**: the token is a bearer credential that self-certifies until \`exp\`, so "they'll expire eventually" is the *only* revocation a naive design offers — and a 24-hour window in which a compromised account cannot be locked out is a catastrophic containment gap, precisely when speed decides blast radius. "Eventually" is not containment. The fix reintroduces **just enough server state** to revoke: a single integer per user, checked on each request, turns "cannot revoke" into "revoke everything instantly" at the cost of one cheap lookup. Real systems generalise this to short-lived access tokens (5–15 min) plus a revocable refresh token, or a token-version/\`jti\` denylist — the common thread is that **you must design the kill switch in before the incident**, because you cannot add revocation to a credential that's already in an attacker's hands.
+
+Common wrong attempts: "reducing the expiry to fix it" (shorter windows reduce exposure but still can't revoke *now* — the compromised token is valid until it expires, and you don't control when that is); rotating the **signing secret** to kill the token (works, but it logs out *every user of the whole system*, a sledgehammer that's occasionally right during a key-compromise but wrong for one account); storing the denylist only in one server's memory in a multi-instance deployment (the other instances still honour the token — revocation state must be shared, e.g. Redis); and forgetting to also **force re-authentication** — revoking the token does nothing if the attacker still knows the password (rotate the credential too).
+</details>
+
+#### 🟡 Build 1 — encode an IR runbook whose phases gate each other ~14 min
+
+**Goal.** Turn the NIST 800-61 lifecycle into runnable data: a function that, given an incident signal, emits an **ordered** action list where containment happens **before** eradication and evidence capture happens **before** remediation — and flags any step that would destroy evidence. Model a spreading ransomware case and show the sequence.
+
+**Done when.** The output is ordered Detection → Containment → Analysis(capture) → Eradication → Recovery → Post-Incident, containment **isolates the network without powering off**, and you can point to where a "reboot to make it stop" would slot in and what it destroys.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Represent each step as \`{phase, action, preserves_evidence}\`. The ordering *is* the lesson — a later phase must never run before its gate. Branch containment on whether the threat is spreading: isolate the network (keep power, preserve RAM per M22) versus disable-account-and-revoke for a single compromised login.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# ir.py — the runbook as gated, ordered data
+def triage(signal):
+    steps = []
+    add = lambda phase, action, keep=True: steps.append(
+        {"phase": phase, "action": action, "preserves_evidence": keep})
+
+    add("Detection", f"alert: {signal['type']} on {signal['host']}")
+    if signal["spreading"]:
+        add("Containment", f"network-isolate {signal['host']} (pull cable/VLAN, keep POWERED)")
+    else:
+        add("Containment", "disable compromised account, revoke sessions (kill switch)")
+    add("Analysis",      "capture memory image + hash BEFORE remediation")   # gate: evidence first
+    add("Eradication",   "remove persistence, patch the entry vector")
+    add("Recovery",      "restore from known-good backup, rotate ALL exposed secrets")
+    add("Post-Incident", "blameless review; feed new detections back to the SIEM")
+    return steps
+
+for i, s in enumerate(triage({"type": "ransomware", "host": "fs-01", "spreading": True}), 1):
+    print(f'{i}. [{s["phase"]:<13}] {s["action"]}')
+\`\`\`
+\`\`\`bash
+# 1. [Detection    ] alert: ransomware on fs-01
+# 2. [Containment  ] network-isolate fs-01 (pull cable/VLAN, keep POWERED)
+# 3. [Analysis     ] capture memory image + hash BEFORE remediation
+# 4. [Eradication  ] remove persistence, patch the entry vector
+# 5. [Recovery     ] restore from known-good backup, rotate ALL exposed secrets
+# 6. [Post-Incident] blameless review; feed new detections back to the SIEM
+\`\`\`
+**The ordering is the entire point, and it encodes hard-won lessons.** *Containment before eradication:* stop the spread first — an attacker actively exfiltrating or ransomware encrypting doesn't pause while you investigate, so you isolate to freeze the blast radius, then analyse. *Isolate, don't power off* (the module's challenge and the M22 link): pulling the **network** halts spread and C2 while preserving the RAM that holds keys, live processes, and the only copy of fileless malware — pulling the **power** halts spread and destroys all of it, and may trip wipe-on-shutdown. *Capture before remediate:* the instant you start deleting persistence and patching, you overwrite the evidence of how they got in — so image and hash first (M22), or your post-incident review is guesswork. *Recovery rotates every exposed secret:* restoring the app without rotating credentials just hands the reoccupied house back with the same keys. *Post-incident feeds detection:* the incident's indicators become new SIEM rules (M16), closing the loop so the same intrusion is caught automatically next time.
+
+And notice what makes the whole thing work: **preparation**. The runbook, the kill switch from Drill 1, tested backups, and pre-authorised containment authority all have to exist *before* the alert — which is why NIST puts Preparation first and why it dominates. An incident is a bad time to discover you can't revoke a token, don't know who can approve isolating a production host, or have never tested a restore.
+
+Common wrong attempts: eradicating before capturing (destroys the "how"); treating the phases as a strict one-way waterfall (real IR loops — analysis often reveals a second foothold, sending you back to containment); "recovering" from a backup made *after* the compromise (restores the implant — you need a known-good point, which means you must know *when* they got in, which means you needed the analysis); and modelling containment as always "power off," which is the exact instinct the module and M22 both warn against.
+</details>
+
+#### 🔴 Break & Defend — NotPetya, the reboot, and paying the ransom ~12 min
+
+**Goal.** Journal three answers. (1) Maersk lost most of its global IT to NotPetya in hours — what does that teach about preparation, segmentation, and recovery specifically? (2) A junior admin reboots the infected machine "to make it stop" — enumerate exactly what they destroyed. (3) Ransomware has encrypted your files and there's a backup you're not sure works — walk the decision on whether to pay, as a strategic and legal question rather than a reflex.
+
+**Done when.** Your Maersk answer names the *recovery* miracle and its lesson, your reboot answer is a concrete list, and your ransom answer treats payment as a last resort with named downsides.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Maersk vs NotPetya.** In June 2017 the NotPetya wiper (Russian military malware aimed at Ukraine, spread via a compromised Ukrainian tax-software update and then wormed globally via EternalBlue and stolen credentials) destroyed roughly **49,000 laptops and 4,000 servers** at Maersk in a couple of hours, taking down the IT running ~20% of world shipping. Three lessons. *Segmentation:* it spread so fast and so completely because the internal network was flat and trusted — once inside, it reached everything, the anti-thesis of Zero Trust (M16.5) and the argument for micro-segmentation made in blood. *Recovery depends on something being **offline**:* Maersk's domain controllers were all wiped, and they recovered only because a single DC in Ghana had been **offline during a power outage** and survived — the entire rebuild hinged on luck, which is the lesson that backups must be **offline/immutable** (a wiper or ransomware reaches every online backup too). *Preparation dominates:* the difference between Maersk (rebuilt ~10 days, ~\$300M loss) and a company that never recovers is prepared, tested restore capability. NotPetya also teaches that **not every "ransomware" wants money** — it was a wiper wearing a ransom note, so paying would have recovered nothing, which feeds directly into answer (3).
+
+**(2) What the reboot destroyed.** A concrete list, all of it the volatile evidence from M22: the **memory image** and everything in it — the malicious processes running, **injected/fileless code** with no disk artifact, **decryption/encryption keys** held in RAM (sometimes the *only* way to recover files without paying), **active network connections** revealing C2 and lateral movement, logged-in sessions and credentials in memory, and the unpacked form of packed malware. On top of that, a graceful shutdown can trigger **wipe-** or **encrypt-on-exit** logic, and rebooting an encrypted volume can re-lock data you could have imaged unlocked. And it usually **doesn't even stop the spread** — the worm already propagated over the network, so the reboot destroys the evidence without achieving the goal. The right instinct is *isolate the network, keep it powered, call IR* — which is exactly why Drill/Build put network-isolation-without-power in the containment slot.
+
+**(3) The ransom decision.** Never a reflex; a strategic and legal decision, ideally pre-decided in policy (preparation again). Walk it: **first exhaust recovery** — is there a known-good, offline backup, and has a restore actually been *tested*? If yes, you don't pay; you restore (having captured evidence and rotated secrets first). **Weigh the downsides of paying**, which are severe and often underappreciated: you're funding a criminal enterprise and incentivising the next attack (on you — repeat-victimisation is common); **decryptors frequently fail or are slow**, so payment doesn't guarantee recovery and NotPetya-style wipers can't decrypt at all because the keys were never kept; the attackers **still have your exfiltrated data** (double-extortion means paying to decrypt doesn't stop them leaking it); and payment may be **illegal** — sanctions regimes (OFAC) prohibit paying certain groups, exposing you to legal liability on top of the breach. So payment is a last resort for an organisation with no viable backup facing existential data loss, made *with legal counsel, law enforcement, and specialist negotiators*, not by an engineer at 3am. **Outside the box:** every hard choice in this module — revoke or wait, isolate or power off, pay or restore — is easy or impossible depending on decisions made *before* the incident: whether the kill switch exists, whether backups are offline and tested, whether the network is segmented, whether there's a policy on payment. That's the real meaning of "preparation dominates": IR isn't what you do during the fire, it's what you built before it that determines whether the fire is survivable.
+</details>`,
+    tracker: ["I can list the NIST IR phases and explain why preparation dominates", "I ran the ransomware tabletop and wrote a decision tree", "I can explain isolate-and-preserve vs power-off/wipe", "I understand why ransom payment is a legal/strategic decision, not a reflex", "My app (or a design sketch) has a session-revocation + key-rotation kill switch", "Workbench: proved a naive stateless JWT cannot be revoked, then built a per-user token-version kill switch that invalidates every outstanding token instantly", "Workbench: encoded the NIST IR lifecycle as gated ordered data — contain before eradicate, capture before remediate, isolate-not-power-off", "Workbench: explained the Maersk/NotPetya recovery lesson, listed what a reboot destroys, and reasoned through the ransom-payment decision"]
   }, {
     id: "m24",
     level: 3,
