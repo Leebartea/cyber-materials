@@ -3455,7 +3455,114 @@ docker run --platform linux/arm64 -it kalilinux/kali-rolling /bin/bash`
       a: "'We control the string' is rarely fully true — parts often come from user input, a filename, a DB value, or an env var. With shell=True, any metacharacter that slips in is interpreted by the shell, enabling injection. The robust default is an argument LIST with shell=False so input is data, not code — even when you THINK the string is trusted. Don't rely on the gap between 'trusted now' and 'trusted after the next refactor.'"
     }],
     quiz: ["What does sudo give you over logging in as root, from a security standpoint?", "What is the SUID bit, and why is it a privilege-escalation concern?", "Why is subprocess.run(cmd, shell=True) (or Node's exec) dangerous with user input, and what's the fix?", "Why do defenders run find /etc -mtime -1 and find / -perm -4000?", "Why should you never trust or execute files in /tmp?"],
-    tracker: ["Kali ARM64 VM running on VMware Fusion or UTM", "I can navigate the FHS and explain /etc, /var/log, /proc, /tmp", "I understand sudo vs root and where escalation is logged", "I audited my VM for SUID binaries and recent /etc changes", "I can run a subprocess safely (Node execFile / Python list-args, no shell)"]
+    workbench: `> **What this trains.** The lab gave you audit commands to run inside Kali. Here you run the same defender's audit against **your own Mac** — no VM required, because macOS is Unix and the privilege model is the same — then you *prove* command injection to yourself with a harmless marker file and close it. Everything is read-only or confined to a throwaway file in /tmp.
+
+#### 🟢 Drill 1 — audit the SUID binaries on your own machine ~6 min
+
+**Goal.** List every setuid binary in \`/usr/bin\` on your Mac, then pick two and explain why they *legitimately* need to run as root. This is the first command an attacker runs after landing on a box — run it as the defender first.
+
+**Done when.** You have the list, you can point at the \`s\` in an \`ls -l\` permission string, and you can say why \`sudo\` must be setuid-root while (surprisingly) \`passwd\` on macOS is not.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The setuid bit is octal \`4000\`. \`find\`'s \`-perm -4000\` means "has at least these bits set." Send permission-denied noise to \`/dev/null\` with \`2>/dev/null\`. Then \`ls -l\` one of the results and read the owner's execute column.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+find /usr/bin -perm -4000 -type f 2>/dev/null
+# /usr/bin/top   /usr/bin/atq   /usr/bin/crontab  /usr/bin/atrm  /usr/bin/newgrp
+# /usr/bin/su    /usr/bin/batch /usr/bin/sudo     /usr/bin/at    /usr/bin/quota  /usr/bin/login
+
+ls -l /usr/bin/sudo /usr/bin/su /usr/bin/passwd
+# -r-s--x--x  root  wheel  /usr/bin/sudo     <- the 's' IS the setuid bit
+# -rwsr-xr-x  root  wheel  /usr/bin/su       <- also setuid-root
+# -rwxr-xr-x  root  wheel  /usr/bin/passwd   <- NOT setuid on macOS
+\`\`\`
+**Why these need it.** \`sudo\` and \`su\` exist precisely to *change* who you are running as — that requires root, and the caller isn't root, so the bit is the mechanism. \`crontab\` and \`at\` need to write into root-owned spool directories on behalf of a normal user. **Why \`passwd\` is not setuid here:** on Linux it classically is (it must edit root-owned \`/etc/shadow\`), but macOS routes password changes through the Open Directory service instead — so the same job is done by talking to a privileged daemon rather than by becoming root. That difference *is* the lesson: setuid is one way to cross a privilege boundary, and the safer modern pattern is to ask a narrowly-scoped privileged service instead.
+
+Common wrong attempts: running \`find / -perm -4000\` and drowning in permission errors (scope it, or redirect stderr); concluding "11 setuid binaries = 11 vulnerabilities" — these are *expected*, and the audit's value is comparing against a known baseline so a **surprise** entry stands out (a setuid copy of \`find\`, \`vim\`, \`python\`, or a custom script is the escalation path from the case study); assuming your Mac's list matches Linux's — check both, they differ.
+</details>
+
+#### 🟡 Build 1 — prove command injection, then close it ~14 min
+
+**Goal.** Write a "ping a host" helper **twice**: once the naive way (build a string, hand it to a shell) and once safely (program + argument array, no shell). Prove the difference by feeding it \`127.0.0.1; touch /tmp/cg_m11_pwned\` and checking whether the marker file appears. Use \`touch\` — never a destructive payload — to demonstrate the hole.
+
+**Done when.** The naive version creates \`/tmp/cg_m11_pwned\`; the safe version does **not**, and \`ping\` instead errors because it received the whole string as one literal hostname. Then add an allow-list so the bad input is rejected before it ever reaches \`ping\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Node: \`exec()\` spawns a shell, \`execFile()\` does not. Python: \`shell=True\` spawns \`/bin/sh\`, a list argument does not. Check for the marker with \`fs.existsSync\` / \`os.path.exists\`, and \`rm -f /tmp/cg_m11_pwned\` between runs or your second test inherits the first one's file.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// Run each separately, with: rm -f /tmp/cg_m11_pwned   BEFORE each one.
+// VULNERABLE - exec() hands the built string to a shell
+node -e '
+const { exec } = require("child_process");
+const host = "127.0.0.1; touch /tmp/cg_m11_pwned";      // attacker-controlled
+exec(\`ping -c 1 \${host}\`, () =>
+  console.log("marker exists after exec()?", require("fs").existsSync("/tmp/cg_m11_pwned")));
+'   // -> true    the ; chained a second command
+
+// SECURE - execFile() runs ONE program; args are inert data
+node -e '
+const { execFile } = require("child_process");
+const host = "127.0.0.1; touch /tmp/cg_m11_pwned";
+execFile("ping", ["-c","1",host], (e) => {
+  console.log("ping errored (host treated as literal text):", !!e);
+  console.log("marker exists after execFile()?", require("fs").existsSync("/tmp/cg_m11_pwned"));
+});
+'   // -> errored: true, marker: false
+\`\`\`
+
+\`\`\`python
+# VULNERABLE - shell=True
+python3 -c '
+import subprocess, os
+host = "127.0.0.1; touch /tmp/cg_m11_pwned"
+subprocess.run(f"ping -c 1 {host}", shell=True, capture_output=True)
+print("marker after shell=True?", os.path.exists("/tmp/cg_m11_pwned"))
+'   # -> True
+
+# SECURE - argument list, shell=False (the default)
+python3 -c '
+import subprocess, os, re
+host = "127.0.0.1; touch /tmp/cg_m11_pwned"
+if not re.fullmatch(r"[A-Za-z0-9.\\-]+", host):        # allow-list: defence in depth
+    raise SystemExit("rejected: invalid host")        # <- input never reaches ping
+r = subprocess.run(["ping","-c","1",host], capture_output=True)
+print("marker after list-args?", os.path.exists("/tmp/cg_m11_pwned"))
+'   # -> rejected by the allow-list; remove the check and it still prints False
+\`\`\`
+**Read the result carefully.** With the array form the exploit doesn't merely fail to delete something — it never *executes* at all. \`ping\` received one argument whose value happens to contain a semicolon, looked it up as a hostname, and gave up. There is no shell in the process tree to interpret the \`;\`, so there is nothing to escape. That is why argument-array execution beats sanitising: escaping is a blocklist you must get right every time, while removing the shell removes the interpreter entirely.
+
+Common wrong attempts: trying to fix the vulnerable version by stripping \`;\` (attackers still have \`|\`, \`&&\`, backticks, \`$()\`, and newlines — blocklists lose); keeping \`shell=True\` but quoting the variable (quoting inside a string you build is exactly the bug — \`"\` and \`$()\` survive); forgetting the \`rm -f\` between runs and reporting a false positive; testing with a destructive payload — a marker file proves the same thing and cannot ruin your afternoon. Note both defences are present in the secure Python: the **allow-list** rejects bad input early, and **shell=False** means even a miss is inert. Keep both — the allow-list is policy, the array form is the guarantee.
+</details>
+
+#### 🔴 Break & Defend — the escalation path, /tmp, and "but we control the string" ~12 min
+
+**Goal.** In your journal, answer three things. (1) You have landed as a low-privilege user and \`sudo -l\` reports \`NOPASSWD: /usr/bin/find\` — describe the escalation to root and the fix. (2) \`ls -ld /tmp\` shows \`drwxrwxrwt\` — name the last bit and explain both what it protects and why /tmp contents are still untrusted. (3) Refute the colleague from the challenge who says \`shell=True\` is fine "because we control the command string."
+
+**Done when.** You can state the escalation concretely (not just "misconfig"), name the sticky bit and its precise guarantee, and give the refutation in terms of *time* — who controls that string after the next refactor.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) NOPASSWD find → root.** \`find\` has \`-exec\`, so it can run arbitrary programs — and sudo runs it as root: \`sudo find . -maxdepth 0 -exec /bin/sh \\;\` hands you a root shell, no password, no exploit, no kernel bug. This is the case study's point made sharp: the escalation was *configuration*, not a memory-corruption 0-day. Any binary with a built-in "run this other program" or "write this file" feature (\`find\`, \`vim\`, \`less\`, \`awk\`, \`python\`, \`tar --checkpoint-action\`) becomes a root shell the instant it appears in a NOPASSWD rule — the community catalogues these as GTFOBins. **Fix:** grant sudo to a *specific, non-escaping* command with fixed arguments, or better, to a small wrapper script you control that takes no arguments; never to a general-purpose tool. And re-read your own sudoers with \`sudo -l\` the way an attacker would.
+
+**(2) The sticky bit.** The trailing \`t\` in \`drwxrwxrwt\` is the sticky bit: in a world-writable directory it restricts *deletion and renaming* of a file to the file's owner (or root). Without it, anyone could delete anyone else's /tmp files. Note precisely what that does **not** cover: the directory is still world-**writable**, so any user can create files there, and any user can read files that are world-readable. So /tmp is untrusted for two independent reasons — an attacker can plant a file (never execute or source anything from /tmp, and never trust a predictable filename there), and an attacker can read what you leave behind (never write secrets to /tmp; Module 7's \`0600\`-at-creation lesson applies double here). The classic bug is the **symlink race**: your script writes to a predictable /tmp path, an attacker pre-creates that name as a symlink to something valuable, and your privileged process follows it. Use \`mktemp\` and \`O_EXCL\`, not a guessable name.
+
+**(3) The refutation.** "We control the string" is a claim about *this moment*, and code outlives moments. The string is usually already partly external — a filename, a DB field, an env var, a config value, a hostname from a form — and even when it is genuinely internal today, the next refactor threads a parameter through it and no reviewer re-audits the shell boundary, because nothing in the code marks that boundary as dangerous. The argument also fails on blast radius: if it's genuinely constant, you lose *nothing* by passing an array, so the "convenience" defence buys zero and risks total command execution. **Outside the box:** the real principle underneath M11 is that every one of these — the shell, the setuid bit, the NOPASSWD rule, the world-writable /tmp — is a place where **data can turn into instructions, or a normal user can turn into root**. Security work is largely finding those transitions and making them narrow, explicit, and audited. That is the same instinct you will apply to SQL injection and XSS in Module 14: don't sanitise the interpreter's input, remove the interpreter from the path.
+</details>`,
+    tracker: ["Kali ARM64 VM running on VMware Fusion or UTM", "I can navigate the FHS and explain /etc, /var/log, /proc, /tmp", "I understand sudo vs root and where escalation is logged", "I audited my VM for SUID binaries and recent /etc changes", "I can run a subprocess safely (Node execFile / Python list-args, no shell)", "Workbench: audited my own Mac's setuid binaries and explained why sudo/su need the bit (and why macOS passwd doesn't)", "Workbench: proved command injection with a harmless marker file via exec/shell=True, then closed it with execFile/list-args plus an allow-list", "Workbench: explained the NOPASSWD find escalation, the sticky bit's exact guarantee, and why 'we control the string' fails over time"]
   }, {
     id: "m11_5",
     level: 2,
