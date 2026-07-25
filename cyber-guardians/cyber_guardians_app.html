@@ -7393,7 +7393,124 @@ python3 -m http.server 8169 & curl http://127.0.0.1:8169/`
       a: "The LLM's output is UNTRUSTED input (it can be steered by prompt injection or simply hallucinate destructive SQL). Running it directly is injection (Module 14) with an AI in the loop. Safe design: have the model choose an INTENT or fill parameters, then YOU execute a pre-written, parameterized query mapped to that intent — never execute model-generated SQL/HTML/shell. Plus least-privilege DB access and human approval for consequential actions."
     }],
     quiz: ["Where is the line in the shared-responsibility model, and which side causes most breaches?", "What is the IMDS, and why does requiring IMDSv2 defeat SSRF credential theft?", "As a developer, how do you stop a URL-fetch feature from becoming SSRF-to-metadata?", "Why must a shipped mobile app never contain secrets or rely on client-side checks?", "What is prompt injection, and why is the fix architectural rather than a better prompt?"],
-    tracker: ["I can state the shared-responsibility line and who owns most breaches", "Hardened a personal EC2 with IMDSv2 required and least-privilege IAM", "Ran Prowler and simulated the SSRF-to-metadata chain on localhost, then blocked it in code", "Ran MobSF against my own APK and understand mobile storage/transport/reverse-eng risks", "Tried prompt injection on a persona and can explain why LLM output is untrusted"]
+    workbench: `> ⚖️ **Ethics.** The metadata service is simulated on your own \`127.0.0.1\`; the real one at \`169.254.169.254\` should only ever be queried on an instance you own. Everything here is local.
+
+> **What this trains.** The Capital One breach was one bug — **SSRF reaching the cloud metadata service** — and it's a bug you can build, exploit, and fix on your laptop in twenty minutes. So you'll stand up a fake metadata endpoint, steal its "credentials" through a vulnerable URL fetcher, then write the SSRF filter that stops it — and defeat the sneaky bypasses that catch naive filters.
+
+#### 🟢 Drill 1 — steal cloud credentials through SSRF ~9 min
+
+**Goal.** Run a fake metadata service on loopback that hands out IAM credentials at the well-known path, then write a "fetch this URL for the user" feature and use it to reach the metadata service and exfiltrate the credentials. This is the Capital One chain, in miniature.
+
+**Done when.** Your fetcher, given an attacker-chosen URL pointing at the metadata endpoint, returns the fake \`AccessKeyId\`/\`SecretAccessKey\` — demonstrating that a server-side fetch of a user-supplied URL is a credential-theft primitive.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+The real AWS metadata service lives at \`169.254.169.254\` and returns temporary role credentials at \`/latest/meta-data/iam/security-credentials/\`. Simulate it with a tiny HTTP server on \`127.0.0.1:9500\`. The "vulnerable feature" is any endpoint that does \`http.get(userSuppliedUrl)\` — an image proxy, a webhook, a URL preview, a PDF-from-URL.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`javascript
+// metadata.js — a stand-in for 169.254.169.254 (never expose this)
+require("http").createServer((q, r) => {
+  if (q.url.includes("/iam/security-credentials"))
+    r.end(JSON.stringify({ AccessKeyId: "ASIA_FAKE", SecretAccessKey: "fake/secret", Token: "fake" }));
+  else r.end("metadata-root");
+}).listen(9500, "127.0.0.1", () => console.log("fake metadata up"));
+\`\`\`
+\`\`\`javascript
+// vulnerable-fetch.js — "preview any URL the user gives us"
+const http = require("http");
+const fetchUrl = u => new Promise(res => {
+  http.get(u, r => { let b = ""; r.on("data", d => b += d); r.on("end", () => res(b)); })
+      .on("error", e => res("ERR " + e.code));
+});
+(async () => {
+  const attackerUrl = "http://127.0.0.1:9500/latest/meta-data/iam/security-credentials/role";
+  console.log("SSRF ->", await fetchUrl(attackerUrl));
+})();
+//   SSRF -> {"AccessKeyId":"ASIA_FAKE","SecretAccessKey":"fake/secret","Token":"fake"}
+\`\`\`
+**Walk the Capital One chain you just reproduced.** A web-app firewall was misconfigured such that an attacker could make the *server* issue a request of the attacker's choosing — **Server-Side Request Forgery**. Because the server was an EC2 instance, it could reach the **instance metadata service** at the link-local address \`169.254.169.254\`, an endpoint that exists to hand running instances their temporary IAM role credentials with **no authentication** — reachable from the instance is the entire access-control model. The attacker pointed the SSRF at that endpoint, received the role's credentials, and used them to read ~100 million customer records from S3. The devastating property of SSRF is that it turns your server into a **confused deputy**: it fetches the URL *with the server's own network position and privileges*, so the attacker borrows your server's access to internal services — metadata, admin panels, databases on \`127.0.0.1\`, other hosts behind the firewall — none of which are reachable from the outside. That's why "it's only a URL preview feature" is never only that.
+
+Common wrong attempts: thinking this needs AWS to try (the *pattern* is what matters — a loopback stand-in teaches the whole lesson safely); assuming SSRF only reads metadata (it also reaches internal admin endpoints, databases, and other cloud metadata like GCP's \`metadata.google.internal\`); and believing an allow-list of *response* content helps — the damage is the *request*, and blind SSRF (no response returned) is still exploitable for internal port scanning and state-changing calls.
+</details>
+
+#### 🟡 Build 1 — write the SSRF filter, then beat the bypasses ~15 min
+
+**Goal.** Write \`safe_to_fetch(url)\` that permits only \`http/https\` to **public** addresses and blocks anything internal. Then test it against the tricks that defeat naive filters: the metadata IP, loopback, a private range, IPv6 loopback, a \`file://\` scheme, and — the one everyone misses — \`127.0.0.1\` written as the **decimal integer** \`2130706433\`.
+
+**Done when.** Every internal target is blocked, including \`http://2130706433/\`, \`file:///etc/passwd\` is blocked by scheme, and a genuinely public URL is allowed — and you can explain why you had to **resolve the hostname** to get this right.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+The critical insight: a string blocklist ("does the URL contain 169.254 or 127.0.0.1?") loses to alternate encodings and DNS. You must **resolve the host to its actual IP address** and classify *that* with \`ipaddress\` — \`is_private\`, \`is_loopback\`, \`is_link_local\`, \`is_reserved\`. \`getaddrinfo\` will turn \`2130706433\` into \`127.0.0.1\` for you, which is exactly the point.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# ssrf_guard.py
+import ipaddress, socket
+from urllib.parse import urlparse
+
+def is_blocked(ip):
+    a = ipaddress.ip_address(ip)
+    return a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast
+
+def safe_to_fetch(url):
+    p = urlparse(url)
+    if p.scheme not in ("http", "https"):
+        return False, f"scheme {p.scheme!r} not allowed"          # kills file://, gopher://, dict://
+    try:
+        addrs = {ai[4][0] for ai in socket.getaddrinfo(p.hostname, None)}   # RESOLVE, don't string-match
+    except socket.gaierror:
+        return False, "does not resolve -> block"
+    for ip in addrs:                                              # every resolved address must be public
+        if is_blocked(ip):
+            return False, f"{p.hostname} -> {ip} is internal -> BLOCK"
+    return True, f"{p.hostname} -> {sorted(addrs)} public -> allow"
+
+for u in ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:9500/",
+          "http://2130706433/", "http://[::1]/", "http://10.0.0.5/admin",
+          "https://example.com/api", "file:///etc/passwd"]:
+    ok, why = safe_to_fetch(u)
+    print(("ALLOW " if ok else "BLOCK "), u, "->", why)
+\`\`\`
+\`\`\`bash
+# BLOCK  http://169.254.169.254/...   -> link-local
+# BLOCK  http://127.0.0.1:9500/       -> loopback
+# BLOCK  http://2130706433/           -> 2130706433 resolves to 127.0.0.1  (the bypass!)
+# BLOCK  http://[::1]/                -> ::1 loopback
+# BLOCK  http://10.0.0.5/admin        -> private
+# ALLOW  https://example.com/api      -> public
+# BLOCK  file:///etc/passwd           -> scheme not allowed
+\`\`\`
+**Why "resolve, then classify the address" is the only filter that holds.** \`http://2130706433/\` is \`127.0.0.1\` written as a 32-bit integer, and browsers and HTTP libraries happily connect to it — so any filter that greps the *string* for "127.0.0.1" waves it straight through, along with octal (\`0177.0.0.1\`), hex, and IPv6-mapped forms. The only robust approach is to do what the network stack does: resolve the hostname to its real IP(s) and check *those* against the internal ranges. That also closes the DNS angle — an attacker who controls \`evil.com\` can point it at \`169.254.169.254\`, so you cannot trust the name, only the resolved address. **But note the limit you must state (it's the M18 TOCTOU race again):** you resolve here and the HTTP client resolves *again* when it connects, and between those two lookups the answer can change — **DNS rebinding**. Fully closing it requires resolving once and forcing the connection to that pinned IP, blocking redirects (a \`302\` to \`169.254.169.254\` bypasses a check that only validated the first URL), and — the real-world primary fix — **IMDSv2**, which requires a session token obtained via a \`PUT\` the SSRF usually can't forge, breaking the chain at the metadata service itself. Defence in depth: fix the SSRF *and* require IMDSv2 *and* scope the IAM role to least privilege.
+
+Common wrong attempts: string/regex blocklisting the URL (loses to decimal/octal/hex/IPv6/DNS — the whole reason this drill exists); allow-listing schemes but forgetting to resolve, so \`http://evil.com\` pointing at metadata passes; checking the URL you were given but following **redirects** blindly (validate every hop, or pin and disable redirects); blocking \`169.254.169.254\` specifically but not the whole link-local \`/16\` and the other clouds' metadata names; and validating on the way in but letting the HTTP client re-resolve on the way out (rebinding).
+</details>
+
+#### 🔴 Break & Defend — IMDSv2, mobile storage, and the LLM-to-SQL trap ~13 min
+
+**Goal.** Journal three answers. (1) Answer the module's challenge: what single EC2 setting would have broken the Capital One chain, and why? (2) Mobile: your app stores a session token and an API key — where does each belong on iOS/Android, and why is "in the app's local storage / in the code" wrong? (3) Answer the module's LLM challenge: your feature lets an LLM "answer questions about the database" by generating SQL — why is running that SQL directly dangerous, and what's the safe design?
+
+**Done when.** Your IMDSv2 answer explains the token mechanism, and your LLM answer connects to both M14 and M24.5.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) IMDSv2.** Requiring **IMDSv2** on the instance would have broken the chain. The original metadata service (IMDSv1) answers a plain \`GET\` to \`169.254.169.254\` — which is exactly what an SSRF can forge, since SSRF's power is making the server issue simple requests. IMDSv2 makes the flow **session-oriented**: the client must first send a \`PUT\` to obtain a short-lived token (with a header and a low IP **hop limit** so the response can't route beyond the instance), then include that token on every metadata \`GET\`. An SSRF primitive typically can only coerce a \`GET\` of an attacker-chosen URL — it usually can't set arbitrary methods and headers, and even if it forces the \`PUT\`, the hop-limit and header requirements frustrate proxied retrieval. So the credentials become unreachable *through SSRF* while remaining available to the legitimate instance. It's the ideal defensive control because it neutralises an entire bug class (any SSRF, present or future, on that instance) at the platform layer, without depending on every URL-handling code path being perfect — which is why AWS now defaults new instances to IMDSv2 and why "require IMDSv2" is baseline cloud hygiene. Pair it with least-privilege IAM so that even a stolen credential reads little.
+
+**(2) Mobile storage.** The **session token** belongs in the platform's **secure, hardware-backed credential store** — iOS **Keychain**, Android **Keystore / EncryptedSharedPreferences** — never in plain \`UserDefaults\`/\`SharedPreferences\` or a local file, because those are readable on a jailbroken/rooted device, in a device backup, and by other processes in some conditions; the secure store is encrypted, hardware-isolated (Secure Enclave / TEE), and gated by device unlock/biometrics. The **API key** is the harder lesson: it **does not belong in the mobile app at all**. Anything shipped in the app binary — string constant, config file, obfuscated blob — is extractable, because the attacker owns the device and can decompile, inspect memory, and MITM the traffic (M20's "the client is adversarial," now with the client physically in the attacker's hand). A secret key that authorizes server-side actions must live on **your server**; the app authenticates the *user* and your backend holds the privileged key and makes the third-party call. If a value must be on the device, it must be one that only grants that user's own least-privilege access, revocable server-side (M23's kill switch). The general rule: **a mobile app is untrusted client code running in a hostile environment** — the same trust boundary as a browser, minus the sandbox guarantees.
+
+**(3) LLM-generated SQL.** Running the model's generated SQL directly is dangerous for two compounding reasons. First, it's **injection** (M14): the model's output is untrusted (M24.5), and a user asking "show me my orders; also DROP TABLE users" — or a prompt-injected instruction riding in some data the model read — can produce destructive or exfiltrating SQL that your code then executes with full database privileges. Second, even *well-intentioned* generated SQL is unbounded: "answer questions about the database" easily becomes \`SELECT * FROM users\` returning every customer's PII, because the model has no concept of *this* user's authorization (the IDOR problem, M20). The safe design layers several controls: run the query under a **read-only, least-privilege database account** scoped to only the tables/rows this user may see (row-level security), so the *worst case* is bounded no matter what SQL appears; prefer constraining the model to **parameterized, pre-approved query templates** or a restricted query builder rather than free-form SQL, so it fills in values, not structure; **validate/allow-list** the generated statement (single \`SELECT\`, no DDL/DML, row limits) before execution; run it in a **sandbox/transaction** with timeouts; and never expose raw DB errors back through the model. The through-line: treat the LLM as an untrusted *proposer* and put a validating, least-privilege gate between its output and any real effect — **exactly the intent-to-vetted-action pattern from M24.5**, applied to SQL. **Outside the box:** M25 is three surfaces — cloud, mobile, AI — and one lesson under all of them: the breach lives at the **trust boundary and the identity/permission model**, not in exotic exploits. SSRF matters because the metadata endpoint trusted network position; mobile secrets leak because the app was trusted with them; LLM-SQL is dangerous because the model's output was trusted with database authority. Every fix is the same move you've made all course — **constrain privilege, validate at the boundary, never trust the client (or the model, or the network position)** — which is why a full-stack developer who internalises these owns most of what actually causes cloud-era breaches.
+</details>`,
+    tracker: ["I can state the shared-responsibility line and who owns most breaches", "Hardened a personal EC2 with IMDSv2 required and least-privilege IAM", "Ran Prowler and simulated the SSRF-to-metadata chain on localhost, then blocked it in code", "Ran MobSF against my own APK and understand mobile storage/transport/reverse-eng risks", "Tried prompt injection on a persona and can explain why LLM output is untrusted", "Workbench: stole fake IAM credentials through an SSRF against a local metadata service, reproducing the Capital One chain", "Workbench: wrote an SSRF filter that resolves the host and blocks internal addresses including the decimal-integer 127.0.0.1 bypass, and can explain the DNS-rebinding limit", "Workbench: explained how IMDSv2 breaks the chain, where mobile session tokens vs API keys belong, and the safe design for LLM-generated SQL"]
   }, {
     id: "m25_5",
     level: 3,
