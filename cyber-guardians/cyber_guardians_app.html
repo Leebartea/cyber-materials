@@ -6450,7 +6450,125 @@ vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`
       a: "The hash is a tamper-evidence seal. Recording the SHA-256 of the original/image at collection, then re-hashing after handling, proves the evidence was NOT altered during analysis — a match demonstrates integrity (essential for court admissibility and internal trust); a mismatch reveals tampering and invalidates the evidence. It's the one-way-hash property from Module 3 used as an integrity seal."
     }],
     quiz: ["What is the order of volatility, and why does it dictate collection sequence?", "Why must you analyze a forensic IMAGE, not the original, and what role does a write blocker play?", "How do hashes establish evidence integrity?", "Why is 'I deleted the file' not the same as 'the data is gone'?", "What is chain of custody and why does it matter even for internal investigations?"],
-    tracker: ["Analyzed a sample disk image in Autopsy (deleted files, history, USB artifacts)", "Ran Volatility 3 on a sample memory image (pslist/netscan/malfind)", "Hashed evidence before and after and verified it was unchanged", "I can explain order of volatility and why RAM is captured first", "I can apply 'preserve + hash + work on a copy' to an incident artifact in my own code"]
+    workbench: `> **What this trains.** Forensics has one non-negotiable rule — **prove you didn't alter what you found** — and it's a rule you enforce with code, not good intentions. So you'll build the acquire → hash → work-on-a-copy → verify workflow yourself and watch the hash catch a one-byte change, then extract the metadata a file leaks about its author (the exact move that caught BTK). Everything runs on a throwaway file you create.
+
+#### 🟢 Drill 1 — acquire evidence and prove it stayed untouched ~9 min
+
+**Goal.** Implement the core forensic loop: hash an evidence file, copy it, record a **chain-of-custody** entry, "analyse" only the copy, then re-hash the original to prove your investigation changed nothing. Finally alter one byte of the copy and confirm the hash detects it.
+
+**Done when.** The original's hash is identical before and after analysis, your custody record shows the acquisition hash matching the working copy, and a single flipped byte makes the verification **fail**.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`hashlib.sha256\` over the file in chunks avoids loading a large image into memory. \`shutil.copy2\` preserves timestamps (\`copy\` does not — and altered timestamps are themselves evidence). The whole point is that analysis touches the **copy**; the original is read exactly twice, to hash it.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# forensics.py
+import hashlib, shutil, json, datetime
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):   # stream it; images are huge
+            h.update(chunk)
+    return h.hexdigest()
+
+original  = "evidence.bin"
+acq_hash  = sha256(original)
+shutil.copy2(original, "evidence.copy")                  # copy2 preserves mtime/atime
+copy_hash = sha256("evidence.copy")
+
+custody = {
+    "item": original,
+    "acquired_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "sha256_original": acq_hash,
+    "sha256_working_copy": copy_hash,
+    "match_on_acquire": acq_hash == copy_hash,           # must be True
+}
+print(json.dumps(custody, indent=2))
+
+# analysis happens on the COPY (here, a read); then prove the original is pristine
+with open("evidence.copy", "rb") as f: _ = f.read()
+print("original unchanged after analysis:", sha256(original) == acq_hash)
+
+# tamper demo: change one byte of the copy, watch the hash catch it
+with open("evidence.copy", "r+b") as f: f.seek(0); f.write(b"X")
+print("copy still matches acquisition hash:", sha256("evidence.copy") == copy_hash)   # False
+\`\`\`
+\`\`\`bash
+#   "match_on_acquire": true
+#   original unchanged after analysis: True
+#   copy still matches acquisition hash: False        <- one byte flipped, integrity broken
+\`\`\`
+**Why this exact sequence, and why hashing is the whole game.** A cryptographic hash is a fixed-length fingerprint where changing a **single bit** of input changes roughly half the output bits (the avalanche property from M3), and finding two files with the same hash is computationally infeasible. That gives you something powerful in a legal setting: record the hash at acquisition, and you can prove at any later point that the evidence is bit-for-bit what you seized — because if even one byte had changed, the hash wouldn't match. This is the module's second challenge answered directly: you hash **before** analysis to establish the baseline and **after** to prove your tools didn't alter the original. Work on the copy so that even a mistake — a tool that writes back, an accidental save — damages a disposable duplicate, not the evidence. This is also why forensic acquisition uses a **write-blocker**: hardware that physically prevents writes to the source drive, the same idea enforced at the hardware layer.
+
+Note the developer version of this, which is the transferable point: your own **audit logs and incident artifacts** deserve the same treatment — append-only, hashed, ideally shipped off-box in real time (M16's structured logging), so that an attacker who lands on the machine can't quietly rewrite the record of what they did. Integrity of evidence and integrity of logs are the same problem.
+
+Common wrong attempts: analysing the original "just to look" (every open risks a metadata or content change, and "I only looked" is exactly what a defence lawyer dismantles — touch the copy); using \`shutil.copy\` and wondering why timestamps shifted (\`copy2\`); recording the hash in a file *on the same volume* you're investigating (store custody records separately); and thinking MD5's brokenness makes it useless here — for *accidental* change detection it still works, but use SHA-256 because an adversary who can craft a collision could otherwise swap evidence, and courts expect a modern hash.
+</details>
+
+#### 🟡 Build 1 — extract the metadata a file leaks about its author ~13 min
+
+**Goal.** Show that a file reveals far more than its visible content. Extract filesystem metadata (size, owner, modification time, mode) from your evidence file, then illustrate **document** metadata — the author, editing tool, and organisation that office formats embed invisibly. Explain why "I deleted the text I didn't want" does not remove it.
+
+**Done when.** You print filesystem metadata for a real file, show a document whose *visible* text is innocuous while its embedded metadata names the author, and can state the BTK lesson in one sentence.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`os.stat\` gives you size, ownership, mode, and three timestamps; \`pwd.getpwuid\` turns a uid into a name. For document metadata, the key idea is that formats like DOCX and PDF store author/tool/revision fields *separately from the visible content*, so the reader and the forensic examiner see different things.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+import os, datetime, pwd, json
+st = os.stat("evidence.bin")
+print(json.dumps({
+    "size_bytes":   st.st_size,
+    "modified_utc": datetime.datetime.fromtimestamp(st.st_mtime, datetime.timezone.utc).isoformat(),
+    "owner":        pwd.getpwuid(st.st_uid).pw_name,
+    "mode":         oct(st.st_mode & 0o777),
+}, indent=2))
+
+# document metadata is stored ALONGSIDE the content, not inside the visible text:
+doc = {"visible_text": "Anonymous letter.",
+       "_meta": {"Author": "Dennis", "LastModifiedBy": "Dennis",
+                 "Company": "Christ Lutheran Church", "Software": "Microsoft Word"}}
+print("reader sees   :", doc["visible_text"])
+print("forensics sees:", doc["_meta"])
+\`\`\`
+\`\`\`bash
+#   reader sees   : Anonymous letter.
+#   forensics sees: {'Author': 'Dennis', 'Company': 'Christ Lutheran Church', ...}
+\`\`\`
+**This is the BTK case, and the one-sentence lesson is: metadata is data *about* the data, so scrubbing the content is not scrubbing the file.** For 30 years a serial killer taunted police with letters and evaded identification; in 2005 he sent a **floppy disk** with a Word document, and the file's embedded metadata contained a deleted-text revision naming "Christ Lutheran Church" and a \`LastModifiedBy\` of "Dennis" — police searched the church, found Dennis Rader, and confirmed via DNA. He believed he'd sent a clean document because the *visible text* said nothing; the metadata the software wrote automatically said everything. The general principle for a developer: **every file your systems produce carries metadata you didn't consciously add** — EXIF GPS coordinates in user-uploaded photos (a classic deanonymisation and doxxing vector), author and path names in generated PDFs, internal hostnames in email headers, revision history in office documents. If your app lets users upload or share files, **stripping metadata is a privacy control you must implement**, not something the user can be expected to do — the same "don't trust the client to protect itself" stance as M20.
+
+Common wrong attempts: assuming deleting visible content removes embedded metadata (it's stored separately — the whole point); thinking a screenshot or a "flatten" always strips EXIF (sometimes yes, often no — verify, don't assume); forgetting that filesystem timestamps are themselves evidence an attacker manipulates ("timestomping," ATT&CK T1070.006 — which is why you correlate multiple timestamp sources rather than trusting one); and treating metadata as only a *forensics* topic when it's equally a *privacy* obligation in anything you ship.
+</details>
+
+#### 🔴 Break & Defend — order of volatility, the pull-the-plug question, and anti-forensics ~12 min
+
+**Goal.** Journal three answers. (1) Answer the module's challenge: a server is actively compromised and someone says "power it off to be safe" — why can that destroy your most valuable evidence, and what do you collect first? (2) State the **order of volatility** and why it dictates collection sequence. (3) Name three anti-forensic techniques an attacker uses, and how a defender counters each — then connect all of this back to your own logging.
+
+**Done when.** Your pull-the-plug answer names what lives only in RAM, and your order-of-volatility list is actually ordered.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Don't pull the plug (usually).** Powering off destroys **everything that exists only in RAM**, and on a live compromise that is frequently the *most* valuable evidence: the malicious processes currently running, active network connections to the attacker's C2 (M18), **encryption keys** held in memory for disk or session crypto, decrypted malware that only ever exists unpacked in RAM, injected code with no on-disk file, and clipboard/credential material. Pull the plug and all of it is gone; worse, a graceful **shutdown** can trigger cleanup routines or malware that wipes on exit, and rebooting invites disk-encryption to re-lock a volume you could have imaged unlocked. So the correct first move on a live system is **capture volatile state first** — a memory image, then the list of running processes, network connections, and logged-in users — *before* touching power. (The nuance: for **ransomware actively encrypting**, isolating the machine from the network immediately may take priority over a perfect memory capture — incident response is judgment, not dogma. Isolate by pulling the *network*, not the power.) This is why the classic advice "when in doubt, shut it down" is wrong for forensics: shutting down optimises for stopping the bleeding at the cost of the diagnosis.
+
+**(2) Order of volatility.** Collect from most-fleeting to most-durable, because each step you take slightly disturbs the system and you want to capture the things that vanish soonest *first*: **CPU registers and cache** → **RAM contents / routing tables / ARP cache / process and connection state** → **temporary filesystems / swap** → **disk** → **remote logs and monitoring data** → **physical config and backups / archival media**. The principle is that RAM changes millisecond to millisecond and disk persists across reboots, so capturing disk first while RAM evaporates would be collecting the durable thing and losing the fragile one. This is the same reasoning as the pull-the-plug answer, generalised into a checklist — and it's why memory forensics (Volatility) is a distinct, first-class discipline rather than an afterthought to disk imaging.
+
+**(3) Anti-forensics, and counters.** **Log deletion / clearing** — the attacker wipes local logs to erase their trail; **counter:** ship logs off-box in real time to a system the attacker doesn't control (central SIEM, append-only/WORM storage), so the local copy is a convenience, not the record — exactly the M16 argument, now with a forensic motive. **Timestomping** (T1070.006) — altering file MAC times to hide when something was planted or to blend in; **counter:** correlate *multiple* timestamp sources (filesystem MFT vs \`$STANDARD_INFORMATION\`, journal entries, log timestamps, external telemetry), since an attacker rarely forges all of them consistently. **Encryption / packing / memory-only execution** — payloads that are encrypted at rest, exist decrypted only in RAM, or run without ever writing a file; **counter:** this is precisely why you capture memory first (the packed malware is unpacked in RAM) and why network and behavioural telemetry matter — a fileless implant still has to make connections and spawn processes you logged. **Outside the box:** notice the whole module converges on one idea — **the value of evidence is inseparable from its integrity and its capture order**, and both are things you engineer *before* the incident, not during it. The developer's takeaway isn't that you'll run Autopsy at work; it's that the logging, hashing, and off-box shipping you design today decide whether next year's incident is answerable at all. Forensics is a downstream consumer of the observability you either built or didn't.
+</details>`,
+    tracker: ["Analyzed a sample disk image in Autopsy (deleted files, history, USB artifacts)", "Ran Volatility 3 on a sample memory image (pslist/netscan/malfind)", "Hashed evidence before and after and verified it was unchanged", "I can explain order of volatility and why RAM is captured first", "I can apply 'preserve + hash + work on a copy' to an incident artifact in my own code", "Workbench: built the acquire -> hash -> work-on-copy -> verify loop with a chain-of-custody record and watched a one-byte change break the hash", "Workbench: extracted filesystem and document metadata and explained the BTK lesson — scrubbing content is not scrubbing the file", "Workbench: explained why you capture RAM before pulling the plug, stated the order of volatility, and countered three anti-forensic techniques"]
   }, {
     id: "m23",
     level: 3,
