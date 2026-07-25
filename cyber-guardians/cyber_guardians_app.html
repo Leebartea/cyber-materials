@@ -4950,7 +4950,120 @@ aws sts get-caller-identity 2>/dev/null || echo "AWS CLI not configured"`
       a: "The tradeoff is real — Zero Trust DOES add friction for some access patterns. But: (1) Modern identity providers (Okta, Azure Entra) cache device posture and session tokens so re-auth is often transparent for normal workflows. (2) The friction is asymmetric: it's a minor inconvenience for legitimate users and a major blocker for attackers (who have a stolen password but not the registered device, the MFA app, or the device health cert). (3) Passwordless/passkey auth (M3) is faster than passwords + VPN. (4) The alternative — one phished credential = full network access — is more disruptive than any auth step. Trade a little friction for a much smaller blast radius."
     }],
     quiz: ["What is the core principle of Zero Trust, and why did the old perimeter model break down?", "Name the five pillars of Zero Trust Architecture and explain one in detail.", "What does 'assume breach' mean as a design principle?", "How does micro-segmentation limit lateral movement after a compromise?", "What is just-in-time access, and which problem does it specifically solve?"],
-    tracker: ["I can explain the perimeter model and why it failed (cloud, remote work, credential theft)", "I audited my own machine for open services and unnecessary standing access", "I can name the five ZTA pillars and give an example of each", "I understand the difference between ZTA and VPN — and can explain the blast-radius difference", "I have MFA or a plan to add MFA on my three most critical accounts"]
+    workbench: `> **What this trains.** Zero Trust is usually taught as a diagram, which is why people leave believing it's a product you buy. It isn't — it's a decision your code makes on **every single request**. So here you'll first find the standing access sitting on your own machine right now, then write the policy decision point itself and watch it reach the opposite verdict from a perimeter check on the same two requests. That inversion is the whole architecture in one output.
+
+#### 🟢 Drill 1 — find the standing access on your own machine ~7 min
+
+**Goal.** "Standing access" is permission that exists whether or not you're using it — the thing Zero Trust replaces with *just-in-time, re-verified* access. Find three kinds on your Mac: whether your daily account holds **admin** rights, whether any **SSH private key** sits on disk **without a passphrase**, and how many credentials your keychain holds. Don't change anything yet — inventory first.
+
+**Done when.** You can state, for each item found, *what an attacker who ran code as you right now would immediately inherit* — which is the only question that matters.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+An unencrypted OpenSSH private key is plain text; an encrypted one contains the word \`ENCRYPTED\` or \`bcrypt\`. Use \`find\` rather than a \`~/.ssh/id_*\` glob — zsh (macOS's default shell) aborts the whole command on an unmatched glob, where bash would carry on.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+# 1. SSH private keys — passphrase-protected, or standing credentials?
+find "$HOME/.ssh" -maxdepth 1 -type f ! -name '*.pub' ! -name 'known_hosts*' ! -name 'config' 2>/dev/null \\
+| while read -r k; do
+    if grep -qE "ENCRYPTED|bcrypt" "$k" 2>/dev/null
+      then echo "  $(basename "$k"): passphrase-protected"
+      else echo "  $(basename "$k"): NO PASSPHRASE — a standing credential"; fi
+  done
+
+# 2. Does your everyday account carry admin rights all day?
+dscl . -read /Groups/admin GroupMembership 2>/dev/null | grep -qw "$(whoami)" \\
+  && echo "  $(whoami): IS an admin (standing privilege)" || echo "  $(whoami): standard user"
+
+# 3. Long-lived tokens in dotfiles — the ones people forget
+grep -rlE '(API|SECRET|TOKEN|PASSWORD)[A-Z_]*=' "$HOME"/.zshrc "$HOME"/.bashrc "$HOME"/.netrc 2>/dev/null
+\`\`\`
+**Now answer the question honestly.** An unprotected SSH key means anything running as you — a malicious \`npm postinstall\`, a curl-pipe-bash you didn't read, a compromised VS Code extension — can copy that file and authenticate as you to every host that trusts it, **forever, with no prompt and no log entry that looks unusual**. Admin membership means the same code can escalate without a password prompt you'd notice. A token in \`.zshrc\` is exported into every process you launch. None of this requires an exploit; it's all just *reading files you can read*. That is what "standing access" costs, and notice how cheap the mitigations are: a passphrase on the key (plus \`ssh-add\` so you type it once per session), a separate admin account you \`su\` into deliberately, and secrets in the keychain or a manager instead of a dotfile.
+
+Common wrong attempts: treating file permissions as sufficient (\`0600\` stops *other users* — it does nothing against code running as **you**, which is the actual threat model here); assuming a passphrase-less key is fine "because it's only for GitHub" (that key is also your deploy access, and key reuse across hosts is near-universal); deleting keys in a panic before checking what depends on them — inventory, then plan; skipping the dotfile grep because "I use a .env file" (check that too, and check whether it's in a repo).
+</details>
+
+#### 🟡 Build 1 — write the policy decision point and watch the verdict invert ~16 min
+
+**Goal.** Write two authorization functions over the same request objects. \`perimeterAllow(req)\` asks the single classic question: *is this coming from the corporate network?* \`ztaAllow(req)\` evaluates **identity, device posture, authentication freshness, and resource sensitivity** on every call, and returns the **reasons** for a denial, not just a boolean. Then feed both the same two requests: a **compromised, unpatched laptop sitting on the corporate VPN** asking for a sensitive endpoint, and a **healthy, patched, MFA'd device on café Wi-Fi** asking for the same thing.
+
+**Done when.** The perimeter check allows the first and denies the second, and your Zero Trust check does exactly the reverse — with an itemised list of why.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Give each resource a sensitivity level and let the required controls scale with it: MFA above level 0, and a **step-up re-authentication** (deny if the session is older than N minutes) above level 1. Collect failures into an array rather than returning early — the list of reasons is what makes a policy debuggable and what a user-facing error should be derived from.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// pdp.js — a policy decision point
+const SENSITIVITY = { "/public/docs": 0, "/api/orders": 1, "/admin/payouts": 2 };
+
+const perimeterAllow = req => req.network === "corp-vpn";        // the old model, in one line
+
+function ztaAllow(req) {
+  const need = SENSITIVITY[req.resource] ?? 2;                   // unknown resource => most sensitive
+  const reasons = [];
+  if (!req.identity)                        reasons.push("no verified identity");
+  if (!req.device.managed)                  reasons.push("device not managed");
+  if (!req.device.diskEncrypted)            reasons.push("disk not encrypted");
+  if (req.device.patchAgeDays > 30)         reasons.push("device patch age > 30d");
+  if (need >= 1 && !req.mfa)                reasons.push("MFA required for this resource");
+  if (need >= 2 && req.authAgeMinutes > 15) reasons.push("re-authentication required (step-up)");
+  if (!(req.roles || []).includes(req.resource.split("/")[1])) reasons.push("role not entitled");
+  return { allow: reasons.length === 0, reasons };
+}
+
+const onVpnButCompromised = { identity:"alice", network:"corp-vpn", mfa:false, authAgeMinutes:600,
+  roles:["api"], device:{ managed:true, diskEncrypted:true, patchAgeDays:120 }, resource:"/admin/payouts" };
+const remoteButHealthy   = { identity:"alice", network:"cafe-wifi", mfa:true, authAgeMinutes:5,
+  roles:["admin"], device:{ managed:true, diskEncrypted:true, patchAgeDays:3 }, resource:"/admin/payouts" };
+
+for (const [label, r] of [["compromised laptop ON THE VPN", onVpnButCompromised],
+                          ["healthy device on CAFE WIFI",   remoteButHealthy]]) {
+  console.log(label);
+  console.log("  perimeter :", perimeterAllow(r) ? "ALLOW" : "DENY");
+  const z = ztaAllow(r);
+  console.log("  zerotrust :", z.allow ? "ALLOW" : "DENY -> " + z.reasons.join("; "));
+}
+\`\`\`
+\`\`\`bash
+# compromised laptop ON THE VPN
+#   perimeter : ALLOW
+#   zerotrust : DENY -> device patch age > 30d; MFA required...; re-authentication required (step-up); role not entitled
+# healthy device on CAFE WIFI
+#   perimeter : DENY
+#   zerotrust : ALLOW
+\`\`\`
+**Stare at the inversion — it is the entire argument.** The perimeter model gets *both* answers wrong, and it gets them wrong in the two ways that actually cost money: it **admits the attacker** (who phished a laptop and is now inside the trusted zone, where nothing is checked again) and **blocks the legitimate employee** (whose device is in better shape than the one it just let in). Network location turns out to be almost uncorrelated with trustworthiness — which is what remote work and cloud made undeniable, and what SolarWinds proved catastrophically. Note the specific properties your function has: it makes a decision **per request** rather than per session, it evaluates **device posture** as a first-class input rather than assuming a managed fleet, it **scales controls to sensitivity** rather than applying one bar to everything, and it treats an unknown resource as *most* sensitive — fail closed. The step-up rule is why "Zero Trust" doesn't mean "prompt constantly": reading docs needs nothing extra, moving money needs a fresh authentication.
+
+Common wrong attempts: returning early on the first failure, so the user fixes one problem and immediately hits another (collect all reasons — and note you should show the *user* a helpful summary while logging the full detail via M16's \`securityEvent\`); defaulting an unrecognised resource to sensitivity 0 (fail-open — a new endpoint ships unprotected, which is how this bug reaches production); trusting posture fields the **client** supplied (they must come from your device-management or attestation service, or the attacker just claims \`patchAgeDays: 0\`); and keeping the network check as an extra \`AND\` condition, which quietly recreates the VPN dependency you were removing — network can be *one signal among many*, never the gate.
+</details>
+
+#### 🔴 Break & Defend — blast radius, the friction objection, and the five pillars ~12 min
+
+**Goal.** Journal three answers. (1) A developer's laptop is phished while on the VPN. Trace what the attacker reaches under the perimeter model versus a Zero Trust one, and name the mechanism that limits it. (2) Answer the developer from the module challenge who says Zero Trust "will slow everything down" — persuasively, not dismissively. (3) Name the five ZTA pillars, and for each give one concrete control you could implement in an app you build.
+
+**Done when.** Your blast-radius answer names *lateral movement* and micro-segmentation specifically, and your friction answer concedes the true part of the objection before answering it.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Blast radius.** *Perimeter:* the laptop is inside, so the attacker inherits everything the network trusts — they scan the internal range (M12), find file shares, admin panels, CI servers, and databases that require no further authentication because "internal traffic is trusted," harvest credentials, and move **laterally** host to host. One phished user becomes domain-wide compromise; the initial foothold is almost irrelevant compared to where it leads. *Zero Trust:* the laptop's network position grants nothing. Every service the attacker touches independently demands verified identity, acceptable device posture, and an entitlement check, and **micro-segmentation** means the compromised host can only reach the handful of services that user legitimately needs — so recon returns almost nothing and lateral movement has no path. The blast radius collapses from "the network" to "this user's entitlements, on a device that will fail posture the moment it's flagged." Add continuous monitoring and the anomalous access pattern raises an alert while dwell time is still hours (M16). **The mechanism to name is that trust is never inherited** — not from the network, not from a previous request, not from a session that authenticated this morning.
+
+**(2) The friction objection.** Concede the true part first, because there is one: **badly implemented** Zero Trust genuinely does slow people down — an MFA prompt on every request, a VPN-replacement that adds latency, and posture checks that lock people out mid-task will destroy productivity and, worse, drive users to work around the controls, which is a net security *loss*. Then reframe: well-implemented ZTA usually *reduces* friction, because it replaces the thing developers actually hate — the VPN — with silent, continuous verification. Point at the code you just wrote: reading public docs required nothing extra; only \`/admin/payouts\` triggered step-up. That's **risk-proportionate** friction, and most requests are low-risk, so most requests get *less* friction than a VPN handshake. Add SSO and passkeys and daily authentication becomes a touch of a fingerprint reader rather than a password plus a code. Finally, name the alternative honestly: the "fast" perimeter model is fast right up until it isn't, and the ninety days of incident response after a lateral-movement breach is the slowest possible outcome for an engineering team. The strong version of the argument is that **the friction is being moved, not added** — from every login to the few actions that warrant it.
+
+**(3) The five pillars, with a control each** (CISA's model — Identity, Devices, Networks, Applications & Workloads, Data, over the cross-cutting capabilities of visibility/analytics, automation, and governance). **Identity** — phishing-resistant MFA (passkeys/FIDO2) and short-lived tokens instead of long-lived API keys; in your app, that's the \`identity\` and \`authAgeMinutes\` checks. **Devices** — require managed, encrypted, patched endpoints and feed posture into the decision, exactly as \`device.patchAgeDays\` did. **Networks** — micro-segmentation and encryption everywhere, so reaching a service isn't the same as being allowed to use it (and internal traffic gets TLS too, per M13). **Applications & Workloads** — authorize *every* request server-side including service-to-service calls (M14's ownership check is this pillar at function level), and never trust an internal caller by virtue of being internal. **Data** — classify it and let sensitivity drive controls, which is precisely what your \`SENSITIVITY\` map did, plus encryption at rest and logging every access to the sensitive tier. **Outside the box:** notice that four of the five pillars showed up as ordinary lines of code in a 20-line function. Zero Trust isn't an infrastructure purchase you wait for the platform team to make — it's an architectural stance you can start applying in the next endpoint you write, and the pillars are mainly a checklist for *which signals your decision should consider*.
+</details>`,
+    tracker: ["I can explain the perimeter model and why it failed (cloud, remote work, credential theft)", "I audited my own machine for open services and unnecessary standing access", "I can name the five ZTA pillars and give an example of each", "I understand the difference between ZTA and VPN — and can explain the blast-radius difference", "I have MFA or a plan to add MFA on my three most critical accounts", "Workbench: inventoried my own standing access (admin rights, passphrase-less SSH keys, tokens in dotfiles) and stated what code running as me would inherit", "Workbench: wrote a policy decision point evaluating identity, device posture, auth freshness and resource sensitivity, and watched it invert the perimeter check's verdict on both requests", "Workbench: traced phishing blast radius under both models, answered the friction objection, and mapped the five pillars to concrete app-level controls"]
   }, {
     id: "m17",
     level: 2,
@@ -5010,7 +5123,117 @@ nmap -sV -p- 192.168.56.20 | tee recon.txt && code .`
       a: "It proves your lab is ISOLATED. A deliberately vulnerable target on a routable network can be found and compromised by real attackers within minutes (Modules 9, 12, 15) and turned into a foothold into your home network or a botnet node. Confirming no internet egress is what keeps the exercise authorized and safe — the lab boundary is the authorization."
     }],
     quiz: ["Why is confirming the target has no internet access the first and most important step?", "Why practice red AND blue on the same event rather than separately?", "What belongs in the report's findings section for each exploited issue?"],
-    tracker: ["Scope + confirmed isolation stated up front", "Recon complete with full port/service/version map", "Three vulnerabilities exploited with evidence", "What monitoring saw vs missed documented", "Three detection rules written", "Three hardening recommendations written", "Final report polished and committed to portfolio"]
+    workbench: `> **What this trains.** The capstone deliverable is a report, and a capstone can't teach you the two things that make one credible — so this Workbench does. First the **attestation** that opens any professional engagement, then the skill that separates this capstone from a plain pentest: turning an attack you performed into a **detection rule you actually tested**, with its false-positive rate measured and its evasion named. Then you grade yourself the way the rubric will.
+
+#### 🟢 Drill 1 — write the scope and isolation attestation ~8 min
+
+**Goal.** Before a single packet, write the block that opens your report: what you are authorized to touch, what you are explicitly **not**, the window, and the **evidence** that your target is isolated. Run the verification rather than asserting it — reuse \`isolation-check.sh\` from M15 and paste its real output.
+
+**Done when.** Your scope block names exact targets, states the exclusions, and contains **command output** proving both inbound isolation (nothing reachable from the LAN) and outbound isolation (the target cannot reach the internet) — not the sentence "the lab is isolated."
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Write it as if a stranger will read it a year from now and need to reproduce your setup exactly. Two directions of isolation, two pieces of evidence. The outbound check runs *from inside the target*, not from your Mac.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've written it</summary>
+
+\`\`\`markdown
+## 1. Scope & Authorization
+**Authorized targets:** 192.168.56.20 (target VM, host-only adapter), 192.168.56.10 (Kali, attacker).
+**Explicitly out of scope:** the host Mac, every device on the physical LAN, all public internet hosts.
+**Window:** 2026-07-25, 09:00–17:00. **Authorization:** all hardware and software owned by the author;
+no third-party system is contacted at any point.
+
+**Isolation evidence — inbound** (run on the host, before the engagement):
+    $ ./isolation-check.sh 80
+      127.0.0.1:80        refused
+      192.168.x.y:80      refused        <- target not reachable from the LAN
+
+**Isolation evidence — outbound** (run INSIDE the target VM):
+    $ curl -m 5 -I https://example.com ; echo "exit=$?"
+      curl: (28) Connection timed out
+      exit=28                            <- target cannot reach the internet
+    $ ping -c 2 -W 2 8.8.8.8
+      2 packets transmitted, 0 received, 100% packet loss
+\`\`\`
+**Why this is the most important step, per the module's own challenge.** Every technique that follows is, in a different context, a crime — the packets are identical, and only authorization distinguishes them. The scope block is where you make authorization **provable** rather than merely true, and the isolation evidence is what makes it *stay* true: a vulnerable target that can reach the internet will be found and compromised (M12's constant scanning), and once it is, it can attack third parties from your address, which converts your training exercise into someone else's incident and your legal problem. Note also which direction people forget. Inbound feels like the scary one; **outbound is the one that turns a mistake into liability**, and it's the one a NAT adapter leaves wide open (M15).
+
+Common wrong attempts: writing "the lab is isolated on a host-only network" with no output (an assertion, not evidence — and the assertion is exactly what's wrong in the case study); testing outbound *from the host* rather than from inside the target (your Mac has internet; that proves nothing about the VM); using \`curl\` with no \`-m\` so a silently dropped packet hangs and you can't tell a pass from a stall; and omitting the exclusions — "what I did not touch" is the half that protects you.
+</details>
+
+#### 🟡 Build 1 — turn your attack into a detection rule, and measure it ~16 min
+
+**Goal.** This is the capstone's distinctive skill: close the red→blue loop. Take the brute-force from M16's \`auth.log\`, write a **windowed threshold rule** ("more than N failures from one source within T seconds"), run it against the log, and report three numbers: which sources alerted, how many alert events fired, and how many **false positives** it produced against the benign traffic. Then state how an attacker evades it.
+
+**Done when.** Your rule alerts on the attacker, produces **zero** false positives on the legitimate users in the same log, and you can name the specific evasion and what you'd detect instead.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Keep a per-IP list of failure timestamps and, on each new failure, discard the ones older than the window before comparing the remaining count to the threshold. A rule you can't test is a rule you can't tune — the log from M16 is your test fixture, and the benign users in it are your false-positive corpus.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# detect.py — windowed threshold rule, tested against the M16 log
+import re, collections, datetime
+WINDOW, THRESHOLD = 60, 5                       # >5 failures from one IP within 60s
+
+events = []
+for line in open("auth.log"):
+    m = re.search(r"^(\\w{3} \\d+ [\\d:]+).*Failed password.* from (\\S+)", line)
+    if m:
+        t = datetime.datetime.strptime("2026 " + m.group(1), "%Y %b %d %H:%M:%S")
+        events.append((t, m.group(2)))
+
+alerts, per_ip = [], collections.defaultdict(list)
+for t, ip in events:
+    per_ip[ip].append(t)
+    per_ip[ip] = [x for x in per_ip[ip] if (t - x).total_seconds() <= WINDOW]   # slide the window
+    if len(per_ip[ip]) > THRESHOLD:
+        alerts.append((t, ip, len(per_ip[ip])))
+
+fired = {ip for _, ip, _ in alerts}
+print("alerting IPs:", fired)
+print("alert events:", len(alerts))
+print("false positives:", fired - {"203.0.113.77"} or "none")
+\`\`\`
+\`\`\`bash
+python3 detect.py
+# alerting IPs: {'203.0.113.77'}
+# alert events: 20
+# false positives: none
+\`\`\`
+**Report it the way a professional would**, which means including the limitations rather than only the win:
+
+> **Detection rule DR-01 — SSH brute force.** *Logic:* more than 5 failed authentications from a single source IP within 60 seconds. *Tested against:* \`auth.log\`, 65 events, 3 sources, containing one brute-force burst and normal user error. *Result:* fired on \`203.0.113.77\` (20 alert events); **0 false positives** against benign traffic. *Evasion:* an attacker who slows to 4 attempts per minute, or spreads the same attempt across many source IPs, is invisible to this rule. *Compensating detection:* alert on failed-authentication volume **per targeted account** rather than per source, and treat any authentication attempt against \`root\` as high-signal regardless of rate.
+
+**Why the measured numbers matter more than the rule.** "I wrote three detection rules" is worth very little; "I wrote three rules and tested them against real traffic, and here is each one's false-positive rate" is a different class of claim, because the failure mode of blue-team work isn't rules that don't fire — it's rules that fire so often nobody reads them (M16's alert fatigue, and Target's ignored alert). Stating the **evasion** is what makes it honest: this rule sits low on the Pyramid of Pain — it keys on rate from a single IP, both cheap to change — and saying so, along with the higher-pyramid rule that covers the gap, is precisely the judgment a reviewer is looking for.
+
+Common wrong attempts: counting failures for all time instead of within a sliding window (everything eventually alerts); testing only against the attack and never against benign traffic, so the false-positive rate is unknown and the rule is untuned by definition; reporting the rule with no threshold justification (why 5 in 60s? because you tested it and 4 users fumbling passwords didn't trip it); silently tuning the threshold until the number looks good and not saying you did; and claiming a rule "would have caught it" without running it — if you didn't test it, say so.
+</details>
+
+#### 🔴 Break & Defend — grade your own report before the rubric does ~12 min
+
+**Goal.** Journal three answers. (1) Score your own report against the rubric honestly and identify your **weakest** section, then write the specific sentence that would fix it. (2) Write the "what monitoring missed" section — not just which attacks went unseen, but **why** each was invisible, which is the part that demonstrates understanding. (3) Produce three hardening recommendations ranked by *risk reduced per unit of effort*, where none of them is "buy a tool."
+
+**Done when.** You have named a genuine weakness in your own work, every "missed" item has a mechanism attached, and your recommendations are specific enough that someone else could implement them without asking you a question.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Grading yourself.** The most common failure in a capstone report isn't a missing attack — it's **evidence that doesn't survive scrutiny**. Check each finding for four things: could a reader **reproduce** it from what you wrote (exact command, exact target, exact payload); is the **evidence** actually attached (terminal output, a screenshot, a log excerpt with timestamps) rather than described; is the **impact** stated in terms of what an attacker gains rather than the vulnerability's name; and is the **remediation** specific enough to action ("parameterize the query at \`app.py:88\`" rather than "sanitize inputs"). Weakest section for most people is impact, because it's the one that requires judgment rather than tooling — "SQL injection in the login form" is a finding; "unauthenticated attacker can read the full user table including password hashes, enabling offline cracking and credential-stuffing against other services" is the same finding written by someone who understands it. If your severity ratings all came from a scanner, that's the section to fix.
+
+**(2) What monitoring missed, and why.** Attach a mechanism to each gap, because the mechanism is the finding. Typical honest results: *the port scan was invisible* because you were only collecting authentication logs and never enabled connection logging — a **data-source** gap, not a rule gap, and the most important kind to notice since **no rule can detect an event you never recorded** (that's why M16 put logging before detection). *The successful exploit was invisible* while the failed attempts were noisy — because failure is logged as an error and success looks like ordinary use; this is why authorization **denials** and privilege changes are logged as security events regardless of outcome. *Lateral movement was invisible* because everything internal was trusted and unlogged (the M16.5 argument). *You saw the alert only afterwards* — a **response** gap rather than a detection gap, which is the Target lesson and worth stating plainly. Ranking these by "would more data have helped, or would better rules?" is exactly the analysis that makes the blue half of the report worth reading.
+
+**(3) Three recommendations, ranked by effort.** Rank by risk reduced per unit of effort and be concrete. A strong set usually looks like: **(i) close the exposure** — bind the service to \`127.0.0.1\` or put it behind authentication; near-zero effort, eliminates the entire remote attack surface for that service, and it's the fix for the highest-severity finding in most labs. **(ii) patch the outdated component** you fingerprinted with \`-sV\`; low effort, removes a known-exploitable CVE, and it's the Equifax lesson — the code you didn't write is still your attack surface. **(iii) add the logging and the tested rule** from Build 1, with its measured false-positive rate; moderate effort, and it converts an undetectable event into a detectable one permanently. Note what's excluded and why: **"buy a tool" is not a recommendation** — it defers the decision, has no owner, and Target owned excellent tooling. **Outside the box:** the reason this capstone runs red *then* blue is that the two halves ask different questions — offense asks "what is possible," defense asks "what would we have known" — and the gap between those two answers is the actual security posture. A report that only shows exploits proves you can attack a deliberately vulnerable box; a report that shows what your monitoring saw, what it missed, **why**, and what you changed proves you can improve a system. That second thing is the job.
+</details>`,
+    tracker: ["Scope + confirmed isolation stated up front", "Recon complete with full port/service/version map", "Three vulnerabilities exploited with evidence", "What monitoring saw vs missed documented", "Three detection rules written", "Three hardening recommendations written", "Final report polished and committed to portfolio", "Workbench: wrote a scope/authorization block with real command output proving inbound AND outbound isolation, not an assertion", "Workbench: turned the brute-force into a tested windowed threshold rule, measured its false-positive rate against benign traffic, and named its evasion plus a higher-pyramid replacement", "Workbench: graded my own report against the rubric, attached a mechanism to every monitoring gap, and ranked three hardening recommendations by risk reduced per unit of effort"]
   },
   // ============== LEVEL 3 ==============
   {
