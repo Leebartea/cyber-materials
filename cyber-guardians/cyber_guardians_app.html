@@ -4321,7 +4321,127 @@ sudo docker run --rm -d -p 8080:80 vulnerables/web-dvwa`
       a: "The client is entirely attacker-controlled: they can disable JS, edit the page in DevTools, or skip the browser and send a crafted request with curl/Burp. Any browser-only check is bypassed in seconds. Client validation improves UX (instant feedback) but the authoritative checks — validation, authentication, authorization, output encoding, parameterization — must run on the SERVER, which the attacker can't edit."
     }],
     quiz: ["What single root cause unites SQLi, XSS, and command injection, and what's the universal fix?", "What's the difference between Reflected, Stored, and DOM-based XSS?", "Why is parameterizing a query strictly better than escaping user input?", "Why is client-side validation never sufficient as a security control?", "How does an IDOR happen, and what server-side check prevents it?"],
-    tracker: ["I can name all 10 OWASP categories and give an example of each", "I exploited SQLi, XSS, and command injection in a local DVWA/Juice Shop", "I escalated DVWA Low->Medium->High and watched the defense improve", "I can write the secure version of each (parameterized, output-encoded, arg-array, ownership check) in Node and Python", "I can explain why escaping < parameterization and why client validation isn't security"]
+    workbench: `> ⚖️ **Ethics first.** DVWA and Juice Shop are deliberately vulnerable apps you install. This Workbench doesn't even need those: you write the vulnerable code **and** the exploit **and** the fix, all on \`127.0.0.1\`. Never point any of this at an application you don't own.
+
+> **What this trains.** Exploiting someone else's broken app teaches you what the bug *looks like*. Writing the broken app teaches you why it happened — which is what you actually need, because you are the person who will otherwise write it by accident. Three bugs, three fixes, all stdlib.
+
+#### 🟢 Drill 1 — bypass a login with SQL injection, then make it impossible ~9 min
+
+**Goal.** Build a two-row user table in an in-memory SQLite database. Write \`login()\` the naive way — string-concatenate the username and password into the query — and log in as \`alice\` **without knowing her password**. Then rewrite it with a parameterized query and watch the same payload return nothing.
+
+**Done when.** The naive version with password \`' OR '1'='1\` returns rows (in fact **every** user), and the parameterized version returns an empty list for the same input while still accepting the real password.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`sqlite3\` is in Python's standard library — \`sqlite3.connect(":memory:")\` needs no file and no install. Print the assembled SQL string before executing it; seeing the finished query is what makes the bug obvious. The parameterized form uses \`?\` placeholders and passes a **tuple** as the second argument to \`execute\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# sqli.py
+import sqlite3
+db = sqlite3.connect(":memory:")
+db.execute("CREATE TABLE users (id INTEGER, user TEXT, pass TEXT)")
+db.execute("INSERT INTO users VALUES (1,'alice','s3cret'), (2,'bob','hunter2')")
+
+def login_vulnerable(user, pw):
+    q = "SELECT id,user FROM users WHERE user='%s' AND pass='%s'" % (user, pw)
+    print("   SQL:", q)                      # print it — the bug becomes visible
+    return db.execute(q).fetchall()
+
+def login_safe(user, pw):
+    return db.execute("SELECT id,user FROM users WHERE user=? AND pass=?", (user, pw)).fetchall()
+
+print(login_vulnerable("alice", "s3cret"))          # [(1, 'alice')]      legitimate
+print(login_vulnerable("alice", "' OR '1'='1"))     # [(1,'alice'), (2,'bob')]   <-- ALL users
+print(login_safe("alice", "' OR '1'='1"))           # []                  attack fails
+print(login_safe("alice", "s3cret"))                # [(1, 'alice')]      still works
+\`\`\`
+**Read the printed SQL.** The query became \`... WHERE user='alice' AND pass='' OR '1'='1'\`. Your quote closed the string, \`OR '1'='1'\` appended a condition that is always true, and operator precedence made the whole \`WHERE\` clause true for **every row** — so the app didn't just let you in as alice, it matched the entire table. Nothing was "hacked": the database faithfully executed the query your code asked for. **The parameterized version is different in kind, not degree.** The SQL text is sent to the engine with \`?\` holes and the values are supplied *separately*, so the parser has already finished by the time your data arrives. There is no string for the data to break out of — which is why parameterization is a *guarantee* and escaping is only a *hope*.
+
+Common wrong attempts: putting the payload in the username field and getting a syntax error, then concluding it doesn't work (injection depends on where the quotes land — try the password field, and read the printed SQL to see why); "fixing" it by rejecting the word \`OR\` or stripping single quotes (a blocklist — attackers have comment syntax \`--\`, \`UNION\`, hex encoding, and doubled quotes; you cannot enumerate badness); using \`f"...{user}..."\` and thinking f-strings are safer than \`%\` (identical bug — the danger is *building the query as text*, whatever syntax builds it); passing the tuple as \`(user)\` instead of \`(user, pw)\` and hitting a parameter-count error.
+</details>
+
+#### 🟡 Build 1 — ship reflected XSS and an IDOR, then close both ~16 min
+
+**Goal.** Write one small Node server exposing four routes: \`/search-vuln\` (reflects \`?q=\` straight into HTML), \`/search-safe\` (HTML-encodes it), \`/note-vuln/:id\` (returns any note by id), and \`/note-safe/:id\` (returns it **only** if the caller owns it). Then attack your own server with plain HTTP requests.
+
+**Done when.** The vulnerable search echoes your \`<script\` tag back as live markup while the safe one returns \`&lt;script&gt;\`; and \`bob\` can read alice's note through \`/note-vuln/1\` but gets **404** from \`/note-safe/1\`, while alice still gets hers.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+For the encoder, replace the five characters \`& < > " '\` with their HTML entities — order matters, do \`&\` first or you'll double-encode the others. For ownership, compare the note's owner against the caller's identity (an \`X-User\` header stands in for a session here) and return the **same** response you'd give for a nonexistent note.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// app.js
+const http = require("http");
+const notes = { 1: {owner:"alice", text:"alice private note"},
+                2: {owner:"bob",   text:"bob private note"} };
+const escapeHtml = s => s.replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+http.createServer((req, res) => {
+  const url = new URL(req.url, "http://x");
+  const who = req.headers["x-user"] || "anon";        // stands in for a session
+  const q   = url.searchParams.get("q") || "";
+  const id  = url.pathname.split("/")[2];
+
+  if (url.pathname === "/search-vuln")
+    res.end("<p>Results for: " + q + "</p>");                     // VULNERABLE: raw into HTML
+  else if (url.pathname === "/search-safe")
+    res.end("<p>Results for: " + escapeHtml(q) + "</p>");         // SAFE: encoded on OUTPUT
+  else if (url.pathname.startsWith("/note-vuln/"))
+    res.end(JSON.stringify(notes[id]));                           // VULNERABLE: no ownership check
+  else if (url.pathname.startsWith("/note-safe/")) {
+    const n = notes[id];
+    if (!n || n.owner !== who) { res.statusCode = 404; return res.end("not found"); }
+    res.end(JSON.stringify(n));                                   // SAFE: server-side ownership
+  } else res.end("ok");
+}).listen(9200, "127.0.0.1", () => console.log("up on 9200"));
+\`\`\`
+\`\`\`bash
+# attack your own server
+curl -s '127.0.0.1:9200/search-vuln?q=<script>alert(1)<\/script>'
+#   <p>Results for: <script>alert(1)<\/script></p>      <- live markup, executes in a browser
+curl -s '127.0.0.1:9200/search-safe?q=<script>alert(1)<\/script>'
+#   <p>Results for: &lt;script&gt;alert(1)&lt;\/script&gt;</p>   <- inert text
+
+curl -s -H 'X-User: bob' 127.0.0.1:9200/note-vuln/1
+#   {"owner":"alice","text":"alice private note"}       <- bob reads alice's note
+curl -s -o /dev/null -w '%{http_code}\\n' -H 'X-User: bob'   127.0.0.1:9200/note-safe/1   # 404
+curl -s -H 'X-User: alice' 127.0.0.1:9200/note-safe/1        # {"owner":"alice",...}      still works
+\`\`\`
+**Two different lessons hiding in one file.** The XSS fix is **output encoding, not input filtering** — the same string is perfectly safe in a database, in a log, or in JSON, and dangerous only when it lands in an HTML context. That's why you encode at the moment of output, and why the right encoder depends on *where* the value goes (HTML body, attribute, URL, and JavaScript context each need a different one — which is why a real template engine's auto-escaping beats a hand-rolled function like the one above). The IDOR fix is different in shape: nothing is being *injected*, the request is perfectly well-formed. The bug is that the server **answered a question it should have refused** — it checked that the note existed but never that the caller was entitled to it. No amount of input validation finds this class of bug, which is why it tops the OWASP list as Broken Access Control and why automated scanners miss it: only your application knows who should see note 1.
+
+**Why 404 and not 403.** A \`403 Forbidden\` confirms the record *exists*, so an attacker can enumerate valid ids by watching for 403-versus-404 — leaking the shape of your data even while blocking access. Returning an identical 404 for "doesn't exist" and "not yours" gives that away for free.
+
+Common wrong attempts: escaping \`<\` and \`>\` only, leaving quote characters live so a payload injected into an *attribute* (\`value="..."\`) still breaks out; escaping on the way **in** to the database, which corrupts stored data and still breaks the moment a value arrives from another source; sending the id as a UUID and calling the IDOR fixed (unguessable ids are obscurity — the check is what stops a *leaked* or *logged* id being replayed, and this is the same reasoning as M12's port 47821); and doing the ownership check in the front-end, which the \`curl\` commands above walk straight past.
+</details>
+
+#### 🔴 Break & Defend — the one root cause, and the two defenses that only look equivalent ~13 min
+
+**Goal.** Journal three answers. (1) SQLi, XSS, and command injection (M11) are the same bug — state the shared root cause in one sentence, and give the *one-word* structural fix each language uses. (2) A teammate proposes fixing SQLi by escaping quotes in a shared \`sanitize()\` helper. Explain concretely why parameterization is strictly better, not merely tidier. (3) Your signup form validates in JavaScript that the role field can only be \`user\` — explain how you'd defeat that in ten seconds, and where the check actually belongs. Then connect all three to Equifax.
+
+**Done when.** You can articulate the root cause without naming any specific vulnerability, and you can explain the escaping-versus-parameterization difference in terms of *when the parser runs*.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) One root cause.** Every one of them is **data being handed to an interpreter in a position where that interpreter reads it as instructions** — SQL text to a database engine, HTML to a browser, a command string to a shell. The vulnerability isn't "bad input," it's the **mixing of code and data in a single string**. So the structural fix is always the same move: **separation**. Parameterized queries for SQL, contextual output encoding (or a templating engine that does it) for HTML, argument arrays for subprocesses (M11). Note the pattern: in each case the safe API makes you pass the code and the data through *different channels*, so no amount of cleverness in the data can promote it to code. When you meet a new sink — an LDAP filter, an XPath query, a template engine, an LLM prompt — ask "what's the parameterized form here?" before asking "how do I escape this?"
+
+**(2) Escaping versus parameterization.** Escaping is a **transformation you perform on data before pasting it into code**, so it is correct only if your escaping rules exactly match the interpreter's parsing rules, in every context, forever. That fails in practice for specific, well-documented reasons: escaping rules differ by database and by *character set* (the classic \`GBK\` multi-byte bypass turned a backslash-escaped quote into a valid character plus a live quote); a value that is escaped once and stored, then escaped again on a later path, corrupts the data; escaping the quote does nothing for a **numeric** context where no quotes are needed at all (\`WHERE id=\` + input is injectable with no quote in sight); and one developer forgetting the helper on one query re-opens the hole completely — a single miss is total. Parameterization is different in *kind*: the query text and the data travel to the engine **separately**, the statement is parsed *before* the values are bound, and therefore the data can never be parsed as SQL no matter what it contains. Escaping asks "did I neutralise every dangerous character?"; parameterization makes the question unaskable. And it's *faster* to write, so there's no trade-off to weigh — that's the tell of a genuinely correct fix.
+
+**(3) Client-side validation.** \`curl -X POST -d 'role=admin' https://site/signup\` — done, in about ten seconds, and I never loaded your JavaScript. The browser is **the attacker's software**, not yours: it runs on their machine, and every constraint you express there is a suggestion they can edit, disable, or bypass by not using a browser at all. The exact same reasoning kills hidden form fields, disabled inputs, price values in the request, and any "the front-end won't send that" assumption. Client-side validation is genuinely valuable — for **UX**, giving instant feedback and saving round-trips — but the authoritative check must run on the server, where you control execution. **Equifax ties it together:** the breach exposed ~147 million people's data through a *known* Apache Struts vulnerability (CVE-2017-5638) with a patch available for two months and applied nowhere it mattered. The category is Vulnerable and Outdated Components — the code you didn't write is still your attack surface, which is what M19's dependency scanning is for. **Outside the box:** across all three answers the common thread is about **where a decision is enforced**. Injection happens when the boundary between code and data isn't enforced structurally; IDOR happens when authorization isn't enforced server-side; client validation fails when a rule is enforced somewhere the attacker owns. Secure design is largely the discipline of asking, for each rule your system relies on, *what physically prevents this from being violated* — and refusing to accept "the client won't do that" as an answer.
+</details>`,
+    tracker: ["I can name all 10 OWASP categories and give an example of each", "I exploited SQLi, XSS, and command injection in a local DVWA/Juice Shop", "I escalated DVWA Low->Medium->High and watched the defense improve", "I can write the secure version of each (parameterized, output-encoded, arg-array, ownership check) in Node and Python", "I can explain why escaping < parameterization and why client validation isn't security", "Workbench: bypassed a login with ' OR '1'='1 against my own SQLite table, read the assembled SQL, and proved a parameterized query defeats it", "Workbench: wrote a server with reflected XSS and an IDOR, exploited both with curl, then fixed them with output encoding and a server-side ownership check returning 404", "Workbench: stated the single root cause behind SQLi/XSS/command injection and explained why parameterization beats escaping and why client-side validation is not a control"]
   }, {
     id: "m15",
     level: 2,
