@@ -5333,7 +5333,110 @@ code mapping.md roe-template.md
       a: "The chain has seven sequential links and the attacker must succeed at ALL of them, while the defender only has to break ONE. You may not stop the phishing email, but you can block the macro (Installation), detect and sever the C2 beacon (Command & Control), or catch exfiltration (Actions on Objectives). Defense in depth stacks controls so one failure isn't a breach."
     }],
     quiz: ["What are the 7 PTES phases, and which is legally the most important?", "Why does breaking a single link disrupt the entire Cyber Kill Chain?", "What is MITRE ATT&CK, and how do red and blue teams each use it?", "Why is the report — not the exploit — the deliverable clients pay for?", "What does the Coalfire case teach about authorization and scope?"],
-    tracker: ["I can list the 7 PTES phases and explain why pre-engagement is critical", "I mapped my Module 17 attack to Kill Chain stages and ATT&CK techniques", "I navigated MITRE ATT&CK and picked 3 techniques to study", "I wrote a one-page Rules of Engagement template", "I read one real public pentest report and saw the PTES skeleton in it"]
+    workbench: `> **What this trains.** Methodology sounds like paperwork until you try to *enforce* it. The Coalfire team had authorization and still got arrested, because scope that lives in a PDF is scope that nobody checks at 2am. So here you build the scope guard as **code** — the thing that makes going out of bounds difficult rather than merely forbidden — and then discover the trap that catches careful people: a target that is in scope by name and out of scope by address.
+
+#### 🟢 Drill 1 — write a scope guard that fails closed ~8 min
+
+**Goal.** Encode a signed engagement's scope as data — an allow list of networks plus an explicit **exclude** list — and write \`in_scope(target)\` that returns a decision *and a reason*. Test it against an in-scope host, the excluded gateway, an out-of-scope public address, and a neighbouring subnet.
+
+**Done when.** \`192.168.56.20\` is allowed, \`192.168.56.1\` is refused **because it is excluded** (not because it's absent), \`8.8.8.8\` and \`192.168.57.5\` are refused, and every refusal states which rule fired.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Python's \`ipaddress\` module is stdlib and does the hard part: \`ip_network("192.168.56.0/24")\` and then \`ip_address(x) in network\`. Check the **exclude** list first — an address can be inside the allowed range *and* explicitly carved out, and the order decides which answer you get.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# scope.py
+import ipaddress
+
+SCOPE   = ["192.168.56.0/24", "203.0.113.10"]   # from the signed Rules of Engagement
+EXCLUDE = ["192.168.56.1"]                       # the gateway: in the range, explicitly out of scope
+
+def _nets(items): return [ipaddress.ip_network(i, strict=False) for i in items]
+
+def in_scope(target):
+    ip = ipaddress.ip_address(target)
+    if any(ip in n for n in _nets(EXCLUDE)):
+        return False, f"{target}: matches EXCLUDE -> REFUSED"
+    if not any(ip in n for n in _nets(SCOPE)):
+        return False, f"{target}: not in SCOPE -> REFUSED"
+    return True, f"{target}: in scope -> allowed"
+
+for t in ["192.168.56.20", "192.168.56.1", "8.8.8.8", "203.0.113.10", "192.168.57.5"]:
+    ok, why = in_scope(t)
+    print(("  ALLOW  " if ok else "  REFUSE ") + why)
+\`\`\`
+**Why the exclude list is separate, and first.** Real engagements routinely say "the \`/24\` is in scope **except** the gateway, the domain controller, and the CEO's laptop," because those hosts are either fragile, legally distinct, or belong to a third party. If you express that as a smaller allow-list you lose the *reason* — and when a colleague later widens the range, the carve-out silently disappears. Keeping exclusions explicit and evaluating them first means a deliberate prohibition can never be overridden by a broad permission, which is the same **deny-overrides** precedence you want in a firewall or an IAM policy.
+
+Common wrong attempts: comparing addresses as **strings** (\`target.startswith("192.168.56.")\` accepts \`192.168.561\`, and can't express a \`/22\`); checking scope before exclusions, so the gateway is allowed by the \`/24\` before the carve-out is ever consulted; returning a bare \`True\`/\`False\` with no reason (when a scan is refused at 2am you need to know *which* rule fired, and the reason string is what lands in your engagement log); and hard-coding the scope inside the scanning function instead of as data, so nobody can review it against the contract.
+</details>
+
+#### 🟡 Build 1 — the trap: in scope by name, out of scope by address ~15 min
+
+**Goal.** Real scope documents list **hostnames**, not just IPs. Extend the guard so a hostname is resolved and **every returned address** is checked — then confirm three behaviours: a name resolving to multiple addresses is only allowed if *all* of them are in scope, a name that **fails to resolve** is **refused** rather than allowed, and an IPv6 address is not silently skipped.
+
+**Done when.** \`localhost\` is **refused** with its resolved addresses shown (\`127.0.0.1\` *and* \`::1\`), and \`no-such-host.invalid\` is refused with an explicit "does not resolve — fail closed" reason.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+\`socket.getaddrinfo(name, None)\` returns every address family, not just IPv4 — collect \`ai[4][0]\` from each tuple into a set. Wrap it: \`socket.gaierror\` is what a failed lookup raises, and what you do in that handler is the whole point of the exercise.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+import ipaddress, socket
+
+def in_scope(target):
+    """Fail CLOSED: anything we cannot positively prove in-scope is refused."""
+    try:                                             # already a literal address?
+        ips, shown = [ipaddress.ip_address(target)], str(target)
+    except ValueError:                               # no -> it's a name, resolve it
+        try:
+            addrs = {ai[4][0] for ai in socket.getaddrinfo(target, None)}
+        except socket.gaierror:
+            return False, f"{target}: does not resolve -> REFUSED (fail closed)"
+        ips   = [ipaddress.ip_address(a) for a in addrs]
+        shown = f"{target} -> {sorted(str(i) for i in ips)}"
+    for ip in ips:                                   # EVERY address must pass
+        if any(ip in n for n in _nets(EXCLUDE)): return False, f"{shown}: matches EXCLUDE -> REFUSED"
+        if not any(ip in n for n in _nets(SCOPE)): return False, f"{shown}: not in SCOPE -> REFUSED"
+    return True, f"{shown}: in scope -> allowed"
+\`\`\`
+\`\`\`bash
+#   REFUSE localhost -> ['127.0.0.1', '::1']: not in SCOPE -> REFUSED
+#   REFUSE no-such-host.invalid: does not resolve -> REFUSED (fail closed)
+\`\`\`
+**Three separate traps, and you just closed all of them.** *A name is not an address.* The contract says \`app.client.com\`; the scanner sends packets to whatever DNS returns right now — which may be a shared CDN edge, a cloud load balancer serving a hundred other tenants, or a host that was re-pointed last week. You are authorized against the **organisation**, but packets land on an **address**, so the address is what must be checked. *One name, many addresses.* Notice \`localhost\` returned both \`127.0.0.1\` and \`::1\` — a guard that grabs the first result and stops has a coin-flip chance of validating an address the scanner never uses, and the IPv6 one is exactly the sort of thing an IPv4-only check waves through. Require **all** to pass. *Fail closed.* The instinct on a DNS error is to log a warning and continue; that's how a typo'd hostname turns into an unscoped scan. No positive proof of scope means refuse.
+
+**The limitation you must state out loud.** This is still **time-of-check to time-of-use** (the same shape as M11.5's temp-file race): DNS can change between your check and your scan, deliberately in the case of DNS rebinding. Code cannot fully close that. What closes it operationally is resolving **once**, pinning the resulting addresses, and scanning *those* — plus getting the client to confirm the IPs in writing, which is why professional scope documents list addresses alongside names.
+
+Common wrong attempts: using \`socket.gethostbyname\` (IPv4 only — it cannot even see the \`::1\` problem); treating "resolves to something outside scope" as a warning rather than a refusal; allowing the target because the *name* appears in a scope list of strings, which is the original bug this whole build exists to kill; and forgetting that your own scanning tool must call this guard on **every** target in a list, not once at startup — a range expansion or an imported CSV re-introduces everything.
+</details>
+
+#### 🔴 Break & Defend — Coalfire, the deliverable, and breaking the chain ~13 min
+
+**Goal.** Journal three answers. (1) The Coalfire testers had a signed contract and were still arrested — identify precisely what failed and what would have prevented it. (2) Answer the module's own question: why is **Reporting** the most valuable PTES phase when Exploitation is the exciting one? (3) Explain why a defender finds it easier to *break the kill chain* than to prevent initial compromise, and pick the link you would invest in.
+
+**Done when.** Your Coalfire answer distinguishes authorization from *whose* authorization, and your kill-chain answer names a specific link with a reason rather than listing all seven.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Coalfire.** Two testers were contracted by the **state** judicial branch to test courthouse security, performed a physical entry at night, and were arrested by the **county** sheriff — spending a night in jail and facing felony charges before the matter was resolved. Nothing about their technical work was wrong. What failed was that **authorization came from a party the on-site authority did not recognise as owning the building**: the state signed, the county ran the courthouse, and no one had reconciled that. Compounding it, the physical scope and the after-hours window were ambiguous, and there was no local law-enforcement notification and no reachable emergency contact to verify the engagement at 1am. The preventions are all pre-engagement, all boring, and all cheap: confirm the signer actually has authority over **every** asset in scope (and for a building, that means the entity that controls the building); get physical scope, hours, and permitted techniques in writing; notify local law enforcement in advance for physical work; carry a **get-out-of-jail letter** with a 24/7 contact who will answer and confirm. **The transferable lesson** is the one your Drill-1 guard encodes: authorization is not a property of your intentions, it's a property of a specific asset, granted by a specific party with the standing to grant it — and it must be checkable by someone who has never met you.
+
+**(2) Reporting.** Clients do not buy exploits; they buy **risk reduction**, and risk is only reduced by changes their engineers actually make. An exploit that isn't written down changes nothing — worse, it's unreproducible, so the fix can't be verified. The report is where technical findings become decisions: severity and business impact let a manager sequence the work, reproduction steps let a developer confirm the bug and later confirm the fix, and prioritized remediation converts a list of problems into a plan. It is also the only durable artifact — the engagement ends, people leave, and the report is what remains for the retest, the auditor, and next year's budget request. There's a career point hidden here too: technically strong testers are common, and testers who write clearly are rare, so the report is usually what determines whether the work is valued. The uncomfortable corollary the module states plainly: **a spectacular exploit with no write-up is worth nothing to the client.**
+
+**(3) Breaking the chain.** The kill chain is a *sequence* — reconnaissance, weaponization, delivery, exploitation, installation, command-and-control, actions on objectives — and the attacker must succeed at **every** stage while the defender needs to break only **one**. Preventing initial compromise outright means being perfect against phishing, every unpatched dependency, every credential in a breach dump, and every zero-day — an impossible standard against an adversary who only needs one success. Breaking a later link is far more tractable because the later stages are **fewer, noisier, and less variable**: there are countless phishing lures but relatively few ways to establish persistent C2, and unlike the lure, C2 must keep talking. **Where I'd invest: command-and-control**, and specifically egress control plus DNS monitoring. It's late enough that the attacker has committed to infrastructure and behaviour (high on the Pyramid of Pain, M16), it's a chokepoint every intrusion must cross regardless of how it started, and beaconing is detectable by its regularity even when encrypted. Breaking it strands the foothold before actions-on-objectives — which is where the actual loss occurs — and it's the same reasoning that made outbound isolation non-negotiable in M15. **Outside the box:** notice this reframes defense from prevention to **cost imposition and time**. You will be compromised; the questions that matter are how far the intruder gets before a link breaks and how long they dwell (M16). That's why methodology beats improvisation on both sides — the attacker's chain and the tester's PTES phases are both admissions that **repeatable process, not individual brilliance, is what produces reliable outcomes.**
+</details>`,
+    tracker: ["I can list the 7 PTES phases and explain why pre-engagement is critical", "I mapped my Module 17 attack to Kill Chain stages and ATT&CK techniques", "I navigated MITRE ATT&CK and picked 3 techniques to study", "I wrote a one-page Rules of Engagement template", "I read one real public pentest report and saw the PTES skeleton in it", "Workbench: encoded an engagement scope as an allow list plus an explicit exclude list, with deny-overrides precedence and a reason on every refusal", "Workbench: extended the guard to resolve hostnames and check EVERY returned address including IPv6, refusing on non-resolution, and can state the remaining TOCTOU/DNS-rebinding limit", "Workbench: explained what actually failed at Coalfire, why Reporting is the deliverable, and which kill-chain link I would invest in breaking"]
   }, {
     id: "m18_5",
     level: 3,
@@ -5511,7 +5614,116 @@ done | sort | uniq -c | sort -rn
       a: "A detection rule runs automatically, continuously, against every log event — it fires when it sees a known-bad pattern. A hunt hypothesis is a one-time human-directed investigation that asks 'what if an attacker were doing X, and how would I see it in my logs?' You need both because: detection rules are fast but only catch what they were designed to catch (known threats); hunt hypotheses find novel or evasion-aware attacks that haven't triggered any rule yet. The hunting cycle converts successful hypotheses INTO detection rules — so hunting improves your automation coverage over time. Without hunting, your rules only grow by vendor updates; with hunting, they grow from your own environment's data."
     }],
     quiz: ["What are the three levels of MITRE ATT&CK (Tactic / Technique / Sub-technique)? Give an example of each from T1566.", "What is the difference between passive SIEM monitoring and threat hunting?", "What is a hunt hypothesis, and what makes a good one?", "What is a Sigma rule, and why is it useful for sharing detection logic across teams?", "What does Atomic Red Team do, and why would a blue-team hunter use it?"],
-    tracker: ["I navigated MITRE ATT&CK and can find a technique, its detection guidance, and which threat groups use it", "I formed a hunt hypothesis for my own machine and executed it in the lab", "I read at least three Sigma rules and understand their structure", "I can explain what Atomic Red Team does and how it validates detection coverage", "I can map an attack chain (from my Module 17 capstone) to at least 3 ATT&CK technique IDs"]
+    workbench: `> **What this trains.** Hunting is not a tool you run, it's a **hypothesis you test** — and the only way to learn it is to form one and go looking. So you'll hunt for persistence on your own Mac first (read-only, and you will find things), then write Sigma-shaped rules as data and execute them over process events, which is what a hunt platform does underneath the UI. The uncomfortable, correct outcome of a good hunt is usually *"found things, all explainable"* — and knowing why that still counts as success is half the skill.
+
+#### 🟢 Drill 1 — hunt for persistence on your own machine ~9 min
+
+**Goal.** Form the hypothesis **"if something established persistence on this Mac, it would appear as a launch agent, a launch daemon, or a cron job"** — ATT&CK **T1543.001 (Launch Agent)** and **T1053 (Scheduled Task/Job)**. Then go look, enumerate what you find, and **triage each item** into explained or unexplained. Read-only; change nothing.
+
+**Done when.** You have a count for each location, you can name the software responsible for **every** entry in your user \`LaunchAgents\` folder, and you can state why persistence is the right place to hunt.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Three locations matter and they differ in privilege: \`~/Library/LaunchAgents\` (runs as you, writable **without** admin rights — the cheapest persistence on macOS), \`/Library/LaunchAgents\` (all users), and \`/Library/LaunchDaemons\` (runs as **root**, before login). Add \`crontab -l\`. To see what a plist actually launches, read its \`ProgramArguments\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+for d in "$HOME/Library/LaunchAgents" /Library/LaunchAgents /Library/LaunchDaemons; do
+  echo "$d: $(ls -1 "$d" 2>/dev/null | wc -l | tr -d ' ') plist(s)"
+done
+ls -1 "$HOME/Library/LaunchAgents" 2>/dev/null
+crontab -l 2>/dev/null || echo "no crontab for this user"
+
+# what does a given one actually run?
+defaults read "$HOME/Library/LaunchAgents/<name>.plist" ProgramArguments 2>/dev/null
+\`\`\`
+\`\`\`bash
+# a typical developer Mac:
+#   ~/Library/LaunchAgents: 4 plist(s)      <- e.g. a browser updater, a package-manager service
+#   /Library/LaunchAgents:  0 plist(s)
+#   /Library/LaunchDaemons: 7 plist(s)
+\`\`\`
+**Now do the part that is actually the skill: triage.** Every entry should reduce to "this software, which I installed, for this reason." A browser's updater, a package manager's database service — fine, *and note that each one is also a thing that runs code on your machine automatically*. The hunt succeeds when the unexplained set is **empty and you checked**, which is a completely different state of knowledge from never having looked. If something *is* unexplained, read its \`ProgramArguments\`, find the binary, and identify the vendor before you touch anything.
+
+**Why persistence is the right place to hunt.** An attacker's foothold dies at reboot unless they establish persistence, so nearly every real intrusion has to touch one of a **small, enumerable set of locations** — which makes this a rare case where the defender's search space is genuinely bounded while the attacker's options are not. That asymmetry is why persistence hunting has such a high yield per hour. Note too that \`~/Library/LaunchAgents\` needs **no admin rights**: malware running as you can persist without ever prompting for a password, which is the M16.5 standing-access argument arriving from a different direction.
+
+Common wrong attempts: hunting only the user folder and missing \`LaunchDaemons\`, where the root-level persistence lives; treating a plist as safe because its name looks corporate (names are attacker-chosen — \`com.apple.\` prefixes are trivially forged, so read the \`ProgramArguments\` and check the actual binary path); deleting something unrecognised immediately (you'll break software and destroy evidence — identify first, and if it's genuinely suspicious, preserve it per M22); and concluding the hunt "failed" because nothing was malicious.
+</details>
+
+#### 🟡 Build 1 — write Sigma-shaped rules and execute them ~16 min
+
+**Goal.** Write a hunt as **data, not code**: a list of rules each carrying an \`id\`, a \`title\`, the **ATT&CK technique** it maps to, its detection logic, and — critically — its known **false positives**. Then write the ~10-line engine that runs them over a file of process events (JSON lines, one per process execution) and prints hits with their triage note. Cover three living-off-the-land behaviours: a remote payload piped to a shell, a spoofed credential prompt, and launch-agent persistence.
+
+**Done when.** Each rule fires on exactly its own event and none of the benign ones, every hit prints its ATT&CK ID and parent process, and each rule prints the false-positive note next to its result.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Keep rules and engine strictly separate — that separation *is* what Sigma is for, so the same rule can run on any backend. Build a few events by hand: a \`git pull\`, a \`node server.js\`, and the three suspicious ones. Match on the command line with a regex; the parent process is the field that usually turns a hit into a story.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# hunt.py — rules as data, engine as code
+import json, re
+
+RULES = [
+ {"id":"HUNT-001","title":"Remote payload piped to a shell","attack":"T1059.004 Unix Shell",
+  "detection":{"cmdline_re": r"(curl|wget)\\s+[^|]*\\|\\s*(ba)?sh"},
+  "falsepositives":["documented install scripts run deliberately by a developer"]},
+ {"id":"HUNT-002","title":"Credential prompt spoofed via osascript","attack":"T1056.002 GUI Input Capture",
+  "detection":{"cmdline_re": r"osascript.*display dialog.*[Pp]assword"},
+  "falsepositives":["legitimate admin tooling that prompts for credentials"]},
+ {"id":"HUNT-003","title":"LaunchAgent persistence loaded from a user path","attack":"T1543.001 Launch Agent",
+  "detection":{"cmdline_re": r"launchctl\\s+load.*LaunchAgents"},
+  "falsepositives":["package installers and Homebrew services"]},
+]
+
+events = [json.loads(l) for l in open("proc_events.jsonl")]
+for r in RULES:
+    pat  = re.compile(r["detection"]["cmdline_re"])
+    hits = [e for e in events if pat.search(e["cmdline"])]
+    print(r["id"], r["title"], "[" + r["attack"] + "]")
+    for h in hits:
+        print("   HIT ", h["ts"], "parent=" + h["parent"], h["cmdline"][:64])
+    print("   " + ("(no hits)" if not hits else "triage: " + r["falsepositives"][0]))
+\`\`\`
+\`\`\`bash
+# HUNT-001 Remote payload piped to a shell [T1059.004 Unix Shell]
+#    HIT  2026-07-25T09:04:00Z parent=zsh curl -fsSL https://get.example.sh | bash
+#    triage: documented install scripts run deliberately by a developer
+# HUNT-003 LaunchAgent persistence loaded from a user path [T1543.001 Launch Agent]
+#    HIT  2026-07-25T09:07:00Z parent=bash launchctl load ~/Library/LaunchAgents/com.evil.plist
+\`\`\`
+**Four design properties worth naming, because they're why Sigma exists.** *Rules are data* — portable across backends, reviewable in a pull request by someone who doesn't read your language, and shareable with the community, which is the entire point of a rule format. *Every rule carries its ATT&CK ID* — that's what lets you answer "which techniques can we actually see?" and produce a coverage map instead of a rule count. *Every rule declares its false positives* — an analyst at 3am needs to know the benign explanation **before** they escalate, and a rule whose author couldn't name one probably hasn't been tested against real traffic (M17). *The parent process is in the output* — \`curl | bash\` from \`zsh\` is a developer; \`osascript\` prompting for a password with a parent of \`python3\` is nobody's normal Tuesday. Context is what converts a match into a finding.
+
+**And note what these three rules have in common:** every binary involved — \`curl\`, \`osascript\`, \`launchctl\` — is a legitimate, signed, Apple-shipped tool. Nothing here is malware, so no signature-based product will alert, which is exactly the psexec problem from the module's challenge. **Living off the land** means the *behaviour* is the only indicator, which is precisely why hunting exists alongside alerting, and why these rules sit higher on the Pyramid of Pain (M16) than any hash or IP ever will.
+
+Common wrong attempts: hard-coding the patterns into \`if\` statements (works once, shareable never, and now a rule change is a code change); writing a rule with no false-positive field because you couldn't think of one — think harder, \`curl | bash\` is how half of developer tooling installs; matching on the process **name** alone (\`curl\` runs a thousand times a day; it's the *pipe into a shell* that matters); forgetting to test against benign events, so you never learn the rule's precision; and treating a hit as a verdict rather than the **start** of an investigation.
+</details>
+
+#### 🔴 Break & Defend — hypothesis vs rule, psexec, and validating your own blindness ~13 min
+
+**Goal.** Journal three answers. (1) Define the difference between a **detection rule** and a **hunt hypothesis**, and explain why a mature team needs both. (2) Answer the module's psexec question: a legitimate Microsoft tool runs commands on a remote host, no antivirus alert fires — how do you find it? (3) Explain what Atomic Red Team does, and why "we have no alerts" is not evidence of safety.
+
+**Done when.** Your rule-versus-hypothesis answer explains the *direction* each one runs in, and your psexec answer names the specific fields you'd pivot on rather than saying "check the logs."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Rule versus hypothesis.** A **detection rule** is a standing, automated question asked continuously about known-bad patterns — it runs forever, fires an alert, and requires that you already knew what to look for. A **hunt hypothesis** is a *human* proposition, tested once, deliberately, against historical data: "if an adversary were living off the land here, I would expect signed binaries spawning shells from unusual parents." The directions differ: **rules push alerts to you; hunts pull answers from data.** You need both because rules can only cover what has already been characterised, and a competent adversary's whole objective is to operate in the gap between your rules. Hunting is how that gap gets found — and the correct output of a successful hunt isn't only "caught someone," it's a **new detection rule**, which is how the hunt's one-off insight becomes permanent coverage. That loop (hunt finds a behaviour → behaviour becomes a rule → hunting moves to the next gap) is the actual engine of a maturing detection program. Note the resource asymmetry too: rules are cheap to run and expensive to write well; hunts are expensive in analyst hours and are therefore aimed at your highest-value blind spots.
+
+**(2) Finding psexec.** Nothing malicious exists to detect — the binary is legitimate and signed — so pivot to **behaviour and context**, in ATT&CK terms roughly T1021.002 (SMB/Admin Shares) with T1569.002 (Service Execution). On the source host, look for the process's **command line and parent** (was \`psexec\` spawned by an interactive shell an admin was using, or by Office, a browser, or a script?), and for the **user context** — is that account one that has ever administered remote machines? On the target, psexec's mechanism is its tell: it writes a **service binary to \`ADMIN$\`** and **creates and starts a service**, so hunt Windows Event ID **7045** (service installed) and **4697**, plus Sysmon Event ID **1** for process creation with unusual parents and **11** for file creation in \`ADMIN$\`, correlated with **4624 type 3** network logons. Then apply the frequency heuristic that makes hunting tractable: **stack-count** service-creation events across the fleet — legitimate ones are few and repetitive, so a service name that appears **once, on one host, at 3am** is the outlier. The unifying idea: when you cannot detect the tool, detect the **artifacts it must leave** and the **rarity** of the event.
+
+**(3) Atomic Red Team, and the fallacy.** Atomic Red Team is an open library of small, safe, precisely-scoped tests — one per ATT&CK technique — that you *execute deliberately* on your own systems to see whether your tooling notices. It converts an assumption into a measurement: run the T1543.001 atomic, then check whether anything fired. This is the answer to "we have no alerts," which is **not** evidence of safety — it is evidence of *no alerts*, and that has two possible causes: nothing bad happened, or nothing bad was **visible**. Those are indistinguishable from the console, and the second is the normal case, because coverage gaps are silent by construction: a technique you don't collect data for cannot generate an alert no matter how many rules you write (the data-source gap from M17). Adversary emulation is how you tell the two apart, and it produces the honest artifact — a coverage map showing which techniques you detect, which you merely *log*, and which are invisible. **Outside the box:** the through-line of M18.5 is that **absence of evidence is not evidence of absence**, and mature security programs are built to distinguish the two on purpose. Hunting assumes your alerts already failed; Atomic Red Team assumes your assumptions are wrong; both are structured humility — and both, notably, generate the specific work item that fixes the gap rather than a vague call to "improve monitoring."
+</details>`,
+    tracker: ["I navigated MITRE ATT&CK and can find a technique, its detection guidance, and which threat groups use it", "I formed a hunt hypothesis for my own machine and executed it in the lab", "I read at least three Sigma rules and understand their structure", "I can explain what Atomic Red Team does and how it validates detection coverage", "I can map an attack chain (from my Module 17 capstone) to at least 3 ATT&CK technique IDs", "Workbench: hunted persistence on my own Mac across LaunchAgents/LaunchDaemons/cron and triaged every entry to the software responsible", "Workbench: wrote Sigma-shaped rules as data — id, ATT&CK ID, detection logic, false positives — and ran them over process events to catch three living-off-the-land behaviours", "Workbench: explained hunt hypothesis vs detection rule, how to find psexec with no antivirus alert, and why 'no alerts' is not evidence of safety"]
   }, {
     id: "m19",
     level: 3,
