@@ -3675,7 +3675,101 @@ find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'`
       a: "A fixed, predictable path is a race condition: between your script creating the file and using it, another process (or an attacker who knows the convention) can replace it, read it, or symlink it elsewhere. An unpredictable name generated atomically at creation time removes the window an attacker needs to exploit."
     }],
     quiz: ["Why does an unquoted $var behave differently from \"$var\" in a script?", "What's the difference between BRE and ERE, and which tools default to which?", "In ssh -L 8080:internal-host:80 user@jumpbox, what happens when you request localhost:8080?", "Why was Shellshock rated CVSS 10.0, and what made it so widely exploitable?", "Why is a predictable temp file path a security problem even on your own machine?"],
-    tracker: ["Wrote and ran a bash script with a function, a loop, and set -euo pipefail", "Used sed -i with a backup and xargs to bulk-process files", "Forwarded a local port to a lab service with ssh -L and verified it with curl", "Can explain why $var must be quoted and what word-splitting does without quotes", "Can explain the Shellshock bug in one sentence"]
+    workbench: `> **What this trains.** The lab gave you a script to copy. Here you make the shell mis-parse a filename **in front of you**, then write a hardened script from a blank file — the one you'll actually reuse for investigations. Everything runs in a throwaway directory. The SSH-tunnel task is reasoning rather than typing, because macOS ships with Remote Login **off** and you don't build the lab VM until Module 15 — the commands are here for the moment you do.
+
+#### 🟢 Drill 1 — make the shell split a filename in front of you ~7 min
+
+**Goal.** Prove that word-splitting and glob expansion happen **before** the command ever runs. Build a one-line function that reports how many arguments it received, then call it with an unquoted and a quoted variable holding \`notes a.txt\`. Repeat with a variable whose value is a literal asterisk.
+
+**Done when.** The unquoted call reports **2** arguments and the quoted call reports **1**; and the unquoted asterisk turns into your actual filenames while the quoted one stays a single \`*\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`$#\` is the argument count inside a function, and \`"$@"\` prints them. Make a scratch directory with a couple of files in it, one of them containing a space in its name, so both effects have something to bite on.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+mkdir -p /tmp/cg_m115 && cd /tmp/cg_m115
+printf 'hello\\n' > "notes a.txt"; touch alpha.log beta.log
+
+count() { echo "argc=$#" "->" "$@"; }
+file="notes a.txt"
+count $file      # argc=2 -> notes a.txt      <- ONE filename became TWO arguments
+count "$file"    # argc=1 -> notes a.txt      <- correct
+
+star="*"
+count $star      # argc=3 -> alpha.log beta.log notes a.txt   <- the shell globbed it
+count "$star"    # argc=1 -> *                                 <- stayed literal
+\`\`\`
+**Read what just happened.** The command never saw \`notes a.txt\`. The shell expanded the variable, split the result on whitespace, and handed over two separate arguments — the program has no way to know they were once one value, so it cannot defend itself. That is the same shape as every injection bug in the course: **an interpreter transformed your data before the consumer got it.** Now re-read the challenge about \`rm $file\` and notice it isn't a style nit — with \`file="notes a.txt"\` you asked \`rm\` to delete two files that may not be the ones you meant, and if a filename had been \`* \`, unquoted, you'd have handed \`rm\` your whole directory.
+
+Common wrong attempts: testing with a filename that has no spaces and concluding quoting doesn't matter (it matters exactly when input is unusual — which is when attackers show up); using single quotes \`'$file'\` and getting a literal dollar-sign f-i-l-e (single quotes suppress expansion entirely — you want double quotes, which expand but don't split); assuming \`set -u\` or \`shellcheck\` will save you here (neither un-splits an unquoted expansion — only the quotes do).
+</details>
+
+#### 🟡 Build 1 — write the hardened investigation script ~15 min
+
+**Goal.** From an empty file, write \`scan.sh\` that takes a **pattern** and a **logfile** and prints how many lines match. It must: start with \`set -euo pipefail\`; reject the wrong number of arguments with a usage message on **stderr** and a non-zero exit; check the logfile is readable and exit with a *different* non-zero code if not; use a \`mktemp\` temp file cleaned up by a \`trap\`; quote every expansion; and work correctly on a filename containing a space.
+
+**Done when.** It prints the right count; wrong argument count exits 2 with usage on stderr; an unreadable file exits 3; the temp file's mode is \`600\`; and \`./scan.sh ERROR "my app.log"\` works.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`[[ $# -eq 2 ]] || { echo "..." >&2; exit 2; }\` is the guard idiom. \`trap 'rm -f "$tmp"' EXIT\` runs cleanup however the script ends. \`grep\` exits **1** when it finds nothing, and under \`set -e\` that kills your script — append \`|| true\` where zero matches is a legitimate outcome. Check the mode with \`stat -f '%Lp'\` on macOS (\`stat -c '%a'\` on Linux).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+cat > scan.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 2 ]] || { echo "Usage: $0 <pattern> <logfile>" >&2; exit 2; }
+pattern="$1"; logfile="$2"
+[[ -r "$logfile" ]] || { echo "cannot read: $logfile" >&2; exit 3; }
+
+tmp="$(mktemp -t cgm115)"          # unpredictable name, mode 600, created atomically
+trap 'rm -f "$tmp"' EXIT           # cleanup on success, failure, or Ctrl-C
+
+grep -F -- "$pattern" "$logfile" > "$tmp" || true   # grep exits 1 on no-match; that's OK here
+echo "matches: $(wc -l < "$tmp" | tr -d ' ')"
+echo "temp mode: $(stat -f '%Lp' "$tmp")"
+EOF
+chmod +x scan.sh
+
+printf 'INFO login ok\\nERROR db timeout\\nERROR db timeout\\nWARN slow query\\n' > app.log
+./scan.sh ERROR app.log        # matches: 2   temp mode: 600
+./scan.sh ERROR;  echo "exit=$?"   # Usage: ... (stderr)   exit=2
+./scan.sh ERROR nope.log; echo "exit=$?"   # cannot read: nope.log   exit=3
+cp app.log "my app.log" && ./scan.sh ERROR "my app.log"   # matches: 2  <- the space is handled
+\`\`\`
+**Why each guard earns its place.** \`set -e\` stops the script at the first failure instead of charging on with bad state; \`-u\` turns a **typo'd variable name into a loud error** rather than a silent empty string (write \`$nmae\` without \`-u\` and your command quietly runs with a missing argument); \`-o pipefail\` makes a pipeline fail when *any* stage fails, not just the last — without it \`grep missing_file | wc -l\` reports a cheerful \`0\` and a success status, which is how a broken security check silently reports "no findings." Distinct exit codes (2 vs 3) matter because a caller — cron, CI, another script — needs to tell "you invoked me wrong" from "the data wasn't there."
+
+Common wrong attempts: forgetting \`|| true\` on the grep and watching \`set -e\` kill the script whenever there are zero matches (then "fixing" it by dropping \`set -e\` — keep the safety, scope the exception); writing the usage message to stdout, which pollutes the output a caller is parsing (\`>&2\`); using \`/tmp/scan.$$\` for the temp file (the PID is guessable — that's the race from the challenge, and it's what \`mktemp\` exists to close); leaving the temp file behind on error because cleanup was the last line instead of a \`trap\`; and using \`grep "$pattern"\` without \`-F --\`, so a pattern like \`-v\` is read as a flag and \`.\*\` as a regex.
+</details>
+
+#### 🔴 Break & Defend — three tunnels, Shellshock, and the predictable path ~13 min
+
+**Goal.** Journal three answers. (1) For each of \`ssh -L 8080:internal:80 user@jump\`, \`ssh -R 8080:localhost:3000 user@remote\`, and \`ssh -D 1080 user@jump\`: who opens the listening port, on which machine, and what reaches what — plus one legitimate use and one way each is abused. (2) Explain Shellshock in one sentence, and say why it makes "quote everything" a *security* habit rather than a style rule. (3) Explain why \`/tmp/report.sh\` is a race condition even on a machine only you use.
+
+**Done when.** You can describe each tunnel's direction without looking, name what an attacker gains from each, and state the temp-file race as a sequence of events rather than "it's insecure."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The three directions.** \`-L\` **local forward:** *your* machine opens port 8080; traffic sent there travels the SSH connection to the jumpbox, which then connects onward to \`internal:80\`. You reach a host you cannot route to, using the jumpbox's network position. Legitimate: reach an internal admin panel or database from a bastion. Abused: an attacker with one foothold pivots into the internal network the foothold can see — the firewall never sees "attacker → internal," only "jumpbox → internal," which is allowed. \`-R\` **remote forward:** the *remote* machine opens port 8080; anything connecting there is carried back to a service on *your* side. Legitimate: expose a local dev server to a colleague. Abused: this is the classic reverse tunnel for **persistence and egress** — a compromised internal host dials out to the attacker (outbound connections are usually allowed) and the attacker then reaches inward through it, defeating an inbound firewall entirely. \`-D\` **dynamic:** your machine opens a SOCKS proxy on 1080; *any* TCP destination requested through it is resolved and connected from the jumpbox. Legitimate: route a browser through a trusted network. Abused: point \`proxychains\` at it and your whole toolkit scans the internal network as though you were standing on the jumpbox. **The defensive pattern across all three:** SSH is fully authenticated and encrypted — nothing is "broken" — so the control is not crypto but **policy and monitoring**: restrict who gets shell on bastions, set \`AllowTcpForwarding no\` / \`PermitTunnel no\` where forwarding isn't needed, and alert on unexpected long-lived outbound SSH, which is the signature of a reverse tunnel.
+
+**(2) Shellshock.** When bash imported a function definition from an environment variable it kept parsing past the closing brace and executed whatever followed as a command — so anything that put attacker-controlled text into an environment variable and then invoked bash (classically a CGI script and an HTTP header) yielded remote command execution, hence CVSS 10.0. The habit it justifies: the shell is a *language interpreter*, and every unquoted expansion, every string you assemble into a command, and every value you let reach an environment variable is a place where **your data can be re-read as code**. Quoting is how you keep values as values. Shellshock is the extreme reminder that even bash's own parser had a two-decade-old hole — so trusting the shell to "do the obvious thing" with untrusted input is never justified.
+
+**(3) The temp-file race.** Sequence: your script decides on \`/tmp/report.sh\`; **before** it writes, another process creates that exact path as a symlink pointing at something valuable; your script writes, and the write follows the symlink and lands on the target instead; worse, if your script later runs that path with elevated privilege, whatever the attacker put there executes as you. This is a **TOCTOU** bug — a gap between check/decide and use. "Only I use this machine" doesn't save you: \`/tmp\` is world-writable (M11), so *any* local process, including a compromised app or a background daemon running as another user, can win that race, and the name is guessable — \`$$\` is just a small integer. \`mktemp\` closes it by generating an unpredictable name and creating the file **atomically** with mode 600, so there is no window between naming and owning it. **Outside the box:** the through-line of M11.5 is that convenience features — the shell's word-splitting, bash's env-var function import, a predictable filename — are all cases of the system being *helpful* with data it should have treated as inert. Security in scripting is mostly the discipline of turning that helpfulness off.
+</details>`,
+    tracker: ["Wrote and ran a bash script with a function, a loop, and set -euo pipefail", "Used sed -i with a backup and xargs to bulk-process files", "Forwarded a local port to a lab service with ssh -L and verified it with curl", "Can explain why $var must be quoted and what word-splitting does without quotes", "Can explain the Shellshock bug in one sentence", "Workbench: reproduced word-splitting and glob expansion on an unquoted variable, and saw one filename become two arguments", "Workbench: wrote a hardened scan.sh from scratch with set -euo pipefail, stderr usage guard, distinct exit codes, mktemp + trap, and space-safe quoting", "Workbench: explained ssh -L / -R / -D directions and their abuse, Shellshock in one sentence, and the temp-file TOCTOU race"]
   }, {
     id: "m12",
     level: 2,
@@ -3769,7 +3863,124 @@ sudo nmap -sS -p- 127.0.0.1`
       a: "Closed = the host is up and actively replied with a RST (nothing listening on that port). Filtered = no reply came at all because a firewall silently dropped the probe. 'Filtered' reveals a filtering device sits in the path — useful recon, since it exposes the presence (and sometimes the policy) of a firewall even though you can't reach the port."
     }],
     quiz: ["Walk through the TCP three-way handshake and how a scanner uses it to detect an open port.", "What's the difference between a SYN (-sS) scan and a connect (-sT) scan, and why choose each?", "What do the three states open, closed, and filtered each tell you?", "Why is 'my service is obscure, so it won't be found' a false sense of security?", "Why does -sV (version detection) matter to both attackers and defenders?"],
-    tracker: ["Scanned scanme.nmap.org and my own 127.0.0.1 successfully", "I can explain the three-way handshake and SYN vs connect scans", "I can explain open vs closed vs filtered", "I wrote a tiny scanner (Node or Python) against my own host", "I version-scanned my own services and noted anything outdated"]
+    workbench: `> ⚖️ **Ethics first.** Every target below is your own \`127.0.0.1\` or \`192.0.2.1\` — the latter is **TEST-NET-1**, an address range reserved by RFC 5737 for documentation, assigned to nobody and routed nowhere. Those are the only two hosts you touch here.
+
+> **What this trains.** The lab ran \`nmap\` for you. Here you *manufacture* all three port states on your own machine so you know what nmap is actually inferring, then build the scanner and the version-detector yourself — and watch your own dev server volunteer its version number to a stranger.
+
+#### 🟢 Drill 1 — manufacture all three port states ~8 min
+
+**Goal.** Produce **open**, **closed**, and **filtered** deliberately and observe how each one *feels different to the client*. Start a listener on one port; probe a second port with nothing on it; probe a blackholed address for the third.
+
+**Done when.** You can map each state to the reply that caused it — connection succeeded, connection **refused**, and connection **timed out** — and say which TCP packet produced each.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+One listener: \`node -e 'require("net").createServer(s=>s.end()).listen(8080,"127.0.0.1")'\` — leave it running in one terminal. Then probe from another. A socket with a short \`settimeout\` distinguishes refused (an immediate error) from dropped (nothing comes back at all). For the timeout case use \`192.0.2.1\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+# Terminal 1 — an open port to find
+node -e 'require("net").createServer(s=>s.end()).listen(8080,"127.0.0.1",()=>console.log("up"))'
+\`\`\`
+
+\`\`\`python
+# Terminal 2 — probe and classify
+python3 -c '
+import socket
+def probe(host, port, t=0.4):
+    s = socket.socket(); s.settimeout(t)
+    try:    s.connect((host, port)); s.close(); return "open"      # SYN-ACK -> handshake completed
+    except ConnectionRefusedError:            return "closed"      # RST came back
+    except socket.timeout:                    return "filtered"    # nothing came back at all
+for p in (8080, 9, 22, 443):
+    print(p, probe("127.0.0.1", p))
+print("192.0.2.1:80 ->", probe("192.0.2.1", 80, 1.0))
+'
+# 8080 open | 9 closed | 22 closed | 443 closed | 192.0.2.1:80 -> filtered
+\`\`\`
+**The three states are three different silences.** *Open* — a service answered SYN-ACK and your handshake completed. *Closed* — the host is alive and **politely refused**: the kernel sent a RST because nothing is bound to that port. That refusal is information: it proves the host exists. *Filtered* — nothing at all came back, so you cannot distinguish "host down," "firewall dropped it," or "packet lost"; you only learn that **something is silently discarding traffic**, which itself reveals a filtering device. Notice you did all of this with an ordinary TCP connect — that *is* nmap's \`-sT\`. The only thing \`-sS\` adds is sending a RST instead of completing the handshake, which needs root because it requires crafting raw packets.
+
+Common wrong attempts: expecting port 22 to be open on macOS (Remote Login is off by default — closed is the correct, healthy result); using a real third-party host to get a "filtered" result (don't — TEST-NET-1 exists precisely so you never have to point a probe at someone else's machine); treating a timeout as proof of a firewall (it's proof of *no reply*, which has several causes — nmap reports \`filtered\` for exactly that ambiguity); and forgetting the timeout entirely, so the script hangs and you conclude the port is "broken."
+</details>
+
+#### 🟡 Build 1 — write the scanner, then make it leak a version ~15 min
+
+**Goal.** Two parts. **(a)** Write a scanner that sweeps a list of ports on \`127.0.0.1\` and prints the state of each — your own \`-sT\`. **(b)** Then implement \`-sV\` in miniature: start a small HTTP server that sets a \`Server\` header, connect to it, send a bare \`HEAD / HTTP/1.0\` request, and print the banner it hands back.
+
+**Done when.** Your scanner reports the listener as open and everything else as closed; and your version-detector prints the server's software **and version string** — which you never asked it for by name.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Version detection isn't magic: connect, send the minimal thing the protocol expects, read the reply, and look for identifying text. For HTTP that's a request line plus a blank line — remember a bare LF isn't enough, HTTP wants CRLF, and the blank line is what tells the server the request is over.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+# Terminal 1 — a service that introduces itself, like most real ones do
+node -e '
+require("http").createServer((q,r) => {
+  r.setHeader("Server", "DevServer/0.9.1 (node)");
+  r.end("ok");
+}).listen(8081, "127.0.0.1", () => console.log("up on 8081"));
+'
+\`\`\`
+
+\`\`\`python
+# Terminal 2 — connect-scan plus a one-function version detector
+python3 -c '
+import socket
+
+def probe(host, port, t=0.4):
+    s = socket.socket(); s.settimeout(t)
+    try:    s.connect((host, port)); s.close(); return "open"
+    except ConnectionRefusedError:            return "closed"
+    except socket.timeout:                    return "filtered"
+
+def grab(host, port):
+    s = socket.socket(); s.settimeout(1.0)
+    try: s.connect((host, port))
+    except OSError: return "(no connect)"
+    s.sendall(b"HEAD / HTTP/1.0\\r\\n\\r\\n")          # CRLF CRLF ends the request
+    data = s.recv(1024).decode("latin-1", "replace"); s.close()
+    for line in data.splitlines():
+        if line.lower().startswith("server:"):
+            return line.strip()
+    return "(silent)"
+
+for p in (8080, 8081, 22, 5432):
+    print(p, probe("127.0.0.1", p))
+print("banner 8081 ->", grab("127.0.0.1", 8081))
+'
+# 8081 open ... banner 8081 -> Server: DevServer/0.9.1 (node)
+\`\`\`
+**Sit with that last line.** You wrote nine lines of stdlib Python and the service told you its exact build. Nmap's \`-sV\` is the industrial version of this: a database of probes and response signatures across hundreds of protocols. So when \`-sV\` reports \`OpenSSH 6.6\` on someone's box, no clever exploit was involved — **the service volunteered it**, and the attacker's next move is to look that version up against a CVE list. That is why the challenge's SSH-version reasoning cuts both ways: run \`-sV\` against your own services and read the output as your attacker's to-do list.
+
+Common wrong attempts: sending \`"HEAD / HTTP/1.0\\n"\` with a single newline and no blank line, then blaming the server when \`recv\` blocks until the timeout (HTTP needs \`\\r\\n\\r\\n\`); calling \`recv\` without a timeout and hanging forever on a silent port (your 8080 listener from Drill 1 accepts and closes without speaking — that "(silent)" result is correct and worth seeing); decoding as strict UTF-8 and crashing on a binary banner (\`latin-1\` never raises); scanning all 65,535 ports serially and assuming it's broken when it takes minutes (nmap is fast because it probes in parallel — your loop is one at a time); and pointing this at any host but your own.
+</details>
+
+#### 🔴 Break & Defend — obscurity, banners, and what "filtered" gives away ~12 min
+
+**Goal.** Journal three answers. (1) A colleague deploys an internal admin tool on port 47821 and says "nobody will guess that port." Using the Shodan case study, explain concretely why that fails and what the actual controls are. (2) Your \`-sV\` output shows \`DevServer/0.9.1\`. Is deleting the \`Server\` header a fix? Argue both sides and land on a position. (3) An external scan of your company shows most ports \`filtered\` but three \`closed\` — what has the defender accidentally revealed, and what would you change?
+
+**Done when.** You can defend a position on banner suppression rather than reciting a rule, and you can explain why \`closed\` and \`filtered\` are not interchangeable from a *defender's* point of view.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Port 47821 is not a secret.** There are only 65,535 ports and scanning all of them on one host takes seconds; services like Shodan and Censys sweep the entire IPv4 internet continuously and index what answers, so an exposed port is typically found and catalogued within **minutes** of appearing — not because anyone targeted your colleague, but because everything is scanned all the time. A high port number costs an attacker one extra flag (\`-p-\`). The controls that actually work are the M9 stack, and each is independent: **bind to \`127.0.0.1\`** (or a VPN/private interface) so the port isn't reachable at all; **require authentication** so reaching it isn't the same as using it; **patch** so being fingerprinted isn't the same as being exploitable; **firewall** to allow-list source addresses. Obscurity isn't worthless — it filters opportunistic noise — but it is a *speed bump layered on top of* real controls, never a substitute, because it fails completely and silently the first time someone scans.
+
+**(2) Banner suppression — both sides.** *For:* it's cheap, it removes a free CVE-lookup key, and it genuinely reduces automated exploitation, because most attacks are mass campaigns that match on version strings and skip anything they can't classify. Not advertising your patch level is basic hygiene, the same reason you don't return stack traces. *Against:* it changes nothing about whether you are vulnerable. An attacker who cares will fingerprint you by *behavior* — response header order, error-page wording, TLS stack quirks, timing — so suppression buys obscurity, not safety, and it can create false comfort where a dashboard shows "no version disclosed" while the box is months behind on patches. **The position:** suppress the banner **and** treat it as worth roughly nothing on its own. The finding "version disclosure" is low severity; the real fix is that \`0.9.1\` should not still be running. Rank the work accordingly: patch first, then trim the header. If the only change you make is deleting the header, you have hidden the symptom from your own monitoring as effectively as from the attacker.
+
+**(3) What the three \`closed\` ports reveal.** \`filtered\` means the firewall dropped the probe; \`closed\` means a **RST came back**, which proves a live host received the packet and replied — so those three ports are reaching past the firewall to the machine itself. The defender has leaked (a) that the host is up and (b) that the firewall's policy has holes at exactly those three ports, which is where an attacker will concentrate. The inconsistency is itself the finding: a default-**deny** posture drops everything uniformly, so a scan returns a flat wall of \`filtered\` and gives up nothing. Fix: make the default DROP rather than REJECT so unwanted traffic dies silently, and verify by scanning your own perimeter and confirming the results are uniform. **Outside the box:** the theme of M12 is that recon is not an attack you can block — it is the ambient condition of being on a network. Every response your systems make, including refusals, is information. Mature defense therefore assumes discovery and makes it **worthless**, rather than trying to prevent it — and the way you confirm that is by running the attacker's first step against yourself, on a schedule.
+</details>`,
+    tracker: ["Scanned scanme.nmap.org and my own 127.0.0.1 successfully", "I can explain the three-way handshake and SYN vs connect scans", "I can explain open vs closed vs filtered", "I wrote a tiny scanner (Node or Python) against my own host", "I version-scanned my own services and noted anything outdated", "Workbench: manufactured open / closed / filtered deliberately and mapped each to the TCP reply that caused it", "Workbench: built a connect-scanner and a miniature -sV banner grabber, and watched my own dev server disclose its version", "Workbench: took a position on banner suppression and explained what a mix of closed and filtered ports leaks to an attacker"]
   }, {
     id: "m13",
     level: 2,
