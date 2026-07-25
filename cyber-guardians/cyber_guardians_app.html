@@ -4527,7 +4527,111 @@ docker run --rm --platform linux/amd64 -p 8080:80 vulnerables/web-dvwa   # x86 e
       a: "It's bound to 127.0.0.1 (loopback), so only your own machine can connect; another device can't reach localhost:8081 at all. Verify from your phone/another laptop via http://<your-mac-ip>:8081 (should refuse), and locally with lsof -iTCP:8081 -sTCP:LISTEN which should show 127.0.0.1:8081, not 0.0.0.0:8081 (Module 9). Binding to localhost keeps a vulnerable practice app off the network."
     }],
     quiz: ["Why must your lab use a Host-Only/Internal network, not NAT or Bridged, for a vulnerable target?", "How do you verify your target is isolated (can be scanned from Kali but cannot reach the internet)?", "Why do serious pentesters maintain VM snapshots religiously?", "Why must even a tiny disposable practice target bind to 127.0.0.1 rather than 0.0.0.0?", "What makes attacking your lab AUTHORIZED while attacking a public site is a crime?"],
-    tracker: ["Attacker + target on a host-only, internet-isolated network", "Verified target reachable from Kali but cannot reach the internet", "Took clean snapshots of both VMs", "Ran an Nmap scan from Kali revealing the target's services", "Stood up the disposable localhost target (Node or Python), attacked it, then fixed it"]
+    workbench: `> **What this trains.** Building the lab is a one-off; **verifying it is actually isolated** is a skill you use forever — and it's the step people skip, which is exactly how the case study happens. So this Workbench trains the verification, not the VM wizard, and it runs on your Mac with no hypervisor at all. You'll inventory your machine's real attack surface first, then write the isolation check you should run every time you boot a vulnerable target.
+
+> ⚖️ **Ethics.** Everything here inspects *your own machine*. The point of a lab is that authorization is unambiguous because you own every host in it — that principle starts with never pointing these checks at anything else.
+
+#### 🟢 Drill 1 — inventory your machine's real attack surface ~8 min
+
+**Goal.** List every TCP port currently **listening** on your Mac, and separate those bound to loopback only from those bound to *every* interface. Then, for each exposed one, decide: did you intend that? This is what "know your attack surface" means concretely, and most people have never once looked.
+
+**Done when.** You have two lists, and you can name the field in the output that distinguishes them — \`127.0.0.1:PORT\` versus \`*:PORT\` (or \`0.0.0.0:PORT\`).
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`lsof -nP -iTCP -sTCP:LISTEN\` — \`-n\` skips DNS lookups, \`-P\` shows numeric ports, and \`-sTCP:LISTEN\` filters to sockets that are *waiting for connections* rather than established ones. Read the last column.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+lsof -nP -iTCP -sTCP:LISTEN
+# COMMAND     PID   USER  ...  NAME
+# node       2850   you   ...  TCP 127.0.0.1:9301 (LISTEN)   <- loopback only: unreachable off-box
+# postgres    611   you   ...  TCP *:5432 (LISTEN)           <- EVERY interface: LAN-reachable
+# rapportd    500   you   ...  TCP *:58104 (LISTEN)
+
+# just the exposed ones:
+lsof -nP -iTCP -sTCP:LISTEN | awk '$9 ~ /^\\*:|^0\\.0\\.0\\.0:/ { print $1, $9 }' | sort -u
+\`\`\`
+**Expect a surprise, and take it seriously.** Most developer Macs turn up at least one database — Postgres, MySQL, Redis, Mongo — listening on \`*\`, because that's the default in a lot of installers and Docker port mappings, and nobody ever looked. On a home network that means every device on your Wi-Fi can reach it; on a café network it means **everyone in the café** can, and a dev database usually has weak or no authentication because "it's just local." That is M9's lesson showing up uninvited on your own machine, and it is precisely the mistake the case study's victims made at a larger scale. Note also \`rapportd\` and similar Apple services — the goal isn't to kill everything, it's to be able to *account for* every line.
+
+Common wrong attempts: reading \`localhost:PORT\` as safe without checking whether it resolved to \`127.0.0.1\` or \`::1\` (both are loopback, but a service on \`::1\` only can surprise an IPv4 client, and vice versa); running \`lsof -i\` without \`-sTCP:LISTEN\` and drowning in established outbound connections; assuming a port is closed because a *browser* couldn't reach it (browsers block some ports outright — probe with a socket); forgetting UDP entirely (\`lsof -nP -iUDP\` — DNS, mDNS, and VPN services live there).
+</details>
+
+#### 🟡 Build 1 — write the isolation check you run before every lab session ~15 min
+
+**Goal.** Write \`isolation-check.sh\` that takes a **port** and reports two things: whether it is reachable on \`127.0.0.1\`, and whether it is reachable on your machine's **LAN address**. Correct isolation for a vulnerable target is \`REACHABLE\` on loopback and **refused** on the LAN. Then prove the script works by running it against a service bound to \`127.0.0.1\` and one bound to \`0.0.0.0\`, and watching the verdict flip. Apply M11.5's habits: \`set -uo pipefail\`, an argument guard, quoted expansions.
+
+**Done when.** The loopback-bound service reports \`REACHABLE / refused\` and the wildcard-bound one reports \`REACHABLE / REACHABLE\` — and you can state which of those two is the fail.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+\`ipconfig getifaddr en0\` prints your Wi-Fi address (it prints nothing and exits non-zero when Wi-Fi is down — handle that). For the probe, reuse the socket function from M12: \`connect_ex\` returns 0 for a successful connection and non-zero otherwise. Start the two test listeners in separate terminals so you can flip between them.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+# two targets to test the checker against
+node -e 'require("net").createServer(s=>s.end()).listen(9301,"127.0.0.1",()=>console.log("isolated"))'  &
+node -e 'require("net").createServer(s=>s.end()).listen(9302,"0.0.0.0",  ()=>console.log("exposed"))'   &
+\`\`\`
+\`\`\`bash
+cat > isolation-check.sh <<'SH'
+#!/usr/bin/env bash
+set -uo pipefail
+[[ $# -eq 1 ]] || { echo "Usage: $0 <port>" >&2; exit 2; }
+port="$1"
+lan="$(ipconfig getifaddr en0 2>/dev/null || true)"
+
+probe() {   # probe <host> <port>
+  python3 -c '
+import socket, sys
+s = socket.socket(); s.settimeout(0.5)
+state = "REACHABLE" if s.connect_ex((sys.argv[1], int(sys.argv[2]))) == 0 else "refused"
+print("  %-22s %s" % (sys.argv[1] + ":" + sys.argv[2], state))
+' "$1" "$2"
+}
+
+echo "== isolation report for port $port =="
+probe 127.0.0.1 "$port"
+if [[ -n "$lan" ]]; then probe "$lan" "$port"; else echo "  (no LAN address — Wi-Fi down)"; fi
+SH
+chmod +x isolation-check.sh
+
+./isolation-check.sh 9301     #   127.0.0.1:9301  REACHABLE
+                              #   192.168.x.y:9301  refused      <- CORRECT isolation
+./isolation-check.sh 9302     #   127.0.0.1:9302  REACHABLE
+                              #   192.168.x.y:9302  REACHABLE    <- FAIL: exposed to the LAN
+\`\`\`
+**What makes this the right check.** You are not asking "did I configure it correctly?" — you are asking the network the same question an attacker would, from the same position, and reading the answer. Configuration can lie: a hypervisor's "Host-Only" dropdown can be overridden by a second adapter you forgot, a Docker \`-p 5432:5432\` publishes to all interfaces regardless of what the app binds, and a firewall rule can be present but disabled. **Empirical verification is the only kind that counts**, and it takes two seconds once the script exists. Keep it and run it whenever you boot a deliberately vulnerable machine — that habit is the entire difference between a lab and an incident.
+
+**The other half of isolation.** This script checks *inbound*. A real lab check also confirms the target cannot reach **outbound** — from inside the target VM, \`curl -m 5 https://example.com\` should fail. Inbound isolation stops the internet reaching your vulnerable box; outbound isolation stops a compromised box phoning home, joining a botnet, or attacking someone else *from your IP address*, which is the part that turns your mistake into someone else's incident and your legal problem.
+
+Common wrong attempts: testing only \`127.0.0.1\` and declaring victory (loopback always works — it proves nothing about exposure, and this is the single most common false pass); using \`localhost\` for the LAN probe (that's loopback again); running the check from the *same* machine and assuming it equals an off-box test (it's a good proxy, but the authoritative test is from a second device on the Wi-Fi — do that once to calibrate your trust in the script); forgetting \`-m\`/timeout on the outbound curl so a *dropped* packet looks like a hang rather than a pass; and leaving the test listeners running afterwards — kill them, or your next inventory is confusing.
+</details>
+
+#### 🔴 Break & Defend — networks, snapshots, and what makes this legal ~12 min
+
+**Goal.** Journal three answers. (1) Compare **Host-Only**, **NAT**, and **Bridged** for a deliberately vulnerable VM: what each allows, and why only one is acceptable. (2) Explain why pentesters snapshot religiously — give two distinct reasons, one about the target and one about *evidence*. (3) State precisely what makes attacking your lab lawful while the identical commands against a public site are a crime, and identify the single riskiest moment in a home lab's life.
+
+**Done when.** You can explain NAT's specific danger (it's the one people get wrong), and you can articulate authorization as something that has to be *provable*, not merely true.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The three network modes.** **Bridged** puts the VM directly on your physical LAN with its own address — your vulnerable target is now a peer of your laptop, phone, TV, and NAS, reachable by anything on the network and, depending on your router, by inbound traffic from outside. Obviously disqualifying. **NAT** is the one people wave through, because "it can't be reached from outside" is *half* true — inbound is blocked by default, but the VM has full **outbound** internet access. That is the wrong half. A deliberately vulnerable machine is expected to be compromised; the danger isn't only who can reach it but where it can go **once it is** — outbound is how malware fetches a payload, joins a botnet, exfiltrates, or attacks a third party from your home IP. It's also how a scanner in your lab reaches a host you don't own by a typo'd address. **Host-Only** (or Internal) gives the target an address reachable **only** from your other VMs and host, with no route to the internet in either direction — attacker VM can reach target, target can reach nothing. That's the only acceptable answer, and you *verify* it rather than trusting the dropdown.
+
+**(2) Snapshots, two reasons.** *Target-side:* exploitation is destructive and one-way — you overwrite a binary, corrupt a database, wedge a service, or successfully deploy a payload that changes the machine permanently. Without a snapshot, every technique you practise costs a fresh install, so in practice you stop experimenting, which is the real loss. A snapshot makes the target **disposable**, letting you attack, revert in seconds, and try the variation — repetition is how the skill forms. *Evidence-side:* a snapshot is a known-good baseline, so you can diff "before" against "after" and see exactly what your exploit changed — which files, which processes, which log entries. That's the forensic mindset of M22, and it's also how you write a report a client can reproduce. In a real engagement it doubles as proof you left the system in a known state.
+
+**(3) Authorization.** The technical acts are identical; the legal difference is **authorization**, and in a home lab it's unambiguous because you own the hardware, the software, and the network, and no traffic touches anyone else's system. Against a public site the same packets are unauthorized access under the CFAA, the UK Computer Misuse Act, and equivalents worldwide — and *intent is not a defence*: "I was only learning" and "I was going to report it" are not authorization. Note what this makes authorization: a thing you must be able to **prove**, which is why professional engagements run on a signed scope document naming exact IPs and dates (M18's rules of engagement), and why the course's public targets are limited to \`scanme.nmap.org\` and TEST-NET-1, which grant permission explicitly. **The riskiest moment** is the accidental bridge: a second network adapter you forgot to disable, a VPN that routes the "isolated" subnet, a Docker port publish, a snapshot restored with a different network profile, or a mistyped target address that sends your scan to a stranger's host instead of your target. Every one is silent — nothing warns you, and the tools work exactly as well against the wrong target. **Outside the box:** that silence is the real lesson of M15. A lab isn't safe because you configured it safely once; it's safe because you **re-verify the boundary every session**, which is why the two minutes spent building that script is the most durable thing in this module.
+</details>`,
+    tracker: ["Attacker + target on a host-only, internet-isolated network", "Verified target reachable from Kali but cannot reach the internet", "Took clean snapshots of both VMs", "Ran an Nmap scan from Kali revealing the target's services", "Stood up the disposable localhost target (Node or Python), attacked it, then fixed it", "Workbench: inventoried every listening socket on my own machine and accounted for each one bound beyond loopback", "Workbench: wrote isolation-check.sh and watched the verdict flip between a 127.0.0.1-bound and an 0.0.0.0-bound service", "Workbench: explained why NAT is disqualifying for a vulnerable target, gave two reasons for snapshots, and stated what makes lab attacking lawful"]
   }, {
     id: "m16",
     level: 2,
