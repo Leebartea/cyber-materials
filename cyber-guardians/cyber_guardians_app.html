@@ -6899,7 +6899,132 @@ xxd suspect.bin | head              # raw bytes / magic number
       a: "The filename/extension is attacker-controlled — a malicious executable/script can be named invoice.pdf, and names like ..\\..\\app.js attempt path traversal. Trusting it can store an executable, serve it to run in a victim's browser, or overwrite app files. The secure code sniffs the real type from the file's BYTES (magic numbers) and allow-lists it, stores it under a content-addressed (hash) name with restrictive perms, and serves it as an attachment so it's never executed/rendered inline — the upload is treated as untrusted data, the malware-analysis mindset."
     }],
     quiz: ["What's the difference between static and dynamic analysis, and why do you need both?", "What are the non-negotiable safety rules for dynamic analysis?", "Why submit a hash to VirusTotal rather than the file, when privacy matters?", "Why is strings output often insufficient on real-world malware?", "As a developer, how do you safely handle a file upload using the malware-analysis mindset?"],
-    tracker: ["Ran file, strings, and shasum against a sample (static, safe)", "Looked up a hash on VirusTotal and interpreted the report", "Set up (or sketched) an isolated, snapshotted analysis VM with no real network", "Navigated a disassembler (radare2 or Ghidra) on ARM64", "I can write a secure file-upload handler (Node or Python) that treats uploads as untrusted"]
+    workbench: `> ⚖️ **Safety.** Real malware is only ever *run* in an isolated, snapshotted VM with no real network. **Nothing here runs a sample** — every drill is *static*: you examine bytes without executing them, which is exactly the skill the module is teaching. The "sample" you build is inert text you write yourself.
+
+> **What this trains.** IR hands you a file and asks "what is this?" — and the first rule is that you answer **without running it**. So you'll pull indicators out of a suspicious file the way \`strings\` does, then write the upload handler that refuses to trust a file's *name*, catching the script wearing a \`.pdf\` extension. Both are pure static analysis, both run on your Mac safely.
+
+#### 🟢 Drill 1 — extract indicators without executing the sample ~10 min
+
+**Goal.** Build an inert "sample" containing the tell-tale strings malware leaves behind — a C2 URL, a suspicious API name, an encoded PowerShell command — then extract every printable string and flag the **indicators of compromise**, all without ever running the file. This is \`strings\` plus triage, from scratch.
+
+**Done when.** Your extractor prints the readable strings and separately flags the URL, the suspicious API call, and the encoded command — and you can explain why this is safe to do to genuinely malicious files.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`strings\` is just "find runs of printable bytes of length ≥ 4" — one regex: \`[\\x20-\\x7e]{4,}\` over the raw bytes. Then match the extracted text against a few IOC patterns (a URL, known injection APIs, \`powershell -enc\`). Reading bytes is not executing them — that's the safety guarantee.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# triage.py — static string + IOC extraction; the sample is NEVER executed
+import re
+
+# an inert stand-in for a malware sample (you are writing bytes, not running them)
+open("sample.bin", "wb").write(
+    b"MZ\\x90\\x00junk\\x00http://evil-c2.example/beacon\\x00"
+    b"cmd.exe /c powershell -enc SQBFAFgA\\x00CreateRemoteThread\\x00padding")
+
+data    = open("sample.bin", "rb").read()
+strings = re.findall(rb"[\\x20-\\x7e]{4,}", data)           # the 'strings' command, in one line
+text    = b"\\n".join(strings).decode("latin1")
+
+print("--- extracted strings ---")
+for s in strings: print("   ", s.decode("latin1"))
+
+print("--- indicators of compromise ---")
+IOCS = [("URL/C2",          r"https?://[^\\s\\x00]+"),
+        ("suspicious API",  r"CreateRemoteThread|VirtualAlloc|WriteProcessMemory"),
+        ("encoded command", r"powershell.*-enc\\s+\\S+")]
+for label, pat in IOCS:
+    for m in re.findall(pat, text, re.I):
+        print(f"   [{label}] {m}")
+\`\`\`
+\`\`\`bash
+#   [URL/C2] http://evil-c2.example/beacon
+#   [suspicious API] CreateRemoteThread
+#   [encoded command] powershell -enc SQBFAFgA
+\`\`\`
+**Why this is both safe and useful.** Reading a file's bytes and running a file are completely different operations — \`strings\`, \`file\`, \`shasum\`, and a disassembler all *inspect* without ever handing control to the sample's code, which is why static analysis is the **first** step and can be done on live malware without a sandbox. And it's remarkably productive: real malware constantly leaks its intentions in cleartext strings — the domains and IPs it calls home to (**C2**), the Windows APIs it imports (\`CreateRemoteThread\`/\`VirtualAlloc\`/\`WriteProcessMemory\` scream **process injection**), file paths it drops, registry keys it sets for persistence, and base64/hex blobs that decode to commands. Each becomes an **IOC** you can hunt across your fleet (M18.5) and a hash you look up on VirusTotal. The limit, which sets up Build 1 and the challenge: **packed or obfuscated** malware has few useful strings until it unpacks itself *in memory at runtime* — which is why dynamic analysis exists, and why it needs the isolated VM.
+
+Common wrong attempts: double-clicking the file "just to see" (that's execution — the one thing you never do outside a sandbox); uploading a sensitive or proprietary sample to VirusTotal without thinking (whatever you upload is **shared with the security industry and effectively public** — fine for commodity malware, a data leak for a targeted sample); concluding "no bad strings = safe" (packing hides them — absence of evidence again, M18.5); and running \`strings\` on a huge binary and drowning — filter to the IOC patterns that carry signal.
+</details>
+
+#### 🟡 Build 1 — the upload handler that doesn't trust the filename ~14 min
+
+**Goal.** Write the secure file-upload triage from the module: accept an upload *claiming* to be \`invoice.pdf\`, verify its **actual type by magic bytes** rather than its extension, and reject the mismatch — catching a shell script (or a polyglot) masquerading as a PDF. Show it accepting a real PDF and rejecting the impostor.
+
+**Done when.** A genuine PDF passes, a bash script named \`invoice.pdf\` is **rejected** on content, and you can state why the extension and the client-supplied MIME type are both worthless as security signals.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Every real format has a **magic number** at offset 0: PDF is \`%PDF\`, PNG is \`\\x89PNG\\r\\n\\x1a\\n\`, JPEG is \`\\xff\\xd8\\xff\`, ZIP/DOCX is \`PK\\x03\\x04\`. Read the first few bytes and compare; if the content doesn't match what the extension claims, reject. The OS \`file\` command does exactly this — you're reimplementing its core.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# upload_guard.py
+import os
+
+MAGIC = {
+    b"%PDF":                 "application/pdf",
+    b"\\x89PNG\\r\\n\\x1a\\n":   "image/png",
+    b"\\xff\\xd8\\xff":         "image/jpeg",
+    b"PK\\x03\\x04":           "application/zip",     # also docx/xlsx (they are zips)
+}
+EXT_EXPECTS = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg"}
+
+def detect(head):
+    return next((t for sig, t in MAGIC.items() if head.startswith(sig)), None)
+
+def accept_upload(path):
+    head     = open(path, "rb").read(8)
+    detected = detect(head)
+    ext      = os.path.splitext(path)[1].lower()
+    expected = EXT_EXPECTS.get(ext)
+    if detected is None:
+        return False, f"{path}: unknown/again-unsupported content -> REJECT"
+    if expected and detected != expected:
+        return False, f"{path}: claims {ext} but content is {detected} -> REJECT (impostor)"
+    return True, f"{path}: content {detected} matches {ext} -> accept"
+
+# a real PDF and a bash script wearing a .pdf name
+open("real.pdf",    "wb").write(b"%PDF-1.4\\n1 0 obj<</Type/Catalog>>\\n")
+open("invoice.pdf", "wb").write(b"#!/bin/bash\\nrm -rf ~/important  # payload\\n")
+
+for f in ["real.pdf", "invoice.pdf"]:
+    print(accept_upload(f)[1])
+\`\`\`
+\`\`\`bash
+#   real.pdf: content application/pdf matches .pdf -> accept
+#   invoice.pdf: claims .pdf but content is None -> REJECT (impostor)
+\`\`\`
+**Answering the module's challenge: the filename is a *claim by the attacker*, not a fact about the file.** The extension is just text at the end of a name — anyone can call a shell script \`invoice.pdf\` — and the \`Content-Type\` the browser sends is equally attacker-controlled (M20's whole lesson: the client is adversarial). So neither can gate what you do with the file. **Magic-byte detection** reads what the file *actually is*, which is far harder to forge because the bytes have to be genuinely valid for the format to function. This matters because the extension controls dangerous downstream behaviour: a file saved as \`.pdf\` but served with the wrong headers can be sniffed and **executed as HTML/JS** by a browser (stored XSS), a \`.php\`/\`.jsp\` upload into a web-served directory becomes **remote code execution**, and a **polyglot** — a file valid as *both* an image and a script — sails through naive checks. The full secure-upload posture layers several controls: validate content type by magic bytes; **generate your own random filename** and never use the user's; store outside the web root (or on a separate domain) so uploads can't be executed as code; set \`Content-Disposition: attachment\` and \`X-Content-Type-Options: nosniff\`; and scan with AV/YARA. Magic-byte validation is the *first* gate, not the only one.
+
+Common wrong attempts: checking \`Content-Type\` from the request (attacker-supplied — worthless); allow-listing by extension only (the exact bug — \`invoice.pdf\` was a script); trusting magic bytes *alone* and forgetting a polyglot can satisfy them (defence in depth — also randomise the name and store outside the web root); rejecting only known-bad types instead of allow-listing known-good (blocklists lose, M11/M14); and validating the type but then saving with the user's original filename, so \`../../../etc/cron.d/x\` becomes a path-traversal write — sanitise or replace the name too.
+</details>
+
+#### 🔴 Break & Defend — static vs dynamic, the isolated VM, and Stuxnet ~12 min
+
+**Goal.** Journal three answers. (1) Distinguish static and dynamic analysis — what each sees, what each misses, and why you always do static first. (2) Answer the module's challenge: why must dynamic analysis run only in an isolated, snapshotted VM with no real network, and what specifically does the isolation prevent? (3) Explain what made Stuxnet extraordinary, and what it teaches about the ceiling of malware sophistication.
+
+**Done when.** Your static-vs-dynamic answer names *packing* as the reason you eventually need dynamic, and your isolation answer lists concrete things it prevents.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Static vs dynamic.** *Static* analysis examines the sample **without running it** — \`strings\`, \`file\`, hashing, imports, a disassembler; it's safe to do anywhere, fast, and gives you IOCs and structure, but it's defeated by **packing/obfuscation**, where the real code is compressed or encrypted and only revealed at runtime, so static sees a tiny stub and a blob. *Dynamic* analysis **runs the sample in a sandbox and watches** what it does — files created, registry keys set, processes spawned, network connections attempted — which sees straight through packing (the malware *must* unpack itself to run) and reveals actual behaviour, but it's dangerous (you're executing live malware), it only shows the paths that execute *this run* (malware that sleeps, checks the date, or detects the VM may do nothing), and sophisticated samples actively **evade** it. You do static **first** because it's safe and free and often answers the question outright, it tells you whether you even need the risk of dynamic, and it primes you on what to watch for when you do run it. Real analysis alternates between the two.
+
+**(2) Why the isolated VM.** Running live malware is deliberately executing hostile code, so isolation contains the blast radius, and each property prevents something concrete. **No real network** (host-only, or a simulated internet like INetSim) prevents the sample from **reaching its C2 and receiving commands**, **exfiltrating** your data, **downloading** a second-stage payload, **spreading** to other machines (a worm on a bridged network attacks your LAN — the M15 lesson in its original context), and **attacking third parties from your IP**. **Snapshots** give you a clean known-good state to revert to after each detonation, so analysis is repeatable and the infection is disposable (M15 again), and let you diff before/after to see exactly what changed (M22). **VM isolation** keeps a successful exploit off your host — though note the caveat that VM-escape vulnerabilities exist, which is why serious labs use dedicated hardware or cloud sandboxes for the most dangerous samples, and why malware increasingly includes **VM-detection** to behave innocently when it senses analysis. Isolation is the entire reason dynamic analysis is survivable, which is why "never run a sample outside the sandbox" is the module's iron rule.
+
+**(3) Stuxnet.** Discovered in 2010, Stuxnet was the first widely-known malware built to cause **physical destruction**: it targeted the specific Siemens PLCs controlling uranium-enrichment centrifuges at Natanz, subtly altered their rotational speeds to destroy them over time, and **falsified the monitoring readouts** so operators saw normal values while the machines tore themselves apart. What made it extraordinary and set a new ceiling: it chained **four zero-day** vulnerabilities (unheard-of extravagance — zero-days are expensive, and burning four signalled a nation-state budget), used **stolen legitimate code-signing certificates** to appear trusted, and **crossed the air gap** via USB to reach a network deliberately disconnected from the internet — defeating the strongest perimeter there is. The lessons: an **air gap is not absolute** (humans carry media across it); **critical infrastructure / OT is a real and physical target**, not just data (which is the whole subject of M25.5); malware can be **exquisitely targeted**, doing nothing except on the exact configuration it was built to sabotage; and the top of the threat pyramid is **nation-state actors** against whom commodity defences are irrelevant — which reframes your threat model, because most defenders will never face Stuxnet but everyone now lives in a world where it's possible and its techniques trickle down. **Outside the box:** M24's arc is that "what does this file do?" is answerable through discipline — inspect before you execute, execute only where execution is contained — and that the same untrusted-input mindset scales from a suspicious email attachment all the way to a weapon that destroyed physical centrifuges. The developer's daily version is the upload handler: treat every file as hostile until its *content* proves otherwise.
+</details>`,
+    tracker: ["Ran file, strings, and shasum against a sample (static, safe)", "Looked up a hash on VirusTotal and interpreted the report", "Set up (or sketched) an isolated, snapshotted analysis VM with no real network", "Navigated a disassembler (radare2 or Ghidra) on ARM64", "I can write a secure file-upload handler (Node or Python) that treats uploads as untrusted", "Workbench: extracted strings and flagged C2/API/encoded-command IOCs from an inert sample without executing it", "Workbench: wrote an upload handler that detects type by magic bytes and rejects a shell script named invoice.pdf", "Workbench: distinguished static vs dynamic analysis, explained what the isolated VM prevents, and what Stuxnet teaches about the threat ceiling"]
   }, {
     id: "m24_5",
     level: 3,
