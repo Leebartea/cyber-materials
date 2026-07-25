@@ -5818,7 +5818,136 @@ npm audit --audit-level=high; pip-audit; trivy fs .`
       a: "nmap sees network services and versions from outside; it can't see third-party libraries compiled/bundled INTO your app. A vulnerable logging/parsing library (Log4Shell-style) exposes no distinct port — it's reachable through normal app traffic. Dependency scanners read your lockfile/SBOM and match package versions against known-CVE databases, surfacing the vulnerable component a network scan is blind to."
     }],
     quiz: ["What's the difference between a vulnerability scan and a penetration test?", "What does CVSS measure, and why is it insufficient for prioritization alone?", "What four factors should real risk-based prioritization combine?", "Why must you scan dependencies, not just running hosts (cite Log4Shell)?", "What is triage, and why is an un-triaged scanner dump worse than useless?", "A CVE has a CVSS of 6.1 but appears on the CISA KEV catalog. Do you patch it before a 9.8 that isn't on KEV? Why?"],
-    tracker: ["Ran Nuclei against my lab target and reviewed findings", "Ran npm audit / pip-audit / trivy against my own project", "I can explain CVSS vs risk-based prioritization", "I triaged a finding list and justified my top fix", "I understand why dependency scanning catches what host scans miss (Log4Shell)"]
+    workbench: `> **What this trains.** Anyone can run a scanner; the scanner's output is not the work. The work is **deciding what to fix first** and **finding the vulnerability you never chose to install**. So you'll compute a risk ranking that disagrees with CVSS, then walk a lockfile to find the vulnerable package nobody in your team has ever heard of. Both run offline on data you create — no registry, no network.
+
+#### 🟢 Drill 1 — build a ranking that disagrees with CVSS ~10 min
+
+**Goal.** Take four findings and score them **twice**: once by raw CVSS, once by a \`risk()\` function that also weighs **reachability** (internet-facing?), **authentication** required, whether it is **known-exploited** (KEV) or has a high **EPSS** probability, and the **sensitivity of the data** behind it. Then compare the two orderings.
+
+**Done when.** The two rankings **disagree at the top**: a CVSS 9.8 on an internal, authenticated batch job sinks, while a lower-CVSS internet-facing issue — especially a KEV-listed one — rises. You can defend each multiplier.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Start from the CVSS number and multiply by factors, so each input's influence is visible and arguable. Reachability should dominate — an unreachable flaw cannot be exploited remotely no matter how severe it is in the abstract. Treat "on the KEV list" as categorically different from a high EPSS score.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# triage.py
+FINDINGS = [
+ {"id":"CVE-2024-AAAA","cvss":9.8,"kev":False,"epss":0.02,"ext":False,"authn":True, "data":"none",   "desc":"RCE in lib used by internal batch job"},
+ {"id":"CVE-2024-BBBB","cvss":6.1,"kev":False,"epss":0.11,"ext":True, "authn":False,"data":"session","desc":"Reflected XSS on public login page"},
+ {"id":"CVE-2024-CCCC","cvss":7.5,"kev":True, "epss":0.94,"ext":True, "authn":False,"data":"pii",    "desc":"Auth bypass, exploited in the wild"},
+ {"id":"CVE-2024-DDDD","cvss":9.1,"kev":False,"epss":0.01,"ext":False,"authn":True, "data":"none",   "desc":"DoS in an admin-only tool"},
+]
+DATA_W = {"none":1.0, "session":1.4, "pii":1.8}
+
+def risk(f):
+    s = f["cvss"]
+    s *= 1.6 if f["ext"]   else 0.5            # reachability dominates
+    s *= 0.8 if f["authn"] else 1.3            # pre-auth is worse than post-auth
+    s *= 2.0 if f["kev"]   else (1.0 + f["epss"])   # observed exploitation > theory
+    s *= DATA_W[f["data"]]
+    return round(s, 1)
+
+for f in sorted(FINDINGS, key=lambda x: -x["cvss"]):  print(" CVSS", f["cvss"], f["desc"])
+for f in sorted(FINDINGS, key=lambda x: -risk(x)):    print(" RISK", risk(f), f["desc"])
+\`\`\`
+\`\`\`bash
+# by CVSS alone:                          by risk:
+#  9.8  RCE in internal batch job          56.2  Auth bypass, exploited in the wild
+#  9.1  DoS in an admin-only tool          19.7  Reflected XSS on public login page
+#  7.5  Auth bypass, exploited in wild      4.0  RCE in internal batch job     <- was #1
+#  6.1  Reflected XSS on public login       3.7  DoS in an admin-only tool
+\`\`\`
+**This is the module's own challenge, answered by computation rather than opinion.** The CVSS 9.8 fell to third and the 6.1 rose to second, because **CVSS measures the severity of a vulnerability in the abstract, not the risk it poses in your environment** — it has no idea whether the component is internet-facing, whether anyone is actually exploiting it, or what data sits behind it. Those are precisely the facts that decide whether you get breached. The KEV entry wins outright and should: **CISA's Known Exploited Vulnerabilities catalogue is observed reality** — someone is using it right now — whereas a 9.8 with an EPSS of 0.02 is a prediction that almost nobody will. Note the honest caveat: these multipliers are a *judgment made explicit*, not physics. Their value is that a colleague can now argue with the number 1.6 instead of arguing with your intuition — and that's what makes a triage defensible to an auditor or a sceptical manager.
+
+Common wrong attempts: sorting by CVSS and calling it a priority list (that's the "email the PDF" failure the module opens with — it's the scanner's opinion, not yours); adding factors instead of multiplying, which lets a high base score swamp the fact that nothing can reach it; treating EPSS and KEV as the same signal (EPSS is a *probability*; KEV is a *fact*, and facts outrank forecasts); forgetting that "internal" is an assumption worth re-testing — M15's isolation check and M12's scan exist because "not internet-facing" is frequently wrong; and ignoring compensating controls entirely, when a WAF rule or a disabled feature can legitimately drop a finding's rank.
+</details>
+
+#### 🟡 Build 1 — find the vulnerability you never installed ~15 min
+
+**Goal.** Write a resolver that reads a lockfile, walks the dependency graph from your **direct** dependencies, and reports **every path** to a known-vulnerable package. Use a small hand-written \`package-lock.json\` where the vulnerable package is *not* a direct dependency and is reachable by more than one route.
+
+**Done when.** Your output shows the vulnerable package is **not** in your direct dependencies, and prints **both** paths to it — one two hops deep, one three — each with the version found and the version that fixes it.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+A breadth-first search from the direct dependencies gives you the shortest paths first and is about eight lines with \`collections.deque\`. Track the path as a list so you can print the chain, and guard against cycles by refusing to revisit a package already in the current path.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`json
+{ "name": "my-app", "lockfileVersion": 3,
+  "packages": {
+    "":                              { "dependencies": { "web-framework": "^2.0.0", "chart-lib": "^1.2.0" } },
+    "node_modules/web-framework":    { "version": "2.1.0", "dependencies": { "template-engine": "^3.0.0" } },
+    "node_modules/template-engine":  { "version": "3.4.1", "dependencies": { "logger-core": "^1.0.0" } },
+    "node_modules/logger-core":      { "version": "1.4.2" },
+    "node_modules/chart-lib":        { "version": "1.2.3", "dependencies": { "logger-core": "^1.0.0" } }
+  } }
+\`\`\`
+\`\`\`python
+# deppath.py
+import json, collections
+VULN = {"logger-core": {"cve":"CVE-2021-44228", "fixed":"1.5.0"}}
+
+lock = json.load(open("pkglock.json")); pkgs = lock["packages"]
+name = lambda k: k.split("node_modules/")[-1] if k else ""
+deps = {name(k): list((v.get("dependencies") or {}).keys()) for k, v in pkgs.items()}
+vers = {name(k): v.get("version") for k, v in pkgs.items() if k}
+
+paths, q = [], collections.deque([[d] for d in deps[""]])
+while q:
+    path = q.popleft(); node = path[-1]
+    if node in VULN: paths.append(path); continue
+    for child in deps.get(node, []):
+        if child not in path: q.append(path + [child])          # cycle guard
+
+print("direct dependencies:", deps[""])
+print("is logger-core direct?", "logger-core" in deps[""])
+for p in paths:
+    pkg = p[-1]
+    print(" ", VULN[pkg]["cve"], pkg + "@" + vers[pkg], "(fixed in " + VULN[pkg]["fixed"] + ")")
+    print("     path:", " -> ".join(["my-app"] + p))
+\`\`\`
+\`\`\`bash
+# direct dependencies: ['web-framework', 'chart-lib']
+# is logger-core direct? False
+#   CVE-2021-44228 logger-core@1.4.2 (fixed in 1.5.0)
+#      path: my-app -> chart-lib -> logger-core
+#   CVE-2021-44228 logger-core@1.4.2 (fixed in 1.5.0)
+#      path: my-app -> web-framework -> template-engine -> logger-core
+\`\`\`
+**This is Log4Shell's shape exactly.** Almost nobody who was vulnerable had chosen to install Log4j — it arrived three or four levels down, inside a framework, inside a product, and the hard part of that December was not patching but **discovery**: teams genuinely could not answer "do we run this?" Your resolver answers it, and it also shows why \`nmap\` never will (the module's second challenge): a port scan sees a **listening service**, and a vulnerable library that is loaded in-process exposes no port and changes no banner. Host scanning asks "what is reachable?"; dependency scanning asks "what is *present*?" — different questions, neither substituting for the other, which is why real programs run both plus SBOM tracking.
+
+**Two paths, not one — and that changes the fix.** Bumping \`chart-lib\` alone leaves the \`web-framework → template-engine\` route still resolving to \`1.4.2\`. The options, in order of preference: get **both** parents to release versions requiring \`>=1.5.0\`; or, when upstream is slow, force resolution yourself with an npm \`overrides\` block (\`resolutions\` in Yarn) — a deliberate, documented, temporary measure, since you're overriding a constraint the parent package declared and must re-test that the parent still works. **Then verify by re-running the resolver**, because "we bumped it" is a claim about intent and the lockfile is the fact.
+
+Common wrong attempts: checking \`package.json\` instead of \`package-lock.json\` (the manifest lists ranges you *asked* for; the lockfile records what you actually **got** — only the lockfile can answer the question); stopping at the first path found and under-fixing, which is the specific bug this exercise exists to prevent; ignoring cycles and hanging (the \`child not in path\` guard); comparing versions as strings (\`"1.10.0" < "1.4.2"\` is true lexically and false semantically — use a semver library for real work); and assuming a lockfile hit means you're exploitable — reachability analysis (is the vulnerable *function* ever called?) is what separates a real finding from noise, and it's why modern scanners report "reachable" separately.
+</details>
+
+#### 🔴 Break & Defend — KEV, EPSS, SSVC, and the finding you decide not to fix ~13 min
+
+**Goal.** Journal three answers. (1) Define **CVSS**, **EPSS**, and **KEV** in one line each and state exactly what each is *for*; then explain what **SSVC** adds that a score cannot. (2) A scanner reports 400 findings. Describe how you'd get to a defensible top ten by tomorrow morning. (3) Choose a finding you would **not** fix, and write the two-sentence justification you'd put in the report.
+
+**Done when.** You can say why a decision *tree* beats a number, and your "won't fix" justification names the compensating control and who accepted the risk.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The four inputs.** **CVSS** — a 0–10 score of a vulnerability's intrinsic severity, assuming worst-case deployment; it's a *common vocabulary* for how bad a flaw is in the abstract, and it is widely misused as a priority list, which it was never designed to be. **EPSS** — a data-driven **probability** (0–1) that a vulnerability will be exploited in the next 30 days, based on observed attack telemetry and vulnerability features; it answers "how likely is anyone to actually use this?", the question CVSS ignores, and it's what lets you deprioritise the large majority of high-CVSS issues that nobody ever weaponises. **KEV** — CISA's catalogue of vulnerabilities with **confirmed in-the-wild exploitation**; not a prediction but an observation, so it's effectively a work-stoppage list (and mandatory to remediate for US federal agencies on a deadline). **SSVC** (Stakeholder-Specific Vulnerability Categorization) adds what none of the numbers can: it's a **decision tree**, not a score, walking you through exploitation status, exposure, automatability, and mission/wellbeing impact to an explicit **action** — *Track, Track\\*, Attend, Act*. The reason that's better is that a number still has to be turned into a decision by a human applying unstated assumptions, whereas a tree makes the reasoning **auditable and repeatable**: two analysts with the same facts reach the same action, and a reviewer can see exactly which branch produced it. Scores rank; trees decide.
+
+**(2) 400 findings by morning.** Reduce in cheap-to-expensive order rather than reading them in scanner order. **First, deduplicate** — scanners report the same underlying package once per container layer, host, or endpoint, and 400 rows is routinely 40 unique issues. **Second, filter by exploitation:** anything on **KEV** goes straight to the top, then sort the remainder by **EPSS**; this alone usually leaves a couple of dozen. **Third, filter by reachability** — internet-facing and pre-auth first, exactly the multipliers you built in Drill 1, and drop anything in a component that isn't deployed or a code path never invoked. **Fourth, weight by data sensitivity** and blast radius. **Fifth, sanity-check the survivors by hand for false positives** — verify the version really is what the scanner claims and the vulnerable feature is actually enabled, because credibility is spent the first time you escalate a phantom. What makes the result *defensible* is that every step is a stated rule rather than a judgment call, so you can show your work — and the ten items come with a one-line reason each, which is what a manager needs to fund the work.
+
+**(3) The finding you don't fix.** Deciding *not* to fix is a normal, professional outcome — pretending everything is fixable is what produces backlogs nobody believes. A good justification is specific and names an owner: *"CVE-2024-DDDD (CVSS 9.1, DoS) affects an admin-only internal tool with no internet exposure, reachable solely by three authenticated operators on the management VLAN; EPSS 0.01 and not KEV-listed. Risk accepted by the platform owner on 2026-07-25, to be re-evaluated if the tool is ever exposed beyond the VLAN or the component is reused elsewhere."* Note the four components that make it defensible: the **compensating controls** (network isolation plus authentication), the **evidence** it isn't being exploited, a **named accepter** — risk acceptance is a business decision, never the tester's to make unilaterally — and a **trigger for revisiting**, since the assumption "not internet-facing" is exactly the sort of thing a future deploy silently invalidates. **Outside the box:** the arc of M19 is that a vulnerability assessment is an exercise in **allocating finite attention**, and every part of the discipline — EPSS, KEV, SSVC, reachability analysis — exists to answer the same question: *of the things that are wrong, which ones will actually hurt us?* A scanner can enumerate; only you can prioritise, and that judgment, written down and defensible, is the deliverable.
+</details>`,
+    tracker: ["Ran Nuclei against my lab target and reviewed findings", "Ran npm audit / pip-audit / trivy against my own project", "I can explain CVSS vs risk-based prioritization", "I triaged a finding list and justified my top fix", "I understand why dependency scanning catches what host scans miss (Log4Shell)", "Workbench: built a risk() function weighing reachability, pre-auth, KEV/EPSS and data sensitivity, and produced a ranking that disagrees with CVSS at the top", "Workbench: wrote a lockfile resolver that found a vulnerable transitive package by BOTH of its dependency paths, and can explain why fixing one parent is insufficient", "Workbench: distinguished CVSS/EPSS/KEV/SSVC, reduced 400 findings to a defensible top ten by stated rules, and wrote a risk-acceptance justification with a named accepter and a revisit trigger"]
   }, {
     id: "m20",
     level: 3,
@@ -5905,7 +6034,125 @@ brew install --cask burp-suite        # ARM64-native macOS build
       a: "A scanner doesn't understand your authorization model — it can't tell that receiving order 1001's data (HTTP 200, valid JSON) is a VIOLATION rather than a normal response. A human in Burp logs in as a known user, requests a known-foreign ID in Repeater, and RECOGNIZES that seeing someone else's data is wrong. IDOR/BOLA is context- and logic-dependent — the category automated tools miss and manual testing catches."
     }],
     quiz: ["What does an intercepting proxy like Burp let you do that the browser alone does not?", "Why are hidden form fields and disabled buttons not a security control?", "Walk through how you'd find an IDOR using Burp Repeater.", "Why does manual web testing find bugs that automated scanners miss?", "What is the single correct server-side fix for the IDOR you find, and why does it work?"],
-    tracker: ["Burp Community (ARM64) proxying a dedicated Firefox profile, CA installed", "Completed 10+ PortSwigger Academy labs across Auth, Access Control, SQLi, XSS", "Found an IDOR with Repeater and wrote the server-side fix", "Tampered a hidden price field and confirmed where trust must live", "Wrote up one interesting lab as a portfolio blog post"]
+    workbench: `> ⚖️ **Ethics.** Everything below runs between two processes on your own \`127.0.0.1\`. Burp against a site you don't own is unauthorized access, however "read-only" it feels.
+
+> **What this trains.** Burp is a GUI, and GUIs teach you buttons. Underneath, an intercepting proxy is about twenty lines — and building it is what makes the idea stick, because once you have *written* the thing that rewrites a request mid-flight, you can never again believe that a value the browser sent is a value the browser controls. You'll build the proxy, tamper a price with it, and then write the fix.
+
+#### 🟢 Drill 1 — tamper the hidden price field ~9 min
+
+**Goal.** Stand up a checkout endpoint that trusts a client-supplied \`price\` (as a great many real ones do, because the hidden field was right there in the form), then buy a \$49.99 item for one cent. Then add \`/checkout-safe\` that looks the price up **server-side** by SKU and confirm the identical request is charged correctly.
+
+**Done when.** The same POST body yields \`charged: "0.01"\` from the vulnerable endpoint and \`charged: "49.99"\` from the fixed one — the request is unchanged, only the trust decision differs.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+You don't need a browser or a proxy for this first step — \`curl -X POST ... -d "sku=sku-1&qty=1&price=0.01"\` is enough, and that's the point: the "hidden" field was never hidden from anything except a user who only ever clicks. Keep a \`CATALOG\` object as the server's source of truth.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`javascript
+// checkout.js
+const http = require("http");
+const CATALOG = { "sku-1": 49.99, "sku-2": 12.50 };
+
+http.createServer((req, res) => {
+  let body = ""; req.on("data", d => body += d);
+  req.on("end", () => {
+    const p = new URLSearchParams(body);
+    const sku = p.get("sku"), qty = parseInt(p.get("qty") || "1", 10);
+    if (req.url === "/checkout-vuln") {
+      const price = parseFloat(p.get("price"));        // TRUSTS THE CLIENT
+      res.end(JSON.stringify({ charged: (price * qty).toFixed(2), source: "client-supplied price" }));
+    } else if (req.url === "/checkout-safe") {
+      const price = CATALOG[sku];                      // server is the source of truth
+      if (price === undefined) { res.statusCode = 400; return res.end('{"error":"unknown sku"}'); }
+      res.end(JSON.stringify({ charged: (price * qty).toFixed(2), source: "server catalog" }));
+    }
+  });
+}).listen(9400, "127.0.0.1", () => console.log("checkout up"));
+\`\`\`
+\`\`\`bash
+curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"
+#   {"charged":"49.99","source":"client-supplied price"}
+curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=0.01"
+#   {"charged":"0.01","source":"client-supplied price"}     <- bought for a cent
+curl -s -X POST 127.0.0.1:9400/checkout-safe -d "sku=sku-1&qty=1&price=0.01"
+#   {"charged":"49.99","source":"server catalog"}           <- price ignored entirely
+\`\`\`
+**This is the module's own challenge, and the answer is about where trust lives.** The hidden field wasn't a security control; it was a *convenience* that leaked an assumption — "the form will send what we put in it." The fix isn't to encrypt, sign, or obfuscate the price. It's to recognise that **the price is not the client's fact to state**, so the client shouldn't be sending it at all: the request should carry only what the user genuinely chose (SKU and quantity), and every derived value should come from the server. Generalise that test to every request you design — *for each field, ask whether the client is entitled to assert it.* User id, role, discount, account number, \`isAdmin\`, and total all fail that test.
+
+Common wrong attempts: "fixing" it by removing the field from the HTML while the endpoint still honours it if present (the endpoint is the boundary, not the page — and attackers send fields your form doesn't); validating that the price is *positive* rather than *correct*, which still permits a cent; signing the price with an HMAC so it can't be edited — this works but is strictly more complex than not sending it, and it fails as soon as a discount changes; and forgetting \`qty\` is also client-supplied, so a **negative quantity** produces a negative total — try \`qty=-1\` on your own endpoint and add the validation.
+</details>
+
+#### 🟡 Build 1 — build the intercepting proxy ~16 min
+
+**Goal.** Write the proxy that sits between client and server, **prints** every request, **modifies** it in flight, and forwards it — Burp's Proxy tab, from scratch. Rewrite \`price=\` to \`0.01\` on the way through, then send an **honest** request from the client and watch it get charged a cent. Finally send the same honest request through the proxy to \`/checkout-safe\`.
+
+**Done when.** The client sends \`price=49.99\`, your proxy log shows the intercepted body, the modified body, and the response — \`0.01\` from the vulnerable endpoint and \`49.99\` from the fixed one, with the client none the wiser either time.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+Buffer the incoming body, transform it, then open an \`http.request\` to the real server and write the transformed body. The one detail that will bite you: after changing the body you must recompute \`content-length\`, or the upstream server will read the wrong number of bytes and hang or truncate.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// proxy.js — listens on 9401, forwards to 9400
+const http = require("http");
+
+http.createServer((cReq, cRes) => {
+  let body = ""; cReq.on("data", d => body += d);
+  cReq.on("end", () => {
+    console.log("  [intercepted] " + cReq.method + " " + cReq.url + "  body=" + body);
+    const tampered = body.replace(/price=[\\d.]+/, "price=0.01");        // MODIFY IN FLIGHT
+    if (tampered !== body) console.log("  [modified]    body=" + tampered);
+
+    const up = http.request({ host: "127.0.0.1", port: 9400, path: cReq.url, method: cReq.method,
+      headers: { ...cReq.headers, "content-length": Buffer.byteLength(tampered) } },  // MUST recompute
+      uRes => { let out = ""; uRes.on("data", d => out += d);
+                uRes.on("end", () => { console.log("  [response]    " + out); cRes.end(out); }); });
+    up.end(tampered);
+  });
+}).listen(9401, "127.0.0.1", () => console.log("proxy up on 9401 -> 9400"));
+\`\`\`
+\`\`\`bash
+curl -s -X POST 127.0.0.1:9401/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"
+#   [intercepted] POST /checkout-vuln  body=sku=sku-1&qty=1&price=49.99
+#   [modified]    body=sku=sku-1&qty=1&price=0.01
+#   [response]    {"charged":"0.01","source":"client-supplied price"}
+
+curl -s -X POST 127.0.0.1:9401/checkout-safe -d "sku=sku-1&qty=1&price=49.99"
+#   [response]    {"charged":"49.99","source":"server catalog"}     <- tampering is irrelevant
+\`\`\`
+**What you've just built, and what it means.** Add a pause-and-edit step and you have Burp's **Proxy**; add "replay this request with one field changed" and you have **Repeater**; loop over a wordlist in that field and you have **Intruder**. The tool is a very good ergonomics layer over exactly this. Which is why the security conclusion is unavoidable: **the client is not a place where rules can be enforced** — not the JavaScript, not the hidden field, not the disabled button, not the mobile app, not the "encrypted" request whose key ships inside the app. Everything between the user and your server is the *user's* territory, and they can watch and rewrite all of it.
+
+Note what makes the safe endpoint immune: it isn't validating harder, it simply **doesn't consume the untrusted value**. That's a structural fix in the M14 sense — the same move as parameterizing a query rather than escaping it. Also note the one line that matters operationally: recomputing \`content-length\`. Real intercepting proxies do this for you, and forgetting it is the single most common reason a hand-rolled proxy mysteriously hangs.
+
+Common wrong attempts: forwarding headers unchanged after altering the body (stale \`content-length\` → hang or truncated read); streaming the body straight through with \`pipe\` before you've buffered it (you can't rewrite what you've already forwarded); forgetting the proxy sees only *this* hop and assuming HTTPS works the same way (it doesn't — intercepting TLS requires the client to trust your CA, which is exactly why Burp makes you install one, and why a browser's certificate warning is a real security boundary rather than an annoyance); and testing only the vulnerable endpoint, so you never see the fix hold under an active attacker.
+</details>
+
+#### 🔴 Break & Defend — why scanners miss IDOR, and where trust lives ~13 min
+
+**Goal.** Journal three answers. (1) Answer the module's question: why can a human with Burp find an IDOR that a vulnerability scanner usually can't? (2) IDOR/BOLA is described as a "quiet epidemic" — explain why it is so common in modern apps specifically, and why the fix must live server-side in *every* handler. (3) List every field in a typical \`POST /transfer\` request and mark which the client is entitled to assert; then state the general rule you'd apply in code review.
+
+**Done when.** Your scanner answer turns on the difference between *malformed* and *well-formed-but-unauthorized*, and your rule is one sentence a reviewer could actually apply.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Why scanners miss IDOR.** A scanner detects **malformed** input producing anomalous behaviour — it sends a quote and looks for a SQL error, sends a script tag and looks for it reflected. An IDOR request is **perfectly well-formed**: \`GET /api/orders/1002\` is a legitimate request that returns a legitimate order, with a 200 and clean JSON. Nothing in the response says "this wasn't yours." To find it, you need something the scanner doesn't have: **knowledge of who *should* be able to see what** — that order 1002 belongs to a different customer. That's application-specific business context, not a pattern, which is why it needs a human who has authenticated as two different users and compared. The Burp workflow is exactly that: capture user A's request, change the id, replay it as **user B**, and see if it succeeds. Note the corollary — this is also why IDOR resists automation *in your CI pipeline*, so the defence has to be architectural (a policy layer applied by construction) rather than a scan you run later.
+
+**(2) Why BOLA is epidemic.** Modern apps are REST/GraphQL APIs where **object identifiers are exposed by design** — \`/api/v1/invoices/8842\` is good API design and simultaneously a complete map of the attack surface. Three forces compound it: the number of endpoints is large and each is a **separate** authorization decision, so a single omission among hundreds is near-inevitable; the check is invisible when missing — the endpoint works perfectly for legitimate users and *nothing fails* in testing, unlike a broken auth**entication** check which breaks immediately for everyone; and ORMs make \`findById(req.params.id)\` the natural, idiomatic line to write, with the ownership filter as an easily-forgotten extra clause. Hence the server-side, per-handler requirement: authentication tells you *who is calling* once, but **authorization must be re-asked for every object touched**, and it cannot be delegated to the client that supplied the id. The durable fix is to make it structural — scope every query to the caller by default (\`where owner_id = session.user\` enforced at the data-access layer or by row-level security), so an endpoint that forgets returns nothing rather than everything. **Fail closed**, exactly as in M18's scope guard.
+
+**(3) The \`POST /transfer\` audit.** Typical fields: \`from_account\`, \`to_account\`, \`amount\`, \`currency\`, \`user_id\`, \`fee\`, \`reference\`, \`timestamp\`. The client is entitled to assert: **\`to_account\`** (where they want to send it), **\`amount\`**, **\`currency\`**, and **\`reference\`** — genuine user intent. The client is **not** entitled to assert: **\`user_id\`** (comes from the session — accepting it is instant account takeover), **\`from_account\`** (must be verified as owned by the session user, not merely accepted — this is the IDOR), **\`fee\`** (server-computed business rule), and **\`timestamp\`** (server clock; a client clock enables replay and ordering games). Also validate the entitled fields for *sanity* — a **negative amount** reverses the transfer direction, which is the classic business-logic bug and the same shape as the \`qty=-1\` you tried in Drill 1. **The review rule, in one sentence:** *for every field in the request, ask "is this the user's intent, or is this a fact about the system?" — the client may assert intent, never facts.* **Outside the box:** notice that M20's lesson is not really about Burp. It's that the **trust boundary is the network interface of your server**, and everything on the far side of it is adversary-controlled data no matter how it was produced. Burp just makes that undeniable, which is why an afternoon with it changes how developers write code more reliably than any amount of reading.
+</details>`,
+    tracker: ["Burp Community (ARM64) proxying a dedicated Firefox profile, CA installed", "Completed 10+ PortSwigger Academy labs across Auth, Access Control, SQLi, XSS", "Found an IDOR with Repeater and wrote the server-side fix", "Tampered a hidden price field and confirmed where trust must live", "Wrote up one interesting lab as a portfolio blog post", "Workbench: bought a $49.99 item for one cent against a client-trusting checkout, then fixed it with a server-side catalog lookup", "Workbench: built an intercepting proxy that rewrites a request in flight (recomputing content-length) and watched an honest client get charged a tampered price", "Workbench: explained why scanners miss well-formed-but-unauthorized requests, why BOLA is epidemic, and audited POST /transfer for which fields a client may assert"]
   }, {
     id: "m21",
     level: 3,
