@@ -6249,7 +6249,115 @@ node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length
       a: "They defeat DEP/NX with ROP (return-oriented programming) — chaining existing code gadgets instead of injecting new code — and defeat ASLR with information leaks that reveal a real address to de-randomize the layout. Mitigations raise the cost/complexity but don't remove the bug. The true fix is not having the vulnerability: bounds-checked code, memory-safe languages, and patched dependencies."
     }],
     quiz: ["In a classic stack overflow, what gets overwritten to achieve code execution, and why is that powerful?", "Why do memory-safe languages (Node, Python, Go, Rust) largely prevent this bug class?", "Name two ways a memory bug can still affect a 'memory-safe' application.", "What do ASLR, DEP/NX, and stack canaries each do, and why aren't they a complete fix?", "Why is the industry migrating safety-critical software to memory-safe languages (cite the historical impact)?"],
-    tracker: ["I can explain how overwriting the return address yields code execution", "I can explain why Node/Python/Go/Rust largely prevent classic overflows", "I can name two ways memory bugs still reach a memory-safe app (native deps, unsafe)", "I can explain ASLR, DEP/NX, and canaries and why they aren't a complete fix", "I completed at least one PicoCTF or OverTheWire binary challenge"]
+    workbench: `> ⚖️ **Ethics & safety.** You compile and crash **your own** program on your own machine. A deliberately vulnerable binary is only ever run locally, never networked. Nothing here targets another system.
+
+> **What this trains.** You cannot understand why your languages are safe until you've watched an unsafe one break. So you'll write a C program with a missing bounds check, feed it too much input, and watch your **Mac's own defenses** catch the corruption in real time — then write the identical bug in Python and Node and see the language refuse it. This is the rare module where "just read about it" genuinely doesn't land; the crash is the lesson.
+
+#### 🟢 Drill 1 — overflow a buffer and watch the CPU catch it ~10 min
+
+**Goal.** Write a C function with a 16-byte stack buffer and a \`strcpy\` that doesn't check length. Compile it with stack protection **off**, run it with a short input (works) and a 48-byte input (crashes), and read the exit code to see *which* protection fired.
+
+**Done when.** The short input prints normally; the long input dies before \`greet()\` can return, and you can decode the exit status — \`133\` means signal 5 (SIGTRAP), your Apple-Silicon CPU's **pointer authentication** rejecting a corrupted return address.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`cc -o prog prog.c -fno-stack-protector\` deliberately removes one layer so you can see the *next* one fire. A process killed by signal N reports exit status \`128 + N\` — so \`133\` is \`128 + 5\`. Print the address of an unreferenced \`secret()\` function so you can see there's somewhere for a hijacked return to go.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`c
+// overflow.c
+#include <stdio.h>
+#include <string.h>
+void secret() { printf("  *** secret() executed — control flow hijacked ***\\n"); }
+void greet(const char *name) {
+    char buf[16];
+    strcpy(buf, name);            // NO bounds check — copies until it hits a NUL
+    printf("  hello, %s\\n", buf);
+}
+int main(int argc, char **argv) {
+    printf("  buf is 16 bytes; secret() is at %p\\n", (void*)secret);
+    greet(argv[1]);
+    printf("  greet() returned normally\\n");
+    return 0;
+}
+\`\`\`
+\`\`\`bash
+cc -o overflow overflow.c -fno-stack-protector -Wno-deprecated-declarations
+./overflow alice
+#   hello, alice
+#   greet() returned normally                 <- fits in 16 bytes, all fine
+./overflow AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+echo "exit=$?"
+#   (no "returned normally" line)
+#   exit=133                                   <- 128 + 5 (SIGTRAP): the return was corrupted
+rm overflow
+\`\`\`
+**Walk through what happened on the stack.** \`buf\` lives in \`greet\`'s stack frame, and just past it sits the **saved return address** — where the CPU jumps when \`greet\` finishes. \`strcpy\` copies your input byte by byte with no idea how big \`buf\` is, so 48 bytes runs off the end of the 16-byte buffer and overwrites that return address with \`0x4141...\` (\`"AAAA"\`). Classically, an attacker chooses those bytes to point at code of their choosing — that's how a mere *input-too-long* becomes *arbitrary code execution*, and why the unused \`secret()\` is a stand-in for "somewhere the attacker wants to go." **But notice you never saw \`secret()\` run**, and that's the good news of the modern era: on Apple Silicon the return address is **signed** (pointer authentication / PAC), so when the CPU pops the smashed value it fails the signature check and traps *before* jumping anywhere — the exploit is reduced to a crash. Recompile with \`-fstack-protector-all\` and a **stack canary** catches it too: a known value placed between \`buf\` and the return address is checked on exit, and a copy long enough to reach the return address also clobbered the canary, so the program aborts. Two independent nets, and you removed one to see the other.
+
+Common wrong attempts: expecting \`secret()\` to actually print (that was true in 1996; PAC/canaries/ASLR make a naïve overwrite crash instead — turning it into real code execution now takes ROP and an info-leak, which is the module's "mitigations aren't a complete fix" point, not a beginner exercise); reading \`133\` as an error in *your* code rather than a **signal** (\`128 + 5\`); leaving the stack protector on and seeing \`134\` (SIGABRT from the canary) and thinking that's a different bug — it's the same overflow, caught by a different layer; and compiling with optimisation, which may inline \`greet\` or elide \`buf\` and hide the effect — compile at \`-O0\`.
+</details>
+
+#### 🟡 Build 1 — write the same bug in a memory-safe language and watch it refuse ~13 min
+
+**Goal.** Reproduce the exact logic — a 16-byte buffer, a 48-byte write — in Python and Node, and show there is **no** overflow: the write is either rejected or truncated, and adjacent memory is untouchable because the language doesn't expose it. Then state, precisely, *why* your daily languages dodge an entire vulnerability class.
+
+**Done when.** Writing past the end **raises** in Python (\`IndexError\`) and is **length-limited** in Node (\`Buffer.write\` returns the bytes written), and you can explain what the runtime does that C doesn't.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The contrast is the point: in C the language trusts you to know the size; in Python/Node the *runtime* knows the size of every object and checks each access. Index a fixed-size \`bytearray\` past its end to force the check; use \`Buffer.alloc(16)\` and \`.write()\` for the Node side.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# same bug, refused at the language level
+buf = bytearray(16)
+name = b"A" * 48
+for i, byte in enumerate(name):
+    try:
+        buf[i] = byte                     # index 16 is past the 16-byte allocation
+    except IndexError:
+        print(f"  refused at byte {i}: IndexError — cannot write past the allocation")
+        break
+#   refused at byte 16: IndexError — cannot write past the allocation
+\`\`\`
+\`\`\`javascript
+// Node: the write is length-limited, never an overrun
+const buf = Buffer.alloc(16);
+const n = buf.write("A".repeat(48));      // returns bytes actually written
+console.log("  wrote " + n + " of 48; the rest is dropped, buffer length still " + buf.length);
+//   wrote 16 of 48; the rest is dropped, buffer length still 16
+\`\`\`
+**Why the whole bug class evaporates.** In C, an array is just a pointer plus your *promise* about its length; the language stores no size and checks nothing, so \`buf[16] = x\` obediently writes to whatever is next in memory. In Python, Node, Go, Java, and safe Rust, every array/buffer/string is an **object the runtime knows the length of**, and every indexed access is **bounds-checked** — so an out-of-range write becomes a caught exception or a safe truncation instead of silent memory corruption. Automatic memory management removes the sister bugs too: no manual \`free\`, so no use-after-free or double-free. That's why decades of C/C++ CVEs are dominated by memory-safety issues and your web stack simply doesn't have them — the language made the invalid state unrepresentable, the strongest kind of fix (the same principle as M14's parameterized query and M20's don't-send-the-price).
+
+**But answer the module's challenge honestly — where is "we're memory-safe, ignore this" dangerously incomplete?** Three real paths. **(1) Native addons and FFI:** a Node C++ addon, a Python C extension, \`ctypes\`, or a Go \`cgo\` call runs *unmanaged* C — the bounds checks are gone, and a huge fraction of npm/PyPI packages pull in native code (image parsers, crypto, database drivers). **(2) The runtime itself** is written in C/C++: V8, CPython, and OpenSSL bugs are *your* bugs — Heartbleed (M10) was a memory over-read in a C library sitting under "secure" apps. **(3) \`unsafe\` blocks in Rust** and \`unsafe\`/\`reflect\` corners elsewhere deliberately switch the checks off for performance, and any bug there is a classic memory bug. So the accurate statement is not "impossible for us," it's *"we don't write this bug in our own code, but we inherit it through native dependencies and the runtime — so it belongs in our dependency scanning (M19) and our patch cadence, not in our blind spot."*
+
+Common wrong attempts: concluding "so memory safety is a myth" (it isn't — it eliminates the bug in *your* code, which is most of your code, and shrinks the attack surface to a small, auditable native boundary); forgetting that a memory-safe language can still have logic bugs, injection, and IDOR (safety is about *memory*, not correctness or authorization); and assuming Rust is unconditionally safe without noticing \`unsafe\`.
+</details>
+
+#### 🔴 Break & Defend — the Morris Worm, ASLR/DEP, and the rewrite-it-in-Rust question ~12 min
+
+**Goal.** Journal three answers. (1) The Morris Worm (1988) used a buffer overflow in \`fingerd\`; connect it to a modern echo and say what's changed and what hasn't. (2) Answer the module's question: ASLR and DEP/NX are enabled, yet exploits still work — how, and what does that tell you about relying on mitigations? (3) Given memory-safe languages exist, why does the world still run on billions of lines of C/C++, and what's the pragmatic strategy — is "rewrite it all in Rust" the answer?
+
+**Done when.** Your ASLR answer names the role of an **information leak**, and your strategy answer is more specific than "rewrite everything."
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Morris, then and now.** In November 1988 a Cornell graduate student released a self-propagating worm that, among other vectors, overflowed a stack buffer in the \`gets()\` call inside the \`fingerd\` daemon to run its own code on remote machines — infecting perhaps 10% of the then-internet, the event that effectively created incident response (CERT was founded in its wake). The **echo** is that the *bug class* is 35+ years old and still the top source of critical CVEs in C/C++ software — the exact \`strcpy\`/\`gets\` "copy without checking length" mistake you compiled today. What's **changed** is the cost of exploitation: in 1988 an overwritten return address just jumped to your bytes; today PAC, ASLR, DEP, and canaries mean a working exploit is a research project, not a one-liner. What **hasn't** changed is that the mistake is still made daily, memory-unsafe code still underlies almost everything (kernels, browsers, TLS libraries), and one exploitable instance in the wrong component is still catastrophic. The lesson the industry actually drew, slowly, is the M21 conclusion: **don't rely on catching the bug — use a language where it can't be written.**
+
+**(2) Why mitigations aren't enough.** DEP/NX makes the stack non-executable, so you can't just run bytes you injected; **ASLR** randomises where libraries load, so you don't know the address to jump to. Attackers defeat this pair with two moves. Against DEP, **return-oriented programming (ROP)**: instead of injecting code, chain together tiny snippets of *existing, legitimate* executable code ("gadgets") ending in \`ret\`, assembling the payload from pieces already marked executable. Against ASLR, an **information leak** — a separate bug (a format-string, an over-read like Heartbleed, an uninitialised-memory disclosure) that reveals one real runtime address, from which the attacker computes the rest and defeats the randomisation. So real exploits chain a **leak plus a corruption**, which is why exploit development is hard now but not impossible. The meta-lesson: **mitigations raise cost, they don't restore safety** — each is probabilistic or bypassable, they're defence-in-depth buying time and deterring the low-effort attacker, but stacking uncertain barriers is categorically weaker than removing the vulnerability. That's the argument for memory-safe languages stated in the negative.
+
+**(3) Why C/C++ persists, and the real strategy.** Not inertia alone: C/C++ still wins where you need direct hardware control, deterministic performance with no GC pauses, or a tiny footprint — kernels, embedded and real-time systems, drivers, high-performance codecs and databases — and there are **billions of lines** of working, audited, load-bearing code (Linux, the BSDs, V8, OpenSSL) that can't be paused and rewritten without introducing fresh bugs into the most critical software on earth. So "rewrite it all in Rust" is the wrong frame. The pragmatic strategy, and the one governments (CISA/NSA memory-safety guidance) and major vendors have actually adopted, is layered: **write new code in memory-safe languages** by default; **rewrite the highest-risk components** — parsers, network-facing and privilege-crossing code, where the attack surface is greatest — incrementally, as Android, Chrome, and Windows are doing; **harden the C/C++ that remains** with the mitigations above plus continuous fuzzing and sanitizers; and, for you specifically, **treat native dependencies and your runtime as memory-unsafe surface** to scan and patch (M19). **Outside the box:** M21's real payoff isn't that you'll write exploits — you won't, day to day — it's that you now understand *why* the safety you enjoy exists, exactly where it stops (the native boundary, the runtime, \`unsafe\`), and therefore why "we use Node" is a reason to know where your C is hiding, not a reason to stop thinking about memory.
+</details>`,
+    tracker: ["I can explain how overwriting the return address yields code execution", "I can explain why Node/Python/Go/Rust largely prevent classic overflows", "I can name two ways memory bugs still reach a memory-safe app (native deps, unsafe)", "I can explain ASLR, DEP/NX, and canaries and why they aren't a complete fix", "I completed at least one PicoCTF or OverTheWire binary challenge", "Workbench: compiled a C program with a missing bounds check and watched Apple Silicon's pointer authentication (exit 133) catch the corrupted return address", "Workbench: wrote the identical 16-vs-48-byte bug in Python and Node and saw it refused or truncated, and can explain runtime bounds-checking", "Workbench: explained ROP + info-leak bypasses of DEP/ASLR, the Morris echo, and why 'rewrite it all in Rust' is the wrong frame for the real strategy"]
   }, {
     id: "m22",
     level: 3,
