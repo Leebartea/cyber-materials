@@ -7650,7 +7650,117 @@ echo "Check this on https://www.shodan.io/host/$MY_IP"
       a: "Shodan indexes internet-facing services by scanning the public internet and recording service banners — it is passive from an individual user's perspective (you search Shodan's existing database rather than scanning targets yourself). Attackers use it to find exposed, unpatched, or default-credential devices without leaving any trace on the target. Defenders use it to: (a) check their own public IPs and ASN for exposed services they didn't know about; (b) monitor for newly exposed assets (Shodan Alerts can notify when a new service appears on your IP range); (c) identify vulnerable device models at scale before an attacker does; (d) research threat intelligence ('which IP ranges are running this vulnerable industrial protocol?'). The ethical line: using Shodan to search YOUR OWN infrastructure is not only acceptable, it's recommended. Using it to find targets for exploitation is the attacker use case and is illegal."
     }],
     quiz: ["Why do IoT devices have a worse security track record than conventional servers? Name three structural reasons.", "What was Mirai, and what specific vulnerability class did it exploit?", "What is the Purdue Model, and why does it matter for OT security?", "What is a data diode / unidirectional gateway, and what specific attack does it prevent?", "What were the three security failures that allowed the Oldsmar water plant attack to succeed?"],
-    tracker: ["I ran an inventory scan of my own home network and identified all connected devices", "I checked my router for default credentials, exposed Telnet, and remote admin status", "I checked my public IP on Shodan and understand what an attacker sees", "I can explain the Purdue Model and why IT/OT network separation matters", "I can describe the Mirai botnet, Stuxnet, and Oldsmar attacks and the specific controls that would have prevented each"]
+    workbench: `> ⚖️ **Ethics.** Inventory only **your own** network, and test default credentials only against a device you own or the local mock here. Probing a neighbour's IoT gadget or a random internet host is unauthorized access (M18).
+
+> **What this trains.** The IoT threat model is concrete and close: the insecure devices are on *your* network, and the segmentation that protects a water plant is the same idea that protects your data from your smart TV. So you'll inventory your own network passively, catch a device shipping with default credentials, and model the IT/OT separation that stops a phish from reaching a PLC. All local.
+
+#### 🟢 Drill 1 — inventory your own network passively ~7 min
+
+**Goal.** Enumerate the devices your machine already knows about — no active scanning required — by reading the **ARP cache**, the table mapping IP addresses to hardware (MAC) addresses your OS has seen on the local network. Identify what each is, and flag anything you can't name.
+
+**Done when.** You have a list of neighbours with their IPs and MACs, you can identify the vendor of at least one from its MAC prefix, and you can name every device or mark it "investigate."
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`arp -a\` prints the cache without sending anything new — it's passive, just reading what your OS already learned. The first three bytes of a MAC address are the **OUI** (organizationally unique identifier), which identifies the manufacturer — look it up to turn \`a4:83:e7:...\` into a vendor name.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+arp -a
+#   router   (192.168.1.1)    at aa:bb:cc:xx:xx:xx on en0   [gateway]
+#   ?        (192.168.1.42)   at de:ad:be:xx:xx:xx on en0   [investigate]
+#   thisMac  (192.168.1.100)  at 11:22:33:xx:xx:xx on en0
+
+# how many neighbours, and turn a MAC prefix into a vendor:
+arp -a | wc -l
+# look up the first 3 bytes (the OUI) at a MAC-vendor database to identify the maker
+\`\`\`
+**Why this is where IoT security starts.** You cannot secure what you don't know exists, and the modern home or small-office network has quietly accumulated a dozen always-on computers you don't think of as computers: the router, a smart TV, a thermostat, cameras, a printer, voice assistants, a games console, maybe a fridge. Each runs firmware that is **rarely updated**, often ships with **default credentials**, and frequently exposes services you never asked for — and each sits on the **same flat network** as your laptop with your banking session and your work files. The passive ARP read is the first move because it's safe and it's the same inventory an attacker builds after landing on one device: *what else is here to pivot to?* The item you **can't** identify is the important one — an unexpected MAC could be a neighbour on your Wi-Fi (weak password, M3), a device you forgot, or an intruder; either way, "unknown device on my network" is a finding, not noise.
+
+Common wrong attempts: confusing the ARP cache with a full scan (it only shows hosts your machine has *recently talked to* — a deliberate \`nmap -sn\` sweep of the \`/24\` finds more, but do that only on your own network); ignoring the MAC and losing the vendor signal (the OUI is often the fastest way to identify a mystery device); assuming a device is safe because it's "just a lightbulb" (Mirai was built from cameras and DVRs — see the 🔴 section); and forgetting the router itself is a device with a login, which is Drill 2.
+</details>
+
+#### 🟡 Build 1 — catch a device shipping with default credentials ~13 min
+
+**Goal.** Stand up a mock IoT device that accepts \`admin:admin\` (the way far too many real ones do), then write a checker that tries a small dictionary of well-known default credentials against it and reports the weak one. This is what an attacker's first pass looks like — and what you should run against your **own** router and cameras.
+
+**Done when.** Your checker connects to the mock device, tries the default list, and reports \`admin:admin\` as accepted — and you can explain why default credentials plus internet exposure is the exact recipe behind the Mirai botnet.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The mock device can be an \`http\` server that checks HTTP Basic auth. The checker sends an \`Authorization: Basic base64(user:pass)\` header for each candidate and looks for a success versus a \`401\`. Keep the dictionary short and realistic — \`admin:admin\`, \`admin:password\`, \`root:root\`, \`admin:\` (blank).
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`javascript
+// device.js — a mock IoT device that ships with admin/admin
+require("http").createServer((q, r) => {
+  const cred = Buffer.from((q.headers.authorization || "").replace("Basic ", ""), "base64").toString();
+  if (cred === "admin:admin") return r.end("LOGIN OK - device console");
+  r.writeHead(401, { "WWW-Authenticate": "Basic" }); r.end("unauthorized");
+}).listen(9600, "127.0.0.1", () => console.log("mock device up"));
+\`\`\`
+\`\`\`python
+# credcheck.py — the attacker's (and auditor's) first pass
+import urllib.request, urllib.error, base64
+DEFAULTS = [("admin","admin"), ("admin","password"), ("root","root"), ("admin","")]
+
+for u, p in DEFAULTS:
+    shown = p or "(blank)"
+    req = urllib.request.Request("http://127.0.0.1:9600/")
+    req.add_header("Authorization", "Basic " + base64.b64encode(f"{u}:{p}".encode()).decode())
+    try:
+        body = urllib.request.urlopen(req, timeout=2).read().decode()
+        print(f"   WEAK: default credential accepted -> {u}:{shown}  ({body})")
+        break
+    except urllib.error.HTTPError:
+        print(f"   tried {u}:{shown} -> rejected")
+#   WEAK: default credential accepted -> admin:admin  (LOGIN OK - device console)
+\`\`\`
+**This tiny loop is the Mirai botnet's whole engine.** In 2016 the **Mirai** malware scanned the internet for IoT devices — cameras, DVRs, home routers — and simply tried a built-in table of ~60 **default username/password pairs**. No exploit, no vulnerability in the software sense: the devices were doing exactly what they were designed to do, which was accept \`admin/admin\` from anyone who asked, including from the open internet because they were bound to \`0.0.0.0\` with no firewall (M9). Mirai assembled hundreds of thousands of these into a botnet and launched one of the largest DDoS attacks ever seen, knocking out Dyn's DNS and with it Twitter, Netflix, Reddit, and GitHub for much of a day. The controls that would have stopped it are unglamorous and total: **change the default credentials** (and ban them — modern regulation like the UK PSTI Act now *prohibits* shipping universal default passwords precisely because of Mirai), **don't expose device admin to the internet** (bind to the LAN, firewall it — M9 again), and **keep firmware updated**. Run this checker against your own router's admin page and your cameras; the number of people for whom \`admin:admin\` still works is the reason this module exists.
+
+Common wrong attempts: pointing the checker at a device you don't own (unauthorized access — your own gear or the mock only); treating a rejected default list as "secure" without also checking for **exposed services** (an open Telnet/SSH with any weak password is the same risk — the M12 scan and this check are complementary); assuming a strong password fixes a device that's also internet-exposed and unpatched (defence in depth — credentials are one layer); and forgetting the router is the highest-value target on the list, since it sees all traffic.
+</details>
+
+#### 🔴 Break & Defend — the Purdue model, Oldsmar, and Shodan ~13 min
+
+**Goal.** Journal three answers. (1) Answer the module's PLC challenge with a model: encode Purdue levels and show that a flat network lets a phished laptop reach a chemical-valve PLC while a segmented one blocks it — then name what a defender specifically implements. (2) Explain the Oldsmar water-treatment attack and the controls that would have stopped it. (3) Answer the module's Shodan question: why is it powerful for both sides, and what's the ethical use for a practitioner?
+
+**Done when.** Your segmentation answer names the DMZ/data-diode idea, and your Oldsmar answer names both the access-control failure and the safety-instrumented-system backstop.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+\`\`\`python
+# purdue.py — IT/OT separation as a reachability rule
+LEVEL = {"corp_laptop": 4, "historian_dmz": 3.5, "hmi": 2, "plc_valve": 1}   # Purdue levels
+
+def flow_allowed(src, dst, segmented):
+    s, d = LEVEL[src], LEVEL[dst]
+    if not segmented:              return True,  "flat network: anything reaches anything"
+    if s >= 4 and d <= 2:          return False, "IT cannot reach OT directly; must traverse the DMZ"
+    if abs(s - d) > 1.5:           return False, "non-adjacent Purdue levels"
+    return True, "allowed: adjacent levels"
+
+for seg in (False, True):
+    print("segmented=%-5s ->" % seg, flow_allowed("corp_laptop", "plc_valve", seg))
+# segmented=False -> (True,  'flat network...')          <- phish reaches the valve
+# segmented=True  -> (False, 'IT cannot reach OT...')    <- blocked
+\`\`\`
+**(1) The Purdue model.** It organises industrial networks into **levels** — roughly L4 enterprise IT, a **L3.5 DMZ**, L3 site operations, L2 supervisory control (HMIs), L1 controllers (PLCs), L0 physical process — with the rule that traffic flows only between **adjacent** levels and IT never talks to the control layer directly. Your model shows exactly why the module's scenario is dangerous: on a **flat** network, a laptop compromised by phishing (L4) can send packets straight to the PLC (L1) controlling a chemical valve — a click on an email becomes a hand on a physical process. Segmented, that flow is blocked; monitoring data still reaches the enterprise, but only by flowing *up* through the DMZ, never by IT reaching *down*. What a defender specifically implements: a **firewalled IT/OT boundary with a DMZ** where a data historian sits, so enterprise dashboards read from the historian and never touch the control network; strict allow-lists of the exact protocols/hosts permitted across the boundary; and for the highest-assurance cases a **data diode**, hardware that physically permits data to flow only one way (out of OT), making inbound attack literally impossible over that link. The through-line to the whole course: this is **network segmentation and least privilege** (M6, M16.5) applied where the stakes are physical.
+
+**(2) Oldsmar.** In February 2021 an attacker remotely accessed the HMI at the Oldsmar, Florida water-treatment plant — via **TeamViewer** remote-access software that was installed, internet-reachable, and used a **shared password** across staff — and changed the sodium hydroxide (lye) dosing from ~100 ppm to **11,100 ppm**, a level that would have poisoned the water supply. It was caught only because an **operator happened to be watching the screen** and saw the cursor move and the value change, and reverted it. The failures are a stack of this course's lessons: remote administrative access exposed to the internet (M9), shared/weak credentials with no MFA (M3), no network segmentation isolating the control system, and no logging/alerting on a wildly abnormal setpoint change (M16). The controls that would have stopped it: remove or lock down remote access (VPN + MFA + least privilege, or eliminate it), segment the OT network (Purdue), and — the OT-specific backstop — a **Safety Instrumented System (SIS)**: independent safety logic that physically refuses to allow a dangerous setpoint regardless of what the HMI commands, so that a compromised control system still cannot drive the process into a harmful state. The lesson is that in OT, the last line of defence is engineered **safety**, not just cyber controls, because the failure mode is human harm.
+
+**(3) Shodan.** Shodan continuously scans the internet and indexes the *services* it finds — not web pages but the banners of everything listening: industrial controllers, cameras, databases, routers, HMIs — so a search reveals every exposed device of a given type, often with its make, model, firmware version, and sometimes a default-credentialed login screen. It's powerful for **attackers** as a targeting engine (find every internet-exposed PLC of a vulnerable model in a country) and equally powerful for **defenders** and researchers doing the same search to find and remediate exposure before an attacker does. The **ethical use for a practitioner** is bounded by ownership and intent: look up **your own** public IP and your **own** organisation's assets to see what you're inadvertently exposing (the module's tracker item), conduct research and responsible disclosure, but **never access** a device you find — viewing Shodan's index is passive reconnaissance of public data, whereas logging into an exposed camera or PLC you don't own is unauthorized access and a crime (M18), no matter how open the door was left. **Outside the box:** M25.5's real message is that the attack surface has escaped the datacenter — it's in light bulbs, water plants, and cars now — and that these devices combine the worst properties: physical consequences, long lifespans, rare patching, and designers who optimised for reliability and cost over security. The defensive playbook doesn't change, though; it's the same segmentation, least privilege, credential hygiene, patching, and monitoring you've built all course, applied to a world where a vulnerability can open a valve. And the developer's specific responsibility is to build the edge device or its backend as if it will be attacked — because on the modern internet, it certainly will be.
+</details>`,
+    tracker: ["I ran an inventory scan of my own home network and identified all connected devices", "I checked my router for default credentials, exposed Telnet, and remote admin status", "I checked my public IP on Shodan and understand what an attacker sees", "I can explain the Purdue Model and why IT/OT network separation matters", "I can describe the Mirai botnet, Stuxnet, and Oldsmar attacks and the specific controls that would have prevented each", "Workbench: inventoried my own network from the ARP cache and identified devices by their MAC vendor prefix", "Workbench: built a default-credential checker that caught a mock device accepting admin:admin, and connected it to the Mirai botnet", "Workbench: modeled Purdue-level segmentation showing a flat network lets a phish reach a PLC, and explained Oldsmar's failures and the SIS backstop"]
   }, {
     id: "m26",
     level: 3,
