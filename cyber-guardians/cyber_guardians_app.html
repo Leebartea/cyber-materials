@@ -8421,7 +8421,119 @@ git add . && git commit -m "Begin capstone"`
     },
     challenges: [],
     quiz: [],
-    tracker: ["Chose capstone option", "Completed and published the capstone on GitHub", "Shared it on at least one community (Reddit r/netsec, LinkedIn, Discord)", "Re-scored my Level 1 Capstone and compared", "Earned my Specialist badge"]
+    workbench: `> **What this trains.** A capstone proves competence only if someone else can *verify* it — the difference between "I found a bug" and a finding a reviewer can rerun. So the two skills this Workbench trains are the two that decide whether your capstone lands: **scoring your own work against the rubric honestly**, and building the **reproducibility harness** that lets a stranger confirm your central claim by running one command. Both are the "prove, don't claim" discipline the whole course has been building toward.
+
+#### 🟢 Drill 1 — score your own capstone against the rubric ~9 min
+
+**Goal.** Encode the universal rubric as data — reproducible, explains-why, shows-impact, uses-a-framework, ethical-scope — score your capstone honestly (0–2 each), and let the code surface your **weakest** criterion so you know what to fix before you publish.
+
+**Done when.** You get a total out of 10 and a named weakest criterion, and you've been honest enough that the weakest score actually stings a little.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Make the rubric a dict of \`criterion -> what it means\`, score yourself in a parallel dict, and use \`min(scores, key=scores.get)\` to find the weakest. The value is in scoring *honestly* — an 8/10 you believe beats a 10/10 you're flattering yourself with.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# rubric.py
+RUBRIC = {
+    "reproducible":   "a stranger can rerun it from the README and get your result",
+    "explains_why":   "you explain WHY each finding matters, not just what it is",
+    "shows_impact":   "impact stated as what an attacker gains / business loss",
+    "uses_framework": "mapped to a standard (OWASP / ATT&CK / CVSS)",
+    "ethical_scope":  "scope + authorization + ethics stated up front",
+}
+scores = {"reproducible": 1, "explains_why": 2, "shows_impact": 1, "uses_framework": 2, "ethical_scope": 2}
+
+total, mx = sum(scores.values()), 2 * len(RUBRIC)
+print(f"self-score: {total}/{mx}")
+for k, v in sorted(scores.items(), key=lambda x: x[1]):
+    print(f"  [{'*'*v}{'.'*(2-v)}] {k:<14} {RUBRIC[k]}")
+print("fix first:", min(scores, key=scores.get))
+\`\`\`
+\`\`\`bash
+# self-score: 8/10
+#   [*.] reproducible    a stranger can rerun it ...
+#   [*.] shows_impact    impact stated as what an attacker gains ...
+#   [**] explains_why    ...
+# fix first: reproducible
+\`\`\`
+**Why self-assessment is itself a graded skill.** By now you've scored other people's work (M17, M27) — turning that lens on your own is the harder, more valuable move, because the gap between how you *feel* about your capstone and how it scores against explicit criteria is exactly the gap a reviewer will see. The common weak spots are predictable and worth pre-empting: **impact** (the M19/M17 lesson — "SQL injection in login" is a fact; "unauthenticated attacker dumps the full user table including password hashes" is an impact), and **reproducibility**, which is so central it gets its own build below. Note what this rubric rewards: not the flashiest exploit, but the *communicable* one — because a capstone is a hiring artifact, and (M28's recruiter challenge) the candidate who gets the interview is the one whose GitHub *proves* skill a stranger can verify, not the one who merely claims it. Scoring yourself honestly now is how you close the gaps while you still can.
+
+Common wrong attempts: giving yourself 2s across the board (if nothing is weak, you're not looking hard enough — every real project has a soft criterion); scoring "explains why" high because *you* know why (the test is whether it's *written down* for a reader who doesn't); treating the rubric as bureaucracy rather than the actual axes a reviewer judges on; and scoring once and never re-scoring after you improve — this is a loop, like every other assessment in the course.
+</details>
+
+#### 🟡 Build 1 — the reproducibility harness that proves your claim ~15 min
+
+**Goal.** Build the single most credibility-defining artifact of a capstone: a \`verify.sh\` that a stranger runs to **reproduce your central claim** with no manual steps, exiting 0 if it reproduces and non-zero if it doesn't. Model it on a finding you could actually present — a client-trusting checkout charged a tampered price while the fixed one ignored it (M20) — self-contained, so it stands up its own targets.
+
+**Done when.** \`./verify.sh\` stands up the vulnerable and fixed endpoints, demonstrates the \$0.01 charge against one and the correct \$49.99 against the other, and exits \`0\` with a \`[PASS]\` line — a reviewer runs one command and sees your claim confirmed.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+The harness must be *self-contained*: it starts whatever it needs, runs the demonstration, checks the result programmatically, and cleans up — no "first install X, then configure Y." The exit code is the contract: 0 means reproduced. This is your Drill-1 "reproducible" criterion turned into an executable.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+#!/usr/bin/env bash
+# verify.sh — a reviewer runs THIS one command to reproduce the finding
+set -uo pipefail
+echo "[*] Claim: /vuln trusts a client-supplied price; /safe ignores it (server-side catalog)."
+
+node -e '
+const http=require("http"); const CATALOG={"sku-1":49.99};
+http.createServer((q,r)=>{let b="";q.on("data",d=>b+=d);q.on("end",()=>{
+  const p=new URLSearchParams(b);
+  if(q.url==="/vuln") r.end(JSON.stringify({charged:(+p.get("price")).toFixed(2)}));
+  else r.end(JSON.stringify({charged:CATALOG[p.get("sku")].toFixed(2)}));
+});}).listen(9800,"127.0.0.1");
+' & SRV=$!; sleep 1
+
+vuln=$(curl -s -X POST 127.0.0.1:9800/vuln -d "sku=sku-1&price=0.01" | grep -o "0.01" || true)
+safe=$(curl -s -X POST 127.0.0.1:9800/safe -d "sku=sku-1&price=0.01" | grep -o "49.99" || true)
+kill $SRV 2>/dev/null
+
+if [[ "$vuln" == "0.01" && "$safe" == "49.99" ]]; then
+  echo "[PASS] reproduced: vuln charged \\$0.01, fixed charged \\$49.99"; exit 0
+else
+  echo "[FAIL] not reproduced (vuln='$vuln' safe='$safe')"; exit 1
+fi
+\`\`\`
+\`\`\`bash
+./verify.sh; echo "exit=$?"
+#   [*] Claim: /vuln trusts a client-supplied price ...
+#   [PASS] reproduced: vuln charged $0.01, fixed charged $49.99
+#   exit=0
+\`\`\`
+**Why this one artifact separates a real capstone from a screenshot gallery.** Anyone can post a screenshot of a successful exploit; a screenshot proves nothing, because it can't be checked and it captures a claim, not a method. A harness that a reviewer runs and watches **pass** converts your claim into a *fact they verified themselves* — which is the entire currency of security work, from a pentest report a client's engineers must reproduce (M17) to a bug bounty triager who closes anything they can't replicate. It also proves things about *you* that the finding alone doesn't: that you understand the vulnerability well enough to reconstruct it deterministically, that you can write clean, self-contained tooling (M26), and that you respect the reviewer's time. The exit code is the professional contract — CI systems, graders, and other scripts consume it — and the self-contained setup (it starts its own targets, needs no prior install) is what makes "reproducible" true rather than aspirational. Pair it with a README that states the claim, the one command, and the expected output, and you have the difference between a project a recruiter skims and one they actually run.
+
+Common wrong attempts: a "harness" that requires ten manual setup steps first (if it's not one command, it's not reproducible — that's the bar); asserting nothing and just printing output for a human to eyeball (the script must *decide* pass/fail, or a regression sails through); leaving the server running or the port bound after exit (clean up — M15's parting lesson); hard-coding a sleep that's too short on a slow machine and getting flaky failures (poll for readiness in real tooling); and pointing the harness at a live or third-party system instead of standing up its own (self-contained *and* ethical — no external target).
+</details>
+
+#### 🔴 Break & Defend — prove don't claim, the portfolio, and the road on ~12 min
+
+**Goal.** Journal three answers. (1) Answer M28's recruiter challenge — two juniors, same cert, one with a degree and one with a proven portfolio: who gets the interview and why? (2) Package this capstone for a stranger: what does the README contain, and what does the repo look like? (3) You've finished 28 modules — write your honest self-assessment and the specific next step, and define what being a "Cyber Guardian" actually means.
+
+**Done when.** Your recruiter answer turns on *demonstrated* vs *claimed* skill, and your next-step is specific enough to start this week.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The recruiter challenge.** In most security teams today, **Applicant B — the one with the proven portfolio — gets the interview**, and the reason is the throughline of this entire module: security hiring rewards **demonstrated** ability over **credentialed** ability. A degree and a Security+ tell a hiring manager you *might* be able to do the work; 15 polished lab repos, 8 CTF writeups, a hands-on rank, and a practical cert (eJPT) *show* you already do it — they're evidence a skeptical reviewer can open and verify, exactly like your \`verify.sh\`. Security is unusually meritocratic this way because the work product is so inspectable: your GitHub *is* your competence, visible. This isn't "degrees are worthless" — a degree helps, and B would be stronger with one — it's that in this field the portfolio is the differentiator, and it's the one thing fully within your control to build regardless of background. The practical takeaway for *you*: the capstone you just hardened, plus the lab repos from every module in this course, are that portfolio. Make them reproducible, explain the why, and you are Applicant B.
+
+**(2) Packaging.** The README is the interface, and most people underinvest in it. It should open with a one-paragraph **claim** — what this project demonstrates — then **one command to reproduce it** (your \`verify.sh\`) and the **expected output**, so a reviewer confirms your work in sixty seconds. Then the substance: **scope and ethics** up front (what you were authorized to test — the M18/M15 discipline that signals professionalism), the **findings** with impact stated as attacker-gain and mapped to a framework (OWASP/ATT&CK/CVSS, M14/M18.5/M19), the **remediation** for each, and clean, commented, secret-free code (M26 — run your own scanner over it first). The repo itself should look like a professional's: a clear structure, no committed secrets, a sensible history, and a license. The meta-point: you're not just presenting a finding, you're presenting *evidence of how you work* — and reproducibility, clarity, and ethics are the traits a hiring manager is actually reading for beneath the technical content.
+
+**(3) The road on, and what a Guardian is.** An honest self-assessment names both sides: you've touched **every major domain** — the CIA triad, networking, crypto, web and system exploitation, forensics, IR, cloud, IoT, AI, and the defensive craft that ties them together — and you can now build securely, think like an attacker, and reason about risk. You are also, honestly, a **capable beginner** in a field where mastery takes years and never fully arrives, and the mark of that capability is knowing where your knowledge stops (M18.5's structured humility). The specific next step should be startable this week and pointed at the specialization that fit best as you went — for a full-stack developer that's most often **AppSec**, where every module here compounds directly: pick the track (M28), start the cert path, and above all **keep building the portfolio**, because the field moves and your evidence has to stay current. **What being a "Cyber Guardian" means:** not that you've memorized attacks or collected certs, but that you've internalized a *stance* — assume breach, verify everything, constrain privilege, log what matters, fail closed, never trust the client or the network position, and make the secure path your default so doing right requires no heroism. It's a way of seeing systems: every input a potential injection, every trust boundary a decision, every convenience a risk to weigh. You've built that instinct module by module, drill by drill, by *writing it yourself* rather than reading about it — and that is the whole point. The exploits will change; the discipline is what you keep. **Outside the box:** the final lesson of the capstone is that security is never *finished* — there's no state of "done," only the ongoing practice of closing the gap between what you think is protected and what an adversary can actually reach. A Guardian is simply someone who has committed to that practice, who defends the systems and the people who depend on them, and who keeps learning because the other side never stops. You started this course as someone who wanted to understand security. You finish it as someone who can *do* it, and prove it. Go build.
+</details>`,
+    tracker: ["Chose capstone option", "Completed and published the capstone on GitHub", "Shared it on at least one community (Reddit r/netsec, LinkedIn, Discord)", "Re-scored my Level 1 Capstone and compared", "Earned my Specialist badge", "Workbench: scored my own capstone against the universal rubric honestly and identified the weakest criterion to fix first", "Workbench: built a self-contained verify.sh that reproduces the capstone's central claim in one command and exits 0 on success", "Workbench: answered the recruiter challenge (demonstrated vs claimed), packaged the capstone README for a stranger, and wrote my honest next step"]
   }]
 };
 
