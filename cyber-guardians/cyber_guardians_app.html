@@ -7857,7 +7857,136 @@ Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625} -MaxEvents 500 |
       a: "A hard-coded secret gets committed to version control, exposed to anyone with repo access and to secret-scanning bots that scrape public commits within seconds (M8/M25), and it lingers in Git history even after removal. Fix: load it from the ENVIRONMENT (or a secret manager): os.environ['API_KEY'] / process.env.API_KEY, injected at runtime and never written to source."
     }],
     quiz: ["Why is Python the default for security tooling, and what is Bash best for?", "Why does a SCOPE allow-list belong inside a scanning/automation script?", "Why must scripts load secrets from the environment instead of hard-coding them?", "Why is subprocess.run(f'nmap {host}', shell=True) (or Node exec) dangerous, and what's the fix?", "What broader risk does automation introduce, and how do you mitigate it in the tool?"],
-    tracker: ["Wrote and ran all three tools in both Python and Node against authorized targets", "Added a SCOPE allow-list and env-loaded secrets to each", "Replaced any shell string-building with argument arrays", "Modified each tool to add a feature", "Committed them to a GitHub repo (portfolio) with a README"]
+    workbench: `> **What this trains.** This module is where the whole course's habits become *muscle* — because a security script that's written carelessly is itself the vulnerability. So you'll build two tools you'll actually keep: a **secret scanner** that stops you committing credentials (the discipline that would have prevented countless breaches), and a **safe tool skeleton** that bakes in scope-guarding, env-secrets, and no-shell so your automation can't be turned against you. Both run locally, both are genuinely useful.
+
+#### 🟢 Drill 1 — build the secret scanner you run before every commit ~10 min
+
+**Goal.** Write a scanner that reads files and flags hardcoded secrets — AWS keys, Stripe live keys, passwords embedded in URLs, and \`SECRET = "..."\`-style assignments — while **ignoring** values loaded from the environment. Make it exit non-zero when it finds something, so it can serve as a pre-commit hook.
+
+**Done when.** It flags every planted secret in a test file, leaves an \`os.environ\`-loaded key alone, and exits \`1\` on a hit / \`0\` when clean — ready to wire into \`git\`.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Each rule is a labelled regex: \`AKIA[0-9A-Z]{16}\` for AWS, \`sk_live_...\` for Stripe, \`://user:pass@\` for credentials in a URL, and a generic \`(secret|api_key|token|password)\\s*=\\s*['"]...['"]\`. Skip any line containing \`os.environ\`/\`process.env\` so you don't flag the *correct* pattern. Exit code is what makes it a gate.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# secretscan.py — usage: python3 secretscan.py FILE...   (exit 1 if any secret found)
+import re, sys, pathlib
+
+RULES = [
+    ("AWS access key id",        re.compile(r"AKIA[0-9A-Z]{16}")),
+    ("Stripe live key",          re.compile(r"sk_live_[0-9A-Za-z]{16,}")),
+    ("password in URL",          re.compile(r"://[^/\\s:]+:[^/\\s@]+@")),
+    ("assigned secret literal",  re.compile(r"(?i)(secret|api_key|token|password)\\s*=\\s*['\\"][^'\\"]{8,}['\\"]")),
+]
+
+def scan(path):
+    out = []
+    for i, line in enumerate(pathlib.Path(path).read_text().splitlines(), 1):
+        if "os.environ" in line or "process.env" in line:      # env-loaded = the CORRECT pattern
+            continue
+        for label, pat in RULES:
+            if pat.search(line):
+                out.append((path, i, label, line.strip()[:60]))
+    return out
+
+hits = [h for f in sys.argv[1:] for h in scan(f)]
+for path, ln, label, snip in hits:
+    print(f"  {path}:{ln}  [{label}]  {snip}")
+print(f"{len(hits)} potential secret(s)", file=sys.stderr)
+sys.exit(1 if hits else 0)                                     # non-zero blocks the commit
+\`\`\`
+\`\`\`bash
+python3 secretscan.py config.py cleanfile.py; echo "exit=$?"
+#   config.py:1  [Stripe live key]  API_KEY = "sk_live_ABCD1234efgh5678ijkl"
+#   config.py:2  [AWS access key id]  AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
+#   config.py:3  [password in URL]  db_url = "postgres://user:hunter2@localhost/app"
+#   exit=1                                    <- cleanfile.py (os.environ) correctly untouched
+\`\`\`
+**Why this exact tool, and why it's the module's "automation is powerful" lesson pointed at yourself.** Hardcoded secrets are one of the most common and most damaging mistakes in software — a key committed to git is a key **leaked forever**, because git history is permanent and public repos are scraped continuously by bots that find and abuse new keys within *minutes* (the same "everything is scanned constantly" reality as M12). The fix isn't vigilance, which fails; it's **automation** — a scanner in a pre-commit hook (\`git config core.hooksPath\`, or a framework like \`pre-commit\`/\`gitleaks\`) that makes committing a secret *hard* by exiting non-zero and aborting the commit. Note the design choices that keep it usable: it **skips env-loaded values** so it doesn't punish the correct pattern, it's **conservative** to limit false-positive fatigue (M16's lesson — a scanner that cries wolf gets disabled), and it prints file:line so the finding is actionable. This is also the exact discipline behind the rule "scan before every push to a public repo" — and now you have the tool that enforces it.
+
+Common wrong attempts: relying on \`.gitignore\` alone (it stops *tracked* files, but a secret pasted into a *tracked* source file sails through — the scanner reads content, which is the point); making the regexes so broad they flag every string and get switched off (tune for signal); scanning only the working tree and not what's actually **staged** (a real hook checks \`git diff --cached\`); and thinking detection is enough after a leak — a committed secret must be **rotated**, because removing it from history doesn't un-leak it (M23's rotation lesson).
+</details>
+
+#### 🟡 Build 1 — the safe tool skeleton every script should start from ~14 min
+
+**Goal.** Build a reusable security-tool skeleton with the course's four non-negotiables baked in: (1) a **SCOPE allow-list** checked before any action, fail-closed; (2) the **secret loaded from the environment**, refusing to run if absent; (3) **no shell** — subprocess via argument array; (4) **structured output** a pipeline can consume. Prove it refuses to run without the secret, refuses an out-of-scope target, and emits JSON for in-scope ones.
+
+**Done when.** With no env var set it exits with a clear refusal; with the secret set it probes in-scope targets and prints one JSON object each, while an out-of-scope target returns a \`REFUSED\` record instead of being probed.
+
+<details>
+<summary>Nudge — open if you've been stuck more than four minutes</summary>
+
+You've built each piece already: the scope guard is M18, env-secrets are M7, argument-array subprocess is M11, structured output is M16. This drill is assembling them into one starting template. Check scope *first*, inside the probe function, so nothing can act on an unvalidated target.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+# safetool.py — the skeleton to copy for every security script
+import ipaddress, os, sys, subprocess, json, datetime
+
+SCOPE = ["127.0.0.0/8", "192.0.2.0/24"]                        # 1. allow-list, checked before acting
+
+def in_scope(ip):
+    a = ipaddress.ip_address(ip)
+    return any(a in ipaddress.ip_network(n) for n in SCOPE)
+
+def get_secret():                                             # 2. secret from env, refuse if missing
+    key = os.environ.get("TOOL_API_KEY")
+    if not key:
+        sys.exit("refusing to run: TOOL_API_KEY not set (never hardcode it)")
+    return key
+
+def probe(target):
+    if not in_scope(target):                                 # fail closed
+        return {"target": target, "status": "REFUSED", "reason": "out of scope"}
+    r = subprocess.run(["ping", "-c", "1", "-t", "1", target],   # 3. no shell; target is inert data
+                       capture_output=True, text=True)
+    return {"target": target, "status": "up" if r.returncode == 0 else "down",
+            "checked_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+
+if __name__ == "__main__":
+    get_secret()
+    for t in ["127.0.0.1", "8.8.8.8", "192.0.2.1"]:
+        print(json.dumps(probe(t)))                          # 4. structured, pipeline-friendly
+\`\`\`
+\`\`\`bash
+python3 safetool.py
+#   refusing to run: TOOL_API_KEY not set (never hardcode it)
+TOOL_API_KEY=dummy python3 safetool.py
+#   {"target": "127.0.0.1", "status": "up", ...}
+#   {"target": "8.8.8.8", "status": "REFUSED", "reason": "out of scope"}   <- not probed
+#   {"target": "192.0.2.1", "status": "down", ...}
+\`\`\`
+**Why each property earns its place, and answering both module challenges.** The **SCOPE allow-list is more than style** (challenge 1): a scanning script is an *amplifier*, and automation amplifies mistakes as readily as work — a typo'd target, a mis-expanded range, or a copy-pasted CIDR without the guard means your loop hammers hosts you never meant to touch, at machine speed, which is how a "quick script" becomes an unauthorized scan or a self-inflicted denial of service (the module's own case study). The guard, checked *before* action and failing closed, is the difference between a bug and an incident — the same fail-closed principle as M18's engagement scope. The **env-loaded secret** (challenge 2): \`API_KEY = "sk_live_..."\` in source is a serious problem because the secret is now in git forever, shared with everyone who can read the repo, and leaked the moment the repo is (the Drill-1 lesson) — the fix is to read it from the environment (or a secrets manager) so the code is shareable and the secret is rotatable independently (M7). **No shell** stops your own tool becoming a command-injection vector when a target name contains a metacharacter (M11), and **structured output** lets the tool compose into pipelines and SIEMs (M16) instead of being a dead-end of human-readable prose. Copy this skeleton; every security script you write should start from these four lines of discipline, because the tool that protects your systems must not be the thing that compromises them.
+
+Common wrong attempts: checking scope in \`main\` but letting \`probe\` be callable without the check (put the guard *inside* the action so it can't be bypassed); loading the secret but printing it in a debug log (M16 redaction applies to your own tools too); building the ping command as an f-string "because the target is validated" (validated today, refactored tomorrow — M11's argument stands); and emitting human-prose output that the next script has to regex-parse (you felt that pain in M16 — emit JSON).
+</details>
+
+#### 🔴 Break & Defend — the amplifier, secrets, and shipping tools responsibly ~12 min
+
+**Goal.** Journal three answers. (1) Give a concrete story of automation *amplifying* a mistake, and the two guardrails that would have contained it. (2) Your script needs a database password and an API key — walk the full lifecycle of handling them correctly, from writing the code to rotating after a leak. (3) You're about to publish a security tool you wrote to GitHub — what do you owe the people who'll run it, and what do you owe the targets it can be pointed at?
+
+**Done when.** Your amplifier story names a specific guardrail per failure mode, and your secrets answer covers rotation, not just storage.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Automation as amplifier.** A concrete shape: an engineer writes a cleanup script to delete old records \`WHERE created < $CUTOFF\`, tests it, and runs it in production — but \`$CUTOFF\` was unset, the shell expanded it to empty, the query became \`WHERE created <\` … everything, and the script deleted the table at machine speed before anyone could react. Or the security version: a scanning loop reads targets from a CSV, one row is malformed and expands to a whole \`/8\`, and the script scans sixteen million hosts including networks you don't own — an unauthorized scan you launched by accident. The point the case study makes is that automation removes the human pause that catches mistakes: a person deleting rows by hand notices at row three, a script notices never. The guardrails, one per failure mode: **fail-closed validation** (the M26 skeleton — \`set -u\` so an unset variable is an error not an empty string, a scope guard so an out-of-range target is refused not scanned) and a **dry-run / confirmation gate** for destructive or outward-facing actions (print what *would* happen, require an explicit flag to actually do it, cap the blast radius with rate limits and row limits). The meta-lesson: the more powerful the automation, the more it needs brakes, because it will execute your mistake as faithfully as your intent.
+
+**(2) Secret lifecycle.** *Writing:* never in source — read from \`os.environ\`/\`process.env\`, or better a secrets manager (Vault, AWS Secrets Manager, the OS keychain). *Local dev:* a \`.env\` file that is **git-ignored** and never committed, loaded at runtime; the repo ships a \`.env.example\` with blank placeholders so others know what's needed. *Prevention:* the Drill-1 scanner as a pre-commit hook so a slip is caught before it becomes history. *In transit/at rest:* least-privilege scoping so the key can do only what this tool needs (M6), and separate keys per environment so a dev leak doesn't touch production. *After a leak — the part people skip:* **rotate immediately**, because removing the secret from git history (or making the repo private) does **not** un-leak it — anyone who cloned or any bot that scraped it still has it, so the only real remediation is to invalidate the old credential and issue a new one (M23), then audit for any use of the leaked key in the interim. Storage discipline reduces the chance of a leak; rotation is what limits the damage when one happens anyway, and assuming leaks *will* happen is the mature posture.
+
+**(3) Publishing responsibly.** To the **people who run it**: honesty and safety — a clear README stating exactly what the tool does and its risks, sane and safe defaults (scope guards on, rate limits sensible, destructive actions off by default and behind a flag), no hidden network calls or telemetry, dependencies you've vetted (M19), and no baked-in secrets or backdoors; they're trusting your code with their systems and often their credentials. To the **targets it can be pointed at**: build in the ethics you can't assume the user will supply — a prominent authorization warning, a scope allow-list that *must* be filled in rather than a default that scans everything, and refusal to run against obviously-unowned ranges where feasible; you can't prevent misuse entirely, but you shouldn't make harm the path of least resistance. This is the **dual-use** reality of security tooling: the same scanner defends and attacks, so responsible authorship means defaulting to safe, documenting the boundary between authorized and unauthorized use, and not shipping a foot-gun with the safety off. **Outside the box:** M26 closes the technical arc of the course by turning every principle into a *reflex you encode once and reuse* — the scope guard, the env-secret, the no-shell subprocess, the structured output, the fail-closed default aren't things you remember to do, they're the skeleton you start from. That's what separates someone who *knows* security from someone who *builds* securely: the knowledge is the same, but the second person has made the safe path the default path, in their tools and in their habits, so doing the right thing requires no heroism. Automation amplifies whatever you feed it — so feed it discipline.
+</details>`,
+    tracker: ["Wrote and ran all three tools in both Python and Node against authorized targets", "Added a SCOPE allow-list and env-loaded secrets to each", "Replaced any shell string-building with argument arrays", "Modified each tool to add a feature", "Committed them to a GitHub repo (portfolio) with a README", "Workbench: built a secret scanner that flags AWS/Stripe/URL/assignment secrets, skips env-loaded values, and exits non-zero as a pre-commit gate", "Workbench: assembled the safe tool skeleton with scope allow-list, env-secret refusal, no-shell subprocess, and structured JSON output", "Workbench: explained automation as an amplifier with per-failure guardrails, the full secret lifecycle including rotation, and dual-use responsibility when publishing a tool"]
   }, {
     id: "m27",
     level: 3,
