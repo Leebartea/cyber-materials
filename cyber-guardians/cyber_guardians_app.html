@@ -8035,7 +8035,122 @@ Partner with another learner; each takes a side for a week, then swap, so you ex
       a: "The RoE scopes the engagement to a SPECIFIC agreed target VM. Scanning the whole subnet can hit your partner's other machines, the host, or shared infrastructure that's out of scope — and normalizes the 'spray everything' habit that, outside the lab, is the unauthorized-scanning crime from Modules 12/18. Even in your own lab, staying inside the agreed scope is the discipline you're practicing; encode the target in a SCOPE guard (Module 26) and hit only it."
     }],
     quiz: ["Why must even a friendly red/blue exercise have written rules of engagement?", "Why instrument monitoring BEFORE hardening, not just harden?", "What is the most valuable part of the exercise, and why?"],
-    tracker: ["RoE written + isolation confirmed before start", "Ran both red and blue roles", "Red: documented kill-chain with evidence", "Blue: detections mapped to Red's actions + incident report", "Did a joint debrief with ATT&CK mapping"]
+    workbench: `> **What this trains.** The exercise itself is a capstone — but two skills decide whether it produces *learning* or just a war story, and reading can't give you either: the **discipline that must exist before you start**, and the **debrief that turns it into fixes**. So you'll encode the go/no-go gate that refuses to begin until scope and isolation are proven, then build the purple-team coverage matrix that maps every Red action to whether Blue saw it — the artifact the module calls the real learning. Both run locally.
+
+#### 🟢 Drill 1 — the go/no-go gate that won't let you start unsafely ~9 min
+
+**Goal.** Encode the pre-exercise checklist as a gate: the engagement may begin **only** when the Rules of Engagement are complete *and* isolation is proven in both directions. Show it giving the green light when everything's in place, and **halting** the moment an isolation proof is missing.
+
+**Done when.** A complete RoE plus confirmed inbound-and-outbound isolation returns START, and flipping any isolation proof to false returns HALT with the specific reason.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Model the RoE as a dict of required fields (targets, exclusions, window, permitted/forbidden techniques, emergency contact) and refuse to start if any is empty. Isolation is the M15/M17 check, both directions. Fail-closed: unknown or missing = HALT, never "probably fine."
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`python
+# roe_gate.py
+ROE = {
+    "authorized_targets":   ["192.168.56.20"],
+    "excluded":             ["192.168.56.1"],           # gateway, out of scope
+    "window":               "2026-07-26 14:00-18:00",
+    "permitted_techniques": ["recon", "exploitation", "persistence"],
+    "forbidden":            ["destructive payloads", "the host Mac", "anything off the host-only net"],
+    "emergency_contact":    "the other player, by phone",
+}
+isolation = {"inbound_blocked_from_LAN": True, "outbound_internet_blocked": True}
+
+def can_start():
+    missing = [k for k, v in ROE.items() if not v]
+    if missing:                       return False, f"RoE incomplete: {missing}"
+    if not all(isolation.values()):   return False, f"isolation NOT confirmed: {isolation}"
+    return True, "RoE complete + isolation proven -> exercise may begin"
+
+print(can_start())
+isolation["outbound_internet_blocked"] = False          # a proof goes missing
+print(can_start())
+#   (True,  'RoE complete + isolation proven ...')
+#   (False, 'isolation NOT confirmed: ...')
+\`\`\`
+**Why a gate, and not just a checklist you read.** This is the module's own challenge in structural form: even inside your lab, "just quickly scan the whole subnet" is a **rules-of-engagement violation**, because the RoE named *specific targets* and the subnet includes the gateway, the other player's host, and anything else on that segment you didn't authorize — scope is scope whether the network is production or a lab, and the habit you're building is one that keeps you out of jail on a real engagement (M18's Coalfire). Making it *executable* rather than a document matters because a document is read once and forgotten under the excitement of the exercise, whereas a gate **refuses to proceed** — the same reason M26's guardrails are code, not good intentions. And it forces both directions of isolation to be *proven*, not assumed: inbound so the vulnerable target can't be reached from your real network, outbound so a compromised target can't phone home or attack a third party (M15) — the one that turns your exercise into someone else's incident.
+
+Common wrong attempts: treating the RoE as advisory and starting anyway "because it's just us" (the discipline is the point — you're rehearsing the professional habit); checking only inbound isolation (outbound is the dangerous half); allowing an empty \`forbidden\` list to pass (the exclusions are the part that protects the gateway and the host); and hard-coding \`can_start\` to return True during "testing" and forgetting to remove it (fail-closed means the gate has teeth or it isn't one).
+</details>
+
+#### 🟡 Build 1 — the purple-team coverage matrix ~15 min
+
+**Goal.** Build the debrief artifact: a list of Red's kill-chain actions (each tagged with its **ATT&CK technique**) and the set of detections Blue actually produced, then compute **coverage** — which actions were seen, which were missed, and the percentage — and print the blind spots as a prioritized fix list. This is the single most valuable output of the whole exercise.
+
+**Done when.** The matrix shows each Red action as SEEN (with the signal) or MISSED, reports a coverage percentage, and lists the ATT&CK IDs Blue never detected — the exact gaps to close.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Represent Red's actions as \`(attack_id, description, time)\` and Blue's detections as a map from \`attack_id\` to the signal that caught it. An action is "seen" if its ID is in Blue's map. Coverage is caught / total; the blind spots are the actions whose IDs aren't.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# purple.py — map Red's chain to Blue's detections and score the coverage
+RED_ACTIONS = [
+    ("T1046", "network service scan of the target",       "14:05"),
+    ("T1190", "exploited web app to get a shell",         "14:22"),
+    ("T1059", "ran discovery commands via the shell",     "14:25"),
+    ("T1543", "installed a launch-agent for persistence", "14:40"),
+    ("T1048", "exfiltrated data over an alt channel",     "15:02"),
+]
+BLUE_DETECTIONS = {
+    "T1046": "IDS: burst of connections to many ports",
+    "T1059": "shell audit: unusual command sequence",
+    "T1543": "file-integrity monitor: new LaunchAgent plist",
+}
+
+caught = 0
+for tid, desc, t in RED_ACTIONS:
+    seen = tid in BLUE_DETECTIONS
+    caught += seen
+    print(f"{tid:<7}{desc:<42}{'SEEN: ' + BLUE_DETECTIONS[tid] if seen else 'MISSED'}")
+
+total = len(RED_ACTIONS)
+print(f"\\ncoverage: {caught}/{total} = {100 * caught // total}% of the kill chain detected")
+print("blind spots:", [t for t, _, _ in RED_ACTIONS if t not in BLUE_DETECTIONS])
+\`\`\`
+\`\`\`bash
+# T1046  network service scan ...            SEEN: IDS: burst of connections ...
+# T1190  exploited web app to get a shell    MISSED
+# T1059  ran discovery commands ...          SEEN: shell audit ...
+# T1543  installed a launch-agent ...        SEEN: file-integrity monitor ...
+# T1048  exfiltrated data ...                MISSED
+# coverage: 3/5 = 60% detected
+# blind spots: ['T1190', 'T1048']
+\`\`\`
+**Why this matrix is the real deliverable, more than "who won."** The instinct after a red/blue exercise is to score it as a contest, but the *contest* is just the mechanism — the **value is the map of what your defenses saw and missed**, expressed in a shared language (ATT&CK) both sides can act on. Look at what this specific result teaches: Blue caught the noisy middle of the chain (the scan, the on-host commands, the persistence) but **missed the two ends** — the *initial exploitation* (T1190) and the *exfiltration* (T1048), which are the highest-consequence stages, the actual breach and the actual loss. That's a common and sobering pattern: teams detect the activity that's easy to log and miss the moments that matter, because initial exploitation looks like a normal web request and exfil looks like normal outbound traffic. Each MISSED row becomes a **concrete work item** — a new detection rule (M16), a new log source that was never collected (the M17 data-source gap), or a control — and mapping to ATT&CK lets you track coverage over time and aim the next exercise at the gaps. This is also **purple teaming**: red and blue collaborating on the matrix rather than competing, because the goal was never to win, it was to *improve the system*, which is the exact lesson M17's capstone opened and this one closes.
+
+Common wrong attempts: recording only what Blue caught and never enumerating what Red *did*, so you can't compute what was missed (the misses are the point — absence of evidence, M18.5); treating a MISSED as a Blue failure to scold rather than a gap to fix (blameless — see the 🔴); scoring coverage as "we detected something" when the something was the trivial scan and not the breach (weight by consequence — a detected port scan and a missed exfil is not 50% safe); and letting the matrix die as a one-off instead of feeding each gap back into detection engineering.
+</details>
+
+#### 🔴 Break & Defend — the debrief, blameless culture, and why you swap sides ~12 min
+
+**Goal.** Journal three answers. (1) Write the structure of a good debrief — what you cover, in what order, and who talks. (2) Explain why the debrief must be **blameless**, and what goes wrong when it isn't. (3) Explain what you gain from playing **both** roles that you'd never get from specializing in one — and tie the whole exercise back to the course.
+
+**Done when.** Your debrief structure centers the coverage matrix, and your blameless answer explains the concrete failure mode of blame.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) The debrief structure.** Order matters because you're building shared understanding, not assigning a score. Start with **Red's narrative**: the full kill chain, step by step with evidence and timestamps and ATT&CK IDs — how they got in, what they did, how they persisted, what they took (the M17 report skeleton). Then **Blue's narrative** over the same timeline: what fired, when, what they concluded, and what actions they took. Then the centerpiece, the **coverage matrix** from Build 1, reconciling the two — every Red action marked seen or missed, which turns two separate stories into one map. Then **the gaps as work items**: each MISSED becomes a specific fix (a rule, a log source, a control), prioritized by consequence. Finally **what surprised each side** — the assumptions that proved wrong, which is where the deepest learning hides. The output is a short written artifact with the matrix at its heart, because (M17 again) the undocumented exercise changes nothing.
+
+**(2) Why blameless.** A debrief exists to surface the truth about your defenses, and truth only comes out when people aren't protecting themselves. The instant "Blue missed the exfil" is heard as *Blue screwed up* rather than *we have a detection gap at exfiltration*, three things break: people stop volunteering their mistakes (so the most valuable findings — the near-misses, the "I didn't understand this alert" — go unspoken), the discussion shifts from *how the system failed* to *who is at fault* (and systems, not individuals, are almost always the real cause — the analyst who dismissed the alert did so because the tooling gave them a thousand alerts, M16), and defensiveness replaces curiosity. The blameless frame — borrowed from aviation and site-reliability post-mortems — treats every miss as a property of the system to be improved, which is both more accurate and the only way to keep the information flowing. Note this is the same lesson as M16's alert fatigue and M23's IR review: the human system is the hard part, and blame degrades it.
+
+**(3) Why swap sides.** Playing both roles gives you the thing specialists lack: **you learn to think like your opponent.** As Red you discover exactly how noisy or quiet each action is, which teaches you — when you switch to Blue — *where* to look and what a real attack actually looks like on the wire, rather than the sanitized version in a course. As Blue you feel how much an attacker's work is invisible, which teaches you — back as Red — that persistence and exfil hide in normal-looking traffic, so you stop assuming your attacks are obvious. The best defenders are ex-attackers and the best attackers understand defense precisely because each role is blind to what the other sees, and the swap dissolves that blindness. It's also why **purple teaming** beats a pure contest: the collaboration compounds the learning instead of splitting it. **Outside the box:** this exercise is the course in one afternoon — recon (M12), the isolated lab (M15), exploitation (M14, M20, M21), detection and logging (M16), incident response (M23), scripting the tooling (M26), scope and ethics (M18), all under the pressure of a *thinking opponent* who adapts to you, which no static lab can simulate. That adaptation is the real final lesson: security isn't a checklist you complete, it's a live contest against an intelligent adversary, and the discipline that wins it is exactly what you've built module by module — assume breach, verify everything, constrain privilege, log what matters, fail closed, and never stop closing the gap between what you *think* is protected and what a determined attacker can actually reach. The person who has stood on both sides of that line, and who encodes the safe path as their default, is a Cyber Guardian.
+</details>`,
+    tracker: ["RoE written + isolation confirmed before start", "Ran both red and blue roles", "Red: documented kill-chain with evidence", "Blue: detections mapped to Red's actions + incident report", "Did a joint debrief with ATT&CK mapping", "Workbench: encoded a go/no-go gate that halts the exercise unless the RoE is complete and isolation is proven in both directions", "Workbench: built the purple-team coverage matrix mapping every Red kill-chain action to Blue's detection, scoring coverage and naming the blind spots", "Workbench: wrote the debrief structure around the coverage matrix, explained why it must be blameless, and what swapping sides teaches"]
   }, {
     id: "m28",
     level: 3,
