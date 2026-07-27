@@ -767,10 +767,12 @@ const {
    fallback build were both removed 2026-07-16 once they'd gone stale
    relative to this file. The `_dead` reference block (original Cyber
    Guardians sample data, kept temporarily as a shape reference)
-   has been deleted now that migration is done. Full-course Playwright pass
-   confirmed: all 12 phase groups expand, all 37 modules render distinct
-   content with zero console/page errors, search returns correct hits, tracker
-   checkboxes toggle.
+   has been deleted now that migration is done. Full-course Playwright pass at
+   that time confirmed: all 12 phase groups expand, every module renders
+   distinct content with zero console/page errors, search returns correct hits,
+   tracker checkboxes toggle. The course has grown since; the modules array now
+   holds 72 entries (1 course intro + 12 phase roadmaps + 59 content modules).
+   Keep that number in step with the array if you add or remove modules.
    NOTE (session 2): App component was rewritten from the old Cyber Guardians
    schema (levels/theory) to the new phases/phaseId/body schema — it previously
    crashed on load (curriculum.levels undefined). All phase definitions (p0-p10,
@@ -980,7 +982,7 @@ The course uses Node.js and Express as its primary example language because it i
 | **7.5** | AI / LLM Security | OWASP LLM Top 10, prompt injection, output handling, model supply chain, cost DoS, secure AI-assisted development, agentic AI & MCP tool-use security |
 | **8** | DevSecOps | Secrets management, production hardening, cloud posture (IAM, SSRF, metadata), containers & Kubernetes |
 | **9** | Incident Response | Security logging, detection & alerting, IR playbooks |
-| **10** | Capstone Labs | Four end-to-end projects: secure a real vulnerable app, build auth from scratch, threat-model, CI/CD pipeline |
+| **10** | Capstone Labs | Four end-to-end projects: secure a real vulnerable app, a PortSwigger lab portfolio, an API pentest report, a CI/CD security pipeline |
 
 ---
 
@@ -1039,7 +1041,7 @@ The **sidebar skill indicator** tracks your live progress through seven named le
 This course is one half of a two-course path:
 
 - **Full-Stack AppSec (this course)** — deep specialist dive into web application security. 12 phases, real exploit labs, certification-prep level depth.
-- **[Cyber Guardians](../cyber-guardians/cyber_guardians_app.html)** — the breadth-first companion: blue-team / SOC operations, network security, cryptography, forensics, incident response, cloud security, and governance. 37 modules covering the wider landscape that AppSec specialists build on.
+- **[Cyber Guardians](../cyber-guardians/cyber_guardians_app.html)** — the breadth-first companion: blue-team / SOC operations, network security, cryptography, forensics, incident response, cloud security, and governance. 39 modules covering the wider landscape that AppSec specialists build on.
 
 **Which to do first?** Many learners do AppSec first because it builds directly on existing dev skills and gives a concrete security foundation before branching out. Others do Cyber Guardians first for the broader context. Either order works — the courses are designed to complement each other, not depend on each other.
 
