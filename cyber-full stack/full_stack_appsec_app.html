@@ -794,7 +794,7 @@ const curriculum = {
     short: "Phase 0 · Foundations",
     tagline: "First-principles foundation, viewed through a threat lens",
     colorVar: "--l1",
-    weeks: "2–3 weeks",
+    weeks: "3–4 weeks",
     roadmap: {
       promise: "Before you can secure software, you need an honest model of how it actually works — computer, web, code, database, and terminal — always through a \"what could go wrong here?\" lens.",
       canDo: ["Explain why only the backend can enforce security, and bypass a client-side check in DevTools to prove it", "Read a command-line pipeline out loud instead of fearing it", "Name the root cause of SQL injection as a data-vs-code confusion", "Build and inspect a Docker image, and prove a baked-in secret survives in a layer"],
@@ -898,7 +898,7 @@ const curriculum = {
     short: "Phase 7.5 · LLM Security",
     tagline: "OWASP LLM Top 10, prompt injection, output handling, RAG",
     colorVar: "--l9",
-    weeks: "2–3 weeks",
+    weeks: "3–4 weeks",
     roadmap: {
       promise: "AI features add a new, weird attack surface. This phase covers the OWASP LLM Top 10 — prompt injection, output handling, RAG/vector-store security, and agentic/tool-use risk — for apps that call models.",
       canDo: ["Exploit and defend against prompt injection, both direct and indirect", "Treat model output as untrusted and handle it safely", "Secure a RAG pipeline: ACLs inside the retrieval query, and a corpus you can trust", "Reason about agent/tool-use and MCP risks and constrain them", "Apply the OWASP LLM Top 10 to an AI feature"],
@@ -13646,6 +13646,12 @@ The LLM happily executes the embedded instructions because tokens are tokens. De
 - **Output validation.** If the LLM emits a tool call, validate the arguments are within policy (refund amount caps, allow-list of recipients) before executing.
 - **Out-of-band approval.** For high-impact actions, require human-in-the-loop.
 
+### 🌍 Real-world case study: Bing Chat / Sydney prompt leak (2023)
+
+Within hours of Bing's public AI chat launch, users coaxed it into revealing its system prompt and internal codename "Sydney" through a series of injections. Microsoft's response showed the right pattern: they treated the leak as a **security incident rather than a PR problem**, added topic constraints and conversation-length limits, refreshed the system prompt mid-conversation, and improved telemetry on prompt leakage.
+
+**The lesson for full-stack developers:** assume your system prompt is public the moment you ship the feature. It is not a secret store — it is configuration that a determined user will eventually read back to you. Never put credentials, internal API keys, database hints, or unreleased product details in it. This is also why **System Prompt Leakage** is its own category (LLM07) rather than a footnote to injection: the leak is not just embarrassing, it hands an attacker the exact wording to craft against.
+
 ### Knowledge check: Prompt Injection
 
 1. In architectural terms, why can a system prompt never be a security boundary?
@@ -13720,7 +13726,7 @@ In your journal:
 ---
 
 ➡️ **Next step:** Even with injection contained, the moment your app *acts on* model output it inherits a new RCE surface. Continue to **Module 7.5.3: Output Handling and Tool Safety**.`,
-    tracker: ["Can explain why LLMs don't separate instructions from data and what that implies", "Can define direct vs indirect prompt injection and give a full-stack indirect example", "Ran the direct-injection test against an own bot and saw partial system-prompt leakage", "Knows the architectural defenses: tool boundaries, content-source labeling, output validation, human approval", "Can explain why a better system prompt is not a real defense", "Workbench: crafted an indirect injection to force a $9999 refund and explained why the model obeys, then designed the assume-injection-succeeds containment (least-privilege tools, code-enforced cap, source labeling, human approval)"]
+    tracker: ["Can explain why LLMs don't separate instructions from data and what that implies", "Can define direct vs indirect prompt injection and give a full-stack indirect example", "Ran the direct-injection test against an own bot and saw partial system-prompt leakage", "Knows the architectural defenses: tool boundaries, content-source labeling, output validation, human approval", "Can explain why a better system prompt is not a real defense", "Read the Bing/Sydney 2023 case study and knows to assume the system prompt is public — never put secrets in it", "Workbench: crafted an indirect injection to force a $9999 refund and explained why the model obeys, then designed the assume-injection-succeeds containment (least-privilege tools, code-enforced cap, source labeling, human approval)"]
   },
   {
     id: "m7_5_3",
@@ -14300,29 +14306,23 @@ A user can ask your app for "a 50,000-word essay about every Wikipedia article" 
 - **Bill back to authenticated users**, never anonymous traffic — anonymous LLM access is an open invitation to cost exhaustion.
 - **Monitor cost-per-user as a security signal**, not just a finance metric — a sudden spend spike is often an attack (or a bug) in progress.
 
-### ⚔️ Quiz: LLM Security (Phase 7.5 cumulative)
+### Knowledge check: Cost / Rate-Limit DoS
 
-1. Why is a "better system prompt" not a real defense against prompt injection?
-2. Define "indirect prompt injection" and give one full-stack example.
-3. Your chatbot generates SQL the app then runs against your DB. List two architectural fixes.
-4. Why is \`pickle.load(model)\` worse than \`safetensors.load_file(model)\`?
-5. In a multi-tenant RAG app, where must the tenant ACL be enforced, and why is filtering the retrieved results not good enough?
-6. What logs and metrics would you add to detect a prompt-injection attack in production?
+1. Your API gateway already rate-limits every endpoint to 100 requests per minute per user. Why does that not protect an LLM endpoint?
+2. What does a hard \`max_tokens\` stop that a per-user daily budget does not — and what does the daily budget stop that \`max_tokens\` does not?
+3. Describe how an *agent*, with no human driving it, becomes the cost-DoS vector. Which two limits stop it?
+4. Why should LLM features be tied to authenticated, billable accounts rather than offered to anonymous traffic?
+5. Finance flags one account spending 50× its normal level. Why is that a security escalation rather than a billing question, and what two other LLM-specific signals would you alert on?
 
 <details>
 <summary>Show answers</summary>
 
-1. Because the model has no architectural separation between instructions and data. Defense must be in the surrounding system: tool privilege limits, output validation, human approval, content-source tagging.
-2. Indirect = the attacker plants a payload in content the LLM later reads (email, web page, document, tool output) without ever talking to the LLM. Example: a markdown comment in a public GitHub README that triggers an LLM-based code-review bot to leak its API key.
-3. (1) Move from free-form SQL to a parameterized query DSL with an allow-list of templates. (2) Run the LLM-generated query against a read-only database role with row-level security and a tight statement timeout.
-4. \`pickle\` deserializes arbitrary Python — loading a malicious \`.pt\` runs attacker code instantly. \`safetensors\` is a structured tensor-only format with no executable payload surface.
-5. Inside the **retrieval query itself**, as a filter derived from the authenticated session (\`filter={"tenant_id": session.tenant_id}\`, or a \`WHERE\` clause alongside the vector operator) — never from the request body or model output. Filtering after retrieval is weaker on three counts: the foreign chunks have already been returned into process memory, so they reach logs, traces, and crash dumps; they consume \`top_k\` slots, silently degrading the legitimate answer; and the check is fail-open, so any new code path that queries the index without it leaks. Keep a post-retrieval re-check as defense in depth, but enforce in the query.
-6. Token-anomaly detection (sudden surge in tokens-per-user), unusual tool-invocation patterns, system-prompt-leakage detection (look for a substring of the system prompt in output), refusal-rate spikes, cost-per-user anomalies.
+1. Because a request-rate limit caps the **number** of requests, and LLM cost is driven by their **size**. One hundred requests per minute is trivially within policy while each one asks for a 50,000-token generation — the limiter sees a well-behaved client and the bill grows without bound. The asymmetry is what makes it dangerous: a few cheap tokens of prompt ("write an exhaustive 50,000-word analysis") buy an expensive completion, so the attacker's cost and yours differ by orders of magnitude. Rate limits must be denominated in the resource that actually costs money — **tokens and dollars**, not requests.
+2. \`max_tokens\` bounds the **worst single call**: it clamps any one request so a single "write me an essay about everything" prompt cannot produce an unbounded generation, no matter what the user asked for. The **daily budget** bounds the **aggregate**: it stops a client that stays politely under the per-call cap but fires thousands of compliant requests in a loop. Each is blind to the other's attack — a per-call cap alone permits infinite small calls, and a daily budget alone permits one catastrophic call to consume it in a single shot (and to hand you an enormous latency and context bill on the way). You need both, which is exactly why the drill enforces two limits rather than one.
+3. A **runaway agent loop**: the agent calls a tool, appends the result to its context, calls the model again to decide the next step, and repeats — or recurses into sub-agents that spawn their own sub-agents. Nothing in that cycle requires a human, so a single triggering prompt can spend for hours while everyone is asleep, and each iteration carries a *larger* context than the last, so cost grows super-linearly. The two limits: a **loop/iteration counter** (a hard cap on tool-call rounds per request) and a **tool-call depth limit** (agents may not nest beyond N levels). Add the per-request token budget and the failure is bounded three ways. Autonomy without a governor is a budget bug waiting to fire.
+4. Because anonymous access makes the abuse **free, unattributable, and unlimited**. With no account there is nothing to rate-limit against that the attacker cannot rotate — IPs are cheap and shared, so per-IP limits both fail against a botnet and punish legitimate users behind a NAT. Authentication gives you a **stable identity to meter, throttle, alert on, and cut off**, and billing attribution turns "someone is burning our budget" into "this account is burning its own quota." It also raises the attacker's cost from zero to the price of creating and warming accounts, which is the entire economics of abuse. If a feature must be public, give anonymous users a separate, tiny, aggressively capped pool that cannot touch the budget your paying users depend on.
+5. Because **attacks show up in the bill before they show up anywhere else**. A user consuming 50× their normal tokens is rarely "very engaged" — the realistic explanations are cost-exhaustion abuse, a jailbreak or injection being brute-forced across many attempts, a scripted scraper harvesting your model's outputs, or leaked credentials being resold. Finance reads that spike as a forecasting problem; security should read it as *an account behaving abnormally*, which is the same anomaly-detection reflex from Phase 9 pointed at spend. Two other signals worth alerting on: **system-prompt-leakage detection** (search outputs for a distinctive substring of your system prompt) and a **refusal-rate spike** (a burst of "I can't help with that" means someone is systematically probing the model's limits). **Unusual tool-invocation patterns** counts too.
 </details>
-
-### Real-world case study: Bing Chat / Sydney prompt leak (2023)
-
-Within hours of Bing's public AI chat launch, users coaxed it into revealing its system prompt and internal name "Sydney" via a series of indirect prompt injections. Microsoft's response showed the right pattern: they treated the leak as a security incident (not PR), added topic constraints, conversation-length limits, and mid-conversation system-prompt refresh, and improved telemetry on prompt leakage. **Lesson for full-stack devs:** assume your system prompt is public the moment you ship the feature. Don't put secrets, internal API keys, or production database hints in it.
 
 ---
 
@@ -14386,7 +14386,7 @@ In your journal:
 ---
 
 ➡️ **Next step:** You can defend the new trust boundary an LLM introduces, including the economic one. Two risks remain before Phase 7.5 is complete: the AI coding tools you use yourself, and agents that don't just answer but *act*. Continue to **Module 7.5.7: Secure AI-Assisted Development — Copilot, ChatGPT, and Vibe Coding**.`,
-    tracker: ["Can explain LLM cost-exhaustion as DoS with a financial loss attached", "Knows the defenses: per-user token budgets, hard max_tokens, runaway-agent loop/depth limits, authenticated billing, cost-as-security-signal", "Completed the Phase 7.5 cumulative quiz and read the Bing/Sydney 2023 case study", "Knows to assume the system prompt is public and never put secrets in it", "Workbench: built a per-user daily token budget + per-call cap that cuts off an attacker's 50k-token loop, and journalled runaway-agent loop/depth limits + cost-as-security-signal"]
+    tracker: ["Can explain LLM cost-exhaustion as DoS with a financial loss attached", "Knows the defenses: per-user token budgets, hard max_tokens, runaway-agent loop/depth limits, authenticated billing, cost-as-security-signal", "Answered the knowledge check on per-call caps vs daily budgets and cost-as-security-signal", "Workbench: built a per-user daily token budget + per-call cap that cuts off an attacker's 50k-token loop, and journalled runaway-agent loop/depth limits + cost-as-security-signal"]
   },
   {
     id: "m7_5_6",
@@ -14823,6 +14823,7 @@ Create \`~/appsec-journal/notes/phase-7-5-llm-security.md\` and answer, in your 
 - Explain the difference between direct and indirect prompt injection, with a full-stack example of each. Why is "write a better system prompt" not a real defense?
 - Your chatbot generates SQL that the app then runs against the database. What does "LLM output is untrusted input" mean concretely here, and name two architectural fixes (not prompt tweaks).
 - Why is loading an untrusted model with \`pickle.load()\` more dangerous than loading it with \`safetensors\`, and why should you assume your system prompt will eventually leak regardless of how well you word it?
+- Your team ships a multi-tenant "chat with your documents" feature over a shared vector index. Where must the tenant ACL be enforced, and why is filtering the retrieved chunks afterwards not equivalent? Then explain why that fix does nothing against an attacker who poisons the corpus as a legitimate customer, and name the stage where *that* is cheapest to defend.
 - A coworker wires up an AI agent with a \`runShell\` tool for a task that only ever needs to read files. Using the "agency is the new risk axis" idea, explain what could go wrong and the fix. Separately: why is pasting real customer data into an AI coding assistant "just to get an example working" a problem even if the tool claims it won't train on your data?
 
 <details>
@@ -14832,6 +14833,7 @@ Create \`~/appsec-journal/notes/phase-7-5-llm-security.md\` and answer, in your 
 - **Direct vs. indirect injection, and why a better prompt doesn't fix it:** direct injection is the attacker typing the malicious instruction straight into the chat ("ignore your previous instructions and..."). Indirect injection is the attacker planting the payload in content the LLM reads *later*, without ever talking to it directly — e.g. a hidden instruction inside a GitHub README that an LLM-based code-review bot reads and obeys, leaking its own API key. A better system prompt doesn't fix either, because the model has **no architectural separation between instructions and data** — both are just tokens in the same context window, so no amount of prompt wording creates a boundary that isn't actually there. The real defense has to live in the surrounding system: tool privilege limits, output validation, human approval for high-impact actions, and tagging/tracking where content came from.
 - **"LLM output is untrusted input," concretely:** it means you must not run, render, or execute whatever the model produces without the same validation you'd apply to any other untrusted input. For a chatbot generating SQL, that means never handing the raw generated string to your database driver as-is. Two architectural fixes: (1) restrict the model to producing parameters for a fixed, parameterized query template (or an allow-listed query DSL) instead of free-form SQL text; (2) run whatever it does generate against a **read-only** database role with row-level security and a tight statement timeout, so even a successful injection can't write, delete, or run away with resources.
 - **pickle vs. safetensors, and the leaking system prompt:** \`pickle.load()\` deserializes arbitrary Python objects, so a malicious model file can execute attacker code the instant it's loaded — there's no way to load it "just for the weights" without also running whatever code is embedded. \`safetensors\` is a structured, tensor-only format with no executable payload surface, so loading it can't run anything, only read numbers. You should assume the system prompt is public because injection techniques (direct or indirect) routinely coax models into repeating instructions verbatim — the 2023 Bing/Sydney leak happened within hours of launch — so secrets, internal API keys, or database hints must never be placed in a system prompt in the first place.
+- **Multi-tenant RAG:** the ACL must be enforced **inside the retrieval query**, as a filter derived from the authenticated session (\`filter={"tenant_id": session.tenant_id}\`, or a \`WHERE\` clause alongside the vector operator) — never from the request body, and never from anything the model produced. Post-retrieval filtering is not equivalent because the foreign chunks have **already been returned**: they sit in process memory and reach logs, traces, and crash dumps; they consume \`top_k\` slots, so the legitimate answer silently degrades; and the check is **fail-open**, so any new code path that queries the index without remembering it leaks. Keep the post-filter as defense in depth; enforce in the query. But none of that touches **corpus poisoning**, because the attacker is a *legitimate customer of that tenant* — their document carries the correct \`tenant_id\` and passes every ACL check you wrote. Access control decides *whose* documents a query may reach, never whether those documents are *trustworthy*; they are separate problems. Poisoning is cheapest to defend at **ingest**, because that runs once per document, offline, where a human or a scanner can review it — versus fighting the same text on every query forever, inside a latency budget.
 - **The over-scoped \`runShell\` tool, and pasting customer data into an AI tool:** granting a read-only task a \`runShell\` tool means an injected instruction (from a document the agent reads, an untrusted tool description, anything the model treats as context) can escalate straight to arbitrary command execution — the fix is least privilege: don't grant the tool at all if the task never needs it, and gate any genuinely high-impact tool behind human approval rather than trusting the model's judgment. Separately, pasting real customer data into an AI coding assistant is a problem even with a "we don't train on your data" promise because: retention policies still mean the data is *stored* somewhere outside your control and could be exposed in a breach of the AI vendor; your company's data-processing agreements or regulations (GDPR/CCPA/HIPAA) may flatly prohibit sending that data to a third party regardless of training use; and even a single transmission is a data-exfiltration event you can't undo. Use synthetic or anonymized data instead.
 
 </details>`,
