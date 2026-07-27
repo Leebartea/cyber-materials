@@ -753,7 +753,7 @@ const curriculum = {
     weeks: "Weeks 9–20",
     roadmap: {
       promise: "Level 2 turns knowledge into capability: you scan networks, capture and read packets, exploit the OWASP Top 10, and stand up your own isolated lab — then defend it like a blue-teamer.",
-      canDo: ["Scan and enumerate a network with Nmap, and write your own scanner", "Capture and analyze real traffic in Wireshark", "Exploit and then defend the OWASP Top 10 on a lab target you own", "Build an isolated pentest lab and monitor it for attacks"],
+      canDo: ["Scan and enumerate a network with Nmap, and write your own scanner", "Capture and analyze real traffic in Wireshark", "Audit Wi-Fi security (WPA2/WPA3, PMF) and spot evil-twin and weak-crypto risks", "Exploit and then defend the OWASP Top 10 on a lab target you own", "Build an isolated pentest lab and monitor it for attacks"],
       build: "An attack-and-defend exercise against your own virtual lab (Level 2 capstone, Module 17).",
       prereq: "Level 1."
     }
@@ -795,7 +795,7 @@ Cyber Guardians is a **38-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 38 modules at a glance
+### All 39 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -817,6 +817,7 @@ Cyber Guardians is a **38-module breadth-first course** that takes you from zero
 - M11.5: Advanced Shell Scripting, Text Processing & SSH Tunneling *(new in this edition)*
 - M12: Nmap — Network Scanning
 - M13: Wireshark — Packet Analysis
+- M13.5: Wireless & Radio Security *(new in this edition)*
 - M14: OWASP Top 10 — Web Security
 - M15: Build a Virtual Pentest Lab
 - M16: Blue Team Basics — Monitoring & Defense
@@ -901,7 +902,7 @@ docker --version`
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 38 modules, expect ~48–58 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 39 modules, expect ~49–60 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -912,7 +913,7 @@ docker --version`
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 38 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 39 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -4191,6 +4192,236 @@ Common wrong attempts: expecting an error because the certificate is self-signed
 **(3) What survives full encryption.** Even with ECH and DoH: the **destination IP address and port** (packets must be routed, so the server's address is inherently visible — and for a site on dedicated hosting the IP identifies it as surely as the name), **sizes and timing** (your tap printed \`349 bytes\`, \`268 bytes\` — request/response size sequences and inter-packet timing fingerprint *which page* on a site you loaded, and identify a video by its bitrate pattern, an entire research field called traffic analysis), and the **fact and duration of the conversation** — that you contacted a medical provider, a lawyer, or a job site at 2am, and for how long. Metadata is frequently more actionable than content precisely because it is structured and cheap to process at scale. **Outside the box:** the arc of M13 is that "encrypted" is not a yes/no property of your traffic but a set of specific guarantees with specific edges. Your tap made those edges concrete: content protected, hostname exposed until ECH, shape and destination exposed always. A defender's job is to know which edge they are relying on — and to check, the way you just did, rather than trusting the padlock.
 </details>`,
     tracker: ["Captured and followed an HTTP stream and READ the plaintext", "Compared it to a TLS capture and saw encrypted application data", "Used 3+ display filters including the SYN-only filter", "I understand why 'HTTPS on login only' fails (Firesheep)", "I can write a Node or Python app that forces HTTPS and sets HSTS", "Workbench: built a loopback wire tap from scratch and read a plaintext password off my own HTTP request", "Workbench: put TLS in front of the same tap, confirmed the password was gone, and still found the SNI hostname in cleartext in the ClientHello", "Workbench: explained Firesheep, the SSL-stripping gap that HSTS closes (and the first-visit gap preload closes), and what traffic analysis still reveals"]
+  }, {
+    id: "m13_5",
+    level: 2,
+    num: "M13.5",
+    title: "Wireless & Radio Security",
+    objective: "Wi-Fi is a network cable anyone within 100 metres can plug into — no lock to pick, no wire to cut. You captured plaintext on the wire in M13; now understand the layer below it: how 802.11 authenticates (or fails to), why an attacker can grab your WPA2 handshake without knowing your password, why WPA3 changes that, and how to configure an access point that survives the deauth-and-crack and evil-twin attacks that put wireless at the front of some of the largest breaches in history.",
+    theory: `#### Define the words first
+
+- **SSID / BSSID** — the **SSID** is the network *name* ("CoffeeShop"); the **BSSID** is the access point's *MAC address* (\`a4:2b:...\`). One SSID can have many BSSIDs (mesh, repeaters) — and, crucially, an *attacker's* AP can advertise your SSID with its own BSSID. The name is a claim; the BSSID is who actually answered (the M2 "names are claims" lesson, on radio).
+- **Beacon / probe** — an AP shouts **beacons** ~10×/second announcing its SSID. Your devices send **probe requests** asking "is *my* saved network here?" — leaking the names in their **Preferred Network List (PNL)** to anyone listening.
+- **Management frames** — 802.11 control traffic (associate, authenticate, **deauthenticate**). In classic WPA2 these are **unauthenticated**: anyone can forge a **deauth** frame that kicks you off your own network. This one design flaw enables most of the attacks below.
+- **The security protocols, worst to best** — **Open** (no encryption, everything is M13 plaintext) → **WEP** (broken since 2001, crackable in minutes, never use) → **WPA/WPA2-TKIP** (deprecated cipher) → **WPA2-PSK/CCMP** (AES, the 2006–2020 standard, still common) → **WPA3-SAE** (2018+, the current standard).
+- **PSK vs Enterprise** — **PSK** (pre-shared key) = one Wi-Fi password everyone shares (homes, cafés). **Enterprise (802.1X/EAP/RADIUS)** = every user authenticates individually against a server with their own credentials or certificate (offices). Enterprise is how you revoke *one* person without changing everyone's password.
+- **PMF (802.11w)** — **Protected Management Frames**: authenticates management traffic so deauth/disassoc can no longer be spoofed. Optional in WPA2, **mandatory in WPA3**. Remember this acronym — it is the single most important AP setting in this module.
+
+#### The attack that defines wireless: capture the handshake, crack it offline
+
+When a device joins a WPA2-PSK network it performs a **4-way handshake** that proves both sides know the password *without sending it*. But the handshake contains enough material that an eavesdropper who **captures it** can then guess passwords **offline** — millions per second on a GPU, no further contact with the network. The attacker doesn't need to be connected; they need the handshake and a wordlist (the M3 cracking lesson, on Wi-Fi).
+
+Getting the handshake is easy on classic WPA2: send a forged **deauth** frame, the victim drops and **automatically reconnects**, and the attacker captures the fresh handshake — the exact tools you installed in M0 (\`aircrack-ng\`). A **clientless** variant, the **PMKID attack** (hashcat mode 22000), pulls crackable material from the AP's *first* message with no victim needed at all.
+
+**Why WPA3 is a real upgrade, not a version bump.** WPA3 replaces the handshake with **SAE (Simultaneous Authentication of Equals / "Dragonfly")**, which is resistant to **offline** dictionary attacks: a captured exchange gives the attacker *nothing* to grind against — each password guess requires a fresh, rate-limitable interaction with the AP. WPA3 also adds **forward secrecy** (cracking today's key doesn't decrypt yesterday's traffic) and mandates PMF. This is why "upgrade to WPA3, or at minimum WPA2 with a long random passphrase and PMF" is the headline defense.
+
+#### Why the naive assumptions fail
+
+> **Naive #1: "My Wi-Fi has a password, so it's private."** Fails two ways on WPA2-PSK. First, a shared password protects nothing *between* people who know it — on a café or office PSK network, anyone with the password can often derive your session keys and read your traffic (which is why M13's HTTPS lesson still matters *on top of* Wi-Fi encryption). Second, "has a password" ≠ "uncrackable": a weak or common passphrase falls to the capture-and-crack attack above in minutes. The fix is **WPA3**, or **WPA2 with a long, random, uncommon passphrase and PMF enabled**.
+
+> **Naive #2: "I hid my SSID and turned on MAC filtering."** Neither is security. A hidden SSID still transmits its BSSID in every beacon, and your own devices *shout the hidden name* in probe requests — it's revealed by passively listening for seconds. MAC addresses travel in **cleartext in every single frame** (encryption never covers them) and are trivially **spoofed**, so an attacker copies an allowed MAC and walks in. Both add friction for you and zero for an attacker. Real controls are the protocol (WPA3/PMF) and segmentation, below.
+
+> **The correct rule:** authenticate the *network to you*, not just you to the network. Use WPA3 (or WPA2+PMF) with a strong passphrase — or 802.1X with **server-certificate validation** in an org — disable WPS, and **segment** untrusted devices onto their own SSID/VLAN (M16.5, M25.5).
+
+#### Vulnerable vs secure configuration — the access point you actually control
+
+The "code" you write here is the AP's config. This is a Linux \`hostapd\` file, but every consumer router exposes the same switches in its admin page — your job is to know which ones matter.
+
+\`\`\`ini
+# hostapd.conf — VULNERABLE: a 2010-era access point
+ssid=HomeNet
+wpa=2
+wpa_key_mgmt=WPA-PSK
+wpa_passphrase=password123      # WHY WRONG: short + common -> cracked in seconds from one captured handshake
+wpa_pairwise=TKIP CCMP          # WHY WRONG: TKIP is a deprecated, weak cipher
+ieee80211w=0                    # WHY WRONG: PMF off -> deauth is spoofable -> handshake capture + disconnect DoS
+wps_state=2                     # WHY WRONG: WPS PIN is brute-forceable (Reaver/Pixie-Dust) -> recovers the PSK
+\`\`\`
+
+\`\`\`ini
+# hostapd.conf — SECURE: WPA3 (SAE), PMF required, AES-only, WPS off
+ssid=HomeNet
+wpa=2
+wpa_key_mgmt=SAE                # SAE = WPA3; use "WPA-PSK SAE" only for a transition period, then drop PSK
+rsn_pairwise=CCMP               # AES/CCMP only — no TKIP
+ieee80211w=2                    # PMF REQUIRED — forged deauth/disassoc are now rejected
+sae_require_mfp=1               # refuse SAE clients that won't use PMF
+wps_state=0                     # WPS disabled
+wpa_passphrase=correct-horse-battery-staple-9f3a2c   # long, random, uncommon
+# WHY IT WORKS: SAE removes the offline-crackable handshake; PMF kills deauth-driven capture and
+# disconnect DoS; AES-only drops the weak cipher; no WPS removes the PIN shortcut around all of it.
+\`\`\`
+
+> **One more historical note — KRACK (2017).** Researcher Mathy Vanhoef showed the WPA2 4-way handshake could be manipulated to *reinstall* an already-used key (a "key reinstallation attack"), briefly breaking WPA2's encryption on almost every device on earth. It was patched everywhere, but it's the reason WPA2 is "keep patched," not "trust forever" — and part of why WPA3's redesigned handshake exists.`,
+    lab: {
+      mac: `# LAB: Audit your OWN wireless posture (Apple Silicon)
+# ETHICS: read only YOUR network and YOUR device. Capturing or cracking a network
+# you don't own is illegal (see the TJX case study). Everything here is read-only and local.
+
+# NOTE: the old 'airport -s' scanner was REMOVED in recent macOS. Use these instead.
+
+# 1. What protocol/cipher is YOUR current network actually using?
+#    Read the "Current Network Information" block: PHY Mode, Security, Channel.
+system_profiler SPAirPortDataType | sed -n '/Current Network/,/Other Local/p'
+#    Look for: Security: WPA3 Personal (good) vs WPA2 Personal (ok+PMF) vs WPA/WPA2 (weak) vs WEP/Open (fix now)
+
+# 2. Full detail (needs sudo): security type, PMF, band, country code
+sudo wdutil info | grep -iE 'SSID|Security|Channel|RSSI|MAC'
+
+# 3. Your Preferred Network List — the evil-twin attack surface.
+#    Every OPEN network here is one your Mac will silently auto-rejoin near ANY AP using that name.
+networksetup -listpreferredwirelessnetworks en0
+#    Prune it: forget networks you don't control, especially open/café ones:
+#    networksetup -removepreferredwirelessnetwork en0 "SomeOldCafeWiFi"
+
+# 4. Open your router's admin page (usually http://192.168.1.1 or http://192.168.0.1)
+#    and CONFIRM, against the secure hostapd config above: WPA3 (or WPA2+PMF) on,
+#    WPS OFF, a long random passphrase, and a SEPARATE guest network for IoT (M25.5).`,
+      windows: `# Windows: all read-only, your own machine.
+netsh wlan show interfaces                 # current SSID, cipher, signal, band
+netsh wlan show networks mode=bssid        # nearby networks with BSSID + auth/cipher
+netsh wlan show profiles                   # your saved-network list (the PNL)
+netsh wlan show profile name="MyNet" key=clear   # inspect one profile's security + key
+netsh wlan show wlanreport                 # generates an HTML connectivity/security report
+# Delete a risky saved network: netsh wlan delete profile name="SomeOldCafeWiFi"`,
+      linux: `# Linux: read-only inventory, plus OPTIONAL cracking of YOUR OWN AP only.
+nmcli dev wifi list                        # SSID, BSSID, CHAN, SECURITY column (read the SECURITY)
+iw dev wlan0 link                          # your current association detail
+iw dev wlan0 scan | grep -iE 'SSID|RSN|WPS|capability'   # cipher/PMF/WPS of nearby APs
+
+# OPTIONAL — the capture-and-crack, against a network you OWN, to see the attack first-hand:
+#   sudo airmon-ng start wlan0              # monitor mode
+#   sudo airodump-ng wlan0mon --bssid <YOUR_AP> -c <CHAN> -w cap   # wait for/force a handshake
+#   aircrack-ng -w wordlist.txt cap-01.cap  # offline dictionary attack on YOUR handshake
+# Then enable PMF/WPA3 on that AP and watch the deauth-driven capture stop working.`
+    },
+    caseStudy: {
+      title: "TJX / TJ Maxx — WEP at the edge, 45M+ cards stolen (2005–2007)",
+      body: "Attackers sat in a car outside a Marshalls store in Minnesota and cracked the WEP encryption on the store's wireless network — the same WEP this module tells you never to use. That wireless foothold let them pivot into TJX's corporate network, where they installed sniffers and, over roughly 18 months, exfiltrated data on 45.7 million-plus payment cards (later estimates ran higher). It was the largest retail breach of its era and cost TJX hundreds of millions of dollars. The lesson is the spine of this module: wireless is not a convenience bolted onto your 'real' network — it IS your network's perimeter, reachable from the parking lot, and a single weak radio protocol (WEP then; a weak WPA2 passphrase or WPS-enabled router now) is a front door with the lock taped open. The fixes were all available at the time: strong encryption (WPA2/now WPA3), and — just as important — segmenting the store Wi-Fi away from the systems that processed cards, so that cracking the radio wouldn't hand over the crown jewels (M16.5 Zero Trust, M25.5 segmentation)."
+    },
+    challenges: [{
+      q: "An attacker parked outside captures your WPA2 handshake but never knew and never learned your Wi-Fi password by capturing it. How is capturing the handshake useful to them, and what specifically makes WPA3 resistant to the same move?",
+      a: "The 4-way handshake doesn't contain the password, but it contains material derived from it that an attacker can test password guesses against OFFLINE — no further contact with your network, millions of guesses per second on a GPU, against a wordlist. So a weak or common passphrase falls quickly; the capture just needs to happen once (often forced by a spoofed deauth that makes a device reconnect, or pulled clientless via the PMKID attack). WPA3's SAE handshake is built so that a captured exchange yields NOTHING to grind offline — every password guess requires a fresh, rate-limited interaction with the AP itself, which turns an offline GPU attack into an online one the AP can detect and throttle. Plus WPA3 mandates PMF, so the deauth trick used to force a capture no longer works. Interim defense on WPA2: a long, random, uncommon passphrase (so even a captured handshake is uncrackable in practice) and PMF enabled."
+    }, {
+      q: "You enable PMF (802.11w) on your access point. Which wireless attack does it stop, and which common attack does it NOT stop — and what actually defends against that second one?",
+      a: "PMF authenticates management frames, so it STOPS spoofed deauth/disassociation frames — the attacker can no longer forcibly kick your devices off (a disconnect DoS) or trigger the reconnect that hands them a fresh handshake. What PMF does NOT stop is an EVIL TWIN: a separate, attacker-run AP that simply advertises your SSID with a stronger signal, so your device (or a user) connects to it directly. PMF protects the frames of a legitimate association; it says nothing about a rogue AP that looks legitimate. Defenses against the evil twin are different: on personal networks, upgrade to WPA3 and remove open networks from your PNL so devices don't auto-join a same-named AP; on enterprise networks, use 802.1X with SERVER-CERTIFICATE VALIDATION so the client verifies the RADIUS server's certificate and refuses an impostor AP that can't present it. The takeaway: PMF and evil-twin defense solve different halves of wireless trust — frame integrity vs. AP identity."
+    }],
+    quiz: ["Rank Open, WEP, WPA2-PSK/CCMP, and WPA3-SAE from weakest to strongest, and say in one line what makes the top one meaningfully better than the second.", "Explain the WPA2 capture-and-crack attack: how does an attacker get the handshake, and why can they then attack it without touching your network again?", "What is PMF (802.11w), which attack does it stop, and why is it automatic under WPA3 but optional under WPA2?", "Why are a hidden SSID and MAC filtering NOT security controls? State the specific reason each one fails.", "What is an evil twin, why does the Preferred Network List make it easy, and what defends against it on a home network vs. a corporate one?"],
+    workbench: `> ⚖️ **Ethics first.** Cracking, deauthing, or capturing a network you don't own is a crime (re-read the TJX case study — the WEP crack happened from a parking lot and it was still a felony). This entire Workbench is **read-only and local**: you inventory *your own* device and network posture, and you build a detector that scores *scan output you generate on your own machine*. No monitor mode, no injection, no attacking anything.
+
+> **What this trains.** M13 had you read packets to prove HTTP leaks. Here you drop one layer to the radio and answer three questions about your *own* wireless: what protocol is actually protecting me, what am I silently broadcasting that an attacker collects, and could I spot an evil twin or a downgrade in a scan? You'll produce your real posture, then write ~25 lines that turn a raw network scan into a ranked risk report — the logic a rogue-AP detector runs.
+
+#### 🟢 Drill 1 — audit your own wireless posture ~8 min
+
+**Goal.** Using only read-only commands, establish three facts about *your* setup: (1) the exact security protocol and cipher your current network uses, (2) whether PMF is on, and (3) every entry in your Preferred Network List — flagging any **open** network your device will silently rejoin near any AP of that name.
+
+**Done when.** You can state your home network's protocol out loud without hedging ("WPA3 Personal" / "WPA2 Personal with PMF" / "WPA2 only — needs fixing"), and you've found every open/legacy entry in your PNL that is an evil-twin liability.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+On macOS the old \`airport\` scanner is gone; \`system_profiler SPAirPortDataType\` prints a "Current Network Information" block with Security and PHY Mode, and \`networksetup -listpreferredwirelessnetworks en0\` prints the PNL. On Linux use \`nmcli dev wifi list\` and read the SECURITY column; on Windows, \`netsh wlan show interfaces\` and \`netsh wlan show profiles\`. You are reading, not changing anything.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+# macOS — the three facts, read-only
+system_profiler SPAirPortDataType | sed -n '/Current Network/,/Other Local/p'
+#   -> read the "Security:" line. WPA3 Personal = best; WPA2 Personal = ok if PMF on; WEP/Open = fix now.
+sudo wdutil info | grep -iE 'Security|Channel|SSID'
+#   -> confirms the security mode and channel with more detail.
+networksetup -listpreferredwirelessnetworks en0
+#   -> your PNL. Any OPEN network name here (old cafés, airports, "xfinitywifi") is the liability.
+\`\`\`
+**What you just learned about yourself.** Two of these are posture, one is exposure. The security line tells you which protocol stands between the parking lot and your traffic — and whether you're relying on WPA2's crackable handshake (in which case your passphrase length is doing all the work) or WPA3's SAE (which removes the offline attack entirely). The PNL is the part people never look at: every remembered **open** network is a name your device will **auto-join on sight**, so an attacker who names their AP "xfinitywifi" or "Starbucks WiFi" gets your device to associate with *them* — no exploit, just your own convenience setting. Prune it: \`networksetup -removepreferredwirelessnetwork en0 "OldCafeName"\`. This is the same "the client trusts too easily" theme as M5's cookie hygiene, moved to radio.
+
+Common wrong attempts: reaching for \`airport -s\` and hitting "command not found" (it was removed — use \`system_profiler\`/\`wdutil\`); reading the PHY mode ("Wi-Fi 6") and thinking it's the *security* (speed standard ≠ security protocol — look for the "Security:" line specifically); assuming an empty-looking PNL is clean without actually listing it; and treating "there's a password" as the end of the audit rather than checking *which protocol* and *whether PMF is on*.
+</details>
+
+#### 🟡 Build 1 — a rogue-AP / weak-crypto scan scorer ~15 min
+
+**Goal.** Write a script that reads scan records (\`SSID,BSSID,SECURITY\`) and produces a risk report: score each network's crypto (Open/WEP = critical, WPA/TKIP = weak, WPA2 = ok, WPA3 = strong), and flag **evil-twin candidates** — the same SSID advertised by two different BSSIDs, or the same SSID appearing at two different security levels (a **downgrade twin**, the classic evil-twin tell). Feed it the sample below (or your own \`nmcli\`/\`netsh\` output).
+
+**Done when.** Your report marks the Open and WEP rows critical, and flags \`HomeNet\` as an evil-twin candidate because it appears under two BSSIDs — one WPA3, one Open.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Two passes over the records. Pass 1: map each SECURITY string to a rank (a dict keyed by substring — "WPA3"/"SAE" → strong, "WPA2"/"RSN" → ok, "WEP" → critical, "" or "Open"/"--" → critical). Pass 2: group BSSIDs and security levels **by SSID**; any SSID with more than one BSSID, or more than one distinct security level, is a twin candidate. No wireless libraries — it's string grouping over text you already have.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# wifi_score.py — turn a scan into a ranked risk report. Reads its own sample; no network access.
+records = [
+    # SSID,        BSSID,               SECURITY   (paste your own nmcli/netsh output here)
+    ("HomeNet",    "a4:2b:0e:11:22:33", "WPA3"),
+    ("HomeNet",    "de:ad:be:ef:00:01", "Open"),    # <-- same name, no crypto: the evil-twin tell
+    ("CoffeeShop", "00:11:22:33:44:55", "Open"),
+    ("OldRouter",  "66:77:88:99:aa:bb", "WEP"),
+    ("Office",     "12:34:56:78:9a:bc", "WPA2"),
+]
+
+RANK = [("WPA3", "strong", "SAE — no offline crack"),
+        ("SAE",  "strong", "SAE — no offline crack"),
+        ("WPA2", "ok",     "AES handshake is offline-crackable if the passphrase is weak"),
+        ("RSN",  "ok",     "AES handshake is offline-crackable if the passphrase is weak"),
+        ("WPA",  "weak",   "TKIP/legacy cipher — deprecated"),
+        ("WEP",  "critical","broken since 2001 — cracked in minutes"),
+        ("",     "critical","OPEN — no encryption at all")]
+
+def score(sec):
+    s = (sec or "").upper()
+    for key, level, why in RANK:
+        if key and key in s:
+            return level, why
+    return "critical", "OPEN — no encryption at all"   # blank / "Open" / "--" all land here
+
+# Pass 2: group by SSID to find twins
+from collections import defaultdict
+bssids = defaultdict(set); levels = defaultdict(set)
+for ssid, bssid, sec in records:
+    bssids[ssid].add(bssid); levels[ssid].add(score(sec)[0])
+
+print("SECURITY REPORT")
+for ssid, bssid, sec in records:
+    level, why = score(sec)
+    twin = " ⚠ EVIL-TWIN CANDIDATE" if (len(bssids[ssid]) > 1 or len(levels[ssid]) > 1) else ""
+    print(f"  [{level:8}] {ssid:11} {bssid}  ({sec or 'Open'}) — {why}{twin}")
+\`\`\`
+\`\`\`text
+SECURITY REPORT
+  [strong  ] HomeNet     a4:2b:0e:11:22:33  (WPA3) — SAE — no offline crack ⚠ EVIL-TWIN CANDIDATE
+  [critical] HomeNet     de:ad:be:ef:00:01  (Open) — OPEN — no encryption at all ⚠ EVIL-TWIN CANDIDATE
+  [critical] CoffeeShop  00:11:22:33:44:55  (Open) — OPEN — no encryption at all
+  [critical] OldRouter   66:77:88:99:aa:bb  (WEP) — broken since 2001 — cracked in minutes
+  [ok      ] Office      12:34:56:78:9a:bc  (AES handshake is offline-crackable if the passphrase is weak)
+\`\`\`
+**Why this is exactly what a WIDS does.** A Wireless Intrusion Detection System watches the air and raises precisely these two signals: crypto too weak (Open/WEP/legacy), and **one SSID answering from a BSSID or security level it shouldn't** — because that is the fingerprint of an evil twin standing next to the real AP, usually offering *weaker* or *open* security to strip your protection (M13's SSL-strip idea, one layer down). Your \`HomeNet\` appears as both WPA3 and Open under two BSSIDs: no legitimate reason exists for your own network to suddenly offer an open version, so it's flagged. The deeper point connects the whole module: the SSID is a **claim** (M2), the BSSID is barely better (spoofable), so the *only* trustworthy signal is cryptographic — which is why the real defense against a twin is WPA3 or 802.1X server-cert validation, not "recognizing the name."
+
+Common wrong attempts: scoring only the crypto and skipping the twin grouping (you'd miss the actual attack — a *strong*-looking WPA3 row can sit right next to its open impostor); treating "Open"/blank/"--" differently across tools instead of collapsing them all to critical; comparing BSSIDs case-sensitively so \`AA:BB\` and \`aa:bb\` look like a false twin (normalize case); and assuming more BSSIDs is *always* an attack — legitimate mesh/repeater setups share an SSID too, which is why a security-level *mismatch* is the stronger signal and a real WIDS also weighs signal strength, channel, and vendor OUI.
+</details>
+
+#### 🔴 Break & Defend — the parking lot, the twin, and the guest network ~12 min
+
+**Goal.** Journal three answers. (1) TJX cracked WEP from a car and reached 45M cards — explain what WEP's failure and a *modern* weak-Wi-Fi failure have in common, and the one architectural control that would have contained both regardless of the radio. (2) Trace an evil-twin + PNL attack against yourself using what Drill 1 revealed, then name the home defense and the enterprise defense — and explain why PMF is not the answer here. (3) You run IoT devices (camera, plug, TV). State the segmentation rule and why it follows directly from M16.5 and M25.5.
+
+**Done when.** Your TJX answer names **segmentation** as the containment control (not just "stronger encryption"), and your evil-twin answer explains why PMF doesn't stop it.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) TJX and its modern twin.** WEP fell because its encryption was mathematically broken — enough captured traffic reveals the key in minutes. The *modern* equivalent isn't usually a broken protocol; it's a **weak WPA2 passphrase** (falls to the offline handshake crack you studied) or a **WPS-enabled router** (the PIN is brute-forceable straight to the PSK). Different mechanism, identical outcome: the radio is the front door and the lock is effectively open from the parking lot. But notice what actually turned a *Wi-Fi* crack into a *45-million-card* breach: the wireless network was **connected to everything else**. The one control that contains all of these regardless of the radio protocol is **segmentation** — if the store Wi-Fi had lived on its own isolated segment with no path to the card-processing systems, cracking it would have yielded a foothold on a network with nothing worth stealing. This is M16.5's "never trust the network location" and the reason a breach's *blast radius* is a design choice, not just an encryption setting.
+
+**(2) The evil twin against you.** Drill 1 showed your PNL — say it contains "Starbucks WiFi" (open). The attack: an attacker stands up an AP broadcasting that exact SSID with a stronger signal; your device, having it saved as a trusted open network, **auto-joins the attacker's AP** with no prompt. Now the attacker is your gateway — they run M13's SSL-strip and traffic analysis on everything that isn't strictly HTTPS+HSTS. **Why PMF doesn't help:** PMF protects the management frames of a *legitimate association*; it does nothing about a *separate, rogue AP* that simply looks like a network you trust — there's no frame to forge, the victim connects willingly. **Home defense:** remove open/public networks from your PNL so nothing auto-joins by name, and prefer WPA3 networks (an attacker can't trivially clone a WPA3-SAE network without the passphrase). **Enterprise defense:** 802.1X with **server-certificate validation** — the client is configured to verify the RADIUS server's certificate before handing over credentials, so an impostor AP that can't present the real cert is rejected automatically. The unifying idea: defeat the twin by authenticating the **network to the client**, because the human-readable name never can be trusted (M2).
+
+**(3) Segment your IoT.** The rule: **untrusted and IoT devices go on their own SSID/VLAN (a "guest" network), isolated from the network holding your laptop, phone, backups, and files.** It follows directly from M25.5 (IoT devices are under-patched, long-lived, and frequently the weakest computer you own) and M16.5 (trust is not granted by being "inside" the network). A compromised smart plug or camera on an isolated segment can talk to the internet but **cannot reach your laptop** — its blast radius is the guest network, exactly the TJX containment lesson at home scale. **Outside the box:** every defense in this module is the same instinct as the rest of the course pointed at radio — WPA3 over WPA2 is *strong crypto over weak* (M10), PMF is *authenticate the message* (M4's DMARC idea), server-cert validation is *verify identity, don't trust the name* (M2), pruning the PNL is *reduce what you automatically trust* (M5/M16.5), and segmentation is *contain the blast radius* (M16.5/M25.5). Wireless didn't need new security principles; it just removed the wire that used to make people feel safe.
+</details>`,
+    tracker: ["I can rank Open / WEP / WPA2 / WPA3 and say why WPA3-SAE beats WPA2's crackable handshake", "I can explain the capture-and-crack attack and the clientless PMKID variant", "I know what PMF (802.11w) does, which attack it stops, and that WPA3 makes it mandatory", "I can explain why a hidden SSID and MAC filtering are not security controls", "I audited my own network: I know its exact protocol, whether PMF is on, and I pruned my Preferred Network List", "I confirmed my router has WPS off, a strong passphrase, and a separate guest/IoT network", "Workbench: ran a read-only audit of my own wireless posture and found every open network my device would auto-rejoin", "Workbench: built a scan scorer that ranks crypto strength and flags evil-twin / downgrade candidates by grouping BSSIDs and security levels per SSID", "Workbench: explained the TJX segmentation lesson, traced an evil-twin + PNL attack and why PMF doesn't stop it, and stated the IoT segmentation rule"]
   }, {
     id: "m14",
     level: 2,
