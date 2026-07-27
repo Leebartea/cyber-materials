@@ -833,10 +833,10 @@ const curriculum = {
     short: "Phase 3 · Backend & API",
     tagline: "Where trust is enforced: Express hardening, SQLi, APIs, uploads",
     colorVar: "--l4",
-    weeks: "3–4 weeks",
+    weeks: "4–5 weeks",
     roadmap: {
       promise: "The backend is where trust is actually enforced. This phase hardens the server: input handling, SQL, APIs, uploads, and the business logic attackers abuse.",
-      canDo: ["Harden an Express app with validation, safe error handling, and least-privilege DB access", "Exploit and then parameterize away a SQL injection", "Secure an API against IDOR and mass assignment", "Handle file uploads and WebSockets without opening a foothold"],
+      canDo: ["Harden an Express app with validation, safe error handling, and least-privilege DB access", "Exploit and then parameterize away a SQL injection", "Secure an API against IDOR and mass assignment", "Handle file uploads and WebSockets without opening a foothold", "Recognize and defend SSTI, XXE, insecure deserialization, prototype pollution, and request smuggling"],
       build: "A hardened backend with the vulnerable-vs-secure version of each flaw documented.",
       prereq: "Phases 1–2."
     }
@@ -974,7 +974,7 @@ The course uses Node.js and Express as its primary example language because it i
 | **0** | Foundations | How computers, the web, databases, and the terminal actually work — viewed through a threat lens |
 | **1** | Web & CLI | HTTP/DNS/TLS deep-dive, CLI investigation toolkit, Git/GitHub security (basics + advanced Actions hardening), advanced shell scripting & SSH tunneling |
 | **2** | Browser Security | Same-origin policy, XSS, CSRF, CORS misconfiguration |
-| **3** | Server Security | Node/Express hardening, SQL injection, API security, file uploads, polyglot patterns, business logic flaws, WebSockets |
+| **3** | Server Security | Node/Express hardening, SQL injection, API security, file uploads, polyglot patterns, business logic flaws, WebSockets, SSTI, XXE, insecure deserialization, prototype pollution, request smuggling |
 | **4** | Offensive Foundations | OWASP Top 10 as a threat model, hands-on web exploitation, PortSwigger lab track |
 | **5** | Pentesting Workflow | Burp Suite and ZAP, repeatable assessment methodology, bug bounty pathway |
 | **6** | Auth & Identity | Password storage, sessions, JWTs, OAuth 2.0/OIDC, authorization models, WebAuthn/passkeys |
@@ -8827,7 +8827,604 @@ The Origin check stops browser-based CSWSH, but a long-lived socket has more sur
 
 ---
 
-➡️ **Next step (Phase 3 complete):** Server secured, API locked down, uploads hardened, business logic defended, WebSocket surface controlled. Now zoom out to the industry-standard map of all major risk categories — and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.
+➡️ **Next step:** The CRUD surface is hardened — but three whole classes of server-side bug live *outside* it, in the engines your handlers hand data to: the template renderer, the object deserializer, and the HTTP parser itself. Continue to **Module 3.8: Server-Side Template Injection and XXE**.
+`,
+    tracker: [
+      "Can explain why the Same-Origin Policy does not automatically protect WebSocket connections",
+      "Can explain the CSWSH attack and name the server-side fix (Origin header validation)",
+      "Has written a WebSocket server that validates Origin and authenticates the user during the upgrade",
+      "Can intercept and replay a WebSocket message in Burp Suite (or describe the steps)",
+      "Knows the four defense layers: Origin validation, upgrade auth, message validation, rate limiting",
+      "Answered the knowledge check",
+      "Workbench: performed CSWSH — got the server to 101-accept an upgrade from evil.example with the victim cookie — then added the Origin allow-list (403 for evil, 101 for the real origin)",
+      "Workbench: journalled why per-message validation is still required, why Origin alone isn't enough for high-value actions, and ws:// vs wss://"
+    ]
+  },
+  {
+    id: "m3_8",
+    phaseId: "p3",
+    num: "3.8",
+    title: "Server-Side Template Injection and XXE",
+    objective: "Two server-side injection classes that live in the engines your handlers call, not in your own code. SSTI happens when user input is concatenated into a template that a rendering engine then EVALUATES — turning a greeting into remote code execution. XXE happens when an XML parser is allowed to resolve external entities — turning a file-upload or SOAP endpoint into arbitrary file disclosure and SSRF. Both are the Phase 0.5 data-vs-code failure again, one layer down: the fix is never to let untrusted data reach the engine as anything but inert data.",
+    body: `> **Why this matters.** You spent Phase 3 hardening your *own* code. But your handlers pass data to engines you didn't write — a template renderer, an XML parser — and those engines are powerful enough to execute code or read files when fed the wrong input. SSTI (a facet of A03 Injection) and XXE (its own OWASP category, A05) are what happens when attacker data reaches those engines as *code* instead of *data*. Same root cause as SQLi and XSS; different, more dangerous, sink.
+
+### 🎯 Concept: Server-Side Template Injection (SSTI)
+
+Template engines (Nunjucks, Pug, Handlebars-with-helpers, EJS, and in other stacks Jinja2, Twig, Freemarker) exist to *evaluate expressions* — that's their job: \`{{ user.name }}\` becomes the user's name. The vulnerability is not the engine; it is **building the template string out of user input**:
+
+\`\`\`js
+// ❌ VULNERABLE: user input is CONCATENATED INTO the template that gets evaluated
+res.send(engine.render("Hello " + req.query.name + ", welcome back."));
+
+// ✅ SAFE: the template is a constant; user input is passed as DATA (context)
+res.send(engine.render("Hello {{name}}, welcome back.", { name: req.query.name }));
+\`\`\`
+
+In the vulnerable version, if \`name\` is \`{{ 7*7 }}\` the response says "Hello 49" — the engine evaluated the attacker's expression. That \`7*7\` → \`49\` reflection is the canonical SSTI probe: it proves the input reached an evaluator. From there the attacker pivots from arithmetic to the language runtime (\`this.constructor.constructor\` in JS engines, \`__class__.__mro__\` in Jinja2) and reaches **remote code execution**. SSTI is one of the shortest paths from "reflected input" to "shell" in the whole course.
+
+**The fix is structural, not a filter:** keep templates as static, developer-authored strings and pass every piece of user data through the **context object**, never string concatenation. Blocklisting \`{{\` is the SQLi-escaping mistake all over again — a new syntax always slips through.
+
+### 🎯 Concept: XML External Entities (XXE)
+
+XML has a feature most developers have never used on purpose: the DOCTYPE can declare **entities**, including *external* ones that the parser resolves from a URL or file path:
+
+\`\`\`xml
+<?xml version="1.0"?>
+<!DOCTYPE foo [ <!ENTITY secret SYSTEM "file:///etc/passwd"> ]>
+<order><note>&secret;</note></order>
+\`\`\`
+
+If the parser resolves external entities (many did by default for years — libxml2, Java's DocumentBuilder, .NET, PHP), \`&secret;\` expands to the **contents of that file**, which then land in the response, in an error message, or in whatever the app does with the parsed value. That gives an attacker:
+- **Arbitrary file read** (\`file:///etc/passwd\`, source code, secrets, cloud credentials).
+- **SSRF** (\`http://169.254.169.254/...\` — the cloud metadata endpoint from Module 8.3, or any internal host).
+- **Denial of service** (the "billion laughs" nested-entity expansion).
+
+Anywhere your app accepts XML is a candidate: SOAP APIs, SAML assertions, SVG/DOCX/XLSX uploads (those are XML inside a zip), RSS ingestion, sitemap parsers. **The fix is one setting: disable DOCTYPE processing and external-entity resolution** — reject any document containing a DOCTYPE, or set the parser's \`resolve_entities=false\` / \`disallow-doctype-decl\` flag. You almost never need entities; turn the whole feature off.
+
+### Knowledge check: SSTI and XXE
+
+1. A colleague sees \`{{7*7}}\` render as \`49\` and says "it's only a math bug, the user can't do anything real." Why are they wrong?
+2. What is the single code change that separates the vulnerable template call from the safe one, and why does a blocklist of \`{{\` and \`}}\` not substitute for it?
+3. Your API only accepts JSON, never XML — are you safe from XXE? What upload and integration paths might still feed an XML parser?
+4. Why is XXE both a file-disclosure bug *and* an SSRF bug, and what does that mean for a defender who has "locked down the filesystem"?
+5. What is the one parser setting that closes XXE, and why is it preferable to sanitizing the incoming XML for \`<!ENTITY>\` declarations?
+
+<details>
+<summary>Show answers</summary>
+
+1. Because \`7*7\` → \`49\` proves the input reached an **expression evaluator**, and an evaluator does not stop at arithmetic — it has access to the language runtime. From \`{{7*7}}\` the attacker escalates to \`{{ this.constructor.constructor('return process.platform')() }}\` (or the Jinja2 \`__mro__\` equivalent), which reaches \`require\`/\`os\`/\`child_process\` and yields **remote code execution**. The math is not the bug; it is the *litmus test* that reveals the bug. SSTI is one of the shortest reflected-input-to-shell paths there is, which is exactly why "only a math bug" is the dangerous misread.
+2. The change is **passing user data as the context object instead of concatenating it into the template string**: \`render("Hello {{name}}", { name: input })\` versus \`render("Hello " + input)\`. In the safe form the template is a constant the developer wrote and the engine treats \`input\` purely as a value to substitute; in the vulnerable form the attacker's text *becomes part of the template* and is therefore eligible for evaluation. A blocklist of \`{{\`/\`}}\` fails for the same reason escaping-based SQLi defenses failed: it enumerates one syntax, and engines accept many forms (\`{%...%}\`, alternate delimiters, encodings), so a filter is a patch over an architecture that still routes untrusted data into an evaluator. Keep the data out of the template and there is nothing to filter.
+3. JSON-only does not automatically make you safe, because XML parsers get invoked on paths you may not think of as "XML endpoints." Office documents (\`.docx\`, \`.xlsx\`, \`.pptx\`) and \`.svg\` images are XML — a parser runs when you process an upload, generate a thumbnail, or extract text. SAML single-sign-on assertions are XML. So are SOAP calls to legacy partners, RSS/Atom feeds you ingest, sitemaps you crawl, and many document-conversion libraries. Any of those can reach a parser with external-entity resolution on. "We only accept JSON at the front door" is not the same as "no XML parser runs anywhere in our stack."
+4. Because an external entity's URI can point at either a **file** (\`file:///...\`) or a **network resource** (\`http://...\`), and the parser dutifully fetches whichever it is — from the *server's* position in the network. So the same feature that reads \`/etc/passwd\` also makes the server issue an outbound request to \`http://169.254.169.254/latest/meta-data/\` (cloud credentials) or to internal-only hosts behind the firewall. For a defender that means locking down the filesystem is only half the job: even a server with nothing sensitive on disk can be turned into a **request proxy into your internal network** (SSRF, Module 8.3). The two impacts share one root cause — the parser resolves an attacker-controlled URI — so they must be fixed at that root, not by protecting files alone.
+5. **Disable DOCTYPE processing / external-entity resolution** — one flag (\`disallow-doctype-decl\` in Java, \`resolve_entities=False\` / \`no_network\` in lxml, \`libxml_disable_entity_loader\` historically in PHP, or simply rejecting any document whose prolog contains \`<!DOCTYPE\`). It is preferable to sanitizing for \`<!ENTITY>\` because sanitizing is a blocklist against a flexible grammar: entity declarations can be laid out with unusual whitespace, parameter entities (\`%name;\`), nested and external DTDs pulled from a URL, and encodings that a naive string scan misses — and one bypass is full compromise. Turning the feature off removes the capability entirely, so there is no payload to miss. It is the same "change the primitive" move as parameterized queries and \`safetensors\`: don't detect the dangerous input, use an engine that can't act on it.
+</details>
+
+---
+
+### 🧪 Workbench: 7*7, then read a file you shouldn't
+
+> **What this trains.** You'll watch a template engine evaluate an attacker's expression (the \`{{7*7}}\` probe), escalate it to real code execution through the JS runtime, then fix it by moving data into the context. Then you'll build a tiny XML entity resolver, use it to exfiltrate a "secret" file, and close it with the one-line DOCTYPE rejection. Both labs are a faithful model of what the real engines do — Node only, no packages, no network.
+
+\`\`\`bash
+mkdir -p ~/ssti-workbench && cd ~/ssti-workbench
+\`\`\`
+
+**The rule:** predict each result before running; write your fix before opening a walkthrough.
+
+#### 🟢 Drill 1 — the 7*7 that becomes a shell ~8 min
+
+**Goal.** Build the naive template engine, confirm \`{{ 7*7 }}\` renders as \`49\` when the username is concatenated in, then escalate the same hole to run a runtime call.
+
+\`\`\`bash
+cat > tpl.js <<'EOF'
+// A naive template engine, ~4 lines. Real engines (Nunjucks, Pug, Jinja2,
+// Handlebars-with-helpers) do a far more sophisticated version of exactly
+// this: find an expression, EVALUATE it, substitute the result.
+function render(template, ctx) {
+  return template.replace(/\\{\\{(.+?)\\}\\}/g, (_, expr) =>
+    Function("ctx", "with(ctx){ return (" + expr + ") }")(ctx));
+}
+
+// CORRECT use: template is a constant, user data is passed as context.
+console.log("safe :", render("Hello {{name}}, you have {{count}} messages.",
+                             { name: "Dana", count: 3 }));
+
+// THE BUG: user input concatenated INTO the template string.
+const username = "{{ 7*7 }}";                 // hostile input
+console.log("bug  :", render("Hello " + username + ", welcome back.", {}));
+
+// Escalate: reach the runtime through the function constructor.
+const rce = "{{ this.constructor.constructor('return process.platform')() }}";
+console.log("rce  :", render("Hi " + rce, {}));
+EOF
+node tpl.js
+\`\`\`
+
+**Done when.** \`bug\` prints \`Hello 49\` and \`rce\` prints your platform (e.g. \`Hi darwin\`) — the attacker's expression ran inside your process.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`
+safe : Hello Dana, you have 3 messages.
+bug  : Hello 49, welcome back.
+rce  : Hi darwin
+\`\`\`
+The \`safe\` line is the engine used correctly: the template is a constant and \`{{name}}\`/\`{{count}}\` are substituted from the context object — the attacker never controls the template text. The \`bug\` line is the whole vulnerability: because the username was **concatenated into the template**, \`{{ 7*7 }}\` is now part of the string the engine evaluates, so it computes 49. And \`rce\` shows why "just a math bug" is fatally wrong — \`this.constructor.constructor\` is the \`Function\` constructor, so the attacker builds and calls a new function that reaches \`process\`, and from there \`require('child_process')\` is one step away. This is the exact data-vs-code failure of SQLi (Module 3.2) and XSS (Module 2.2), now at the template engine: untrusted text reached an evaluator. In a real app the sink is \`nunjucks.renderString('Hi ' + req.query.name)\` — the same concatenation, a production RCE.
+</details>
+
+#### 🟡 Build 1 — move the data out of the template ~6 min
+
+**Goal.** Write \`renderSafe(template, ctx)\` that never evaluates: it only substitutes \`{{key}}\` from \`ctx\` when \`ctx\` actually owns that key, and returns the payload as inert text. Prove \`{{ 7*7 }}\` passed as a *name* now renders literally.
+
+**Done when.** \`renderSafe("Hello {{name}}, welcome back.", { name: "{{ 7*7 }}" })\` prints \`Hello {{ 7*7 }}, welcome back.\` — the payload is shown, not computed.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+The fix is to **stop calling \`Function\`/\`eval\` entirely**. Look up \`ctx[key]\` with \`Object.prototype.hasOwnProperty.call(ctx, key)\` and return \`String(ctx[key])\` — a plain substitution. There is no expression evaluation left, so there is nothing for \`{{ 7*7 }}\` to trigger. This mirrors how a real engine keeps the template (constant) and the data (context) on separate channels.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+function renderSafe(template, ctx) {
+  return template.replace(/\\{\\{(.+?)\\}\\}/g, (_, expr) => {
+    const key = expr.trim();
+    if (!Object.prototype.hasOwnProperty.call(ctx, key)) return "";  // no eval, ever
+    return String(ctx[key]);                                          // data, not code
+  });
+}
+console.log(renderSafe("Hello {{name}}, welcome back.", { name: "{{ 7*7 }}" }));
+// -> Hello {{ 7*7 }}, welcome back.
+\`\`\`
+The payload is rendered as literal text because the substituting code **never evaluates anything** — it looks up a key and stringifies the value. The attacker's \`{{ 7*7 }}\`, arriving as the *value* of \`name\`, is data all the way through; there is no evaluator for it to reach. That is the production fix restated: give the engine a constant template and pass user input through the context object, so untrusted text is structurally incapable of becoming template code. Whitelisting keys (only substitute names \`ctx\` owns) also stops \`{{constructor}}\` and prototype-walking probes. Notice you did not write a single filter for \`{{\` — you removed the capability instead of trying to detect its abuse.
+</details>
+
+#### 🔴 Break & Defend — the XML that reads your secrets ~10 min
+
+Now XXE. Build a minimal parser that resolves external entities, use it to steal a file, then shut the feature off.
+
+\`\`\`bash
+printf 'TOP-SECRET: launch code is 0000\\n' > secret.txt
+cat > xxe.js <<'EOF'
+const fs = require("fs");
+// A tiny XML-with-entities processor. It does the ONE thing a real parser does
+// that creates XXE: on seeing <!ENTITY x SYSTEM "file://..."> it resolves the
+// external resource and substitutes &x; with its contents.
+function parseWithEntities(xml) {
+  const entities = {};
+  for (const m of xml.matchAll(/<!ENTITY\\s+(\\w+)\\s+SYSTEM\\s+"([^"]+)"\\s*>/g)) {
+    const [, name, uri] = m;
+    if (uri.startsWith("file://"))
+      entities[name] = fs.readFileSync(uri.replace("file://", ""), "utf8");  // <-- XXE
+  }
+  return xml.replace(/&(\\w+);/g, (_, n) => entities[n] ?? "&" + n + ";");
+}
+
+const attack = [
+  '<?xml version="1.0"?>',
+  '<!DOCTYPE foo [',
+  '  <!ENTITY secret SYSTEM "file://' + __dirname + '/secret.txt">',
+  ']>',
+  '<order><note>&secret;</note></order>',
+].join("\\n");
+console.log(parseWithEntities(attack));
+EOF
+node xxe.js
+\`\`\`
+
+Then, in your journal:
+1. The parser printed the secret file's contents inside the \`<note>\` element. In one sentence, why — what did the DOCTYPE make it do?
+2. Change the external URI from \`file://.../secret.txt\` to \`http://169.254.169.254/...\`. Without running it against a real endpoint, state what that variant does and which Module 8.3 attack it becomes.
+3. Write \`parseSafely(xml)\` that closes the hole with **one rule**, and say why that is better than scanning the XML for \`<!ENTITY>\`.
+
+**Done when.** Your \`parseSafely\` **rejects any document containing \`<!DOCTYPE\`** (throwing rather than resolving), still parses a benign \`<order>\`, and your journal explains that entity resolution is a parser capability to disable, not a string to sanitize.
+
+<details>
+<summary>Walkthrough — open after you've written your answers and fix</summary>
+
+\`\`\`
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+  <!ENTITY secret SYSTEM "file:///.../secret.txt">
+]>
+<order><note>TOP-SECRET: launch code is 0000
+</note></order>
+\`\`\`
+
+1. **Because the DOCTYPE declared an external entity and the parser resolved it.** \`<!ENTITY secret SYSTEM "file://...">\` tells the parser "when you see \`&secret;\`, go fetch that URI and substitute its contents" — so the file was read off disk and spliced into the document, then handed back to the app as if it were legitimate XML data. The app didn't read the file; the *parser* did, on the attacker's instruction.
+2. **It turns XXE into SSRF (Module 8.3).** \`file://\` reads local files; \`http://169.254.169.254/latest/meta-data/iam/security-credentials/\` makes the *server* issue an outbound request to the cloud metadata endpoint and splice the response — often temporary cloud credentials — back into the document or an error message. Same feature, network destination instead of a file: the parser fetches whatever URI the attacker names, from the server's network position, behind your firewall.
+3. The fix:
+\`\`\`js
+function parseSafely(xml) {
+  if (/<!DOCTYPE/i.test(xml)) throw new Error("DOCTYPE not allowed");  // reject, don't resolve
+  return xml.replace(/&(\\w+);/g, (_, n) => "&" + n + ";");             // no external lookup
+}
+\`\`\`
+Rejecting the DOCTYPE outright is better than scanning for \`<!ENTITY>\` because entity declarations are a flexible grammar: parameter entities (\`%x;\`), external DTDs pulled from a URL, odd whitespace, and alternate encodings all evade a naive \`<!ENTITY>\` string match, and a single miss is full file/SSRF compromise. Real parsers expose this as one setting — \`disallow-doctype-decl\`, \`resolve_entities=False\`, \`noent=false\` — so you disable the *capability* instead of policing its syntax. You almost never legitimately need a DOCTYPE on an inbound document, so turning it off costs nothing.
+
+**Outside the box:** SSTI and XXE are the same lesson as SQLi, XSS, and command injection — *untrusted data reached an engine that treats data as instructions* — but they land in code you didn't write, which is why they're so often missed: the dangerous behavior is a *default* of a library, not a line in your diff. That reframes secure development: you are responsible not only for your own sinks but for the **capabilities of every engine you hand data to**. Read what your template renderer evaluates, what your XML/YAML/Markdown parser resolves, what your deserializer reconstructs — and turn off the powerful defaults you don't need. Clean up: \`rm -rf ~/ssti-workbench\`.
+</details>
+
+---
+
+➡️ **Next step:** SSTI and XXE were engines evaluating attacker *expressions* and *markup*. The next pair is engines rebuilding attacker *objects* — where a deserializer or a config-merge lets untrusted data reconstruct program state. Continue to **Module 3.9: Insecure Deserialization and Prototype Pollution**.`,
+    tracker: [
+      "Can explain SSTI as user input concatenated into an evaluated template, and why {{7*7}}→49 signals RCE",
+      "Knows the SSTI fix is passing data via the context object, never string-building the template",
+      "Can explain XXE as a parser resolving external entities, and that it yields file read AND SSRF",
+      "Knows the XXE fix is disabling DOCTYPE / external-entity resolution, and which upload paths hide XML parsers",
+      "Workbench: rendered {{7*7}}→49 then escalated to a runtime call via this.constructor.constructor, and fixed it by moving data into the context",
+      "Workbench: exfiltrated a file with an external XML entity, reasoned about the 169.254.169.254 SSRF variant, and closed it by rejecting DOCTYPE"
+    ]
+  },   {
+    id: "m3_9",
+    phaseId: "p3",
+    num: "3.9",
+    title: "Insecure Deserialization and Prototype Pollution",
+    objective: "Two ways untrusted data reconstructs program state. Insecure deserialization turns a serialized blob (a cookie, a cache entry, a queue message) back into live objects — and formats like Python pickle or the old node-serialize rebuild objects by RUNNING code, so a crafted blob is remote code execution on load. Prototype pollution is the JavaScript-specific cousin: a recursive merge of attacker JSON that walks a __proto__ key corrupts Object.prototype itself, changing the behavior of every object in the process. Both are fixed by refusing to let untrusted data drive object construction.",
+    body: `> **Why this matters.** Serialization is everywhere — session cookies, caches, message queues, config merges, API bodies. The moment you turn attacker-reachable bytes *back* into objects, you have to ask what that reconstruction is allowed to do. For pickle and node-serialize the answer is "run arbitrary code"; for a naive JS deep-merge the answer is "rewrite \`Object.prototype\`." Insecure deserialization is its own OWASP category (A08), and prototype pollution is the JS runtime's native version of the same idea.
+
+### 🎯 Concept: Insecure Deserialization
+
+Serialization converts an object to bytes; deserialization reverses it. The danger is that some formats reconstruct objects by **executing instructions embedded in the data**:
+- **Python \`pickle\`** (and \`torch.load\`, which uses it — Module 7.5.4) calls an object's \`__reduce__\` on load, so a malicious blob runs \`os.system(...)\` the instant you \`pickle.loads\` it.
+- **The old \`node-serialize\`** rebuilt function values with \`eval\`, so a JSON blob tagged as a function executed on deserialization.
+- **Java/PHP native serialization** reconstruct arbitrary classes, enabling "gadget chain" RCE.
+
+The unifying rule: **a serialized blob from an untrusted source is untrusted input, and formats that reconstruct code or arbitrary types are unsafe to load.** The attacker's blob rides in through a cookie, a cache value, a message-queue payload, or a request body — anywhere your app reads back something it (or a previous request) wrote.
+
+\`\`\`python
+# ❌ DANGER: pickle runs code on load. Any attacker-reachable blob = RCE.
+import pickle
+obj = pickle.loads(request.cookies["session"])   # crafted cookie -> os.system(...) fires here
+
+# ✅ SAFE: a data-only format that reconstructs values, not code.
+import json
+obj = json.loads(request.cookies["session"])     # worst case: bad data, never code
+\`\`\`
+
+**The fix:** carry state in **data-only formats (JSON)**, sign/verify anything round-tripped through a client (Module 6.2/6.3 — a tampered blob fails the signature before it's ever parsed), and never \`pickle.loads\` / native-deserialize bytes an attacker can influence. If you must deserialize rich types, use an allow-list of permitted classes.
+
+### 🎯 Concept: Prototype Pollution
+
+JavaScript objects inherit from \`Object.prototype\`. If attacker-controlled keys reach a recursive merge or a deep \`set\` — and one of those keys is \`__proto__\` — the write lands on the **shared prototype**, so *every* object in the program suddenly has the injected property:
+
+\`\`\`js
+// ❌ VULNERABLE deep-merge: no guard on the key being walked
+function merge(target, source) {
+  for (const key in source) {
+    if (typeof source[key] === "object" && source[key] !== null) {
+      if (!target[key]) target[key] = {};
+      merge(target[key], source[key]);      // walking "__proto__" writes Object.prototype
+    } else { target[key] = source[key]; }
+  }
+}
+merge({}, JSON.parse('{"__proto__": {"isAdmin": true}}'));
+console.log(({}).isAdmin);   // -> true : a brand-new empty object is now "admin"
+\`\`\`
+
+The impact depends on what your code later reads off objects: an injected \`isAdmin\` can flip an authorization check; an injected \`length\` or config key can cause DoS or change control flow; and in some stacks a polluted property becomes a gadget into **SSTI/RCE**. It shows up wherever untrusted JSON is deep-merged: config loaders, query-string parsers, ORM \`update\` calls, feature-flag merges.
+
+**The fixes, layered:** guard the dangerous keys (\`__proto__\`, \`constructor\`, \`prototype\`) in any recursive merge; store lookup tables in \`Object.create(null)\` (a "null-prototype" object with no chain to poison) or a \`Map\`; use \`Object.freeze(Object.prototype)\` as a backstop; and validate input against a schema so unexpected keys are rejected at the edge.
+
+### Knowledge check: Deserialization and Prototype Pollution
+
+1. Why is \`pickle.loads(user_bytes)\` categorically more dangerous than \`json.loads(user_bytes)\`, even if both inputs are "just a session blob"?
+2. Your team keeps rich objects in a signed cookie and says the signature makes deserialization safe. Are they right? What exactly does the signature protect, and what must still be true about the format?
+3. In the prototype-pollution demo, an object created *before* the malicious merge still gained \`isAdmin\`. Why — what is actually being modified?
+4. Name two places in a normal web app where attacker JSON reaches a recursive merge, and the two most effective structural defenses.
+5. Both bugs are in this "untrusted data rebuilds objects" family. State the one-sentence principle that fixes both, and connect it to a defense you already learned in Phase 6.
+
+<details>
+<summary>Show answers</summary>
+
+1. Because the two formats **reconstruct different things**. \`json.loads\` produces only inert data types — objects, arrays, strings, numbers, booleans, null — so the worst an attacker achieves is *wrong data*, which your validation then catches. \`pickle.loads\` reconstructs **arbitrary Python objects by executing their \`__reduce__\` method**, which a malicious blob sets to \`(os.system, ("...",))\` — so deserializing runs attacker code *during the load*, before you inspect anything. It is not "risky data," it is code execution: the blob is a program, and \`loads\` is its interpreter. "Just a session blob" is exactly the delivery vehicle, because sessions are attacker-reachable.
+2. Partly right, with a critical caveat. A signature (HMAC/JWS from Modules 6.2–6.3) guarantees **integrity and authenticity** — a blob whose bytes were tampered with, or forged without the key, fails verification and is rejected *before* it is deserialized. That genuinely stops an attacker from crafting a malicious pickle and having you load it, **provided the signature is verified first and the key is secret**. But the caveat: signing does nothing if the format is dangerous *and* the attacker ever obtains the signing key, and it does nothing against a blob *your own server* legitimately produced from earlier attacker-influenced data. Defense in depth says use a **data-only format anyway** — sign a JSON payload, not a pickle — so that even a verification slip or key leak degrades to "bad data," not RCE. Signature protects the transport; the format choice protects the load.
+3. Because the merge modified **\`Object.prototype\` itself**, not the individual object. Walking the key \`__proto__\` during the recursive merge resolves to the shared prototype that *every* object delegates to, and the write \`isAdmin = true\` lands there. Property lookup in JS walks the prototype chain, so when you read \`someObject.isAdmin\` and the object has no own \`isAdmin\`, the engine finds it on the polluted prototype — regardless of when that object was created. One write to the shared parent changes the apparent properties of all existing and future objects at once, which is what makes prototype pollution a *global* corruption rather than a single-object bug.
+4. Reaches a recursive merge: **config/settings loaders** merging a user-supplied JSON body over defaults; **query-string / body parsers** that expand \`a[__proto__][x]=1\` into nested objects; **ORM \`update(model, req.body)\`** calls; **feature-flag or preference merges**. The two strongest structural defenses: **(a) guard the dangerous keys** (\`__proto__\`, \`constructor\`, \`prototype\`) in every recursive merge/set — skip them explicitly — and **(b) don't use plain objects as maps for untrusted keys**: use \`Object.create(null)\` (no prototype to pollute) or a \`Map\`. Backstops: \`Object.freeze(Object.prototype)\` and schema validation that rejects unexpected keys at the edge (Module 3.1/3.3).
+5. **Never let untrusted data drive object construction — carry state as inert data, validated at the edge, and refuse formats/keys that reconstruct code or corrupt shared structure.** The Phase 6 connection: **sign and verify anything you round-trip through the client** (session cookies, tokens — Modules 6.2/6.3). A verified blob can't be swapped for an attacker's crafted one, which stops the deserialization delivery path at the door — and pairing that with a data-only format means even a bypass degrades to bad data rather than code execution or prototype corruption.
+</details>
+
+---
+
+### 🧪 Workbench: run code by "loading data," then make one object admin-ify all of them
+
+> **What this trains.** Two short labs, one theme. First you'll deserialize a blob that *runs code* the moment it's loaded — the node-serialize class of bug — and fix it by refusing to reconstruct functions. Then you'll deep-merge attacker JSON and watch a \`__proto__\` key make every object in the process report \`isAdmin: true\`, and fix it two ways. Node only, no packages.
+
+\`\`\`bash
+mkdir -p ~/deser-workbench && cd ~/deser-workbench
+\`\`\`
+
+#### 🟢 Drill 1 — the "data" that runs on load ~7 min
+
+**Goal.** Build a deserializer that rebuilds function values (as \`node-serialize\` did), then feed it a blob that executes during the load.
+
+\`\`\`bash
+cat > deser.js <<'EOF'
+// A "rich" deserializer that supports functions - the real node-serialize library
+// did exactly this: tag a function value, rebuild it with eval on load.
+function deserialize(json) {
+  return JSON.parse(json, (key, val) => {
+    if (typeof val === "string" && val.startsWith("__fn__"))
+      return eval("(" + val.slice(6) + ")");   // rebuilds a function by EVALUATING it
+    return val;
+  });
+}
+
+console.log("benign:", deserialize('{"total": 42}').total);
+
+// Attack: the payload is an IIFE, so eval RUNS it during deserialization.
+const payload = '{"pwned": "__fn__(function(){ return process.platform })()"}';
+console.log("attack:", deserialize(payload).pwned);
+EOF
+node deser.js
+\`\`\`
+
+**Done when.** \`attack\` prints your platform (e.g. \`darwin\`) — deserializing a JSON string executed code. Picture that blob arriving in a cookie.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`
+benign: 42
+attack: darwin
+\`\`\`
+The reviver treats any string starting \`__fn__\` as a serialized function and \`eval\`s it to "rebuild" it — so a value that is really \`(function(){ return process.platform })()\` is *executed* during \`JSON.parse\`, before your code ever touches the result. That is insecure deserialization (A08): the blob is not data, it's a program, and your deserializer is its interpreter. It is the same root cause as Python \`pickle\`'s \`__reduce__\` (Module 7.5.4) — a format that reconstructs *code*, fed bytes an attacker controls. In the real \`node-serialize\` CVE the payload rode in a cookie; here \`process.platform\` is harmless, but \`require('child_process').execSync('...')\` is the same one line. The tell: your deserializer can produce a *function*, which means it can produce *behavior*, which means the input decides what runs.
+</details>
+
+#### 🟡 Build 1 — refuse to reconstruct code ~5 min
+
+**Goal.** Replace the reviver so deserialization can only ever yield data. Prove the same payload comes back as an inert string, and the benign object still works.
+
+**Done when.** \`safeDeserialize(payload).pwned\` is the literal string \`"__fn__(function(){ return process.platform })()"\` (or is dropped), and \`safeDeserialize('{"total":42}').total\` is \`42\`.
+
+<details>
+<summary>Nudge — open if stuck more than three minutes</summary>
+
+The vulnerability is entirely in the reviver calling \`eval\`. Remove it: \`JSON.parse(json)\` with **no reviver** already produces data-only values, so the \`__fn__\` string stays a string. If you want to be explicit, keep a reviver that *rejects* or strips any \`__fn__\`-tagged value rather than evaluating it. The lesson is the format choice: JSON reconstructs data; never bolt code-reconstruction onto it.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`js
+function safeDeserialize(json) {
+  return JSON.parse(json);   // no reviver -> only data types, never code
+}
+console.log(safeDeserialize('{"pwned":"__fn__(function(){ return process.platform })()"}').pwned);
+// -> __fn__(function(){ return process.platform })()   (an inert string)
+console.log(safeDeserialize('{"total":42}').total);   // -> 42
+\`\`\`
+Plain \`JSON.parse\` reconstructs only objects, arrays, strings, numbers, booleans, and null — there is no path to a function, so the \`__fn__\` payload is just a harmless string your validation can then reject. That is the deserialization fix in one move: **use a data-only format and never teach it to rebuild code**. In production the same principle scales up: carry session state as signed JSON (the signature from 6.2/6.3 stops a tampered blob before parsing), and if you genuinely must deserialize rich types, load only an explicit allow-list of safe classes. Notice you didn't sanitize the payload — you removed the capability that made it dangerous.
+</details>
+
+#### 🔴 Break & Defend — one object poisons them all ~10 min
+
+**Goal.** Deep-merge attacker JSON with a \`__proto__\` key and watch global pollution, then fix it.
+
+\`\`\`bash
+cat > proto.js <<'EOF'
+function merge(target, source) {
+  for (const key in source) {
+    if (typeof source[key] === "object" && source[key] !== null) {
+      if (!target[key]) target[key] = {};
+      merge(target[key], source[key]);      // BUG: no key guard
+    } else { target[key] = source[key]; }
+  }
+  return target;
+}
+const user = {};                            // created BEFORE the attack; has no isAdmin
+console.log("before: ({}).isAdmin =", ({}).isAdmin);
+merge({}, JSON.parse('{"__proto__": {"isAdmin": true}}'));
+console.log("after:  ({}).isAdmin =", ({}).isAdmin);
+console.log("victim: user.isAdmin =", user.isAdmin);
+EOF
+node proto.js
+\`\`\`
+
+Then, in your journal:
+1. \`user\` was created before the merge yet now reports \`isAdmin: true\`. What was actually modified, and why does it affect an already-existing object?
+2. Give a concrete auth bug this causes in a real Express handler that does \`merge(defaults, req.body)\`.
+3. Write the fix **two ways**: a guarded merge, and a data structure that has nothing to pollute.
+
+**Done when.** \`after\` and \`victim\` both print \`true\`; your guarded \`safeMerge\` leaves \`({}).isAdmin\` \`undefined\`; and you can name \`Object.create(null)\` / \`Map\` as the structural fix.
+
+<details>
+<summary>Walkthrough — open after you've written your answers and fix</summary>
+
+\`\`\`
+before: ({}).isAdmin = undefined
+after:  ({}).isAdmin = true
+victim: user.isAdmin = true
+\`\`\`
+1. **\`Object.prototype\` was modified, not \`user\`.** Merging the key \`__proto__\` made the recursive call write \`isAdmin = true\` onto the shared prototype every object delegates to. Because property reads walk the prototype chain, \`user.isAdmin\` — which has no *own* \`isAdmin\` — resolves up to the polluted prototype and returns \`true\`. One write to the shared parent changes what every object, past and future, appears to have.
+2. In a handler like \`app.patch('/me', (req,res) => { const u = merge({...defaults}, req.body); ... })\`, a body of \`{"__proto__":{"isAdmin":true}}\` pollutes the prototype, so a later \`if (currentUser.isAdmin)\` check anywhere in the request — or in a *concurrent* request in the same process — passes for a user who is not an admin. The authorization decision reads a property the attacker planted on every object at once. (Injected \`length\`, \`toString\`, or config keys can similarly cause DoS or change control flow.)
+3. Both fixes:
+\`\`\`js
+// (a) guard the dangerous keys in the merge
+const DANGER = new Set(["__proto__", "constructor", "prototype"]);
+function safeMerge(target, source) {
+  for (const key in source) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    if (DANGER.has(key)) continue;                     // never walk these
+    if (typeof source[key] === "object" && source[key] !== null) {
+      if (!target[key]) target[key] = {};
+      safeMerge(target[key], source[key]);
+    } else { target[key] = source[key]; }
+  }
+  return target;
+}
+// (b) a structure with no prototype to poison
+const bag = Object.create(null);   // Object.getPrototypeOf(bag) === null
+\`\`\`
+The guarded merge refuses to walk \`__proto__\`/\`constructor\`/\`prototype\`, so an attacker key can't reach the shared prototype. The null-prototype object (or a \`Map\`) removes the target entirely — there is no chain to climb. Layer both with \`Object.freeze(Object.prototype)\` as a backstop and schema validation that rejects unexpected keys at the edge (Module 3.1). Well-known libraries take the same approach: use \`Map\` for untrusted keys, or vetted deep-merge utilities that guard these keys by default.
+
+**Outside the box:** deserialization and prototype pollution are the "object construction" face of this course's one lesson: *untrusted data must never become executable structure.* SSTI let data become template code; XXE let it become a parser fetch; here it becomes reconstructed objects (with methods that run) or a rewritten prototype (that changes everyone's behavior). Every fix was the same shape — deny the capability rather than filter the payload: JSON instead of pickle, a guarded merge or null-prototype map instead of a blocklist. When you meet the next such bug (YAML \`!!python/object\`, .NET \`BinaryFormatter\`, a Ruby Marshal load), you already know the move: what is this format allowed to reconstruct, and can I use one that can't? Clean up: \`rm -rf ~/deser-workbench\`.
+</details>
+
+---
+
+➡️ **Next step:** You've defended the engines that evaluate and rebuild attacker data. One server-side class remains — where the disagreement isn't about *content* but about where one request *ends*. Continue to **Module 3.10: HTTP Request Smuggling**.`,
+    tracker: [
+      "Can explain why pickle/native/node-serialize deserialization of attacker bytes is RCE, and JSON is not",
+      "Knows the fix: data-only formats, sign round-tripped blobs, allow-list classes if rich types are required",
+      "Can explain prototype pollution as a __proto__ key in a recursive merge writing Object.prototype globally",
+      "Knows the fixes: guard __proto__/constructor/prototype, Object.create(null)/Map, freeze the prototype, schema-validate",
+      "Workbench: deserialized a blob that executed code on load, then removed the code-reconstruction capability",
+      "Workbench: polluted Object.prototype via a __proto__ deep-merge (an old object gained isAdmin) and fixed it with a guarded merge and a null-prototype structure"
+    ]
+  },   {
+    id: "m3_10",
+    phaseId: "p3",
+    num: "3.10",
+    title: "HTTP Request Smuggling",
+    objective: "Every other bug in this phase was about the CONTENT of a request. Smuggling is about its BOUNDARIES. When a front-end proxy and a back-end server disagree about where one HTTP request ends — because the request carries both a Content-Length and a Transfer-Encoding header — an attacker can hide a second request inside the first. The back-end processes the smuggled prefix as if it were the next user's request: bypassing front-end access controls, poisoning the connection, and hijacking other users' traffic. The fix is to make the whole chain parse request boundaries identically, and reject ambiguous requests outright.",
+    body: `> **Why this matters.** Modern apps sit behind a chain: CDN → load balancer → reverse proxy → app server. Each hop re-parses the HTTP stream to decide where one request stops and the next starts. If two hops disagree — and the HTTP spec left just enough ambiguity for them to — an attacker can smuggle a request past the front-end's security checks and have the back-end run it. Request smuggling (a facet of the OWASP "Server-Side Request" family) is a protocol-level bug, so it bypasses defenses that only inspect request *content*.
+
+### 🎯 Concept: two ways to say where the body ends
+
+HTTP/1.1 gives a request two different mechanisms to declare its body length:
+- **\`Content-Length: 6\`** — "the body is exactly 6 bytes."
+- **\`Transfer-Encoding: chunked\`** — "the body is a series of size-prefixed chunks, ending with a \`0\`-size chunk."
+
+A request should never carry both. When one does, the spec says to prefer \`Transfer-Encoding\` — but not every server obeys, and that disagreement is the whole vulnerability. If the **front-end honors \`Content-Length\`** and the **back-end honors \`Transfer-Encoding\`** (a "CL.TE" desync), they split the byte stream at different points:
+
+\`\`\`
+POST /search HTTP/1.1
+Host: shop.example
+Content-Length: 6
+Transfer-Encoding: chunked
+
+0
+
+GPOST /admin HTTP/1.1
+Host: shop.example
+\`\`\`
+
+The front-end (Content-Length: 6) reads 6 bytes of body and forwards the whole thing, considering it one request. The back-end (chunked) sees the \`0\`-size chunk and decides the body **ended there** — so the bytes starting \`GPOST /admin...\` are left in the connection buffer as the *start of the next request*. Whoever's real request arrives next gets the smuggled \`GPOST /admin\` prefix glued to the front of it.
+
+### 🎯 Concept: what the desync buys an attacker
+
+Because the smuggled prefix is processed by the back-end **as if it were a legitimate request on that connection**, smuggling enables:
+- **Bypassing front-end access control.** The front-end enforces "\`/admin\` requires auth" — but it never *saw* the smuggled \`/admin\` as a request path; it saw one \`POST /search\`. The back-end runs \`/admin\` with the front-end's checks skipped.
+- **Request hijacking / cache poisoning.** The smuggled prefix attaches to the *next user's* request, so the attacker can capture that victim's request (steal their session cookie or CSRF token) or poison a shared cache with a malicious response.
+- **Credential and header smuggling** past WAFs that only inspect the first request.
+
+**The fixes** (defense in depth):
+- **Normalize the chain:** make every hop use the same HTTP parser / same rules, ideally **HTTP/2 end-to-end** — HTTP/2 carries length in the frame layer, so the CL-vs-TE ambiguity does not exist. Most smuggling lives at HTTP/1.1 downgrade boundaries.
+- **Reject ambiguity:** the front-end should **refuse any request that contains both \`Content-Length\` and \`Transfer-Encoding\`**, and reject malformed chunked bodies, rather than trying to "prefer" one.
+- **Don't reuse the back-end connection** for multiple clients where feasible, so a leftover prefix can't bleed into another user's request.
+
+### Knowledge check: HTTP Request Smuggling
+
+1. Every other bug in this phase was about request *content*. In one sentence, what is request smuggling about instead — and why does that let it bypass a WAF that inspects request bodies?
+2. Explain a CL.TE desync: which header does each side honor, and where does each decide the first request ends?
+3. The front-end enforces authentication on \`/admin\`. How does smuggling reach \`/admin\` anyway, given the front-end never forwarded an authenticated \`/admin\` request?
+4. Smuggling can steal *another user's* session cookie even though the attacker never sees that user's traffic directly. By what mechanism?
+5. Why does HTTP/2 end-to-end eliminate the classic CL/TE desync, and what is the simplest front-end rule to reject the ambiguity while you still run HTTP/1.1?
+
+<details>
+<summary>Show answers</summary>
+
+1. It is about request **boundaries** — where one request ends and the next begins — not the content of any single request. It bypasses a content-inspecting WAF because the malicious request is *hidden inside the body of a benign one*: the WAF (at the front-end) sees a single well-formed \`POST /search\` and passes it, while the smuggled \`/admin\` request only materializes *after* the back-end re-parses the stream and splits it differently. The dangerous request never exists as a discrete request at the layer doing the inspecting, so there is nothing for the content filter to catch.
+2. In a **CL.TE** desync the **front-end honors \`Content-Length\`** and the **back-end honors \`Transfer-Encoding: chunked\`**. The front-end reads exactly \`Content-Length\` bytes of body and treats the whole thing as one request, forwarding it on. The back-end instead follows the chunked encoding: it sees the terminating \`0\`-size chunk and decides the body ended *there* — so any bytes after the \`0\`-chunk (which the front-end thought were still part of the body) are left in the buffer and interpreted as the beginning of the **next** request. The two sides split the same byte stream at two different offsets; the gap between those offsets is the smuggled request.
+3. The front-end never sees a request *for* \`/admin\` — it sees one \`POST /search\` whose body happens to contain bytes that look like another request. Because those bytes are "body" to the front-end, its rule "\`/admin\` requires auth" never fires (there is no \`/admin\` request to gate). The back-end, splitting the stream differently, *does* see \`GPOST /admin ...\` as a request and runs it — but it trusts the front-end to have done access control, so it applies none of its own. The auth check is attached to the wrong layer's view of the request, and smuggling exploits precisely that the two layers disagree about what the requests even are.
+4. Through **connection reuse between the back-end and the front-end**. The attacker's smuggled prefix (say, an incomplete \`POST /comment\` with a large \`Content-Length\`) is left in the back-end's buffer; when the **next user's** real request arrives on that shared connection, the back-end *prepends the leftover prefix to it*, so the victim's request line and headers — including their \`Cookie:\` — get captured as the body of the attacker's smuggled request and stored/reflected somewhere the attacker can read (e.g. as a comment). The attacker never intercepts the victim's traffic on the wire; the desync makes the *server* splice it into attacker-controlled context.
+5. HTTP/2 carries message length in its **binary framing layer**, not in ambiguous text headers — each message is a defined sequence of frames with explicit lengths, so there is no "Content-Length vs Transfer-Encoding" question for two parties to answer differently. The desync is a property of HTTP/1.1's two redundant, text-based length mechanisms; remove the redundancy and the ambiguity is gone (classic smuggling now lives mostly at HTTP/2-to-HTTP/1.1 *downgrade* points, where the framing is re-serialized into ambiguous 1.1). While you still run HTTP/1.1, the simplest front-end rule is to **reject any request containing both a \`Content-Length\` and a \`Transfer-Encoding\` header** (and reject malformed chunked bodies) rather than trying to "prefer" one — an ambiguous request has no legitimate use, so refuse it outright.
+</details>
+
+---
+
+### 🧪 Workbench: split one byte-stream two ways
+
+> **What this trains.** Smuggling is hard to picture until you see two parsers disagree about the *same bytes*. You'll model a CL-honoring front-end and a TE-honoring back-end, run both over one crafted request, and watch the back-end surface a hidden \`/admin\` request the front-end never knew existed — then reason about the fix. This is a model of the parsing disagreement, not a network exploit: Node only, no sockets, no network, nothing to attack.
+
+\`\`\`bash
+mkdir -p ~/smuggle-workbench && cd ~/smuggle-workbench
+\`\`\`
+
+#### 🟢 Drill 1 — the same bytes, two request boundaries ~10 min
+
+**Goal.** Feed one byte-stream to two parsers and see them disagree about where request 1 ends — leaving a smuggled \`/admin\` request.
+
+\`\`\`bash
+cat > smuggle.js <<'EOF'
+// One TCP stream that LOOKS like a single POST. It carries BOTH Content-Length
+// and Transfer-Encoding - the ambiguity that causes the desync.
+const raw =
+  "POST /search HTTP/1.1\\r\\n" +
+  "Host: shop.example\\r\\n" +
+  "Content-Length: 6\\r\\n" +
+  "Transfer-Encoding: chunked\\r\\n" +
+  "\\r\\n" +
+  "0\\r\\n" +                       // chunked parser: size-0 chunk => body ENDS here
+  "\\r\\n" +
+  "GPOST /admin HTTP/1.1\\r\\n" +   // ...these bytes are the smuggled request
+  "Host: shop.example\\r\\n" +
+  "\\r\\n";
+
+// Front-end honors Content-Length: body is exactly 6 bytes ("0\\r\\n\\r\\n").
+function frontEnd_usesCL(bytes) {
+  const head = bytes.split("\\r\\n\\r\\n")[0];
+  const cl = Number(/Content-Length: (\\d+)/.exec(head)[1]);
+  const consumed = head.length + 4 + cl;
+  return { req1Bytes: consumed, leftover: bytes.slice(consumed) };
+}
+// Back-end honors Transfer-Encoding: body ends at the "0" chunk terminator.
+function backEnd_usesTE(bytes) {
+  const end = bytes.indexOf("0\\r\\n\\r\\n") + "0\\r\\n\\r\\n".length;
+  return { req1Bytes: end, leftover: bytes.slice(end) };
+}
+
+const fe = frontEnd_usesCL(raw), be = backEnd_usesTE(raw);
+console.log("front-end (CL) ends request 1 at byte", fe.req1Bytes);
+console.log("back-end  (TE) ends request 1 at byte", be.req1Bytes);
+console.log("\\nSMUGGLED prefix the back-end will treat as the next request:");
+console.log(JSON.stringify(be.leftover));
+EOF
+node smuggle.js
+\`\`\`
+
+**Done when.** The two parsers report **different** end-of-request-1 offsets, and the back-end's leftover is a \`.../admin\` request line the front-end never processed as a request.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`
+front-end (CL) ends request 1 at byte 98
+back-end  (TE) ends request 1 at byte 97
+
+SMUGGLED prefix the back-end will treat as the next request:
+"GPOST /admin HTTP/1.1\\r\\nHost: shop.example\\r\\n\\r\\n"
+\`\`\`
+The two functions parsed the **identical bytes** and disagreed about where request 1 ends — because they trusted different length headers. The front-end, honoring \`Content-Length: 6\`, treated \`0\\r\\n\\r\\n\` as the entire body and forwarded everything as one \`POST /search\`. The back-end, honoring \`Transfer-Encoding: chunked\`, saw the \`0\`-size chunk terminate the body one byte earlier and left \`GPOST /admin...\` sitting in the buffer as the start of the **next** request. (The stray \`G\` is deliberate: it's how the classic PortSwigger CL.TE lab keeps the smuggled line well-formed after the offset shift.) That leftover is the smuggle: the front-end's "\`/admin\` needs auth" rule never fired because it never saw an \`/admin\` *request*, and the back-end runs \`/admin\` trusting the front-end already did access control. No request *content* was malicious — the exploit is entirely in the **boundary disagreement**, which is why a body-inspecting WAF sails right past it.
+</details>
+
+#### 🔴 Break & Defend — refuse the ambiguity ~7 min
+
+In your journal:
+1. Both length headers were present. What single front-end rule would have rejected this request before any desync was possible, and why is "just prefer Transfer-Encoding like the spec says" not sufficient across a real proxy chain?
+2. Beyond bypassing \`/admin\` auth, describe how this same primitive lets an attacker capture the **next** user's session cookie. What server behavior makes that possible?
+3. Why does HTTP/2 end-to-end remove this entire bug class, and where does smuggling re-appear even when the edge speaks HTTP/2?
+
+**Done when.** Your answers name the **reject-if-both-CL-and-TE** rule (and rejecting malformed chunked bodies), explain that the attacker profits precisely from two hops *disagreeing* so uniform parsing/normalization is the real fix, tie cookie capture to **back-end connection reuse** splicing the smuggled prefix onto the victim's request, and state that HTTP/2's framed length removes the CL/TE ambiguity except at **HTTP/2→1.1 downgrade** boundaries.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+1. **Reject any request that carries both \`Content-Length\` and \`Transfer-Encoding\`** (and reject malformed/re-encoded chunked bodies) at the front-end — an ambiguous request has no legitimate use, so refuse it with a 400 rather than resolving it. "Just prefer Transfer-Encoding" is insufficient because the vulnerability is not *which* header wins at one hop; it's that **two hops resolve it differently**. If your front-end prefers TE but the back-end (or an intermediate CDN, or an origin behind it) prefers CL — or mishandles an obfuscated \`Transfer-Encoding : chunked\` with odd whitespace — you still get a desync. The durable fix is uniform, strict parsing across the *whole* chain (ideally the same proxy software/rules end to end), which is why "normalize the chain" and "reject ambiguity" are one strategy, not two.
+2. The attacker smuggles a prefix like \`POST /comment\` with a \`Content-Length\` larger than the data they send, leaving the back-end *waiting for more body*. When the **next user's** request arrives on the reused back-end connection, the back-end appends that victim's request — request line, headers, \`Cookie:\` and all — as the remaining body of the attacker's \`/comment\`, which then gets stored and displayed (or reflected) where the attacker can read it. The enabling behavior is **connection reuse between front-end and back-end**: because one back-end connection carries many users' requests in sequence, a leftover prefix from request N bleeds into request N+1. The attacker never sniffs the wire; the server splices the victim's data into attacker-controlled context.
+3. HTTP/2 frames every message with an **explicit length in the binary framing layer**, so there is no second, redundant, text-based way to state body length and therefore no CL-vs-TE question for two parties to answer differently — the ambiguity that the whole attack depends on simply isn't expressible. It re-appears at **downgrade boundaries**: when an HTTP/2 front-end proxies to an HTTP/1.1 back-end, it must *re-serialize* the request into 1.1, and bugs in that translation (e.g. faithfully copying an attacker-supplied \`content-length\` into the 1.1 request) recreate the desync ("H2.CL"/"H2.TE"). So HTTP/2 end-to-end is the clean fix; HTTP/2 only at the edge just moves the boundary.
+
+**Outside the box:** every earlier bug in this phase was a *sink* problem — untrusted data reaching SQL, a template, a parser, a deserializer. Smuggling is a *boundary* problem: the same bytes mean different things to different parsers, and the attacker lives in the gap. That's a distinct and portable idea — **whenever two systems must agree on how to interpret a shared stream, disagreement is an attack surface**. You'll meet it again in filename/path parsing differences (Module 3.4's polyglots), Unicode normalization mismatches, and cache-key confusion. The defense generalizes too: make the parties parse identically, and reject anything ambiguous instead of guessing. Clean up: \`rm -rf ~/smuggle-workbench\`.
+</details>
+
+---
+
+➡️ **Next step (Phase 3 complete):** Server code hardened, and the engines it feeds — templates, parsers, deserializers — and the request boundary itself all defended. Now zoom out to the industry-standard map of all major risk categories and practice exploiting them. Continue to **Phase 4: OWASP Top 10 and Web Exploitation Labs**.
 
 ### Phase 3 Deliverable
 
@@ -8836,8 +9433,8 @@ Create \`~/appsec-journal/notes/phase-3-backend-api-database.md\` and answer, in
 - Middleware order, input validation at the edge, and parameterized queries are three separate defenses from this phase. Give one concrete example of how getting *each one* wrong creates a real vulnerability.
 - Explain BOLA vs. BFLA, and why returning raw database rows to the client is a vulnerability even when the UI hides the extra fields.
 - A checkout endpoint trusts a client-supplied price, and a promo-code redemption has a check-then-update race condition. What do these two bugs have in common, and why wouldn't a SAST/DAST scanner catch either one?
-- You inherit a Rails app; a colleague says it's "safe from SQLi because we always use \`where(id: params[:id])\`." What do you check before believing that, and why does the same *kind* of question apply in every language, not just Rails?
-- A developer argues a WebSocket endpoint is safe because it requires a valid session cookie. What attack does this miss, and what's the server-side fix?
+- SSTI, XXE, insecure deserialization, and prototype pollution were four different bugs in four different engines. State the single root cause they share, and the single defensive *move* that recurs in all four fixes.
+- Request smuggling bypassed a front-end auth check on \`/admin\` without ever sending an authenticated \`/admin\` request. Explain how, and why the fix is "make the chain parse identically / reject ambiguity" rather than a content filter.
 
 <details>
 <summary>Show a model answer (write your own first — this is one way to answer, not the only way)</summary>
@@ -8845,23 +9442,20 @@ Create \`~/appsec-journal/notes/phase-3-backend-api-database.md\` and answer, in
 - **Three defenses, three failure examples:** Middleware order — registering a route handler *before* the auth middleware means that route runs for unauthenticated callers even though "auth middleware exists" in the codebase. Input validation at the edge — skipping it doesn't cause an injection by itself (parameterization/encoding still catch that), but it widens the attack surface: oversized bodies, unexpected types, and extra fields all reach business logic unfiltered. Parameterized queries — concatenating user input directly into SQL text (e.g. building the query as a string with the email glued in) lets input like \`' OR '1'='1\` become part of the query's *code*, matching every row instead of one.
 - **BOLA vs. BFLA, and raw rows:** BOLA (Broken Object Level Authorization) is the wrong user accessing *another user's* object — e.g. changing an id in the URL to view someone else's order. BFLA (Broken Function Level Authorization) is the wrong user reaching a *privileged endpoint entirely* — e.g. a normal user successfully calling \`/admin/delete\`. Returning raw DB rows is a vulnerability regardless of UI hiding, because the JSON response itself — visible in the browser's Network tab or to any direct API call — already contains the extra fields; the UI choosing not to *display* them does nothing to stop someone from reading the response directly. The fix is a DTO that only includes fields meant to be public.
 - **What the price and coupon bugs share:** both are **business logic flaws** — the code runs exactly as written and no input is malformed, but the *design* trusts something it shouldn't. The price bug trusts a client-supplied value instead of looking up the authoritative price server-side; the coupon bug trusts that a SELECT-then-UPDATE pair happens atomically, when two simultaneous requests can both pass the SELECT check before either UPDATE lands. Scanners can't catch either because there's no unsafe syntax pattern to match — SAST looks for code shapes like string-built SQL or dangerous sinks, and a perfectly well-formed "trust the client's price" or "check then update" is invisible to that kind of pattern matching. It takes a human (or a targeted race-condition test) asking "what happens if two of these run at once, or the client lies?"
-- **Verifying the Rails claim, and why it generalizes:** hash-style \`where(id: params[:id])\` is genuinely parameterized and safe — but that's only one query. You'd grep for string-interpolated queries (\`where("id = #{params[:id]}")\`), unparameterized \`.order(params[:sort])\`, and \`params.permit!\` (which disables Rails' mass-assignment protection entirely). The same *kind* of question applies in every language because the root cause of injection is universal — untrusted input treated as code instead of data — while the specific escape hatch that reintroduces it is framework-specific: Sequelize/Prisma's raw-query methods, Django's \`.raw()\`, Go's \`text/template\` instead of \`html/template\`. "We use the safe API" is only true until someone finds the one place they didn't.
-- **The WebSocket cookie claim:** requiring a valid session cookie doesn't prevent **Cross-Site WebSocket Hijacking (CSWSH)** — a page on \`evil.com\` can open a WebSocket connection to your server, and the browser will automatically attach the victim's session cookie to the upgrade request, same as any other same-origin cookie behavior. If the server only checks "is this cookie valid," it accepts the connection. The fix: validate the \`Origin\` header during the upgrade handshake against an allow-list, the same discipline CSRF defenses use for regular HTTP requests.
+- **The root cause SSTI/XXE/deserialization/prototype-pollution share, and the recurring fix:** all four are the **data-vs-code failure at an engine you didn't write** — untrusted data reaches a template renderer, an XML parser, an object deserializer, or a recursive merge that is powerful enough to treat that data as instructions (evaluate it, fetch a URL, reconstruct code, or rewrite a shared prototype). The recurring defensive move is **deny the dangerous capability rather than filter the payload**: pass data through a template *context* instead of concatenating it, *disable* DOCTYPE/entity resolution, use a data-only format (JSON) instead of one that reconstructs code, and guard \`__proto__\`/use a null-prototype map. In every case you change the primitive so the input *cannot* become code, exactly as parameterized queries did for SQL.
+- **Smuggling and why the fix isn't a content filter:** the front-end enforced auth on \`/admin\` but only ever saw one \`POST /search\` whose *body* happened to contain bytes forming a second request; because a CL-vs-TE disagreement made the back-end split the stream differently, the back-end processed the hidden \`GPOST /admin\` as a real request — with the front-end's checks skipped, since the front-end never recognized an \`/admin\` request to gate. A content filter can't help because the malicious request doesn't *exist as a request* at the layer doing the filtering; it only appears after re-parsing. The fix is therefore structural: make every hop parse boundaries identically (ideally HTTP/2 end-to-end) and reject ambiguous requests that carry both \`Content-Length\` and \`Transfer-Encoding\`, so the desync can never arise.
 
 </details>`,
     tracker: [
-      "Can explain why the Same-Origin Policy does not automatically protect WebSocket connections",
-      "Can explain the CSWSH attack and name the server-side fix (Origin header validation)",
-      "Has written a WebSocket server that validates Origin and authenticates the user during the upgrade",
-      "Can intercept and replay a WebSocket message in Burp Suite (or describe the steps)",
-      "Knows the four defense layers: Origin validation, upgrade auth, message validation, rate limiting",
-      "Wrote the Phase 3 deliverable journal entry",
-      "Answered the knowledge check",
-      "Workbench: performed CSWSH — got the server to 101-accept an upgrade from evil.example with the victim cookie — then added the Origin allow-list (403 for evil, 101 for the real origin)",
-      "Workbench: journalled why per-message validation is still required, why Origin alone isn't enough for high-value actions, and ws:// vs wss://"
+      "Can explain request smuggling as a request-boundary disagreement, not a content bug, and why it bypasses content-inspecting WAFs",
+      "Can describe a CL.TE desync: which side honors which header and where each ends request 1",
+      "Can explain how smuggling bypasses front-end auth and hijacks the next user's request/cookie",
+      "Knows the fixes: uniform parsing / HTTP/2 end-to-end, reject requests with both CL and TE, limit back-end connection reuse",
+      "Workbench: ran two parsers over one byte-stream, saw them disagree, and surfaced a smuggled /admin request the front-end never processed",
+      "Workbench: journalled the reject-ambiguity fix, the connection-reuse cookie-capture mechanism, and the HTTP/2 downgrade caveat",
+      "Wrote the Phase 3 deliverable journal entry"
     ]
-  },
-  {
+  },   {
     id: "p4_roadmap",
     phaseId: "p4",
     num: "4.0",
