@@ -1443,7 +1443,110 @@ echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/
       a: "Port 80 is plain HTTP — `nc` sends and receives everything as readable text, so anyone sharing the network path can see it. Port 443 with `openssl s_client` negotiates TLS first, encrypting everything after the handshake, so an eavesdropper sees only scrambled bytes. That difference — plaintext vs. encrypted transport — is the entire reason Module 2 insists you never send anything sensitive over http://."
     }],
     quiz: ["What does the pipe `|` do, in one sentence, and what does `ls /usr/bin | wc -l` count?", "What is the difference between `>` and `>>`?", "What is a hash, and why does changing one character of a file change the whole hash?", "Which command turns a domain name into an IP address, and which shows the routers your packets pass through?", "Why can someone on your Wi-Fi read a plain `nc ... 80` HTTP request but not an `openssl s_client ... :443` TLS session?"],
-    tracker: ["Ran the redirect/append/pipe examples and can read `ls | wc -l` in plain English", "Encrypted and decrypted a file I own with openssl enc", "Fingerprinted a file with shasum/sha256sum, tampered with it, and watched the hash change", "Used dig to resolve a name to an IP and traceroute to see the hops", "Spoke HTTP by hand with nc and inspected a TLS certificate with openssl s_client", "Understand that every command here reappears in Modules 1–2 — and is dissected fully in Module 7"]
+    workbench: `> **What this trains.** The field guide showed you each command once. A guide you only *read* evaporates; a command you *composed to answer your own question* stays. Here you build three things from a blank prompt — a pipeline that inventories your own crypto tools, a reusable file-integrity check (the tamper detector Module 1 formalizes), and a hands-on proof that plaintext travels in the clear while encryption hides it. Everything runs on files you create and a listener bound to your own machine.
+
+#### 🟢 Drill 1 — compose a pipeline to inventory your tools ~4 min
+
+**Goal.** Without counting by hand, use a single \`|\` pipeline to answer: *how many programs on this machine are checksum/hashing tools* (their names end in \`sum\`), and separately, *is \`openssl\` present*? You are composing \`ls\`, \`grep\`, and \`wc\` — the exact muscle every investigation in this course uses.
+
+**Done when.** One pipeline prints a single number for the \`sum\` tools (a small count — on macOS it is 3: \`cksum\`, \`shasum\`, \`sum\`), and a second prints \`1\` for \`openssl\`. You wrote the pipes yourself; you did not \`ls\` and eyeball it.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`ls /usr/bin\` lists program names, one per line. Feed that into \`grep\` to keep only the matches, then into \`wc -l\` to count. \`grep 'sum$'\` keeps names *ending* in \`sum\` (the \`$\` means end-of-line); \`grep -c openssl\` counts matches directly. Read the pipeline left to right: list → filter → count.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+ls /usr/bin | grep 'sum$' | wc -l      # how many hashing tools? -> 3 (cksum, shasum, sum)
+ls /usr/bin | grep 'sum$'               # ...and which ones (drop wc to SEE them)
+ls /usr/bin | grep -c openssl           # is openssl here? -> 1
+\`\`\`
+\`\`\`
+3
+cksum
+shasum
+sum
+1
+\`\`\`
+Each stage narrows the data: \`ls\` produces every program name, \`grep 'sum$'\` throws away everything not ending in \`sum\`, \`wc -l\` reduces the survivors to a count. That is the whole Unix idea — small single-purpose tools chained with \`|\`, each transforming the previous one's output — and it is how you will read logs, hunt processes, and triage evidence for the rest of the course. Common wrong attempts: \`grep sum\` without the \`$\` anchor also matches names like \`sum-something\` or \`consume\` (you asked for names that *end* in sum, so anchor it); running \`ls /usr/bin | wc -l\` first and then trying to eyeball the hashing tools (the point is to let \`grep\` filter, not your eyes); forgetting that the exact count varies by machine — the *skill* is composing the pipe, not memorizing "3".
+</details>
+
+#### 🟡 Build 1 — build a reusable integrity baseline ~8 min
+
+**Goal.** From scratch, build the workflow a defender uses to prove a file hasn't changed: record a file's SHA-256 to a baseline file, verify it passes, then change one character and verify it *fails* — using the checker's own exit status, not your eyeballs. This is the tamper detector Module 1 turns into theory.
+
+**Done when.** \`shasum -a 256 -c\` prints \`OK\` for the untouched file and \`FAILED\` after you alter a single character, and you can state why one byte flips the whole verdict.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`shasum -a 256 file > file.sha256\` writes the fingerprint *and the filename* into a baseline file. Later, \`shasum -a 256 -c file.sha256\` re-hashes the named file and compares it to the recorded value, printing \`OK\` or \`FAILED\`. To tamper, overwrite the file with \`echo\` changing one character, then re-run the \`-c\` check. Look at the exit code with \`echo $?\` (0 = matched, 1 = mismatch) — that is what a script would branch on.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m0-5 && cd ~/cyber-journal/wb-m0-5
+echo "quarterly numbers: revenue up 12%" > report.txt
+shasum -a 256 report.txt > report.sha256     # record the baseline fingerprint
+cat report.sha256                             # the hash + the filename it belongs to
+
+shasum -a 256 -c report.sha256                # verify: unchanged
+echo "exit: $?"                               # -> 0
+
+echo "quarterly numbers: revenue up 13%" > report.txt   # tamper: one digit
+shasum -a 256 -c report.sha256                # verify: now caught
+echo "exit: $?"                               # -> 1
+\`\`\`
+\`\`\`
+report.txt: OK
+exit: 0
+report.txt: FAILED
+shasum: WARNING: 1 computed checksum did NOT match
+exit: 1
+\`\`\`
+Changing \`12%\` to \`13%\` — a single character — makes \`report.txt: OK\` become \`report.txt: FAILED\`, and the exit code flips from \`0\` to \`1\`. That is the **avalanche effect**: a cryptographic hash is built so that any change to the input, however small, changes the output unpredictably and completely, so there is no "small edit" that slips through. A defender records these baselines for files that should never change (a config, a binary, an evidence file) and re-checks them; an unexplained \`FAILED\` is a tamper signal. On Linux/WSL2 the command is \`sha256sum report.txt > report.sha256\` and \`sha256sum -c report.sha256\` — identical behavior. Common wrong attempts: reading the two hashes side by side and comparing by eye (works for one file, hopeless for a directory — let \`-c\` and the exit code do it); hashing a *different* file than you baselined (wrong directory, a re-downloaded copy) and mistaking it for tampering; assuming a matching hash proves the file is *safe* — it only proves it is *unchanged since you recorded the baseline*, so the baseline is only as trustworthy as the moment you took it.
+</details>
+
+#### 🔴 Break & Defend — watch a password travel in the clear, then hide it ~10 min
+
+**Goal.** Prove to yourself *why* Module 2 forbids plaintext transport: send a fake login across a local connection, capture it, and read the password in the clear — then encrypt the same secret and confirm it is unreadable.
+
+> **⚖️ Ethics.** The listener below binds only to \`127.0.0.1\` and captures a connection *you* make to *yourself* — you are both the eavesdropper and the victim, on your own machine. Capturing other people's network traffic without authorization is illegal. Never point these tools at a network, host, or person you do not own.
+
+**Done when.** The file your listener captured contains the literal string \`password=hunter2\`, and the \`openssl enc\` output of that same secret is unreadable base64 — and you can say which real-world control (from Module 2) closes this gap in transit.
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m0-5 && cd ~/cyber-journal/wb-m0-5
+
+# 1) Start a local "eavesdropper" that saves whatever arrives, in the background.
+nc -l 127.0.0.1 8099 > captured.txt &
+
+# 2) You are the client: send a fake login over the PLAINTEXT channel.
+printf 'POST /login\\r\\nuser=alice&password=hunter2\\r\\n' | nc -w1 127.0.0.1 8099
+
+# 3) Read what the listener captured — your credentials, in the clear.
+cat captured.txt
+
+# 4) Defend: encrypt that same secret before it would ever travel.
+printf 'user=alice&password=hunter2' | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:demo -a
+\`\`\`
+\`\`\`
+POST /login
+user=alice&password=hunter2
+U2FsdGVkX1... (unreadable base64) ...
+\`\`\`
+Step 3 prints \`password=hunter2\` verbatim, because \`nc\` sends and receives raw bytes with no encryption — exactly what a plain \`http://\` request (or an unencrypted database/redis/SMTP connection) puts on the wire. Anyone positioned on the path — a rogue Wi-Fi access point, a compromised router, a switch mirror — reads it as easily as your local listener just did. Here you played *both ends on \`127.0.0.1\`*, so nothing left your machine, but the lesson is the wire: **plaintext transport means every hop can read everything.** Step 4 is the defense in miniature: \`openssl enc\` scrambles the secret into base64 gibberish that reveals nothing without the key. In the real world the transport-layer version of that is **TLS** — the \`https://\` and the \`openssl s_client ... :443\` you met in the field guide — which negotiates a key and encrypts everything after the handshake, which is precisely why Module 2 insists you never send anything sensitive over \`http://\`. Common wrong attempts: binding the listener to \`0.0.0.0\` or a LAN IP instead of \`127.0.0.1\` (now you are listening on the actual network — don't; keep it on loopback); concluding "encryption at rest fixes this" (the file on disk was never the problem — the exposure is *in transit*, which is what TLS protects); thinking a login *form* over HTTP is safe because the page "looks normal" (the padlock, or its absence, is about the transport, not the pixels). **Outside the box:** this is the same confidentiality boundary the whole course orbits — the question is always *who can see the bytes between here and there?* You just answered it by becoming the eavesdropper. Encryption doesn't stop the bytes from being intercepted; it makes interception worthless, which is why "encrypt in transit and at rest" is a reflex, not a feature. Clean up: \`kill %1\` to stop the listener, then \`rm -rf ~/cyber-journal/wb-m0-5\` if you like.
+</details>`,
+    tracker: ["Ran the redirect/append/pipe examples and can read `ls | wc -l` in plain English", "Encrypted and decrypted a file I own with openssl enc", "Fingerprinted a file with shasum/sha256sum, tampered with it, and watched the hash change", "Used dig to resolve a name to an IP and traceroute to see the hops", "Spoke HTTP by hand with nc and inspected a TLS certificate with openssl s_client", "Understand that every command here reappears in Modules 1–2 — and is dissected fully in Module 7", "Workbench: composed ls|grep|wc pipelines to inventory the machine's hashing tools and confirm openssl is present", "Workbench: built a shasum -c integrity baseline (OK then tamper then FAILED via exit code), and captured a plaintext password on a local nc listener before encrypting it"]
   }, {
     id: "l1_roadmap",
     level: 1,
