@@ -3660,6 +3660,21 @@ See a full request and response, including headers:
 curl -i https://example.com        # -i = include response headers
 http GET https://example.com       # HTTPie: pretty-prints headers + body
 \`\`\`
+\`\`\`
+HTTP/2 200
+date: Mon, 03 Aug 2026 08:14:45 GMT
+content-type: text/html
+server: cloudflare
+last-modified: Mon, 03 Aug 2026 03:45:30 GMT
+allow: GET, HEAD
+accept-ranges: bytes
+age: 6646
+cf-cache-status: HIT
+
+<!doctype html><html lang="en"><head><title>Example Domain</title>...
+\`\`\`
+
+**This is the four-part message from the theory above, on your screen.** \`HTTP/2 200\` is the status line; everything down to the blank line is headers; the blank line is the mandatory separator; the HTML is the body. Two things worth naming now because they come back later: \`server: cloudflare\` is **free reconnaissance** — the response volunteers what's serving it, which is exactly the disclosure you'll remove from your own app in Module 1.6 and 8.2. And \`allow: GET, HEAD\` states which methods this endpoint accepts; an endpoint that quietly accepts more than it advertises is worth probing. Your dates, \`age\`, and \`cf-*\` values will differ — those are cache and CDN specifics, not part of the lesson.
 
 Forge a POST to your own server (start \`tiny-server.js\` from Module 0.4 first):
 
@@ -3676,15 +3691,49 @@ http POST :3000/delete-account id:=2 Cookie:session=anything-i-want
 
 **Expected observation:** you set the \`Cookie\` header to literally anything, chose the method, and shaped the body — proving concretely that *every part of a request is client-controlled*.
 
-Watch a redirect:
+Watch a redirect — and build the vulnerable version yourself, because an open redirect is easier to *understand* when you own both ends. Save this as \`redir.js\` and run \`node redir.js\`:
+
+\`\`\`javascript
+require("http").createServer((req, res) => {
+  const u = new URL(req.url, "http://localhost:4711");
+  if (u.pathname === "/go") {
+    // ❌ OPEN REDIRECT: Location is whatever the attacker put in ?next=
+    res.writeHead(302, { Location: u.searchParams.get("next") || "/" });
+    return res.end();
+  }
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("home\\n");
+}).listen(4711, "127.0.0.1", () => console.log("open-redirect lab on http://127.0.0.1:4711"));
+\`\`\`
+
+In a second terminal:
 
 \`\`\`bash
-curl -i "https://httpbin.org/redirect-to?url=https://example.com"
+curl -i "http://127.0.0.1:4711/go?next=https://evil.example/login"
 # Quote the URL — an unquoted "?" is a shell glob character (zsh will error
 # with "no matches found" if nothing on disk happens to match it).
-# Observe the 3xx status and the Location header. Now imagine url= being
-# attacker-controlled with no allow-list — that's an open redirect.
 \`\`\`
+\`\`\`
+HTTP/1.1 302 Found
+Location: https://evil.example/login
+Date: Mon, 03 Aug 2026 08:18:52 GMT
+Connection: keep-alive
+\`\`\`
+
+**That two-line pair is the entire vulnerability.** A \`302\` plus a \`Location\` your *attacker* chose. The victim sees a link starting \`http://127.0.0.1:4711/…\` — your trusted domain, in real life — clicks it, and lands on the attacker's lookalike login page. Nothing was "hacked": the server did exactly what it was told.
+
+Now add \`-L\` and watch curl *follow* the chain, which is what a browser does automatically:
+
+\`\`\`bash
+curl -sIL "http://127.0.0.1:4711/go?next=http://127.0.0.1:4711/" | grep -E "^HTTP|^[Ll]ocation"
+\`\`\`
+\`\`\`
+HTTP/1.1 302 Found
+Location: http://127.0.0.1:4711/
+HTTP/1.1 200 OK
+\`\`\`
+
+Two status lines for one command: the redirect, then the destination. **The one-line fix** is to never echo the user's value back into \`Location\` — resolve it against an allow-list instead: \`const DEST = { dashboard: "/dashboard", billing: "/billing" }; res.writeHead(302, { Location: DEST[u.searchParams.get("next")] || "/" });\`. The user now picks a *key*, not a URL. Stop the lab with \`Ctrl+C\` when you're done.
 
 ### 🛡️ Defense: treat every part of the request as hostile, honor method semantics
 
@@ -3891,12 +3940,46 @@ dig MX example.com         # mail servers
 dig www.github.com         # watch for a CNAME line, then the resolved A record
 \`\`\`
 
+The \`ANSWER SECTION\` of each is what matters (add \`+noall +answer\` to see only that):
+
+\`\`\`
+example.com.		4	IN	A	172.66.147.243
+example.com.		4	IN	A	104.20.23.154
+
+example.com.		37	IN	AAAA	2606:4700:10::6814:179a
+example.com.		37	IN	AAAA	2606:4700:10::ac42:93f3
+
+example.com.		300	IN	TXT	"v=spf1 -all"
+
+example.com.		300	IN	MX	0 .
+
+www.github.com.		367	IN	CNAME	github.com.
+github.com.		1	IN	A	140.82.121.3
+\`\`\`
+
+**Read those five answers like a security engineer — every one of them is telling you something.**
+The addresses will differ for you (CDN, region, time); the *structure* is the lesson.
+
+- **Two \`A\` records, not one.** A name maps to a *set* of addresses. Nothing in DNS promises you one server.
+- **The number before \`IN\` is the TTL in seconds** — how long a resolver may cache this answer. A short TTL (\`4\`) means the operator wants to move traffic fast; it also means an attacker who poisons a cache holds it only briefly. You'll meet TTL again as an incident-response lever: you cannot fail over faster than your TTL.
+- **\`v=spf1 -all\`** declares *no host is authorized to send mail for this domain* — a deliberate anti-spoofing posture (Module 1.1's neighbour topic). Seeing it on a domain that *does* send mail would be a misconfiguration.
+- **\`MX 0 .\`** is the **null MX** record: "this domain accepts no mail at all." A single dot is not an error.
+- **\`www.github.com\` returns a \`CNAME\` first, then the target's \`A\`.** That two-step is exactly the shape a **subdomain takeover** exploits — if the CNAME target is ever deleted but the CNAME record stays, whoever claims that target name inherits the subdomain. Learn to see the chain, not just the final IP.
+
 Read the certificate a server presents and walk its chain:
 
 \`\`\`bash
 openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\
   | openssl x509 -noout -subject -issuer -dates
 \`\`\`
+\`\`\`
+subject=CN=example.com
+issuer=C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 3
+notBefore=Jul 29 22:10:08 2026 GMT
+notAfter=Oct 27 22:17:21 2026 GMT
+\`\`\`
+
+> **Your issuer and dates will differ** — certificates are reissued constantly and sites change CA. Check the *relationships*, not the strings: \`subject\` matches the name you asked for, \`issuer\` is **someone else** (if issuer equals subject it is self-signed and no third party vouched for it), and today falls inside the validity window. Note this window is under 90 days — short lifetimes are now the norm, which is why automated renewal is mandatory rather than optional.
 
 **What to look at:**
 - \`subject\` = who the cert is *for*. \`issuer\` = which CA signed it. \`notBefore\`/\`notAfter\` = validity window — an **expired** cert is a common, trust-breaking outage.
@@ -3908,6 +3991,11 @@ Check for HSTS:
 \`\`\`bash
 curl -sI https://example.com | grep -i strict-transport-security || echo "no HSTS header"
 \`\`\`
+\`\`\`
+no HSTS header
+\`\`\`
+
+> **A negative result is a result.** \`grep\` exits non-zero when it matches nothing, which is what fires the \`|| echo\`. Compare it against a site that *does* set the header (next section) — the difference between those two outputs is a real finding you would write up.
 
 ### 🛡️ Defense: keep names honest and connections sealed
 
@@ -3945,8 +4033,20 @@ openssl list -tls-groups | grep -i mlkem    # look for X25519MLKEM768
 openssl s_client -connect www.cloudflare.com:443 -groups X25519MLKEM768 </dev/null 2>/dev/null \\
   | grep -i -E "Negotiated|group|cipher"
 \`\`\`
+\`\`\`
+secp256r1:secp384r1:secp521r1:x25519:x448:brainpoolP256r1tls13:brainpoolP384r1tls13:brainpoolP512r1tls13:ffdhe2048:ffdhe3072:ffdhe4096:ffdhe6144:ffdhe8192:MLKEM512:MLKEM768:MLKEM1024:SecP256r1MLKEM768:X25519MLKEM768:SecP384r1MLKEM1024
 
-If your OpenSSL is older than 3.5 it won't offer ML-KEM groups — that itself is the lesson: **crypto-agility means keeping the library current is a security control, not just maintenance.**
+Negotiated TLS1.3 group: X25519MLKEM768
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+\`\`\`
+
+**Three things in that output are the whole point of this section.**
+
+1. \`openssl list -tls-groups\` prints its groups as **one colon-separated line**, so \`grep\` returns the entire line rather than a tidy per-group list — don't be thrown by that. What you're checking is whether \`MLKEM\` appears in it at all.
+2. \`X25519MLKEM768\` is the **hybrid**: classical X25519 *and* post-quantum ML-KEM-768 combined, so the connection stays safe if **either** one holds. That belt-and-braces design is why hybrids, not pure PQC, are what shipped first.
+3. \`Negotiated TLS1.3 group: X25519MLKEM768\` is proof it wasn't merely *offered* — the server agreed and this connection is genuinely quantum-resistant. Check the cipher line separately: \`TLS_AES_256_GCM_SHA384\` is the *symmetric* cipher, which was never the quantum problem. **Key exchange is what quantum breaks; bulk encryption is not.** Conflating the two is a common interview stumble.
+
+If your OpenSSL is older than 3.5 the \`grep\` finds nothing and the \`s_client\` call fails with an unknown-group error — that itself is the lesson: **crypto-agility means keeping the library current is a security control, not just maintenance.** (Check yours with \`openssl version\`; macOS ships an ancient LibreSSL as \`/usr/bin/openssl\`, so you may need Homebrew's — \`brew install openssl@3\` — and to call it explicitly.)
 
 **False-confidence traps:** "Quantum computers don't exist, so this is years away" (harvest-now-decrypt-later means the clock started when you first sent the data, not when the quantum computer boots); "TLS 1.3 is modern, so I'm covered" (TLS 1.3 with *classical-only* groups is still quantum-vulnerable — you need the library version that offers hybrid ML-KEM groups); "we'll swap the algorithm when we need to" (only if your code is crypto-agile — hard-coded curve names and key sizes scattered across a codebase turn a config change into a multi-quarter project).
 
@@ -3992,10 +4092,14 @@ If your OpenSSL is older than 3.5 it won't offer ML-KEM groups — that itself i
 \`\`\`bash
 openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\
   | openssl x509 -noout -subject -issuer -dates
-# subject=CN=example.com
-# issuer=... CN=<some CA>
-# notBefore=... / notAfter=<expiry>   (your dates will differ)
 \`\`\`
+\`\`\`
+subject=CN=example.com
+issuer=C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 3
+notBefore=Jul 29 22:10:08 2026 GMT
+notAfter=Oct 27 22:17:21 2026 GMT
+\`\`\`
+*(Your issuer and dates will differ — certs are reissued constantly and sites change CA.)*
 
 The \`subject\` is the whole game: it's the name the certificate is *for*, and a CA only issues it after verifying you control that name. This is why "DNS can lie" doesn't break HTTPS — an attacker can route you to their IP, but they can't obtain a valid, trusted-CA-signed certificate whose subject is \`example.com\`, so the browser refuses the connection. The \`notAfter\` date matters operationally: an **expired** certificate is one of the most common self-inflicted outages, and monitoring it is a real security control (Module 8.2).
 
@@ -4015,6 +4119,12 @@ The \`subject\` is the whole game: it's the name the certificate is *for*, and a
 curl -sI https://github.com  | grep -i strict-transport-security   # present: max-age=..., often preload
 curl -sI https://example.com | grep -i strict-transport-security || echo "no HSTS header"
 \`\`\`
+\`\`\`
+strict-transport-security: max-age=31536000; includeSubdomains; preload
+no HSTS header
+\`\`\`
+
+Read GitHub's value directive by directive: \`max-age=31536000\` is **one year** in seconds — the browser will refuse plain HTTP for this host for a full year after this response; \`includeSubdomains\` extends that to *every* subdomain, which is what makes a forgotten HTTP-only \`legacy.github.com\` impossible; and \`preload\` opts the domain into the list browsers *ship with*, closing even the first-ever visit. Those three are the difference between "we support HTTPS" and "plaintext is not reachable."
 
 GitHub sends \`Strict-Transport-Security\` with a long \`max-age\` (and \`preload\`); \`example.com\` sends nothing. The gap this exposes: when a user types a bare \`example.com\` (no \`https://\`), the *first* request can leave as plain HTTP and be hijacked *before* any HTTP→HTTPS redirect fires. HSTS closes that window by making the browser upgrade to HTTPS on its own, before sending anything — which is why "we redirect HTTP to HTTPS" is not a substitute for HSTS. \`preload\` goes further: the browser ships knowing to use HTTPS even on the very first-ever visit.
 </details>
@@ -4027,6 +4137,11 @@ GitHub sends \`Strict-Transport-Security\` with a long \`max-age\` (and \`preloa
    \`\`\`bash
    dig +noall +answer www.github.com    # note the CNAME line, then the resolved A record
    \`\`\`
+   \`\`\`
+   www.github.com.		367	IN	CNAME	github.com.
+   github.com.		1	IN	A	140.82.121.3
+   \`\`\`
+   **Two lines, two hops.** The first says \`www.github.com\` *is an alias for* \`github.com\`; the second resolves that target to an address. Your resolver followed the chain for you. The takeover bug lives entirely in line one: it names a target that something else must still own.
 2. In your journal, walk the takeover: you CNAME \`shop.yoursite.com\` to a hosting provider, later stop paying for that provider, but leave the DNS record. Explain, step by step, how an attacker ends up serving content from \`shop.yoursite.com\`, and state the **one-sentence root cause**.
 3. Name the fix, and the *cheapest routine* that would have caught the dangling record before an attacker did.
 
