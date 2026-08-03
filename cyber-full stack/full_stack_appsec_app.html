@@ -1516,6 +1516,20 @@ printf '#!/bin/sh\\necho hi\\n' > deploy.sh
 chmod 644 app.conf ; chmod 640 secrets.env ; chmod 755 deploy.sh
 ls -l
 \`\`\`
+\`\`\`
+total 24
+-rw-r--r--  1 you  staff  10 Aug  3 09:36 app.conf
+-rwxr-xr-x  1 you  staff  18 Aug  3 09:36 deploy.sh
+-rw-r-----  1 you  staff  20 Aug  3 09:36 secrets.env
+\`\`\`
+
+**Read the first column left to right — it is three groups of three.** After the leading file-type character (\`-\` for a regular file, \`d\` for a directory), the nine positions are **owner**, then **group**, then **other**, each as \`rwx\`:
+
+- \`app.conf\` \`-rw-r--r--\` = 644: you read/write, everyone else read. Fine for non-secret config.
+- \`secrets.env\` \`-rw-r-----\` = 640: you read/write, your group reads, **other gets nothing** (\`---\`). That last triplet is the security-relevant one.
+- \`deploy.sh\` \`-rwxr-xr-x\` = 755: the \`x\` bits make it *executable*. Note everyone can run it.
+
+Each digit is the sum of read 4, write 2, execute 1 — so \`6 = 4+2\` (read+write), \`5 = 4+1\` (read+execute). Once you can convert \`640\` to \`rw-r-----\` in your head, you can audit a directory listing at a glance, which is exactly what the next drill asks. (macOS may append an \`@\` after the permissions, meaning the file carries extended attributes — harmless here.)
 
 **Done when.** For each file you can say, out loud, exactly who may read / write / execute it — and you can point to the characters in the \`ls -l\` output that prove it.
 
@@ -1554,10 +1568,22 @@ You don't want to read contents — you want to search by a *property* of the fi
 
 \`\`\`bash
 find . -type f -perm -o+w      # files where OTHERS have the write bit set
-# ./db.env
-chmod 600 db.env               # owner rw, nobody else anything
-ls -l db.env                   # -rw-------
 \`\`\`
+\`\`\`
+./db.env
+\`\`\`
+
+One line, one finding. Now fix it and confirm:
+
+\`\`\`bash
+chmod 600 db.env               # owner rw, nobody else anything
+ls -l db.env
+\`\`\`
+\`\`\`
+-rw-------  1 you  staff  21 Aug  3 09:36 db.env
+\`\`\`
+
+**Re-run the \`find\` and it prints nothing at all** — the empty result is the proof the fix landed. Getting used to "no output means clean" is worth doing deliberately, because it is the single most common way people misread a security check: silence and *failure to run* look identical.
 
 \`db.env\` was \`606\` = \`-rw----rw-\`: owner read+write, group nothing, and **others read+write**. A world-writable file holding a DB password is a double problem — anyone can *read* the secret *and* anyone can *overwrite* the file to point your app at a database they control. \`find -perm -o+w\` is exactly how a real audit locates this class of bug across a whole tree in one pass, which is why "detect, don't eyeball" is the habit: on a server with ten thousand files, reading them one by one is not an option, but one \`find\` is.
 
@@ -1659,12 +1685,16 @@ traceroute example.com   # show each network hop between you and the destination
 
 \`\`\`bash
 dig example.com A +noall +answer
-# example.com.   249  IN  A  104.20.23.154   (your IP will differ)
 \`\`\`
+\`\`\`
+example.com.		235	IN	A	172.66.147.243
+example.com.		235	IN	A	104.20.23.154
+\`\`\`
+*(Your addresses and the number in front will differ — see below.)*
 
-That last line *is* the mapping: the name on the left, the record type \`A\` (an IPv4 address record), and the address DNS is claiming answers for it. \`dig +short example.com\` gives you just the bare address if that's all you want. The reason we reach past the browser: this is the raw trust step the whole module is about — **the answer is a *claim* returned by whichever resolver you asked**, and nothing in this output proves the address is the *real* \`example.com\`. Hold that thought for Drill 2.
+Those lines *are* the mapping: the name on the left, the record type \`A\` (an IPv4 address record), and the address DNS is claiming answers for it. \`dig +short example.com\` gives you just the bare address if that's all you want. The reason we reach past the browser: this is the raw trust step the whole module is about — **the answer is a *claim* returned by whichever resolver you asked**, and nothing in this output proves the address is the *real* \`example.com\`. Hold that thought for Drill 2.
 
-If your resolver returned multiple addresses, that's normal — big sites answer with several so load can spread across them.
+If your resolver returned multiple addresses, that's normal — big sites answer with several so load can spread across them. The number between the name and \`IN\` (\`235\` here) is the **TTL in seconds**: how long a resolver is allowed to cache this answer before asking again. It ticks *down* as the cached copy ages, so running the same query twice in a row usually shows a smaller number the second time — that's the cache, not an error.
 </details>
 
 #### 🔴 Reason it through — the name is a claim, the certificate is the proof ~8 min
@@ -2240,11 +2270,14 @@ Your input is being dropped *inside* the single quotes. So the first thing your 
 
 \`\`\`bash
 node query.js "ada@example.com"
-# SELECT id, email FROM users WHERE email = 'ada@example.com'
-
 node query.js "' OR '1'='1"
-# SELECT id, email FROM users WHERE email = '' OR '1'='1'
 \`\`\`
+\`\`\`
+SELECT id, email FROM users WHERE email = 'ada@example.com'
+SELECT id, email FROM users WHERE email = '' OR '1'='1'
+\`\`\`
+
+**Put those two lines side by side — that is the whole of SQL injection, visible in one diff.** In the first, your input sat *inside* the quotes as data. In the second, the leading \`'\` **closed** the quote early, and everything after it landed *outside* as SQL the database will execute. Same code, same template, two completely different statements — decided entirely by what the user typed.
 
 Read the second output as the database will: \`email = ''\` (matches nobody) **OR** \`'1'='1'\` (true for every row) — so the filter collapses and the query returns the entire \`users\` table. You didn't exploit a bug in the database; the database did exactly what the query said. **The bug is that your input got to *write part of the query's code.***
 
@@ -2327,6 +2360,17 @@ cat note.txt              # read the file
 ls -la                    # see what you made, with permissions
 cd ..                     # go back up
 \`\`\`
+\`\`\`
+/Users/you/practice-demo
+hello
+again
+total 8
+drwxr-xr-x  3 you  staff   96 Aug  3 09:36 .
+drwxr-xr-x  3 you  staff   96 Aug  3 09:36 ..
+-rw-r--r--  1 you  staff   12 Aug  3 09:36 note.txt
+\`\`\`
+
+**Three things in there surprise almost everyone the first time.** (1) Most of those commands printed **nothing at all** — \`mkdir\`, \`cd\`, \`touch\`, and both \`echo >\` redirects are silent on success. Only \`pwd\`, \`cat\`, and \`ls\` produced output. In Unix, **silence means it worked**; if something goes wrong you get a message. (2) \`cat note.txt\` shows \`hello\` then \`again\` — proof that \`>\` *overwrote* and \`>>\` *appended*. Had you used \`>\` twice, \`hello\` would be gone forever, with no warning and no undo. (3) \`ls -la\` lists \`.\` and \`..\` — the current and parent directory — which is why the \`-a\` ("all") flag matters: it is also what reveals hidden dotfiles like \`.env\`, the exact files that hold secrets.
 
 Commands that **change or destroy** state — understand each before ever using it:
 
@@ -2343,6 +2387,12 @@ ls -l note.txt        # note the current permissions, e.g. -rw-r--r--
 chmod 600 note.txt    # now only YOU can read/write it (least privilege)
 ls -l note.txt        # confirm it changed to -rw-------
 \`\`\`
+\`\`\`
+-rw-r--r--  1 you  staff  12 Aug  3 09:36 note.txt
+-rw-------  1 you  staff  12 Aug  3 09:36 note.txt
+\`\`\`
+
+The only thing that changed is the second and third permission groups: \`r--r--\` became \`------\`. Before, *every* account on the machine could read this file; after, only you. That one-character-per-position difference is the entire mechanism behind "least privilege" on a filesystem, and it's what Module 0.1's audit drill hunts for at scale.
 
 ### 🛡️ Defense: terminal habits that prevent self-inflicted incidents
 
@@ -2398,6 +2448,8 @@ mv notes.txt old.txt # ?
 <summary>Walkthrough — open after you've classified all six</summary>
 
 Read-only: \`ls -la\`, \`cat /etc/hostname\`, \`curl -s example.com\` (it fetches, it doesn't alter your machine). State-changing: \`rm -rf ./build\` (deletes), \`chmod 777 app.js\` (alters permissions — and to a *dangerous* value), \`mv notes.txt old.txt\` (renames).
+
+> **If \`cat /etc/hostname\` said \`No such file or directory\`, you're on macOS and nothing is wrong.** That file is a Linux convention; macOS stores the hostname elsewhere (\`hostname\` or \`scutil --get HostName\`). Note what happened, though: a read-only command failed **safely and loudly**. That asymmetry is the point of this drill — a read-only command that misses just tells you so, while a state-changing command that misses can take your files with it. It is also your first encounter with the thing that trips up every copied-from-the-internet command: **the same command does not exist on every OS.**
 
 The habit that matters: **the classification is a property of the verb, learnable at a glance.** \`ls cat pwd dig curl(GET) grep head tail wc\` read; \`rm mv cp chmod chown > >> sudo mkdir touch\` change. When you meet an unfamiliar command, the safe default is to assume it changes state until you've checked \`--help\` or a man page. \`chmod 777\` deserves a special flinch — it's not just state-changing, it's granting write+execute to *everyone*, the exact misconfiguration Phase 8 hunts for.
 </details>
