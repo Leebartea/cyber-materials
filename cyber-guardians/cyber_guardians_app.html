@@ -530,6 +530,7 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
   .prose-block em { font-style: italic; color: #d7dee0; }
   .prose-block a { color: #7dd3fc; text-decoration: underline; text-underline-offset: 2px; }
   .prose-block a:hover { color: #bae6fd; }
+  .prose-hr { border: 0; border-top: 1px solid var(--border); margin: 1.9rem 0; opacity: 0.65; }
   .prose-quote { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 6px 6px 0; padding: 8px 16px; margin: 1rem 0; }
   .prose-quote p:last-child { margin-bottom: 0; }
   .prose-details { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 1rem 0; background: var(--surface-2); }
@@ -1309,8 +1310,15 @@ echo "important data" > data.txt
 shasum -a 256 data.txt          # macOS spelling
 \`\`\`
 \`\`\`
-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  data.txt
+d0eac8f61f9c7085dbb626bf1aef1d3c42afedbbd636b1487745ca7a4ce7d71e  data.txt
 \`\`\`
+
+> **This one you should match exactly — and that's the whole point.** Unlike \`dig\` or \`traceroute\`,
+> a hash is *deterministic*: the same bytes always produce the same fingerprint, on any machine, in
+> any year. If your output differs, your file differs. The usual cause is the newline: \`echo\` adds
+> one, so you hashed \`important data\\n\` (15 bytes, not 14). \`echo -n "important data" | shasum -a 256\`
+> omits it and gives a completely different digest — a good first demonstration that "one byte
+> changed" really does mean "everything changed."
 
 > **Same tool, two names.** \`shasum -a 256\` is the macOS spelling; \`sha256sum data.txt\` is the Linux/WSL2 spelling — identical output. \`openssl dgst -sha256 data.txt\` also works everywhere. Change one character in \`data.txt\`, re-run, and watch the entire fingerprint change — that's the tamper-detection you'll build in Module 1.
 
@@ -1322,10 +1330,13 @@ shasum -a 256 data.txt          # macOS spelling
 dig +short example.com
 \`\`\`
 \`\`\`
-93.184.216.34
+23.192.228.84
+23.215.0.136
 \`\`\`
 
 The \`+short\` flag trims it to just the answer. Without it, \`dig\` shows the full resolution path — which you'll read in Module 2.
+
+> **Expect different numbers, and possibly a different count.** Names aren't glued to one address: big sites sit behind CDNs that answer with several IPs, varying by region and over time. What you're checking is the *shape* — one line per address. **No** output means the name failed to resolve, which is a completely different problem from "resolved to something unexpected."
 
 ### 🛰️ traceroute — see the path your packets take (Module 2)
 
@@ -1367,12 +1378,14 @@ echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/
 \`\`\`
 \`\`\`
 subject=CN=example.com
-issuer=CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1
-notBefore=Jan  1 00:00:00 2026 GMT
-notAfter=Apr  1 23:59:59 2026 GMT
+issuer=C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 3
+notBefore=Jul 29 22:10:08 2026 GMT
+notAfter=Oct 27 22:17:21 2026 GMT
 \`\`\`
 
 That block says *who* the certificate is for, *who vouched for it*, and *how long it's valid* — the trust chain that makes the little padlock mean something. Module 2 walks through reading it.
+
+> **Your issuer and dates will differ.** Certificates are reissued constantly — most now last 90 days or less, and a site can change certificate authority entirely (this example was issued by DigiCert for years, and is now Cloudflare's). Don't match the strings; check the *three questions*: does \`subject\` name the host you asked for, is \`issuer\` somebody other than the subject (if they're identical, it's **self-signed** — no third party vouched for it), and is today's date between \`notBefore\` and \`notAfter\`? Those three checks are exactly what your browser does before showing the padlock.
 
 ### You're ready
 
@@ -7495,7 +7508,7 @@ sha256sum /bin/ls
     },
     caseStudy: {
       title: "Arup Engineering — £25M deepfake video call fraud (2024)",
-      body: "In January 2024, employees of Arup (a global engineering firm) in Hong Kong participated in a video call that appeared to include their Chief Financial Officer and several senior executives. All participants except the victim were deepfakes — AI-generated video avatars built from public footage. The attacker, posing as a legitimate business dealing, instructed the employee to transfer HK$200M (approximately £25M). The employee complied. The fraud was discovered only when the employee later contacted the CFO directly and the real person had no knowledge of the call. Defence mechanisms that could have prevented or detected this: (1) Out-of-band verification — a separate, pre-established phone call to a known number before authorising any large transfer. (2) A company policy requiring two-person authorisation for large wire transfers with human confirmation. (3) Anti-deepfake tools that analyse video streams for generation artifacts. (4) Security awareness training specifically covering AI-generated impersonation fraud — which in 2024 most organisations had not yet implemented. The lesson: deepfakes have crossed the 'convincing to a non-expert' threshold. Process controls matter more than technical detection alone."
+      body: "In January 2024, employees of Arup (a global engineering firm) in Hong Kong participated in a video call that appeared to include their Chief Financial Officer and several senior executives. All participants except the victim were deepfakes — AI-generated video avatars built from public footage. The attacker, posing as a legitimate business dealing, instructed the employee to make a series of transfers totalling HK$200M (approximately US$25.6M). The employee complied. The fraud was discovered only when the employee later contacted the CFO directly and the real person had no knowledge of the call. Defence mechanisms that could have prevented or detected this: (1) Out-of-band verification — a separate, pre-established phone call to a known number before authorising any large transfer. (2) A company policy requiring two-person authorisation for large wire transfers with human confirmation. (3) Anti-deepfake tools that analyse video streams for generation artifacts. (4) Security awareness training specifically covering AI-generated impersonation fraud — which in 2024 most organisations had not yet implemented. The lesson: deepfakes have crossed the 'convincing to a non-expert' threshold. Process controls matter more than technical detection alone."
     },
     challenges: [{
       q: "An attacker sends a phishing email that is grammatically perfect, references a recent news event, and addresses the recipient by name. An AI wrote it. What defensive controls can still catch this?",
@@ -7890,7 +7903,7 @@ The problem: almost every OT network is now directly or indirectly connected to 
 
 **Ukraine power grid (2015, 2016)** — Russian APT (Sandworm) used spearphishing to compromise Ukrainian electricity distribution companies, then used remote access tools (BlackEnergy, Industroyer) to directly command ICS equipment, causing blackouts affecting 230,000 customers. Industroyer spoke native industrial protocols (IEC 104, IEC 61850) — it didn't need to exploit vulnerabilities, it just sent valid commands to legacy systems that had no authentication.
 
-**Oldsmar water treatment (2021)** — An attacker remotely accessed the HMI of a Florida water treatment plant via TeamViewer (remote access tool with a shared, reused password) and changed the sodium hydroxide level from 111 ppm to 11,100 ppm. A plant operator watching the screen saw the mouse move on its own and immediately reversed the change. No harm done — but it was only prevented by an alert human, not any automated control.
+**Oldsmar water treatment (2021)** — The most-cited OT incident of the decade, and a lesson in two directions. The reported story: someone remotely accessed the HMI of a Florida water plant via TeamViewer (shared, reused password, no MFA) and raised the sodium hydroxide level from ~100 ppm to 11,100 ppm, caught only because an operator saw the cursor move. **What actually held up:** a four-month FBI investigation could not confirm any intrusion, and the city's own former manager later said it was most likely an employee mis-clicking — no evidence of outside access was ever found. Study it as **two** lessons. First, the plant's weaknesses were real and are why the attack story was instantly believable: internet-reachable remote access, a password shared across every workstation, no MFA, no IT/OT segmentation, no alerting on an absurd setpoint. Second — and this is the one most courses skip — **attribution is hard, early reporting is often wrong, and "we were attacked" is a claim that needs evidence.** A plant that cannot tell an intrusion from an operator error has a logging and monitoring problem either way.
 
 ### IoT and OT hardening principles
 
@@ -7904,7 +7917,7 @@ The problem: almost every OT network is now directly or indirectly connected to 
 **For OT/ICS environments:**
 1. **The Purdue Model / ISA-95** — a network segmentation model specifically for OT: separate the physical/sensor layer, control layer, supervisory layer, and enterprise layer with explicit, monitored connections between each.
 2. **Unidirectional gateways** (data diodes) — hardware that allows data to flow FROM the OT network TO the IT network but NEVER back. Even if the IT network is compromised, the attacker cannot send commands to OT equipment.
-3. **No remote access without VPN + MFA** — the Oldsmar attack used a shared password in TeamViewer. Every remote access path into OT must use MFA and ideally a jump server/bastion host with full session recording.
+3. **No remote access without VPN + MFA** — Oldsmar ran TeamViewer with one password shared across every workstation. Whether that access was ever abused or not, it is an unacceptable control gap on its own. Every remote access path into OT must use MFA and ideally a jump server/bastion host with full session recording.
 4. **ICS-specific threat intelligence** — Dragos, Claroty, Nozomi Networks, and Armis are the major OT security vendors with OT-specific threat intel and anomaly detection that understands industrial protocols.
 5. **Tabletop exercises for physical consequences** — incident response plans for OT must address physical consequences (spill, outage, explosion), not just data loss. The playbook for "shutdown the compromised system" may mean "call the physical plant operator to manually isolate the valve."
 
@@ -7973,8 +7986,8 @@ echo "Check this on https://www.shodan.io/host/$MY_IP"
 # (architecture review only — don't break your home router in this lab)`
     },
     caseStudy: {
-      title: "Oldsmar Water Treatment Plant (Florida, 2021)",
-      body: "On 5 February 2021, an attacker remotely accessed the control system of the Oldsmar, Florida water treatment facility and raised the sodium hydroxide (lye) concentration from 111 ppm to 11,100 ppm — a 100x increase to a level that would cause chemical burns and potentially death if consumed. The attacker used TeamViewer (a remote desktop tool), which had been installed for remote monitoring and used the same password across all plant computers, with no MFA. An operator physically watching a workstation saw the cursor move on its own, and immediately reversed the change. The attack was caught only by a human alert to the physical world — no automated security control fired at any point. The facility had no network segmentation between the business network and the OT environment, no multi-factor authentication on any remote access, and no anomaly detection on the HMI. The lessons: (1) shared/reused passwords on remote access tools to OT = full compromise risk; (2) MFA on all remote access paths is the single highest-value control; (3) assume the IT-OT air gap is already broken; (4) the consequence of an OT breach is not data loss — it is physical harm, and playbooks must address that."
+      title: "Oldsmar Water Treatment Plant (Florida, 2021) — and why the story changed",
+      body: "On 5 February 2021, the sodium hydroxide (lye) setpoint at the Oldsmar, Florida water treatment facility was changed from about 100 ppm to 11,100 ppm — a 100x jump to a level that would cause chemical burns. An operator watching a workstation saw the value change and the cursor move, and immediately reversed it. Within days this was reported worldwide as a remote cyberattack on drinking water, and it became the standard example of OT risk. STUDY BOTH HALVES. First, the reported attack path: TeamViewer had been installed for remote monitoring, was reachable, and used the SAME password across every plant computer with no MFA; there was no segmentation between the business network and the OT environment, and no alerting on an obviously absurd setpoint. Second, what the investigation actually found: a four-month FBI investigation could not confirm any intrusion, no perpetrator was ever identified, and in 2023 the city's own former manager stated publicly that there was no evidence of outside access and that the change was most likely an employee mis-clicking — the same employee praised as the hero who caught it. No official findings were ever released. The lessons are therefore sharper than the original telling: (1) the control failures were real and inexcusable regardless of who moved the value — shared credentials on internet-reachable remote access into OT is a critical finding on its own; (2) a plant that cannot distinguish an intrusion from an operator error has a logging, alerting and audit-trail problem either way, and that ambiguity IS the finding; (3) attribution is genuinely hard and early incident reporting is frequently wrong — as a defender you separate what you OBSERVED (the setpoint changed) from what you INFERRED (someone did it remotely), because that discipline is what keeps an incident report credible; (4) the consequence of an OT failure is not data loss but physical harm, which is why the last line of defence is engineered safety, not a cyber control."
     },
     challenges: [{
       q: "A factory's PLC (programmable logic controller) controlling a chemical mixing valve is connected to the corporate IT network for monitoring purposes. An attacker compromises the IT network via phishing. What prevents them from reaching the PLC, and what would a defender specifically implement?",
@@ -7983,7 +7996,7 @@ echo "Check this on https://www.shodan.io/host/$MY_IP"
       q: "Why is Shodan considered a powerful tool for both defenders and attackers, and what is the ethical use case for a security practitioner?",
       a: "Shodan indexes internet-facing services by scanning the public internet and recording service banners — it is passive from an individual user's perspective (you search Shodan's existing database rather than scanning targets yourself). Attackers use it to find exposed, unpatched, or default-credential devices without leaving any trace on the target. Defenders use it to: (a) check their own public IPs and ASN for exposed services they didn't know about; (b) monitor for newly exposed assets (Shodan Alerts can notify when a new service appears on your IP range); (c) identify vulnerable device models at scale before an attacker does; (d) research threat intelligence ('which IP ranges are running this vulnerable industrial protocol?'). The ethical line: using Shodan to search YOUR OWN infrastructure is not only acceptable, it's recommended. Using it to find targets for exploitation is the attacker use case and is illegal."
     }],
-    quiz: ["Why do IoT devices have a worse security track record than conventional servers? Name three structural reasons.", "What was Mirai, and what specific vulnerability class did it exploit?", "What is the Purdue Model, and why does it matter for OT security?", "What is a data diode / unidirectional gateway, and what specific attack does it prevent?", "What were the three security failures that allowed the Oldsmar water plant attack to succeed?"],
+    quiz: ["Why do IoT devices have a worse security track record than conventional servers? Name three structural reasons.", "What was Mirai, and what specific vulnerability class did it exploit?", "What is the Purdue Model, and why does it matter for OT security?", "What is a data diode / unidirectional gateway, and what specific attack does it prevent?", "Name three control failures at the Oldsmar water plant that were real regardless of who moved the setpoint — and explain why the FBI's inability to confirm an intrusion is itself a finding about the plant's monitoring."],
     workbench: `> ⚖️ **Ethics.** Inventory only **your own** network, and test default credentials only against a device you own or the local mock here. Probing a neighbour's IoT gadget or a random internet host is unauthorized access (M18).
 
 > **What this trains.** The IoT threat model is concrete and close: the insecure devices are on *your* network, and the segmentation that protects a water plant is the same idea that protects your data from your smart TV. So you'll inventory your own network passively, catch a device shipping with default credentials, and model the IT/OT separation that stops a phish from reaching a PLC. All local.
@@ -8065,9 +8078,9 @@ Common wrong attempts: pointing the checker at a device you don't own (unauthori
 
 #### 🔴 Break & Defend — the Purdue model, Oldsmar, and Shodan ~13 min
 
-**Goal.** Journal three answers. (1) Answer the module's PLC challenge with a model: encode Purdue levels and show that a flat network lets a phished laptop reach a chemical-valve PLC while a segmented one blocks it — then name what a defender specifically implements. (2) Explain the Oldsmar water-treatment attack and the controls that would have stopped it. (3) Answer the module's Shodan question: why is it powerful for both sides, and what's the ethical use for a practitioner?
+**Goal.** Journal three answers. (1) Answer the module's PLC challenge with a model: encode Purdue levels and show that a flat network lets a phished laptop reach a chemical-valve PLC while a segmented one blocks it — then name what a defender specifically implements. (2) Explain the Oldsmar water-treatment incident: the control failures, the controls that would have closed them — and, separately, what the investigation actually concluded and why that matters to how you write an incident report. (3) Answer the module's Shodan question: why is it powerful for both sides, and what's the ethical use for a practitioner?
 
-**Done when.** Your segmentation answer names the DMZ/data-diode idea, and your Oldsmar answer names both the access-control failure and the safety-instrumented-system backstop.
+**Done when.** Your segmentation answer names the DMZ/data-diode idea; your Oldsmar answer names the access-control failure and the safety-instrumented-system backstop, **and** separates what was observed from what was inferred.
 
 <details>
 <summary>Walkthrough — open after you've written your answers</summary>
@@ -8090,11 +8103,17 @@ for seg in (False, True):
 \`\`\`
 **(1) The Purdue model.** It organises industrial networks into **levels** — roughly L4 enterprise IT, a **L3.5 DMZ**, L3 site operations, L2 supervisory control (HMIs), L1 controllers (PLCs), L0 physical process — with the rule that traffic flows only between **adjacent** levels and IT never talks to the control layer directly. Your model shows exactly why the module's scenario is dangerous: on a **flat** network, a laptop compromised by phishing (L4) can send packets straight to the PLC (L1) controlling a chemical valve — a click on an email becomes a hand on a physical process. Segmented, that flow is blocked; monitoring data still reaches the enterprise, but only by flowing *up* through the DMZ, never by IT reaching *down*. What a defender specifically implements: a **firewalled IT/OT boundary with a DMZ** where a data historian sits, so enterprise dashboards read from the historian and never touch the control network; strict allow-lists of the exact protocols/hosts permitted across the boundary; and for the highest-assurance cases a **data diode**, hardware that physically permits data to flow only one way (out of OT), making inbound attack literally impossible over that link. The through-line to the whole course: this is **network segmentation and least privilege** (M6, M16.5) applied where the stakes are physical.
 
-**(2) Oldsmar.** In February 2021 an attacker remotely accessed the HMI at the Oldsmar, Florida water-treatment plant — via **TeamViewer** remote-access software that was installed, internet-reachable, and used a **shared password** across staff — and changed the sodium hydroxide (lye) dosing from ~100 ppm to **11,100 ppm**, a level that would have poisoned the water supply. It was caught only because an **operator happened to be watching the screen** and saw the cursor move and the value change, and reverted it. The failures are a stack of this course's lessons: remote administrative access exposed to the internet (M9), shared/weak credentials with no MFA (M3), no network segmentation isolating the control system, and no logging/alerting on a wildly abnormal setpoint change (M16). The controls that would have stopped it: remove or lock down remote access (VPN + MFA + least privilege, or eliminate it), segment the OT network (Purdue), and — the OT-specific backstop — a **Safety Instrumented System (SIS)**: independent safety logic that physically refuses to allow a dangerous setpoint regardless of what the HMI commands, so that a compromised control system still cannot drive the process into a harmful state. The lesson is that in OT, the last line of defence is engineered **safety**, not just cyber controls, because the failure mode is human harm.
+**(2) Oldsmar.** In February 2021 the sodium hydroxide (lye) dosing at the Oldsmar, Florida water-treatment plant was changed from ~100 ppm to **11,100 ppm**, a level that would have poisoned the water supply. It was caught only because an **operator happened to be watching the screen**, saw the value change, and reverted it. It was reported worldwide as a remote intrusion via **TeamViewer** — which was genuinely installed, internet-reachable, and using a **shared password** across staff with no MFA.
+
+**Then the story changed, and you must carry both halves.** A four-month FBI investigation could not confirm an intrusion; no perpetrator was ever identified; and in 2023 the city's former manager said publicly there was no evidence of outside access and the change was most likely an employee mis-clicking. No official findings were released.
+
+**The control failures stand on their own merits** — they are why the attack story was instantly credible to every practitioner who read it: remote administrative access exposed to the internet (M9), shared credentials with no MFA (M3), no segmentation isolating the control system, and no logging or alerting on a wildly abnormal setpoint change (M16). The controls that close them: remove or lock down remote access (VPN + MFA + least privilege, or eliminate it), segment the OT network (Purdue), and — the OT-specific backstop — a **Safety Instrumented System (SIS)**: independent safety logic that physically refuses a dangerous setpoint regardless of what the HMI commands, so a compromised *or fat-fingered* control system still cannot drive the process into a harmful state. In OT the last line of defence is engineered **safety**, not a cyber control, because the failure mode is human harm — and note that SIS protects you against the accident just as well as the attacker.
+
+**The second lesson is the one to actually take to work.** The plant could not tell an intrusion from an operator error — and *that ambiguity is itself the finding*. If your audit trail cannot answer "who changed this, from where, and when," you have no incident response, only speculation. So when you write findings: state what you **observed** (the setpoint changed at 13:32; the session was authenticated as the shared \`plant\` account) separately from what you **infer** (therefore an external attacker). Early incident reporting is wrong often enough that the discipline of keeping those two columns apart is what makes your report survive scrutiny — and what keeps you from becoming the source of the next widely-repeated error.
 
 **(3) Shodan.** Shodan continuously scans the internet and indexes the *services* it finds — not web pages but the banners of everything listening: industrial controllers, cameras, databases, routers, HMIs — so a search reveals every exposed device of a given type, often with its make, model, firmware version, and sometimes a default-credentialed login screen. It's powerful for **attackers** as a targeting engine (find every internet-exposed PLC of a vulnerable model in a country) and equally powerful for **defenders** and researchers doing the same search to find and remediate exposure before an attacker does. The **ethical use for a practitioner** is bounded by ownership and intent: look up **your own** public IP and your **own** organisation's assets to see what you're inadvertently exposing (the module's tracker item), conduct research and responsible disclosure, but **never access** a device you find — viewing Shodan's index is passive reconnaissance of public data, whereas logging into an exposed camera or PLC you don't own is unauthorized access and a crime (M18), no matter how open the door was left. **Outside the box:** M25.5's real message is that the attack surface has escaped the datacenter — it's in light bulbs, water plants, and cars now — and that these devices combine the worst properties: physical consequences, long lifespans, rare patching, and designers who optimised for reliability and cost over security. The defensive playbook doesn't change, though; it's the same segmentation, least privilege, credential hygiene, patching, and monitoring you've built all course, applied to a world where a vulnerability can open a valve. And the developer's specific responsibility is to build the edge device or its backend as if it will be attacked — because on the modern internet, it certainly will be.
 </details>`,
-    tracker: ["I ran an inventory scan of my own home network and identified all connected devices", "I checked my router for default credentials, exposed Telnet, and remote admin status", "I checked my public IP on Shodan and understand what an attacker sees", "I can explain the Purdue Model and why IT/OT network separation matters", "I can describe the Mirai botnet, Stuxnet, and Oldsmar attacks and the specific controls that would have prevented each", "Workbench: inventoried my own network from the ARP cache and identified devices by their MAC vendor prefix", "Workbench: built a default-credential checker that caught a mock device accepting admin:admin, and connected it to the Mirai botnet", "Workbench: modeled Purdue-level segmentation showing a flat network lets a phish reach a PLC, and explained Oldsmar's failures and the SIS backstop"]
+    tracker: ["I ran an inventory scan of my own home network and identified all connected devices", "I checked my router for default credentials, exposed Telnet, and remote admin status", "I checked my public IP on Shodan and understand what an attacker sees", "I can explain the Purdue Model and why IT/OT network separation matters", "I can describe the Mirai botnet and Stuxnet and the specific controls that would have prevented each", "I can explain the Oldsmar incident BOTH ways: the real control failures, and why the FBI could not confirm an intrusion — and what that teaches about separating observation from inference", "Workbench: inventoried my own network from the ARP cache and identified devices by their MAC vendor prefix", "Workbench: built a default-credential checker that caught a mock device accepting admin:admin, and connected it to the Mirai botnet", "Workbench: modeled Purdue-level segmentation showing a flat network lets a phish reach a PLC, and explained Oldsmar's failures, the SIS backstop, and the observed-vs-inferred distinction"]
   }, {
     id: "m26",
     level: 3,
@@ -8998,13 +9017,22 @@ function renderProse(text) {
       });
       continue;
     }
+    // Horizontal rule: a line of three or more dashes on its own.
+    // Must be checked before the paragraph fallback, or it renders as literal "---".
+    if (/^\s*-{3,}\s*$/.test(line)) {
+      blocks.push({
+        type: "hr"
+      });
+      i++;
+      continue;
+    }
     // Blank line
     if (line.trim() === "") {
       i++;
       continue;
     }
     // Paragraph (collect until blank or special)
-    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|");
+    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
     const paraLines = [];
     while (i < lines.length && !isSpecial(lines[i])) {
       paraLines.push(lines[i]);
@@ -9115,6 +9143,10 @@ function Prose({
     }, row.map((cell, ci) => /*#__PURE__*/React.createElement("td", {
       key: ci
     }, renderInline(cell))))))));
+    if (b.type === "hr") return /*#__PURE__*/React.createElement("hr", {
+      key: i,
+      className: "prose-hr"
+    });
     if (b.type === "code") return /*#__PURE__*/React.createElement(CodeBlock, {
       key: i,
       lang: b.lang,
@@ -9132,6 +9164,7 @@ function renderProseBlock(b, key) {
   if (b.type === "p") return /*#__PURE__*/React.createElement("p", { key }, renderInline(b.content));
   if (b.type === "ul") return /*#__PURE__*/React.createElement("ul", { key }, b.items.map((it, j) => /*#__PURE__*/React.createElement("li", { key: j }, renderInline(it))));
   if (b.type === "ol") return /*#__PURE__*/React.createElement("ol", { key }, b.items.map((it, j) => /*#__PURE__*/React.createElement("li", { key: j }, renderInline(it))));
+  if (b.type === "hr") return /*#__PURE__*/React.createElement("hr", { key, className: "prose-hr" });
   if (b.type === "code") return /*#__PURE__*/React.createElement(CodeBlock, { key, lang: b.lang, content: b.content });
   if (b.type === "table") return /*#__PURE__*/React.createElement("div", { key, className: "table-wrap" }, /*#__PURE__*/React.createElement("table", { className: "prose-table" }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, b.header.map((h, j) => /*#__PURE__*/React.createElement("th", { key: j }, renderInline(h))))), /*#__PURE__*/React.createElement("tbody", null, b.rows.map((row, ri) => /*#__PURE__*/React.createElement("tr", { key: ri }, row.map((cell, ci) => /*#__PURE__*/React.createElement("td", { key: ci }, renderInline(cell))))))));
   if (b.type === "blockquote") return /*#__PURE__*/React.createElement("blockquote", { key, className: "prose-quote" }, b.inner && b.inner.map((bb, j) => renderProseBlock(bb, j)));

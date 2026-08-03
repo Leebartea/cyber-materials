@@ -539,6 +539,7 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
   .prose-block em { font-style: italic; color: #d7dee0; }
   .prose-block a { color: #7dd3fc; text-decoration: underline; text-underline-offset: 2px; }
   .prose-block a:hover { color: #bae6fd; }
+  .prose-hr { border: 0; border-top: 1px solid var(--border); margin: 1.9rem 0; opacity: 0.65; }
   .prose-quote { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 6px 6px 0; padding: 8px 16px; margin: 1rem 0; }
   .prose-quote p:last-child { margin-bottom: 0; }
   .prose-details { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 1rem 0; background: var(--surface-2); }
@@ -961,7 +962,7 @@ This course is a practitioner-grade, full-stack application security curriculum 
 
 ### What this course is
 
-**60 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it. Foundational modules also close with a **Workbench** — write-it-from-scratch tasks that state an outcome and a way to check yourself, with the worked solution hidden until you've made your own attempt. Reading a command and *producing* one from a blank prompt are different skills, and the Workbench trains the second one.
+**64 modules across 12 phases** (Phase 7.5 covers AI/LLM Security, including agentic AI and tool-use; Phase 1 includes a dedicated shell scripting, text processing, and SSH tunneling module). Every module follows the same pattern: concept → attack demonstration → defense → hands-on lab. You learn a vulnerability by seeing it exploited, then you fix it, then you write the test that would have caught it. Foundational modules also close with a **Workbench** — write-it-from-scratch tasks that state an outcome and a way to check yourself, with the worked solution hidden until you've made your own attempt. Reading a command and *producing* one from a blank prompt are different skills, and the Workbench trains the second one.
 
 The course uses Node.js and Express as its primary example language because it is the most common full-stack pairing — but Phase 3.5 explicitly maps every pattern to Python, Go, Java, PHP, and Ruby. The security thinking is language-agnostic; only the syntax differs.
 
@@ -2515,14 +2516,22 @@ Log file: 3000_access.log
 **Command substitution: \`$(...)\`.** Runs a command and drops its *output* into the line. This is how you capture a token, a PID, or a count.
 
 \`\`\`bash
+touch one.txt two.txt three.txt      # so the count below is predictable
 echo "Today is $(date +%F)"
 files=$(ls | wc -l)
 echo "There are $files entries here"
 \`\`\`
 \`\`\`
-Today is 2026-07-19
-There are 3 entries here
+Today is 2026-08-03
+There are        3 entries here
 \`\`\`
+
+> **Two things to notice.** The date is *today's* date, not the one printed here — \`$(date)\` runs
+> when you run it. And that gap before the \`3\` is real: macOS/BSD \`wc\` pads its number to a fixed
+> width, while GNU \`wc\` on Linux does not. Pipe through \`tr -d ' '\` when you need a clean number.
+> Getting a *different* count than the guide is not a mistake — it means your folder has a
+> different number of files. This is the first habit of reading output: separate "what the command
+> did" from "what happened to be in this directory."
 
 **Chaining: \`;\`  \`&&\`  \`||\`  \`&\`.**
 
@@ -2879,8 +2888,15 @@ node    54321   you   20u  IPv4  0x...   TCP  127.0.0.1:3000 (LISTEN)
 dig +short example.com
 \`\`\`
 \`\`\`
-93.184.216.34
+23.192.228.84
+23.215.0.136
 \`\`\`
+
+> **Your addresses will differ, and that is the lesson.** A name is not glued to one IP. Big sites
+> sit behind CDNs, so \`example.com\` answers with *several* addresses that change over time and by
+> region — for years it was a single \`93.184.216.34\`, and it isn't any more. What matters is the
+> *shape*: one line per \`A\` record. If you get **no** output, the name didn't resolve — a very
+> different failure from "resolved to an address I didn't expect."
 
 ---
 
@@ -3693,7 +3709,7 @@ curl -i "https://httpbin.org/redirect-to?url=https://example.com"
 
 1. (a) Start line — request line (method, path, version) or status line (version, code, reason). (b) Headers — key/value metadata. (c) A blank line. (d) The optional body.
 2. \`401\` = not authenticated → **authentication** failure. \`403\` = authenticated but not permitted → **authorization** failure.
-3. GET is contractually side-effect-free; browsers, caches, and prefetchers may issue GETs freely. A state-changing GET can be triggered by a simple link/image (CSRF) and may be cached or repeated.
+3. GET is contractually side-effect-free; browsers, caches, and prefetchers may issue GETs freely. A state-changing GET can be triggered by a link the victim clicks or any other cross-site navigation (CSRF — and note a modern \`SameSite=Lax\` cookie still rides along on a top-level navigation), and may be cached or repeated.
 4. An open redirect is a redirect whose \`Location\` is derived from attacker-controlled input with no validation. Defense: validate the target against an allow-list.
 5. Shared caches/CDNs may store a cacheable response and serve it to a *different* user; \`no-store\` forbids storing it.
 </details>
@@ -6133,7 +6149,7 @@ Re-run the attacker page: with \`SameSite=Lax\` the cookie isn't attached (401),
 
 - **Set \`SameSite\` on session cookies** (\`Lax\` as a sane default; \`Strict\` for the most sensitive). This alone defeats classic cross-site form/\`fetch\` POST CSRF.
 - **Use CSRF tokens for state-changing requests** (synchronizer token pattern), especially when you need \`SameSite=None\`, support old browsers, or want defense-in-depth. The attacker can't read the token because SOP blocks them reading your page.
-- **Never make state-changing GETs.** A GET that mutates can be triggered by an \`<img>\` tag and isn't covered by \`SameSite=Lax\`'s POST protection.
+- **Never make state-changing GETs.** A GET that mutates can be triggered by any cross-site *navigation* — a link the victim clicks, a \`window.location=\`, a \`<form method="GET">\` — and \`SameSite=Lax\` still attaches the cookie to those, because they are top-level navigations. (Lax *does* stop a cross-site \`<img src>\`, which is a sub-resource; that's what made image-tag CSRF a classic before Lax became the default.)
 - **Validate \`Origin\`/\`Referer\`** on sensitive requests as an extra check.
 - **Don't rely on "it's a JSON API."** Combine \`SameSite\` + tokens; verify your CORS config (Module 2.4) isn't reopening the door.
 
@@ -6323,7 +6339,7 @@ curl -s -X POST -b "session=valid-session-for-victim" \\
 
 **3a. Why evil.com can't forge it.** The token is random and embedded in *your* page. The **Same-Origin Policy** forbids \`evil.com\`'s scripts from *reading the contents* of your pages or responses — so the attacker can auto-submit a form to your endpoint, but cannot learn the one value that endpoint now demands. The forged POST arrives tokenless → 403. This is the elegant part: the defense works *because* of the same SOP gap that CSRF exploits — SOP lets them *send* but not *read*, so a secret they must *read* to include defeats them.
 
-**3b. Why SameSite doesn't retire tokens.** \`SameSite=Lax\` blocks the cookie on cross-site *POST/fetch/iframe*, which kills classic form CSRF — but it does **not** cover state-changing **GET** requests (an \`<img src=".../account/delete?id=…">\` still fires with the cookie on a top-level context), and it doesn't apply to cookies deliberately set \`SameSite=None\` for embedded/SSO widgets. In those cases the token is the thing still standing. Defense-in-depth: \`SameSite\` as the cheap default, tokens for the cases it misses.
+**3b. Why SameSite doesn't retire tokens.** \`SameSite=Lax\` blocks the cookie on cross-site *POST/fetch/iframe*, which kills classic form CSRF — but it does **not** cover state-changing **GET** requests reached by a **top-level navigation**. Be precise about the mechanism, because this is the detail people get wrong: Lax sends the cookie when the *whole page navigates* — a link the victim clicks, a \`window.location = "https://bank.example/account/delete?id=7"\`, a cross-site \`<form method="GET">\` that submits — but **not** on sub-resource loads. So a cross-site \`<img src=".../account/delete?id=7">\` is exactly the case Lax **does** stop; the pre-2020 default (no SameSite at all) is what made the classic \`<img>\` CSRF work. The residual hole is the navigation, not the image. Lax also doesn't apply to cookies deliberately set \`SameSite=None\` for embedded/SSO widgets. In those cases the token is the thing still standing. Defense-in-depth: \`SameSite\` as the cheap default, tokens for the cases it misses — and don't build state-changing GETs in the first place.
 
 **3c. "JSON API so I'm immune" — no.** JSON reduces the *simplest* HTML-form CSRF (a plain \`<form>\` can't send \`application/json\` cross-site without tripping a CORS preflight). But it's not immunity: if the endpoint *also* accepts \`application/x-www-form-urlencoded\` (many do by default), a form posts to it fine; a **misconfigured CORS** policy (next module) can grant the cross-origin request outright; and any GET that changes state is wide open. The fix is the same regardless of content type: \`SameSite\` + a token the attacker can't read.
 
@@ -10891,9 +10907,21 @@ Argon2id has three tuning knobs: **\`memoryCost\` (m)** — KiB of RAM per hash,
 #   macOS:   brew install john-jumbo
 #   Linux/Kali: sudo apt install -y john   (Kali ships the jumbo build)
 #   Windows: download the "jumbo" build from openwall.com/john
-# a tiny wordlist to crack against (rockyou is the canonical demo list):
-curl -L -o ~/rockyou-sample.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-100000.txt
+# a tiny wordlist to crack against (SecLists' 10k-most-common is the standard demo list):
+curl -fL -o ~/rockyou-sample.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10k-most-common.txt
+wc -l ~/rockyou-sample.txt
 \`\`\`
+\`\`\`
+   10000 /Users/you/rockyou-sample.txt
+\`\`\`
+
+> **Why \`-f\`, and check the line count.** Without \`curl -f\`, a moved or renamed file gives you
+> a **404 HTML page saved as your wordlist** — the cracker then finds nothing and you spend an
+> hour blaming hashcat. \`-f\` makes curl fail loudly instead. The \`wc -l\` is the confirmation:
+> if it prints \`1\` or a few dozen, you downloaded an error page, not a wordlist.
+> If the URL ever moves, you don't need it at all — the three passwords below are common enough
+> that you can build the list yourself:
+> \`printf '%s\\n' password1 iloveyou sunshine letmein dragon monkey > ~/rockyou-sample.txt\`
 
 **Step 1 — generate your own victim hashes (fast hash, the wrong way).** Three users with deliberately weak passwords stored as bare SHA-256:
 
@@ -11703,7 +11731,7 @@ In your journal, match each cookie flag / rule to the *single* attack it stops, 
 
 1. **\`HttpOnly\`** makes the cookie invisible to \`document.cookie\`, so an XSS payload can't *exfiltrate* the session (Module 2.1's storage lesson, enforced). **It does not stop XSS from *acting* as the user** — injected script can still fire authenticated requests in-page using the auto-attached cookie. \`HttpOnly\` protects the cookie's *confidentiality*, not the session's *integrity*; you must still fix the XSS.
 2. **\`Secure\`** sends the cookie only over HTTPS, stopping a single plaintext request (a typo'd \`http://\` link, an image, a captive portal) from leaking the session on the wire. **Gotcha:** it's easy to leave off in dev and forget in prod — gate it on \`NODE_ENV === "production"\` and *verify* it's set in prod (a session cookie without \`Secure\` in production is a finding).
-3. **\`SameSite=Lax\`** blocks the cookie on cross-site POST/fetch/iframe — killing classic form-POST CSRF — while still sending it on top-level link navigations. **Doesn't cover:** state-changing *GET* requests (an \`<img src=".../delete">\`), \`SameSite=None\` widgets, and old browsers — so keep anti-CSRF **tokens** on sensitive POSTs as belt-and-suspenders (Module 2.3).
+3. **\`SameSite=Lax\`** blocks the cookie on cross-site POST/fetch/iframe *and on sub-resource loads like \`<img>\`* — killing classic form-POST and image-tag CSRF — while still sending it on **top-level navigations**. **Doesn't cover:** state-changing *GET* requests reached by a navigation (a clicked link, \`window.location=\`, a cross-site \`<form method="GET">\`), \`SameSite=None\` widgets, and old browsers — so keep anti-CSRF **tokens** on sensitive POSTs as belt-and-suspenders (Module 2.3).
 4. **\`__Host-\` prefix** makes the browser *enforce* \`Secure\` + \`Path=/\` + **no \`Domain\`** (host-only). It prevents a **subdomain cookie attack**: without it, a compromised or attacker-controlled \`coupons.example.com\` could set a \`Domain=.example.com\` cookie that overrides or reads your session on the main site. Host-only scoping shuts that door.
 5. **Stateful (server-side) sessions are a row in Redis/Postgres — delete it and the session is dead *everywhere, instantly*.** That's what makes "log out everywhere," admin-forced logout, and "we detected a breach, killing all sessions" trivial. A **signed cookie / JWT is self-contained and stays valid until it expires**, so revoking it early needs extra machinery (a server-side blocklist, or very short TTLs + refresh tokens) — the central tension you'll meet head-on in 6.3.
 
@@ -13308,7 +13336,7 @@ gitleaks reports \`STRIPE_KEY\` (the \`KEY\`-named variable holding a high-entro
 \`\`\`bash
 npm audit                       # npm advisory DB
 trivy fs .                      # node_modules + lockfile against many DBs
-osv-scanner --lockfile=package-lock.json
+osv-scanner scan source --lockfile=package-lock.json   # v2 syntax; v1 was 'osv-scanner --lockfile=...'
 \`\`\`
 
 All three report the \`lodash@4.17.4\` advisory (plus transitive ones). They don't always agree on count/severity — each maps to a different vuln database (npm vs GHSA vs OSV vs NVD). That disagreement is *normal*, and is why mature teams run more than one SCA source. \`npm audit fix\` (or bumping to \`lodash@^4.17.21\`) clears it.
@@ -13396,9 +13424,13 @@ jobs:
       - run: npm ci                 # WHY: 'ci' installs EXACTLY the lockfile, fails on drift
       - run: npm audit --audit-level=high   # WHY: no '|| true'; a High/Critical fails the job
       - name: SCA (second source)
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh | sh
-          ./osv-scanner --lockfile=package-lock.json   # WHY: cross-check a different vuln DB
+        # WHY the pinned action, not 'curl … | sh': piping a remote script into a shell is the
+        # very supply-chain pattern Module 7.2 tells you not to trust — and install-script URLs
+        # move, silently breaking the job. A SHA-pinned action is auditable and reproducible.
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
       - name: Secret scan (full history)
         uses: gitleaks/gitleaks-action@cb7149a9b57195b609c63e8518d2c6056677d2d0 # pinned
       - name: SAST
@@ -18040,13 +18072,22 @@ function renderProse(text) {
       });
       continue;
     }
+    // Horizontal rule: a line of three or more dashes on its own.
+    // Must be checked before the paragraph fallback, or it renders as literal "---".
+    if (/^\s*-{3,}\s*$/.test(line)) {
+      blocks.push({
+        type: "hr"
+      });
+      i++;
+      continue;
+    }
     // Blank line
     if (line.trim() === "") {
       i++;
       continue;
     }
     // Paragraph (collect until blank or special)
-    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|");
+    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
     const paraLines = [];
     while (i < lines.length && !isSpecial(lines[i])) {
       paraLines.push(lines[i]);
@@ -18157,6 +18198,10 @@ function Prose({
     }, row.map((cell, ci) => /*#__PURE__*/React.createElement("td", {
       key: ci
     }, renderInline(cell))))))));
+    if (b.type === "hr") return /*#__PURE__*/React.createElement("hr", {
+      key: i,
+      className: "prose-hr"
+    });
     if (b.type === "code") return /*#__PURE__*/React.createElement(CodeBlock, {
       key: i,
       lang: b.lang,
@@ -18174,6 +18219,7 @@ function renderProseBlock(b, key) {
   if (b.type === "p") return /*#__PURE__*/React.createElement("p", { key }, renderInline(b.content));
   if (b.type === "ul") return /*#__PURE__*/React.createElement("ul", { key }, b.items.map((it, j) => /*#__PURE__*/React.createElement("li", { key: j }, renderInline(it))));
   if (b.type === "ol") return /*#__PURE__*/React.createElement("ol", { key }, b.items.map((it, j) => /*#__PURE__*/React.createElement("li", { key: j }, renderInline(it))));
+  if (b.type === "hr") return /*#__PURE__*/React.createElement("hr", { key, className: "prose-hr" });
   if (b.type === "code") return /*#__PURE__*/React.createElement(CodeBlock, { key, lang: b.lang, content: b.content });
   if (b.type === "table") return /*#__PURE__*/React.createElement("div", { key, className: "table-wrap" }, /*#__PURE__*/React.createElement("table", { className: "prose-table" }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, b.header.map((h, j) => /*#__PURE__*/React.createElement("th", { key: j }, renderInline(h))))), /*#__PURE__*/React.createElement("tbody", null, b.rows.map((row, ri) => /*#__PURE__*/React.createElement("tr", { key: ri }, row.map((cell, ci) => /*#__PURE__*/React.createElement("td", { key: ci }, renderInline(cell))))))));
   if (b.type === "blockquote") return /*#__PURE__*/React.createElement("blockquote", { key, className: "prose-quote" }, b.inner && b.inner.map((bb, j) => renderProseBlock(bb, j)));
