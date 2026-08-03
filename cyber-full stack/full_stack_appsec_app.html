@@ -1072,11 +1072,16 @@ The one thing worth knowing first: whether your CPU is **x86-64 (Intel/AMD)** or
 # macOS / Linux
 uname -m         # "arm64" or "aarch64" = ARM64;  "x86_64" = Intel/AMD
 \`\`\`
+\`\`\`
+arm64
+\`\`\`
 
 \`\`\`powershell
 # Windows (PowerShell)
 echo \$env:PROCESSOR_ARCHITECTURE   # "AMD64" = x86-64;  "ARM64" = ARM
 \`\`\`
+
+**One word, and it decides things for the next ten phases.** \`arm64\` (Apple Silicon, or \`aarch64\` on Linux/WSL2) means a few older Docker images in Phases 3–5 need \`--platform linux/amd64\` to run under emulation — the course flags each one where it comes up. \`x86_64\` means everything runs natively and you can ignore those notes. **Write your answer down now**; it's the single fact you'll be asked to recall most often during setup.
 
 ### Recommended setup: host-first, one attacker VM
 
@@ -1164,6 +1169,13 @@ Verify:
 \`\`\`bash
 git --version && node --version && python3 --version
 \`\`\`
+\`\`\`
+git version 2.55.0
+v22.12.0
+Python 3.11.0
+\`\`\`
+
+**Three lines means three successes.** Your version numbers will be higher than these — that's fine, they only need to be *at least* this new (git 2.40+, Node 20+, Python 3.11+). What matters is that you got three lines. Because these are joined by \`&&\`, the chain **stops at the first failure**: if you see only one line and then \`command not found\`, the tools after it never ran, so fix that one and re-run the whole line rather than assuming the rest are fine. That short-circuit behaviour is from Module 0.7's shell mechanics, and this is the first place it bites.
 
 ---
 
@@ -1199,6 +1211,16 @@ go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 \`\`\`
 
 > **ARM64 note.** Burp Suite, ZAP, nmap, sqlmap, semgrep, trivy, and gitleaks all run natively on ARM64 — no emulation needed. Only a few old Docker *target images* need emulation (covered in Step 3).
+
+> **\`pipx\` said "installed" but the command isn't found?** This one catches almost everyone, on every platform. \`pipx\` puts binaries in \`~/.local/bin\`, which is often **not on your \`PATH\`** — so the install genuinely succeeded and the shell still can't find it. Fix it once:
+>
+> \`\`\`bash
+> pipx ensurepath          # appends ~/.local/bin to your shell profile
+> exec $SHELL              # reload the shell so the change takes effect NOW
+> semgrep --version        # should now print a version
+> \`\`\`
+>
+> If that still fails, confirm the binary is really there with \`ls ~/.local/bin\`, then add \`export PATH="$HOME/.local/bin:$PATH"\` to your \`~/.zshrc\` or \`~/.bashrc\` yourself. **The lesson generalizes:** "command not found" after a successful install is almost always a \`PATH\` problem, not a broken install — and knowing that distinction saves you from uninstalling and reinstalling things that were fine all along.
 
 ---
 
@@ -1376,6 +1398,21 @@ semgrep --version
 trivy --version
 gitleaks version
 \`\`\`
+\`\`\`
+git version 2.55.0
+v22.12.0
+10.33.0
+Python 3.11.0
+Docker version 28.3.3, build 980b856816
+Nmap version 7.99 ( https://nmap.org )
+1.172.0
+Version: 0.72.0
+8.30.1
+\`\`\`
+
+**Nine lines, nine tools — and note how inconsistent they are.** Some print a name and version (\`git version 2.55.0\`), some print a bare number (\`10.33.0\`), some prefix it (\`Version: 0.68.0\`), and \`gitleaks\` uses \`version\` as a subcommand rather than \`--version\`. There is no standard, which is exactly why this list is written out explicitly instead of left to you to guess.
+
+**Your numbers will be higher; that is expected.** What you are checking is that every line is a *version*, not an error. Unlike the \`&&\` chain in Step 1, these are separate lines, so **each runs regardless of the others failing** — you get a complete picture in one pass. Any \`command not found\` tells you exactly which install to revisit. If you plan to use the Kali VM from Step 5 for the offensive tooling, it is normal for \`nmap\`, \`semgrep\` and \`trivy\` to be missing on your host at this point.
 
 Final smoke test — Juice Shop should load at \`http://localhost:3000\`:
 
