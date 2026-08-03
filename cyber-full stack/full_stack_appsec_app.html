@@ -4288,15 +4288,39 @@ The module gave you the secret-pattern one-liner. Two things make it *pinpoint* 
 <summary>Walkthrough — open after you've run your own attempt</summary>
 
 \`\`\`bash
-rg -ni "password|secret|token|api[_-]?key|sk_(live|test)|bearer" .
-# or, identically:
 grep -rniE "password|secret|token|api[_-]?key|sk_(live|test)|bearer" .
-# .env:3:STRIPE_KEY=sk_test_FAKE123
-# src/app.js:2:const apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ"
-# logs/app.log:2:... authorization: Bearer sk_live_FAKE_leaked_in_log
+\`\`\`
+\`\`\`
+.env:3:STRIPE_KEY=sk_test_FAKE123
+logs/app.log:2:2026-07-22 10:00:02 DEBUG authorization: Bearer sk_live_FAKE_leaked_in_log
+src/app.js:2:const apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ";
 \`\`\`
 
-The \`-n\` (line numbers) is what turns "there's a secret somewhere" into "the secret is at \`src/app.js:2\`" — an address you can act on. The alternation in the pattern is doing the real work: \`api[_-]?key\` matches \`apiKey\`, \`api_key\`, and \`api-key\`; \`sk_(live|test)\` matches the payment-key shape. This *is* how a leaked-repo attacker and a secret scanner both operate — the secret was never hidden, only unsearched.
+Three files, three leaks. The \`-n\` (line numbers) is what turns "there's a secret somewhere" into "the secret is at \`src/app.js:2\`" — an address you can act on. The alternation in the pattern is doing the real work: \`api[_-]?key\` matches \`apiKey\`, \`api_key\`, and \`api-key\`; \`sk_(live|test)\` matches the payment-key shape. This *is* how a leaked-repo attacker and a secret scanner both operate — the secret was never hidden, only unsearched.
+
+**Now run the \`rg\` version, which is *not* identical, and this difference matters more than the speed:**
+
+\`\`\`bash
+rg -ni "password|secret|token|api[_-]?key|sk_(live|test)|bearer" .
+\`\`\`
+\`\`\`
+./src/app.js:2:const apiKey = "aB3xQ9mK7pL2vN8wZ4tR6yU1sD5fG0hJ";
+./logs/app.log:2:2026-07-22 10:00:02 DEBUG authorization: Bearer sk_live_FAKE_leaked_in_log
+\`\`\`
+
+**Two results, not three — \`rg\` silently skipped \`.env\`.** By default ripgrep ignores **hidden files** (anything starting with a dot) *and* anything matched by \`.gitignore\`. Both defaults are wonderful for searching code and actively dangerous for hunting secrets, because \`.env\` is a dotfile **and** the first thing people gitignore. The tool optimized for exactly the file you most need to see. Confirm what it even considered with \`rg --files .\` — \`.env\` isn't in the list.
+
+The fix is two flags, and they belong in muscle memory for any security search:
+
+\`\`\`bash
+rg -ni --hidden --no-ignore "sk_(live|test)" .
+\`\`\`
+\`\`\`
+./logs/app.log:2:2026-07-22 10:00:02 DEBUG authorization: Bearer sk_live_FAKE_leaked_in_log
+./.env:3:STRIPE_KEY=sk_test_FAKE123
+\`\`\`
+
+This is the module's whole thesis arriving early and from an unexpected direction: **your scan is only as good as the set of files it agreed to open.** You are about to see the same failure again in Drill 2 with \`--glob\`, and again in Module 1.4 with git history. Different mechanism, identical blind spot.
 </details>
 
 #### 🟢 Drill 2 — the search that looks in the wrong places ~5 min
@@ -4314,12 +4338,26 @@ rg -ni "sk_(live|test)" --glob '*.js'      # grep --include='*.js' does the same
 <details>
 <summary>Walkthrough — open after you've run your own attempt</summary>
 
+\`\`\`bash
+rg -ni "sk_(live|test)" --glob '*.js' .
+echo "exit status: $?"
+\`\`\`
+\`\`\`
+exit status: 1
+\`\`\`
+
+*(No matches at all — the only thing printed is the exit status we asked for. \`1\` is grep/rg's "found nothing".)*
+
 The \`--glob '*.js'\` scan prints **nothing** — and that empty output is the trap: it *feels* like "all clear," but the most dangerous secret in the project (\`sk_live_...\`, a *live* key) is sitting in \`logs/app.log\`, which the scan never looked at. Drop the file filter and it appears immediately:
 
 \`\`\`bash
-rg -ni "sk_(live|test)" .        # no --glob: searches everything
-# logs/app.log:2:... Bearer sk_live_FAKE_leaked_in_log
+rg -ni "sk_(live|test)" .        # no --glob: searches everything rg is willing to open
 \`\`\`
+\`\`\`
+./logs/app.log:2:2026-07-22 10:00:02 DEBUG authorization: Bearer sk_live_FAKE_leaked_in_log
+\`\`\`
+
+**And notice this *still* misses \`.env\`** — which also contains an \`sk_test_\` key — for the separate reason from Drill 1: it's a dotfile. You need \`rg -ni --hidden --no-ignore "sk_(live|test)" .\` to see both. Two independent filters, each invisible, each hiding a different secret. That is why real secret scanners (\`gitleaks\`, Module 1.4) are configured to open everything by default rather than inheriting a developer tool's convenience defaults.
 
 **The lesson: a clean result only means "clean *in the places you searched*."** Secrets leak through the boring channels precisely *because* people scan the obvious ones. Logs, \`.env\` files, config, commit history, \`.log\`/\`.bak\`/\`.old\` files, and screenshots are where the real leaks live. When someone says "the scan is clean," the security question is always *"what did the scan not look at?"*
 </details>
@@ -4485,6 +4523,18 @@ printf ".env\\nnode_modules/\\n" > .gitignore   # ignore BEFORE the first commit
 git add .
 git status        # .env is absent from the staged list — that's the win
 \`\`\`
+\`\`\`
+On branch master
+
+No commits yet
+
+Changes to be committed:
+  (use "git rm --cached <file>..." to unstage)
+	new file:   .gitignore
+	new file:   app.js
+\`\`\`
+
+**Read what is *not* there.** You created three files — \`.gitignore\`, \`app.js\`, and \`.env\` — and \`git add .\` staged two. \`.env\` is absent, and git says nothing about it: no warning, no "skipped" line. A silent omission is the *success* case here, which is why you have to look for it deliberately rather than wait to be told.
 
 The ordering is the entire point: \`.gitignore\` only prevents a file from being *newly* tracked. If you had \`git add\`-ed \`.env\` first and committed, adding it to \`.gitignore\` afterward would do nothing — it's already in history (which is exactly the trap the next task walks into deliberately). "Ignore secret files before the first commit" is a sequence, not just a config.
 </details>
@@ -4521,15 +4571,51 @@ printf 'const KEY = process.env.KEY;  // moved to env\\n' > config.js
 git add config.js && git commit -q -m "remove hardcoded secret"
 grep sk_live config.js || echo "current file is clean"   # clean — looks fixed!
 \`\`\`
+\`\`\`
+current file is clean
+\`\`\`
 
 **2. Recover it anyway — any of these works:**
 \`\`\`bash
 git show HEAD~1:config.js                 # the file exactly as the previous commit stored it
-# const KEY = "sk_live_FAKE_committed_by_mistake";
+\`\`\`
+\`\`\`
+const KEY = "sk_live_FAKE_committed_by_mistake";
+\`\`\`
 
+\`\`\`bash
 git log --all -p -S 'sk_live' --oneline   # -S pickaxe: every commit that added/removed the string
+\`\`\`
+\`\`\`
+003aec7 remove hardcoded secret
+diff --git a/config.js b/config.js
+index 9dcac97..e8fcbe9 100644
+--- a/config.js
++++ b/config.js
+@@ -1 +1 @@
+-const KEY = "sk_live_FAKE_committed_by_mistake";
++const KEY = process.env.KEY;  // moved to env
+9cb703c add config
+diff --git a/config.js b/config.js
+new file mode 100644
+index 0000000..9dcac97
+--- /dev/null
++++ b/config.js
+@@ -0,0 +1 @@
++const KEY = "sk_live_FAKE_committed_by_mistake";
+\`\`\`
+
+**The pickaxe found *two* commits, and that pairing is the lesson.** \`9cb703c\` is where the secret arrived; \`003aec7\` is your "removal" — and the removal commit displays the secret **on the \`-\` line**, in full. Your cleanup commit is itself a permanent, searchable record of the thing you were trying to erase. Your commit hashes will differ from these; the two-commit shape will not.
+
+\`\`\`bash
 git rev-list --all | xargs git grep -i sk_live   # grep across ALL commits at once
 \`\`\`
+\`\`\`
+9cb703c64d88fa2a0bce1d949336713a6055751c:config.js:const KEY = "sk_live_FAKE_committed_by_mistake";
+\`\`\`
+
+That last form is the one to remember for a real audit: it greps **every commit reachable from every branch**, and prints \`<commit>:<path>:<line>\` — an exact address inside history. It is also, precisely, what an attacker runs against a repo that leaked.
+
 The working tree is spotless and the secret is *right there* in \`HEAD~1\`. This is not a trick — it's how Git is designed: commits are immutable snapshots, and "removing" a line just records a new snapshot without it. Every clone of this repo, every fork, and GitHub's own storage all still hold that old commit. (Note the zsh gotcha: use \`HEAD~1:config.js\`, not \`$hash:config.js\` — in zsh the \`:c\` after a variable is parsed as a modifier and mangles the path.)
 
 **3. The correct response — rotate, immediately:**
