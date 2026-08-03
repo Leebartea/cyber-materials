@@ -2568,10 +2568,12 @@ Log file: 3000_access.log
 **Command substitution: \`$(...)\`.** Runs a command and drops its *output* into the line. This is how you capture a token, a PID, or a count.
 
 \`\`\`bash
-touch one.txt two.txt three.txt      # so the count below is predictable
+mkdir -p demo && cd demo           # a scratch folder, so the count is predictable
+touch one.txt two.txt three.txt
 echo "Today is $(date +%F)"
 files=$(ls | wc -l)
 echo "There are $files entries here"
+cd ..                              # back out; later examples expect a clean folder
 \`\`\`
 \`\`\`
 Today is 2026-08-03
@@ -2697,21 +2699,51 @@ config.txt
 
 **\`find\` — search the filesystem *by name, type, age, size* (not contents).** Where \`grep\` looks inside files, \`find\` locates the files themselves.
 
+Run them **one at a time** — each answers a different question, and seeing the four result sets separately is the point:
+
 \`\`\`bash
 find . -name "*.log"                 # every .log under here, recursively
+\`\`\`
+\`\`\`
+./error.log
+./app.log
+\`\`\`
+
+\`\`\`bash
 find . -type f -name "*.txt"         # files (-type f), not directories
+\`\`\`
+\`\`\`
+./log2.txt
+./log1.txt
+./config.txt
+./log10.txt
+\`\`\`
+
+\`\`\`bash
 find . -type f -mtime -1             # files modified in the last 1 day
+\`\`\`
+\`\`\`
+./log2.txt
+./log1.txt
+./config.txt
+./error.log
+./log10.txt
+./app.log
+\`\`\`
+
+\`\`\`bash
 find . -name "*.log" -exec wc -l {} \\;   # run wc -l on each match ({} = the file)
 \`\`\`
 \`\`\`
-./app.log
-./error.log
-./config.txt
-       0 ./app.log
        0 ./error.log
+       0 ./app.log
 \`\`\`
 
-The \`-exec ... {} \\;\` form runs a command per match — \`{}\` is replaced by each filename and \`\\;\` ends the command. You'll see it again when scrubbing world-writable files in Phase 8.
+**Three things worth noticing before moving on.**
+
+1. **\`find\` does not sort.** \`error.log\` came back before \`app.log\`. The order is whatever the filesystem hands over, so never rely on it — pipe through \`sort\` when order matters. (Your ordering may differ from what's printed here for exactly this reason; the *set* of files will match.)
+2. **\`-mtime -1\` returned everything**, because you created all of these moments ago. That is the correct answer, and it is also why "recently modified" is only a useful filter on a system with some history — on a fresh lab it selects everything.
+3. **\`-exec\` ran \`wc -l\` twice, once per match**, which is why you get two separate \`0\` lines rather than one total. \`{}\` is replaced by each filename and \`\\;\` ends the command. (Files are empty — \`touch\` created them with no content.) You'll see this form again when scrubbing world-writable files in Phase 8.
 
 **\`fd\` — a friendlier \`find\`.** \`fd log\` finds anything with "log" in the name, recursively, skipping hidden/ignored dirs by default. It's the \`find\` equivalent of \`rg\` vs \`grep\`. Optional, but a few labs mention it.
 
@@ -18269,6 +18301,15 @@ function renderProse(text) {
       i++;
       continue;
     }
+    // Heading h2 — must be checked AFTER h3/h4 (they share the "##" prefix)
+    if (line.startsWith("## ")) {
+      blocks.push({
+        type: "h2",
+        content: line.slice(3)
+      });
+      i++;
+      continue;
+    }
     // Blockquote
     if (line.startsWith("> ")) {
       const qLines = [];
@@ -18340,7 +18381,7 @@ function renderProse(text) {
       continue;
     }
     // Paragraph (collect until blank or special)
-    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
+    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("## ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
     const paraLines = [];
     while (i < lines.length && !isSpecial(lines[i])) {
       paraLines.push(lines[i]);
@@ -18412,6 +18453,9 @@ function Prose({
   return /*#__PURE__*/React.createElement("div", {
     className: "prose-block"
   }, blocks.map((b, i) => {
+    if (b.type === "h2") return /*#__PURE__*/React.createElement("h2", {
+      key: i
+    }, renderInline(b.content));
     if (b.type === "h3") return /*#__PURE__*/React.createElement("h3", {
       key: i
     }, renderInline(b.content));
@@ -18467,6 +18511,7 @@ function Prose({
 /* Render a single already-parsed block (used for nested details/blockquote inner content) */
 function renderProseBlock(b, key) {
   if (!b) return null;
+  if (b.type === "h2") return /*#__PURE__*/React.createElement("h2", { key }, renderInline(b.content));
   if (b.type === "h3") return /*#__PURE__*/React.createElement("h3", { key }, renderInline(b.content));
   if (b.type === "h4") return /*#__PURE__*/React.createElement("h4", { key }, renderInline(b.content));
   if (b.type === "p") return /*#__PURE__*/React.createElement("p", { key }, renderInline(b.content));

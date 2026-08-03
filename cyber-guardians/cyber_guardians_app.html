@@ -8961,6 +8961,15 @@ function renderProse(text) {
       i++;
       continue;
     }
+    // Heading h2 — must be checked AFTER h3/h4 (they share the "##" prefix)
+    if (line.startsWith("## ")) {
+      blocks.push({
+        type: "h2",
+        content: line.slice(3)
+      });
+      i++;
+      continue;
+    }
     // Blockquote
     if (line.startsWith("> ")) {
       const qLines = [];
@@ -9032,7 +9041,7 @@ function renderProse(text) {
       continue;
     }
     // Paragraph (collect until blank or special)
-    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
+    const isSpecial = l => l.trim() === "" || l.startsWith("### ") || l.startsWith("#### ") || l.startsWith("## ") || l.startsWith("```") || l.startsWith("- ") || l.startsWith("> ") || /^\d+\.\s/.test(l) || l.trim().startsWith("<details") || l.trim().startsWith("|") || /^\s*-{3,}\s*$/.test(l);
     const paraLines = [];
     while (i < lines.length && !isSpecial(lines[i])) {
       paraLines.push(lines[i]);
@@ -9104,6 +9113,9 @@ function Prose({
   return /*#__PURE__*/React.createElement("div", {
     className: "prose-block"
   }, blocks.map((b, i) => {
+    if (b.type === "h2") return /*#__PURE__*/React.createElement("h2", {
+      key: i
+    }, renderInline(b.content));
     if (b.type === "h3") return /*#__PURE__*/React.createElement("h3", {
       key: i
     }, renderInline(b.content));
@@ -9159,6 +9171,7 @@ function Prose({
 /* Render a single already-parsed block (used for nested details/blockquote inner content) */
 function renderProseBlock(b, key) {
   if (!b) return null;
+  if (b.type === "h2") return /*#__PURE__*/React.createElement("h2", { key }, renderInline(b.content));
   if (b.type === "h3") return /*#__PURE__*/React.createElement("h3", { key }, renderInline(b.content));
   if (b.type === "h4") return /*#__PURE__*/React.createElement("h4", { key }, renderInline(b.content));
   if (b.type === "p") return /*#__PURE__*/React.createElement("p", { key }, renderInline(b.content));
