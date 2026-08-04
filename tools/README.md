@@ -8,6 +8,7 @@ Run before every commit that touches course content, and in CI:
 python3 tools/guardrail.py            # full check (includes URL reachability)
 python3 tools/guardrail.py --no-net   # skip network checks
 python3 tools/guardrail.py --json     # machine-readable
+python3 tools/guardrail.py --self-test  # test the coverage classifier itself
 ```
 
 **Exit code 0 = gate passed, 1 = failed.** Warnings do not fail the gate; failures do.
@@ -29,6 +30,43 @@ each function in the script names the defect it guards.
 | `expected-output coverage` | The headline finding: most runnable command blocks showed the learner no expected result, so they had nothing to compare their terminal against |
 | `urls: reachability` | Two 404s had silently broken labs (the M6.1 wordlist, the M7.1 osv-scanner installer) |
 
+### How expected-output coverage is measured
+
+Every runnable block lands in **exactly one** bucket. The buckets are narrow and
+mechanical on purpose: the number has to mean the same thing to everyone who runs
+this, and nothing may be exempted by judgement call.
+
+| Bucket | Meaning | Counts as |
+|---|---|---|
+| `fence` | an output fence immediately follows — **the documented convention** | shown |
+| `labelled` | a bolded `**Expected observation:**` paragraph immediately follows | shown |
+| `comment` | a result comment inside the block (`# -> root`) — weakest accepted form | shown |
+| `setup` | every effective line is silent on success (`mkdir`, installs, `> file`) | **exempt** |
+| `listing` | the block is a file's contents (shebang); its result belongs to the block that runs it | **exempt** |
+| `prose_fence` | tagged runnable but contains no command at all | **exempt**, and warned |
+| `silent` | a command that produces output, with no result shown anywhere | **the gap** |
+
+`coverage = (fence + labelled + comment) / (total − exempt)`. Exempt blocks leave the
+denominator rather than counting as free passes, and the exempt total is printed on
+every run so an exemption can never quietly grow.
+
+Two sub-checks keep the headline number honest:
+
+- **`output-fence share`** warns when a bucket's coverage rests mostly on inline
+  comments rather than real output fences. This is what revealed that the Guardians
+  `lab` panels had **zero** output fences — their whole score was `# comment` lines.
+- **`prose in runnable fence`** warns when a ` ```bash ` fence holds no command. That
+  is either prose mis-tagged as code, or expected output written as `#` comments where
+  an output fence belongs.
+
+Ordering matters and is asserted by the self-test: the three "shown" tests run before
+any exemption, so a block that *does* show its result is never stolen by an exemption.
+
+> Two heuristics were removed as **false passes**: a bare `you see` / `Result:` anywhere
+> in the following 450 characters used to count as coverage, which passed `apt install`
+> and `mkdir` blocks that show the learner nothing. Only the deliberate bolded label
+> counts now.
+
 ### The coverage ratchet
 
 `COVERAGE_FLOOR` in the script is a **regression floor**, not a target. Coverage may
@@ -38,6 +76,15 @@ measured value so progress can't be undone. `COVERAGE_TARGET` (95%) is what
 
 Current state is deliberately `WARN`, not `PASS`: there are no known defects, but
 coverage is still short of target.
+
+### The self-test
+
+`--self-test` runs table-driven cases against `classify()` and exits non-zero on any
+mismatch. The coverage number is only trustworthy if the classifier is, so **run it
+after touching any classification logic**. It has already caught two real bugs in the
+classifier itself: an ordering mistake that filed a result-showing script as an exempt
+listing, and a `cat > file <<'EOF'` heredoc being graded as a gap when it is silent by
+nature.
 
 ### Deliberate non-failures
 
@@ -50,14 +97,25 @@ coverage is still short of target.
 
 ### Verifying the gate still bites
 
-The gate is only worth having if it fails when it should. To confirm, reintroduce a
-known defect and check for a non-zero exit:
+The gate is only worth having if it fails when it should. Confirm both failure
+classes — a content regression and a coverage regression:
 
 ```bash
+# 1. content regression: put the wrong hash back (use the FULL 64-char hash —
+#    swapping only its first characters will not match the guard, and you will
+#    wrongly conclude the gate is broken)
 cp cyber-guardians/cyber_guardians_app.html /tmp/cg.bak
-# swap the correct hash for the old wrong one, then:
-python3 tools/guardrail.py --no-net; echo "exit=$?"    # expect: FAIL … exit=1
+python3 - <<'PY'
+p="cyber-guardians/cyber_guardians_app.html"; s=open(p).read()
+s=s.replace("d0eac8f61f9c7085dbb626bf1aef1d3c42afedbbd636b1487745ca7a4ce7d71e",
+            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",1)
+open(p,"w").write(s)
+PY
+python3 tools/guardrail.py --no-net; echo "exit=$?"    # expect: FAIL A2 … exit=1
 cp /tmp/cg.bak cyber-guardians/cyber_guardians_app.html
+
+# 2. coverage regression: raise a floor above the measured value
+#    expect: FAIL … REGRESSED … exit=1
 ```
 
 ### Authoring rule for expected output

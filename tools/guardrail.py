@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 49, "guardians_theory": 41, "guardians_lab": 46}
+COVERAGE_FLOOR = {"appsec": 56, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -203,14 +203,54 @@ def check_renders(name, src, cur):
 
 
 # ── 3. the expected-output gate (the core production-grade criterion) ─────────
+#
+# Every runnable block is classified into exactly one bucket. The buckets are
+# deliberately narrow and mechanical so the number means the same thing to
+# everyone who runs this, and so nothing is exempted by vibes.
+#
+#   fence     an output fence immediately follows  ..... THE documented convention
+#   labelled  a bolded "**Expected observation:**" paragraph immediately follows
+#   comment   a result comment sits inside the block ... weakest accepted form
+#   ---------------------------------------------------------------- exempt below
+#   setup     every effective line is silent-on-success (mkdir/cd/install/...)
+#   listing   the block is a file's contents (shebang), not commands to run
+#   ---------------------------------------------------------------- counted as a gap
+#   silent    a command that produces output, with no result shown anywhere
+#
+# Coverage = (fence + labelled + comment) / (total - exempt). Exempt blocks leave
+# the denominator entirely rather than counting as free passes, and their count is
+# printed so an exemption can never quietly grow.
 RUNNABLE = {"bash", "sh", "shell", "zsh", "powershell", "console"}
 OUTPUT_LANGS = {"", "text", "output", "out", "plain"}
+
+# An inline result comment: "# root", "# => 3", "# prints 5". Requires an explicit
+# result cue so an ordinary explanatory comment does not count as output.
 RESULT_COMMENT = re.compile(
     r"(?m)^[^\n]*(?:#|//)[^\n]*(?:->|→|=>|\bprints?\b|\bshows?\b|you (?:should )?(?:see|get)|\boutputs?\b)"
 )
-PROSE_AFTER = re.compile(
-    r"Expected (?:observation|output|result)|You (?:should )?see|You'?ll see|prints?:|Result:", re.I
+
+# The labelled prose form, e.g. "**Expected observation:** Alice is gone".
+# Anchored to the start of the text right after the block and required to be the
+# bolded label the course actually uses. The previous version matched a bare
+# "you see" anywhere in the following 450 chars, which passed `apt install` and
+# `mkdir` blocks that show the learner nothing — a false pass, not coverage.
+LABELLED_AFTER = re.compile(
+    r"\A\s*(?:>\s*)?\*\*Expected (?:observation|output|result)s?[:.]?\*\*", re.I
 )
+
+# Commands that are silent on success. A block built only from these is exempt:
+# inventing output for `mkdir` is noise, and the ledger's authoring rule 1 says so.
+SILENT_CMDS = re.compile(
+    r"^(?:sudo\s+)?(?:mkdir|cd|chmod|chown|touch|cp|mv|ln|export|set|unset|source|\.|"
+    r"pushd|popd|rm|mkfifo|npm\s+(?:init|i|install|ci)|pnpm\s+(?:i|install)|yarn\s+(?:add|install)|"
+    r"pip3?\s+install|python3?\s+-m\s+venv|brew\s+(?:install|tap)|apt(?:-get)?\s+install|"
+    r"winget\s+install|go\s+install|cargo\s+install|pipx\s+install|git\s+clone)\b"
+)
+
+# A line whose stdout is redirected into a file prints nothing to the terminal,
+# whatever the command is: `cat > s.js <<'EOF'`, `printf ... > app.log`,
+# `awk ... > out.txt`. Excludes `>&` (fd duplication) and `>(` (process substitution).
+REDIRECT_TO_FILE = re.compile(r">>?\s*(?![&(])\S")
 
 
 def fenced(md):
@@ -220,54 +260,127 @@ def fenced(md):
     return out
 
 
+def effective_lines(code):
+    """Command lines only: no comments, no blanks, and no heredoc payload — the
+    body of `cat > f <<'EOF' ... EOF` is file content, not commands being run."""
+    lines, in_heredoc, term = [], False, None
+    for raw in code.split("\n"):
+        line = raw.strip()
+        if in_heredoc:
+            if line == term:
+                in_heredoc = False
+            continue
+        if not line or line.startswith("#"):
+            continue
+        m = re.search(r"<<-?\s*'?\"?([A-Za-z_][A-Za-z0-9_]*)'?\"?\s*$", line)
+        if m:
+            in_heredoc, term = True, m.group(1)
+        lines.append(line)
+    return lines
+
+
+def classify(md, blocks, idx):
+    """Return the bucket for blocks[idx]. Exactly one bucket applies.
+
+    Order matters: the three 'shown' tests run FIRST, so a block that does show its
+    result is never stolen by an exemption. (An earlier draft tested the shebang
+    first and mis-filed a script that demonstrates quoting *and prints what it
+    proves* as an exempt listing — undercounting real coverage.)
+    """
+    b = blocks[idx]
+    code = b["code"]
+
+    nxt = blocks[idx + 1] if idx + 1 < len(blocks) else None
+    if nxt and nxt["lang"] in OUTPUT_LANGS and (nxt["s"] - b["e"]) < 600:
+        return "fence"
+    if LABELLED_AFTER.match(md[b["e"] : b["e"] + 300]):
+        return "labelled"
+    if RESULT_COMMENT.search(code):
+        return "comment"
+
+    lines = effective_lines(code)
+    if not lines:
+        # A runnable-tagged fence with nothing runnable in it: prose or, worse,
+        # expected output authored as `#` comments instead of an output fence.
+        return "prose_fence"
+    if code.lstrip().startswith("#!"):
+        # A file's contents. Its result belongs to the block that executes it.
+        return "listing"
+    if all(SILENT_CMDS.match(l) or REDIRECT_TO_FILE.search(l) for l in lines):
+        return "setup"
+    return "silent"
+
+
+SHOWN = ("fence", "labelled", "comment")
+EXEMPT = ("setup", "listing", "prose_fence")
+
+
 def coverage(md):
-    """A runnable block 'shows a result' if an output fence follows it, or it carries
-    a result comment, or prose right after states the expected output."""
     blocks = fenced(md)
-    shown = total = 0
+    counts = {k: 0 for k in SHOWN + EXEMPT + ("silent",)}
     silent = []
     for idx, b in enumerate(blocks):
         if b["lang"] not in RUNNABLE:
             continue
-        total += 1
-        nxt = blocks[idx + 1] if idx + 1 < len(blocks) else None
-        has_fence = nxt and nxt["lang"] in OUTPUT_LANGS and (nxt["s"] - b["e"]) < 600
-        if has_fence or RESULT_COMMENT.search(b["code"]) or PROSE_AFTER.search(md[b["e"] : b["e"] + 450]):
-            shown += 1
-        else:
+        bucket = classify(md, blocks, idx)
+        counts[bucket] += 1
+        if bucket == "silent":
             first = next((l.strip() for l in b["code"].split("\n") if l.strip() and not l.strip().startswith("#")), "")
             silent.append(first[:60])
-    return shown, total, silent
+    return counts, silent
 
 
 def check_coverage(name, cur):
-    """Caught: the headline finding — 65% of runnable command blocks showed the
+    """Caught: the headline finding — most runnable command blocks showed the
     learner no expected result, so they had nothing to compare their terminal to."""
     buckets = {}
     for label, md in module_texts(name, cur):
         if not md.strip():
             continue
         key = "guardians_lab" if label.endswith("/lab") else ("guardians_theory" if name == "guardians" else "appsec")
-        s, t, sil = coverage(md)
-        b = buckets.setdefault(key, {"shown": 0, "total": 0, "worst": []})
-        b["shown"] += s
-        b["total"] += t
-        if t - s:
-            b["worst"].append((t - s, label, sil[:2]))
+        counts, sil = coverage(md)
+        b = buckets.setdefault(key, {"worst": [], **{k: 0 for k in SHOWN + EXEMPT + ("silent",)}})
+        for k, v in counts.items():
+            b[k] += v
+        if counts["silent"]:
+            b["worst"].append((counts["silent"], label, sil[:2]))
     for key, b in buckets.items():
-        if not b["total"]:
+        shown = sum(b[k] for k in SHOWN)
+        graded = shown + b["silent"]
+        if not graded:
             continue
-        pct = round(b["shown"] / b["total"] * 100)
+        pct = round(shown / graded * 100)
+        fence_pct = round(b["fence"] / graded * 100)
         floor = COVERAGE_FLOOR.get(key, 0)
         b["worst"].sort(reverse=True)
         worst = ", ".join(f"{l} ({n} silent)" for n, l, _ in b["worst"][:4])
-        detail = f"{b['shown']}/{b['total']} = {pct}% (floor {floor}%, target {COVERAGE_TARGET}%)"
+        detail = (
+            f"{shown}/{graded} = {pct}% (floor {floor}%, target {COVERAGE_TARGET}%) "
+            f"[fence {b['fence']} · labelled {b['labelled']} · comment {b['comment']} "
+            f"· exempt {sum(b[k] for k in EXEMPT)}]"
+        )
         if pct < floor:
             fail(f"{key}: expected-output coverage", f"REGRESSED — {detail}; worst: {worst}")
         elif pct < COVERAGE_TARGET:
             warn(f"{key}: expected-output coverage", f"{detail} — below production target; worst: {worst}")
         else:
             ok(f"{key}: expected-output coverage", detail)
+        # The convention is the output fence; the other two are tolerated legacy
+        # forms. Surface the split so "coverage" can't be satisfied by comments alone.
+        if fence_pct < pct - 25:
+            warn(
+                f"{key}: output-fence share",
+                f"only {fence_pct}% of graded blocks use the documented output fence "
+                f"(vs {pct}% counted as shown) — {b['comment']} rely on inline comments",
+            )
+        # A ```bash fence containing no runnable line is mis-tagged: it is prose, or
+        # it is expected output written as `#` comments where an output fence belongs.
+        if b["prose_fence"]:
+            warn(
+                f"{key}: prose in runnable fence",
+                f"{b['prose_fence']} block(s) tagged runnable contain no command — "
+                f"prose or output authored as comments; retag or convert to an output fence",
+            )
 
 
 # ── 4. known-bad content (regression guards for fixed defects) ────────────────
@@ -422,11 +535,68 @@ def check_urls(sources):
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+# ── 6. self-test ──────────────────────────────────────────────────────────────
+# The coverage number is only trustworthy if `classify` is. These cases pin every
+# bucket and every ordering decision, so a future tweak that quietly re-files a
+# whole category (which an earlier draft of this file did) fails loudly instead.
+SELF_TESTS = [
+    ("fence: output fence right after",
+     "```bash\nnode -v\n```\n```\nv22.12.0\n```", "fence"),
+    ("fence: not counted when far away",
+     "```bash\nnode -v\n```\n" + "x" * 700 + "\n```\nv22.12.0\n```", "silent"),
+    ("labelled: bolded Expected observation",
+     "```bash\ncurl -i localhost:3000\n```\n\n**Expected observation:** Alice is gone.", "labelled"),
+    ("labelled: bare 'you see' prose is NOT coverage",
+     "```bash\ncurl -i localhost:3000\n```\n\nSoon you see the result somewhere.", "silent"),
+    ("comment: inline result arrow",
+     "```bash\nwhoami   # -> root\n```", "comment"),
+    ("comment: ordinary explanatory comment is not a result",
+     "```bash\ncurl localhost   # talk to the server\n```", "silent"),
+    ("setup: mkdir/cd only",
+     "```bash\nmkdir -p ~/lab && cd ~/lab\n```", "setup"),
+    ("setup: installs only",
+     "```bash\nbrew install jq\nnpm install express\n```", "setup"),
+    ("setup: one real command makes it NOT setup",
+     "```bash\nmkdir -p ~/lab\njq --version\n```", "silent"),
+    ("listing: shebang file contents",
+     "```bash\n#!/usr/bin/env bash\ngrep -c ERROR app.log\n```", "listing"),
+    ("listing: loses to a shown result (ordering)",
+     "```bash\n#!/usr/bin/env bash\necho hi\n```\n```\nhi\n```", "fence"),
+    ("prose_fence: comments only, nothing runnable",
+     "```bash\n# first 3 bytes: 0x16 0x3 0x1\n# password readable? false\n```", "prose_fence"),
+    ("heredoc payload is not a command",
+     "```bash\nmkdir -p ~/lab && cd ~/lab\ncat > s.js <<'EOF'\nconsole.log(1);\nrm -rf /\nEOF\n```", "setup"),
+    ("silent: a real command showing nothing",
+     "```bash\nawk '{print $1}' access.log\n```", "silent"),
+]
+
+
+def self_test():
+    bad = []
+    for label, md, want in SELF_TESTS:
+        blocks = fenced(md)
+        got = classify(md, blocks, 0) if blocks else "(no block)"
+        if got != want:
+            bad.append(f"{label}: expected {want}, got {got}")
+    print("\n\033[1mGUARDRAIL SELF-TEST — classify()\033[0m\n")
+    for line in bad:
+        print(f"  \033[31mFAIL\033[0m  {line}")
+    if bad:
+        print(f"\n  {len(SELF_TESTS) - len(bad)}/{len(SELF_TESTS)} passed\n")
+        return 1
+    print(f"  \033[32mPASS\033[0m  all {len(SELF_TESTS)} classifier cases\n")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-net", action="store_true", help="skip URL reachability")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--self-test", action="store_true", help="test classify() and exit")
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test()
 
     sources = []
     for name, path in COURSES.items():
