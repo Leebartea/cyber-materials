@@ -16,3 +16,7 @@ MY_SETUP_*.md
 FABLE_GLOBAL_STANDARDS_PROMPT.md
 global-standards-blueprint/
 Improvement/
+
+# Python bytecode (created when tools/ modules are imported, e.g. by a scoping script)
+__pycache__/
+*.pyc

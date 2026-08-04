@@ -6439,8 +6439,22 @@ node app.js
 # 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
 \`\`\`
+\`\`\`
+http://localhost:3000
+\`\`\`
 
-The script runs. **Fix:** encode for the HTML context (use a templating engine that auto-escapes, or encode explicitly):
+That single line is \`app.listen\`'s callback — the server is up. \`open\` itself prints nothing; it hands the URL to your browser and returns.
+
+The \`alert\` fires. But confirm it at the terminal too, because that is the skill that generalizes — a popup only tells you about a page you can open in a browser:
+
+\`\`\`bash
+curl -s "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
+\`\`\`
+\`\`\`
+<h1>Results for <script>alert('reflected')<\/script></h1>
+\`\`\`
+
+The payload came back with its angle brackets **intact**, inside an HTML body. That response *is* the vulnerability; the popup is only the browser doing what those bytes told it to. **Fix:** encode for the HTML context (use a templating engine that auto-escapes, or encode explicitly):
 
 \`\`\`js
 function htmlEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -6486,8 +6500,26 @@ python3 app.py
 # 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
 open "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
 \`\`\`
+\`\`\`
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:3000
+Press CTRL+C to quit
+\`\`\`
 
-The script runs — same bug as Express. Note the root cause: hand-building HTML with an f-string is the XSS twin of the SQL f-string footgun from Module 0.5 (data merged into code). **Fix: render through a template so Jinja2 auto-escapes the value for the HTML context.**
+Flask's banner is chattier than Node's, and its warning is worth reading rather than scrolling past: \`app.run()\` starts a **development** server. It is correct for this lab and wrong for anything reachable by other people — the deployment half of that story is Module 8.2.
+
+Same terminal check as the Express version:
+
+\`\`\`bash
+curl -s "http://localhost:3000/search?q=<script>alert('reflected')<\/script>"
+\`\`\`
+\`\`\`
+<h1>Results for <script>alert('reflected')<\/script></h1>
+\`\`\`
+
+**Byte-for-byte the same response as Node produced.** Different language, different framework, identical bug — which is the point of showing it twice. The script runs — same bug as Express. Note the root cause: hand-building HTML with an f-string is the XSS twin of the SQL f-string footgun from Module 0.5 (data merged into code). **Fix: render through a template so Jinja2 auto-escapes the value for the HTML context.**
 
 \`\`\`python
 from flask import render_template_string
@@ -6600,6 +6632,11 @@ http.createServer((req, res) => {
 EOF
 node search.js     # leave running
 \`\`\`
+\`\`\`
+xss lab on http://localhost:4602
+\`\`\`
+
+One line, no prompt back — the server is up and holding the terminal. Investigate from a second one. (\`EADDRINUSE\` means port 4602 is already taken: \`lsof -ti:4602 | xargs kill\`.)
 
 **Goal.** Without a browser, use \`curl\` to prove the \`/vuln\` endpoint reflects a \`<script>\` payload **raw** into its HTML (so a browser would execute it), and that \`/fixed\` returns the *same* payload **encoded** (so a browser renders it as text).
 
@@ -6610,11 +6647,16 @@ node search.js     # leave running
 
 \`\`\`bash
 curl -s "http://localhost:4602/vuln?q=<script>alert(1)<\/script>"
-# <h1>Results for <script>alert(1)<\/script></h1>      <- raw: a browser RUNS this
-
 curl -s "http://localhost:4602/fixed?q=<script>alert(1)<\/script>"
-# <h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>   <- encoded: inert text
 \`\`\`
+\`\`\`
+<h1>Results for <script>alert(1)<\/script></h1>
+<h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>
+\`\`\`
+
+**Compare those two lines character by character — the whole module is in the difference.** In the first, \`<script>\` came back as real angle brackets sitting in an HTML context, so a browser parses them as a *tag* and runs the code. In the second, the same input came back as \`&lt;script&gt;\`: the brackets are now HTML entities, so the browser draws the literal text on the page and executes nothing.
+
+Nothing was blocked, rejected, or filtered. Both endpoints accepted the identical input; only the **encoding on the way out** differed. That is precisely why the fix for XSS is output encoding in the right context, not input validation.
 
 This is the most important habit in the whole module: you didn't need a browser or an \`alert\` to *know* the vulnerability is real — you read the server's raw output and saw the \`<script>\` come back unencoded, sitting in an HTML context where the browser will parse it. Being able to confirm XSS from the response bytes (rather than only by seeing a popup) is exactly how you'd verify it in an API response, a JSON field later rendered as HTML, or a header — places where "just open it in a browser" doesn't apply. The fix is output encoding *for the HTML context*; \`htmlEscape\` turns the code back into data.
 </details>
@@ -6919,6 +6961,11 @@ http.createServer(async (req, res) => {
 EOF
 node victim.js     # leave running
 \`\`\`
+\`\`\`
+victim on http://localhost:4603
+\`\`\`
+
+Server up, terminal held — work from a second one. (\`EADDRINUSE\` → \`lsof -ti:4603 | xargs kill\`.)
 
 **The rule:** write each request/answer before opening a walkthrough.
 
@@ -6940,10 +6987,14 @@ A cross-site POST is a POST that carries the victim's cookie. \`curl\` sends a c
 \`\`\`bash
 curl -s -X POST -b "session=valid-session-for-victim" -d "email=attacker@evil.example" \\
   "http://localhost:4603/account/email"
-# email changed to attacker@evil.example
 curl -s "http://localhost:4603/account"
-# current email: attacker@evil.example
 \`\`\`
+\`\`\`
+email changed to attacker@evil.example
+current email: attacker@evil.example
+\`\`\`
+
+The second line is the one that matters: you didn't just get an encouraging response, you **re-read the state** and confirmed it actually changed. A POST that returns \`200 OK\` and changes nothing is a very different finding from one that rewrites the account, and only the read-back tells you which you have.
 
 That's CSRF in one command. Notice what the server checked: *is the session cookie valid?* Yes — because it genuinely is the victim's. The server had **no way to tell** this request was forged, because a valid cookie proves *who* the user is, never *that the request came from its own site*. On a real attack the victim just visits \`evil.com\`; their browser attaches this cookie automatically and fires the POST. Your \`curl -b\` is doing by hand exactly what the browser does on its own — which is why "the cookie is valid" is the wrong thing to be reassured by.
 </details>
@@ -6973,8 +7024,12 @@ The token endpoint returns a value tied to your session cookie; capture it (\`T=
 curl -s -o /dev/null -w "HTTP %{http_code}\\n" -X POST \\
   -b "session=valid-session-for-victim" -d "email=hacker@evil.example" \\
   "http://localhost:4603/account/email?protected=1"
-# HTTP 403
 \`\`\`
+\`\`\`
+HTTP 403
+\`\`\`
+
+Same cookie, same body, same endpoint — and now refused. The cookie was never the problem and was never rejected; what the attacker cannot supply is the token. (\`-o /dev/null -w "HTTP %{http_code}\\n"\` throws the body away and prints only the status, which is how you assert on an outcome rather than eyeballing a page.)
 
 **2. The legitimate flow — token obtained, then submitted:**
 \`\`\`bash
@@ -6982,8 +7037,12 @@ T=$(curl -s -b "session=valid-session-for-victim" "http://localhost:4603/token")
 curl -s -X POST -b "session=valid-session-for-victim" \\
   -d "email=me@example.com&_csrf=$T" \\
   "http://localhost:4603/account/email?protected=1"
-# email changed to me@example.com
 \`\`\`
+\`\`\`
+email changed to me@example.com
+\`\`\`
+
+The defended endpoint still works perfectly for the real user — which is the half of a fix people forget to test. \`T\` holds a fresh random token (\`echo "$T"\` shows something like \`ec5a099dbb253c209dc45763f9c5f337\`; yours will differ every time, and that unpredictability *is* the defense).
 
 **3a. Why evil.com can't forge it.** The token is random and embedded in *your* page. The **Same-Origin Policy** forbids \`evil.com\`'s scripts from *reading the contents* of your pages or responses — so the attacker can auto-submit a form to your endpoint, but cannot learn the one value that endpoint now demands. The forged POST arrives tokenless → 403. This is the elegant part: the defense works *because* of the same SOP gap that CSRF exploits — SOP lets them *send* but not *read*, so a secret they must *read* to include defeats them.
 
@@ -7140,6 +7199,29 @@ open "http://localhost:3000/login"
 ( cd "\$(dirname cors-attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
 open "http://localhost:8000/cors-attacker.html"   # reads the victim's private data cross-origin
 \`\`\`
+\`\`\`
+ * Serving Flask app 'cors_victim'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:3000
+Press CTRL+C to quit
+\`\`\`
+
+Two servers are now running: the victim API on \`:3000\` (that banner) and a plain static file server on \`:8000\` serving the attacker page. They are **different origins**, which is the entire premise — same-origin would need no CORS headers at all.
+
+You can confirm the server's half of this without the attacker page at all — ask it directly, claiming to be \`evil.example\` and carrying the victim's cookie:
+
+\`\`\`bash
+curl -s -i -H "Origin: https://evil.example" -b "session=v" "http://localhost:3000/api/me" \\
+  | grep -iE "access-control|ssn"
+\`\`\`
+\`\`\`
+Access-Control-Allow-Origin: https://evil.example
+Access-Control-Allow-Credentials: true
+{"email":"victim@example.com","ssn":"PRETEND-PRIVATE-DATA"}
+\`\`\`
+
+\`flask-cors\` reflected an origin nobody ever allow-listed and stamped \`Allow-Credentials: true\` next to it. Read those two headers as what they are: an instruction to the browser saying *"a script on evil.example may read this response, cookies and all."* \`curl\` ignores CORS entirely — it's a browser rule — so the body would have come back regardless; what the headers change is whether a **browser** hands that body to attacker JavaScript. That is the distinction the whole module turns on.
 
 The attacker page on :8000 prints the victim's \`email\`/\`ssn\` — because flask-cors echoed back its origin and permitted credentials, exactly the catastrophe \`cors({ origin: true, credentials: true })\` produced in Node. **Fix: pass an explicit allow-list of exact origins; never reflect.**
 
@@ -7205,6 +7287,11 @@ http.createServer((req, res) => {
 EOF
 node api.js     # leave running
 \`\`\`
+\`\`\`
+api on http://localhost:4604
+\`\`\`
+
+Up and holding the terminal; drive it from a second one. (\`EADDRINUSE\` → \`lsof -ti:4604 | xargs kill\`.)
 
 **The rule:** predict the header before you run each request.
 
@@ -7225,9 +7312,13 @@ You set a request header with \`-H "Origin: https://evil.example"\`, and you rea
 
 \`\`\`bash
 curl -s -i -H "Origin: https://evil.example" "http://localhost:4604/api/me" | grep -i access-control
-# Access-Control-Allow-Origin: https://evil.example
-# Access-Control-Allow-Credentials: true
 \`\`\`
+\`\`\`
+Access-Control-Allow-Origin: https://evil.example
+Access-Control-Allow-Credentials: true
+\`\`\`
+
+Try it with any other origin — \`https://totally-made-up.example\`, your own name — and the server echoes that back too. Being able to make the server name *your* origin as trusted, on demand, is the proof; there is no allow-list to be on.
 
 That pair of headers *is* the vulnerability. The server didn't check whether \`evil.example\` is trusted — it echoed back whatever \`Origin\` arrived and said "credentials welcome." In a browser, that's the green light for a script on \`evil.example\` to \`fetch(..., {credentials:"include"})\` your API in a logged-in victim's session and **read the private response**. You proved it without a browser because the *server's decision* is right there in the header — and the server's decision is the whole ballgame. This is why \`origin: true, credentials: true\` is a critical bug, not a convenience toggle.
 </details>
