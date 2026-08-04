@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 42, "guardians_theory": 41, "guardians_lab": 46}
+COVERAGE_FLOOR = {"appsec": 47, "guardians_theory": 41, "guardians_lab": 46}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -293,6 +293,11 @@ BANNED = [
      "stale example.com A record presented as expected dig output", "A5"),
     (r"\b60 modules across\b",
      "stale module count", "A10"),
+    (r"echo '[^'\n]*\\\\n[^'\n]*'\s*>",
+     "echo of a single-quoted string containing \\n redirected to a file: zsh's "
+     "builtin echo expands \\n, bash's does not, so the file differs by shell", "A12"),
+    (r"node\s+22-slim\s+a1b2c3d4e5f6",
+     "invented IMAGE ID/size for node:22-slim presented as real docker images output", "A13"),
 ]
 
 

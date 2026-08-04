@@ -1866,8 +1866,16 @@ cat > shop.html <<'EOF'
 <button id="buy" data-price="100">Buy — $100</button>
 <p id="total">Total: $100</p>
 EOF
-# open shop.html in your browser (double-click it, or: open shop.html / xdg-open shop.html)
+cat shop.html    # confirm the heredoc actually wrote the file
+# then open it in your browser: double-click it, or  open shop.html  /  xdg-open shop.html
 \`\`\`
+\`\`\`
+<!doctype html>
+<button id="buy" data-price="100">Buy — $100</button>
+<p id="total">Total: $100</p>
+\`\`\`
+
+**If instead of that you see a bare \`>\` prompt and nothing else,** the shell is still waiting for the heredoc's terminator: you mistyped \`EOF\`, or indented it. Press **Ctrl+C** and retype the block with \`EOF\` alone at the start of its own line. In the browser you should see a **Buy — $100** button above the line **Total: $100**.
 
 **Goal.** With the page open, use **only** the DevTools console (⌘-⌥-I / Ctrl-Shift-I → Console) to change the displayed total to \`$1\` and change the button's stored price to \`1\` — without editing \`shop.html\` on disk.
 
@@ -1943,6 +1951,22 @@ First, confirm Node is installed (you set this up in the Environment & Lab Setup
 \`\`\`bash
 node -v               # confirm Node runs; if "command not found", revisit Step 1 of the setup
 \`\`\`
+\`\`\`
+v22.12.0
+\`\`\`
+
+Your number will differ and that's fine — what matters is that a version prints at all, and that it's **v20 or higher**. \`command not found\` means Node isn't on your \`PATH\`; go back to Step 1 of the setup.
+
+> **One gotcha if your Node is older than v20.19 / v22.7.** The server below uses \`import\` in a plain \`.js\` file. Recent Node detects that automatically; older versions stop with \`SyntaxError: Cannot use import statement outside a module\`. If you hit that, either upgrade Node or run \`npm pkg set type=module\` in the folder first — the code itself is fine.
+
+Make a folder for this and install the one dependency the server needs:
+
+\`\`\`bash
+mkdir -p ~/tiny-server && cd ~/tiny-server
+npm init -y && npm install express
+\`\`\`
+
+(\`npm init -y\` writes a default \`package.json\`; \`npm install\` then downloads Express into \`node_modules/\`. Skip this and \`node tiny-server.js\` stops with \`Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express'\`.)
 
 Create \`tiny-server.js\`:
 
@@ -1974,6 +1998,20 @@ curl -i -X POST http://localhost:3000/delete-account \\
   -H 'Content-Type: application/json' \\
   -d '{"id": 1}'
 \`\`\`
+\`\`\`
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: application/json; charset=utf-8
+Content-Length: 37
+ETag: W/"25-dyxqhgDKQMHBMN+ZMr9K3/F14Pw"
+Date: Sun, 19 Jul 2026 10:00:01 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"remaining":{"2":"bob","3":"carol"}}
+\`\`\`
+
+(\`-i\` is what prints the status line and headers; the \`Date\` and \`ETag\` will differ on your run. The body is the part that matters.)
 
 **Expected observation:** Alice is gone, even though *you never logged in, never proved you were an admin, and never used the UI*. **This is Broken Access Control (OWASP A01) in its purest form** — produced with one \`curl\`.
 
@@ -2091,6 +2129,11 @@ http.createServer((req, res) => {
 EOF
 node server.js
 \`\`\`
+\`\`\`
+vulnerable server on http://localhost:4599
+\`\`\`
+
+That one line and **no prompt back** is what success looks like: the process is still running, holding the terminal, waiting for requests. Leave it. (If you instead get \`Error: listen EADDRINUSE: address already in use :::4599\`, a server from an earlier run is still up — \`lsof -ti:4599 | xargs kill\` clears it.)
 
 **Goal.** In a *second* terminal, and pretending the app's UI only ever shows you \`/account/2\`, write a request that reads **alice's** account instead.
 
@@ -2107,7 +2150,18 @@ The server doesn't care what the frontend "allows" — it answers whatever URL r
 
 \`\`\`bash
 curl -s http://localhost:4599/account/1
-# {"owner":"alice","balance":9999}
+\`\`\`
+\`\`\`
+{"owner":"alice","balance":9999}
+\`\`\`
+
+For contrast, the request the UI *would* have made returns your own row — same route, same absent check, different number:
+
+\`\`\`bash
+curl -s http://localhost:4599/account/2
+\`\`\`
+\`\`\`
+{"owner":"you","balance":12}
 \`\`\`
 
 That is it — you changed a \`2\` to a \`1\` and read another user's data. This is **Broken Access Control** (OWASP A01), specifically the *IDOR / Broken Object-Level Authorization* flavour, and it is consistently one of the most common serious bugs in real applications. Notice what you did **not** need: no password crack, no injection, no clever payload. You simply asked for an object and the server handed it over, because it never asked "is this caller allowed to see object 1?"
@@ -2153,9 +2207,24 @@ http.createServer((req, res) => {
 \`\`\`
 
 \`\`\`bash
-curl -s -H "X-User-Id: 2" http://localhost:4599/account/1   # {"error":"forbidden"}  — attack fails
-curl -s -H "X-User-Id: 2" http://localhost:4599/account/2   # your own account       — legit still works
+curl -s -H "X-User-Id: 2" http://localhost:4599/account/1   # the attack
+curl -s -H "X-User-Id: 2" http://localhost:4599/account/2   # the legitimate request
 \`\`\`
+\`\`\`
+{"error":"forbidden"}
+{"owner":"you","balance":12}
+\`\`\`
+
+Two lines, and both halves of the fix are visible in them: the attack now fails, and the legitimate request still works. A "fix" that only produced the first line would have broken the feature. Add \`-i\` to see that the refusal is a real **403 Forbidden**, not a 200 with an error-shaped body:
+
+\`\`\`bash
+curl -si -H "X-User-Id: 2" http://localhost:4599/account/1 | head -1
+\`\`\`
+\`\`\`
+HTTP/1.1 403 Forbidden
+\`\`\`
+
+(Stop the old server before starting the fixed one, or it won't bind — \`Ctrl+C\` in its terminal, or \`lsof -ti:4599 | xargs kill\`.)
 
 **Why this can only live on the server:** the check compares the caller's *real* identity against the object they're requesting, and the caller's real identity is something only the server can establish — the frontend runs on the attacker's machine, so any "am I allowed?" logic there is advisory at best and editable at worst. This is exactly *authentication vs authorization* from the knowledge check: authentication says *who you are* (the \`X-User-Id\`, a session in real life), authorization says *whether you may do this specific thing to this specific object* (the ownership comparison). The vulnerable version had neither.
 
@@ -2896,8 +2965,11 @@ A **pattern** filters lines before printing — e.g. only 4xx statuses:
 \`\`\`bash
 awk '$9 ~ /^4/ {print $9, $7}' access.log   # ~ means "matches regex"; ^4 = starts with 4
 \`\`\`
+\`\`\`
+(nothing — you get your prompt straight back)
+\`\`\`
 
-(No output for the single 200-status line above — which is itself the lesson: the pattern filtered it out.) You now have every piece Module 1.6's log-analysis pipeline is built from: \`awk\` to pick fields, \`sort | uniq -c | sort -rn\` to rank them.
+**An empty result is a result.** The one line in the file has status \`200\`, which doesn't start with \`4\`, so the pattern filtered it out before the braces ever ran. Getting nothing back here is the command working correctly — a distinction worth internalizing now, because in log triage "no matches" and "my command is broken" look identical on screen and are diagnosed very differently. You now have every piece Module 1.6's log-analysis pipeline is built from: \`awk\` to pick fields, \`sort | uniq -c | sort -rn\` to rank them.
 
 ---
 
@@ -2909,7 +2981,14 @@ APIs and modern logs speak JSON; \`jq\` is a filter language for it. Install it 
 brew install jq              # macOS
 sudo apt install -y jq       # Debian/Ubuntu / WSL2
 winget install jqlang.jq     # Windows (PowerShell)
+
+jq --version                 # then confirm it landed
 \`\`\`
+\`\`\`
+jq-1.8.2
+\`\`\`
+
+Any \`jq-1.7\` or newer is fine for everything in this course; the exact number will differ from the one above.
 
 The core filters, smallest to largest:
 
@@ -3146,6 +3225,35 @@ That file is 25 requests from a small web app. It is the same combined-log forma
 \`\`\`bash
 awk '{print $7}' access.log
 \`\`\`
+\`\`\`
+/
+/about
+/login
+/login
+/api/users
+/login
+/admin
+/login
+/.env
+/login
+/products
+/wp-login.php
+/login
+/
+/backup.zip
+/login
+/products
+/admin
+/dashboard
+/images/logo.png
+/.git/config
+/api/users
+/contact
+/nope
+/health
+\`\`\`
+
+Twenty-five lines in, twenty-five out — one path per request, in file order, nothing else on the line.
 
 The whole task is knowing the path sits at \`$7\`, and the fastest way to *find that out* rather than memorize it is to print the whole line and count: \`awk '{print $0}' access.log | head -1\`, then count tokens left to right. Experienced people do this constantly — field numbers are looked up, not remembered.
 
@@ -3164,6 +3272,15 @@ The whole task is knowing the path sits at \`$7\`, and the fastest way to *find 
 \`\`\`bash
 awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -5
 \`\`\`
+\`\`\`
+   8 198.51.100.7
+   6 203.0.113.99
+   5 203.0.113.5
+   3 192.0.2.44
+   2 10.0.0.5
+\`\`\`
+
+The leading spaces are \`uniq -c\` right-aligning its counts in a fixed-width column; they carry no meaning, so don't be alarmed if your terminal pads differently.
 
 This is the single most reused pipeline in the entire course, so take the extra minute to understand each link rather than memorizing the shape: pull the field → **sort so identical values become adjacent** → \`uniq -c\` counts adjacent runs → \`sort -rn\` re-sorts by that count, numerically, biggest first → \`head -5\` trims.
 
@@ -3184,6 +3301,16 @@ This is the single most reused pipeline in the entire course, so take the extra 
 \`\`\`bash
 awk '$9 == 401 {print $9, $7}' access.log
 \`\`\`
+\`\`\`
+401 /login
+401 /login
+401 /login
+401 /login
+401 /login
+401 /login
+\`\`\`
+
+Six identical lines — every 401 in the file is a failed \`POST /login\`, which is already the shape of a password-guessing run even before you know whose it is.
 
 The \`pattern { action }\` form is what you practised above: the pattern runs first and only matching lines reach the braces.
 
@@ -3202,6 +3329,11 @@ The \`pattern { action }\` form is what you practised above: the pattern runs fi
 \`\`\`bash
 awk '$9 == 404 {print $7}' access.log | sort -u | wc -l
 \`\`\`
+\`\`\`
+       6
+\`\`\`
+
+(macOS/BSD \`wc\` pads the number with spaces; GNU \`wc\` on Linux/WSL2 prints a bare \`6\`. Same answer, different whitespace — one more reason to compare *values*, not screenshots. Drop the \`| wc -l\` to see the six paths themselves.)
 
 **The trap is the word "distinct."** There are **seven** 404 *lines* but only **six** distinct paths — \`/admin\` was requested twice. Anyone who wrote \`awk '$9 == 404' access.log | wc -l\` got \`7\`: a defensible number, but not the one asked for. Re-reading the goal after you have an answer is a real habit, and it is the same habit that stops you reporting "7 vulnerable endpoints" when there are 6.
 
@@ -3228,6 +3360,13 @@ You already wrote this pipeline in Drill 2. Only one thing about it needs to cha
 \`\`\`bash
 awk '{print $9}' access.log | sort | uniq -c | sort -rn
 \`\`\`
+\`\`\`
+  12 200
+   7 404
+   6 401
+\`\`\`
+
+Twelve successes, seven not-founds, six unauthorized — 25 lines, all accounted for. Note what this census *cannot* tell you: the 404s and the 401s are almost tied, so ranked by volume the two suspicious clients look about equally interesting. Hold that thought for the Break & Defend task.
 
 Identical to Drill 2 except for the field number and the missing \`head\`. **That is the actual lesson of this build:** the count-and-rank pipeline is not a fact about IP addresses, it is a reusable *shape* — "extract a field, count it, rank it" — that answers a whole category of questions. Once you see the shape rather than the specific command, "top attacking IPs", "most-requested endpoints", "commonest user agents", and "noisiest error codes" all stop being four things to learn and become one thing with the field number swapped.
 
@@ -3252,6 +3391,11 @@ Getting to \`6 198.51.100.7\` is the easy part, and you can already do it. The r
 \`\`\`bash
 awk '$9 == 401 {print $1}' access.log | sort | uniq -c | sort -rn | head -1 | awk '{print $2}'
 \`\`\`
+\`\`\`
+198.51.100.7
+\`\`\`
+
+One line, no count, no padding, no header — just the answer, which is exactly the goal.
 
 The move worth taking away is the **final \`awk\`**: \`uniq -c\` emits \`count value\`, so its output is itself a two-field stream you can filter again. Piping \`awk\` into a pipeline that ends in \`awk\` feels redundant the first time and becomes second nature — every stage of a pipe is just text, so any text tool applies at any stage.
 
@@ -3327,6 +3471,14 @@ Loudness and severity are not the same thing, and the log rewards anyone who che
 
 \`\`\`bash
 awk '$1 == "203.0.113.99" {print $9, $7}' access.log
+\`\`\`
+\`\`\`
+404 /admin
+404 /.env
+404 /wp-login.php
+404 /backup.zip
+404 /admin
+404 /.git/config
 \`\`\`
 
 \`/admin\`, \`/.env\`, \`/wp-login.php\`, \`/backup.zip\`, \`/.git/config\` — a **content-discovery scan**, an automated tool spraying a wordlist of commonly-exposed paths hoping something answers. It is unmistakable in a log and it is *noisy*. It is also, here, **entirely unsuccessful**: every response is a 404, meaning the server had nothing at any of those paths. Worth noting, worth rate-limiting, but nothing was lost. Traffic like this is constant background radiation for anything exposed to the internet.
@@ -3404,9 +3556,11 @@ docker pull node:22-slim
 docker images
 \`\`\`
 \`\`\`
-REPOSITORY   TAG        IMAGE ID       CREATED        SIZE
-node         22-slim    a1b2c3d4e5f6   2 weeks ago    221MB
+REPOSITORY   TAG       IMAGE ID       CREATED      SIZE
+node         22-slim   f32b81066cde   5 days ago   349MB
 \`\`\`
+
+**Your ID, age and size will all differ** — the tag \`22-slim\` is a moving pointer that gets rebuilt constantly, and the size depends on your CPU architecture (an arm64 Mac and an amd64 Linux box report noticeably different numbers for the same tag). Don't try to match these digits; match the *shape*: one row, the repository and tag you asked for, a 12-character ID, and a size in the hundreds of MB.
 
 The **IMAGE ID** is a hash of the image's content — the identity that \`docker history\` and \`trivy\` (Module 8.4) work against. Note the **SIZE**: a full base is big attack surface; you'll shrink it with \`-slim\` and distroless later.
 
@@ -3416,8 +3570,16 @@ Make a tiny app and a Dockerfile in a throwaway folder:
 
 \`\`\`bash
 mkdir -p ~/docker-field-guide && cd ~/docker-field-guide
-echo 'require("http").createServer((_,res)=>res.end("hi\\n")).listen(3000,()=>console.log("up on 3000"))' > server.js
+cat > server.js <<'EOF'
+require("http").createServer((_, res) => res.end("hi\\n")).listen(3000, () => console.log("up on 3000"));
+EOF
+cat server.js    # verify the \\n survived as two characters, not a real newline
 \`\`\`
+\`\`\`
+require("http").createServer((_, res) => res.end("hi\\n")).listen(3000, () => console.log("up on 3000"));
+\`\`\`
+
+> **Why a heredoc and not \`echo\`.** Writing that same line with \`echo '...' > server.js\` looks equivalent and is a trap: **bash's \`echo\` leaves \`\\n\` alone, but zsh's builtin \`echo\` expands it into a real newline** — and zsh is the default shell on macOS. That splits the JavaScript string across two lines and the container then crash-loops with \`SyntaxError: Invalid or unexpected token\`, which reads like a Docker problem and isn't. \`cat > file <<'EOF'\` (quoted terminator) is literal in every shell, which is why the rest of this course uses it.
 
 \`\`\`dockerfile
 # ~/docker-field-guide/Dockerfile
@@ -3592,6 +3754,16 @@ docker run -d --name hello-b -p 8082:3000 hello:v1
 docker ps
 curl -s localhost:8080 ; echo ; curl -s localhost:8082
 \`\`\`
+\`\`\`
+CONTAINER ID   IMAGE      COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+059625742d96   hello:v1   "docker-entrypoint.s…"   2 seconds ago   Up 2 seconds   0.0.0.0:8082->3000/tcp, [::]:8082->3000/tcp   hello-b
+98cfbaad56b1   hello:v1   "docker-entrypoint.s…"   2 seconds ago   Up 2 seconds   0.0.0.0:8080->3000/tcp, [::]:8080->3000/tcp   hello-a
+
+hi
+hi
+\`\`\`
+
+(The two \`docker run\` commands each print a long container ID first, omitted above. Your container IDs will differ; the \`IMAGE\` column reading \`hello:v1\` on **both** rows is the part that answers the prediction. If a row is missing from \`docker ps\`, that container exited — \`docker logs hello-a\` will say why.)
 
 Two containers, one image, and the build ran zero extra times — because an **image is a read-only template** and each container is just that template plus its own thin writable layer. This is the concept from the top of the module made physical: "ten containers from one image" isn't a figure of speech.
 
@@ -3611,7 +3783,9 @@ Two containers, one image, and the build ran zero extra times — because an **i
 
 \`\`\`bash
 docker exec hello-a whoami
-# root
+\`\`\`
+\`\`\`
+root
 \`\`\`
 
 If you predicted anything other than \`root\`, that surprise *is* the security lesson: unless a Dockerfile says otherwise, a container process runs as **root** — not your host user, and not a limited service account. A remote-code-execution bug in that process therefore starts life with root inside the container, which is the first link in the container-escape chain you'll exploit and then fix in Module 8.4. The fix is a single \`USER\` line; the point of meeting it here is that "it runs as root by default" should feel like a fact you *discovered*, not one you were told.
@@ -3643,6 +3817,12 @@ You are looking *inside the image's build history*, not inside a running contain
 docker build -t leaky:v1 .
 docker history --no-trunc leaky:v1 | grep -i token
 \`\`\`
+\`\`\`
+<missing>   Less than a second ago   RUN /bin/sh -c echo "using token during build" && unset API_TOKEN # buildkit   4.1kB
+<missing>   Less than a second ago   ENV API_TOKEN=EXAMPLE_do_not_use_token                                        0B
+\`\`\`
+
+(\`--no-trunc\` pads those columns to the width of the longest value, so on a real terminal the lines are far wider than shown here and wrap; pipe through \`cut -c1-160\` if that makes them unreadable. Two rows come back because \`grep -i token\` matches both the \`ENV\` layer that *set* the secret and the \`RUN\` layer that claimed to clean it up.)
 
 The token prints **verbatim**, even though a later Dockerfile line "removed" it. The one-sentence reason: each Dockerfile instruction produces one **immutable**, stacked **layer**, so the removal line adds a *new* layer on top that hides the value but cannot edit or erase the earlier layer that still contains it — and every layer ships with the image. Anyone who can \`docker pull\` it (a registry, a CI cache, a teammate) can read the secret. This is why "I deleted it in the next line" is one of the most expensive false beliefs in container security.
 
@@ -16587,8 +16767,16 @@ Set up a lab folder and a deliberately-insecure image — full base, runs as roo
 
 \`\`\`bash
 mkdir -p ~/container-lab && cd ~/container-lab
-echo 'require("http").createServer((_,res)=>res.end("ok\\n")).listen(3000)' > server.js
+cat > server.js <<'EOF'
+require("http").createServer((_, res) => res.end("ok\\n")).listen(3000);
+EOF
+cat server.js    # the \\n must survive as two characters, not become a real newline
 \`\`\`
+\`\`\`
+require("http").createServer((_, res) => res.end("ok\\n")).listen(3000);
+\`\`\`
+
+(Heredoc rather than \`echo\` for the reason Module 0.8 gave: zsh's builtin \`echo\` turns \`\\n\` into an actual newline, which splits the JS string and makes the container crash-loop on \`SyntaxError\` — a Docker-looking failure that is really a shell one.)
 
 \`\`\`dockerfile
 # ~/container-lab/Dockerfile.bad — three planted flaws
