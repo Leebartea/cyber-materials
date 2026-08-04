@@ -5032,11 +5032,23 @@ gitleaks detect --source . --verbose
 # macOS
 brew install sigstore/tap/gitsign
 
-# Configure git globally
-git config --global commit.gpgsign true
-git config --global gpg.x509.program gitsign
-git config --global gpg.format x509
+# Configure ONE repo first (--local), not every repo you own
+cd /path/to/your/repo
+git config --local commit.gpgsign true
+git config --local gpg.x509.program gitsign
+git config --local gpg.format x509
+
+git config --get-regexp 'commit.gpgsign|gpg\\.'   # confirm the three settings took
 \`\`\`
+\`\`\`
+commit.gpgsign true
+gpg.x509.program gitsign
+gpg.format x509
+\`\`\`
+
+Three lines back means git will now route signing through gitsign **in this repo**. Your next \`git commit\` opens a browser for the OIDC sign-in; verify with \`git log --show-signature -1\`.
+
+> **Use \`--local\` before \`--global\`.** \`git config --global commit.gpgsign true\` turns on mandatory signing for *every repository on your machine*, and if the OIDC flow can't complete — offline, on a plane, in CI, on a headless box — **every commit everywhere fails** rather than just this one. Prove it works in one repo, then promote to \`--global\` if you want it as your default. \`git commit --no-gpg-sign\` is the per-commit escape hatch, and \`git config --global --unset commit.gpgsign\` is the way back.
 
 Gitsign uses your OIDC identity (GitHub, Google, etc.) to sign commits and records them in Sigstore's public Rekor transparency ledger — no long-lived private GPG key to protect or rotate.
 
@@ -5372,7 +5384,17 @@ Here **subject ≠ issuer** — a real Certificate Authority signed it. Read \`n
 
 \`\`\`bash
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj "/CN=localhost"
+ls -l key.pem cert.pem
 \`\`\`
+\`\`\`
+....+...+.+..+++++++++++++++++++++++++++++++++++++++*......+..++++++
+.....+...+.........+...+...+....+..+......+.........+...+++++++++++*
+-----
+-rw-r--r--  1 you  staff  1188 19 Jul 10:00 cert.pem
+-rw-------  1 you  staff  1704 19 Jul 10:00 key.pem
+\`\`\`
+
+The wall of dots is just RSA key-generation progress — it's random every time and means nothing; \`-----\` marks the end of it. Two things are worth actually looking at: **no prompts appeared** (that's \`-subj\` supplying the subject and \`-nodes\` meaning "no DES", i.e. don't passphrase-encrypt the key), and **\`key.pem\` came out \`-rw-------\`** while the cert is world-readable. That asymmetry is the whole trust model in one \`ls\`: the certificate is *meant* to be handed to everyone, the private key is meant for exactly one process. If you ever see a key at \`644\`, that is a finding.
 
 Then serve over HTTPS. In Flask it's a one-liner (\`pip install pyopenssl\`), which is the fastest way to see it:
 
@@ -5400,6 +5422,18 @@ notAfter=Jul 20 10:00:00 2026 GMT
 curl https://localhost:3443/api/users        # fails: self-signed cert not trusted
 curl -k https://localhost:3443/api/users      # -k = skip verification (LOCAL LAB ONLY)
 \`\`\`
+\`\`\`
+curl: (60) SSL certificate problem: self signed certificate
+More details here: https://curl.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the web page mentioned above.
+
+[{"id":1,"name":"alice","role":"admin","email":"alice@lab.local"}, ...]
+\`\`\`
+
+**Read the first result as a success, not a failure.** \`curl\` reached the server, completed the TCP connection, received a certificate, checked it against your system trust store, found nobody vouching for it, and *refused to send your request*. That refusal is the entire point of Module 1.2's chain of trust doing its job — an attacker with a self-signed cert gets exactly this wall. Exit code **60** is specifically "certificate verification failed" (\`echo $?\` right after to see it), which is what a CI job or health check would branch on.
 
 Using \`-k\` against anything you don't control would throw away the exact protection Module 1.2 exists to teach — it's a local-lab-only switch.
 
@@ -5607,6 +5641,13 @@ http.createServer((req, res) => {
 EOF
 node leaky.js      # leave running; investigate from a second terminal
 \`\`\`
+\`\`\`
+leaky server on http://127.0.0.1:3000
+\`\`\`
+
+One line and no prompt back — the process is holding the terminal, waiting. That's what you want; open a second terminal for everything below. (\`EADDRINUSE\` means something else already has port 3000: \`lsof -ti:3000 | xargs kill\`.)
+
+Note the bind address: \`127.0.0.1\`, **not** \`0.0.0.0\`. This server has an unauthenticated endpoint that dumps its whole environment, so it is deliberately reachable only from this machine — the distinction you'll be asked about in the knowledge check, applied.
 
 **The rule:** for each task, write the command from a blank prompt before opening the walkthrough. Every command the module showed you is fair to scroll back to — knowing *which* tool answers the question is the skill being trained.
 
@@ -5621,9 +5662,19 @@ node leaky.js      # leave running; investigate from a second terminal
 
 \`\`\`bash
 curl -sI http://127.0.0.1:3000/api/users
-# X-Powered-By: Express                 <- LEAK 1: framework disclosure
-# Server: Node/22.12.0 (leaky-lab)      <- LEAK 2: version disclosure
 \`\`\`
+\`\`\`
+HTTP/1.1 200 OK
+X-Powered-By: Express                 <- LEAK 1: framework disclosure
+Server: Node/22.12.0 (leaky-lab)      <- LEAK 2: version disclosure
+Content-Type: application/json
+Content-Length: 126
+Date: Sun, 19 Jul 2026 10:00:01 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+\`\`\`
+
+(The \`<-\` annotations are mine, not curl's; your \`Date\` will differ. Everything else is byte-for-byte what this server sends.)
 
 \`-I\` issues a HEAD request — headers only, no body — which is the precise tool for "what does this server *say about itself*." Both headers are free reconnaissance: \`X-Powered-By\` names the framework, \`Server\` pins the exact version, and an attacker goes straight to the CVE list for that version instead of guessing. The fix is to stop emitting them (\`app.disable("x-powered-by")\`, strip \`Server\` at a proxy) — but you can't fix what you didn't *notice*, which is why reading headers first is a habit, not a chore.
 </details>
@@ -5646,9 +5697,23 @@ The response is JSON, so pipe \`curl -s\` into the JSON tool. Inside it, \`.env\
 <summary>Walkthrough — open after you've run your own attempt</summary>
 
 \`\`\`bash
-curl -s http://127.0.0.1:3000/debug | jq '.env | keys | length'   # a number, e.g. 46
-curl -s http://127.0.0.1:3000/debug | jq -r '.env | keys[]'       # one name per line
+curl -s http://127.0.0.1:3000/debug | jq '.env | keys | length'   # how many
+curl -s http://127.0.0.1:3000/debug | jq -r '.env | keys[]'       # which ones
 \`\`\`
+\`\`\`
+45
+
+HOME
+LANG
+PATH
+PWD
+SHELL
+TERM
+USER
+...
+\`\`\`
+
+**This is the one output in the course you should expect *not* to match.** \`/debug\` is dumping the environment of whatever shell you started \`node\` from, so both the count and the names are yours — 45 here, anywhere from 8 to 80 on your machine. Read your own list and notice what's in it: on a laptop it's mostly \`PATH\`/\`HOME\`/\`TERM\` noise, but if you have any cloud CLI or API token exported in that shell, its name is sitting right there in the response, and \`jq -r '.env.THAT_NAME'\` would print the value to anyone who can reach the port.
 
 Why *measuring* matters more than eyeballing: on your machine \`/debug\` might leak 40-odd variables; on a real server that list includes \`DATABASE_URL\`, \`JWT_SECRET\`, \`STRIPE_KEY\`, and cloud credentials. A count turns "this looks bad" into "this endpoint discloses N secrets to anyone who can reach it" — the language of an actual finding. And extracting just the *names* is how you'd triage without splashing the secret *values* across your terminal history (which, per Module 1.3, is its own boring-channel leak). That instinct — don't print the secret you're investigating — is a real professional habit.
 </details>
@@ -5723,6 +5788,9 @@ Every command you've run so far has been typed once. A **script** is a command s
 
 **The control-flow vocabulary:**
 \`\`\`bash
+# Run this whole block for real: it needs one file to exist first.
+printf 'boot ok\\nrequest 1\\n' > production.log
+
 # Variables — no spaces around =, always quote on use
 name="production.log"
 echo "Checking $name"
@@ -5757,6 +5825,16 @@ check_file "$name"
 # $1, $2... = individual args; $@ = all args (quoted, preserves boundaries); $# = arg count
 # $? = exit code of the last command (0 = success, non-zero = failure — this is how scripts chain safely)
 \`\`\`
+\`\`\`
+Checking production.log
+File: production.log
+Line: boot ok
+Line: request 1
+exists
+readable: production.log
+\`\`\`
+
+Six lines from six constructs, in order — the \`for\` found one \`.log\` file, the \`while\` read its two lines one at a time, the \`if\` took the first branch, and the function reported back. If you have other \`*.log\` files in that directory you'll get extra \`File:\` lines; that's the glob working, not a mistake.
 
 **\`set -euo pipefail\`** at the top of a script is the closest thing bash has to "fail loudly instead of silently": \`-e\` exits on any unhandled error, \`-u\` errors on an undefined variable instead of silently treating it as empty, \`-o pipefail\` makes a pipeline fail if *any* stage fails (not just the last one). Put it at the top of every script you write from now on.
 
@@ -5925,7 +6003,20 @@ Test data:
 \`\`\`bash
 printf 'ERROR a\\nERROR b\\nINFO c\\n' > app.log
 printf 'ERROR x\\nINFO y\\nINFO z\\nERROR w\\nERROR v\\n' > worker.log
+cat app.log worker.log
 \`\`\`
+\`\`\`
+ERROR a
+ERROR b
+INFO c
+ERROR x
+INFO y
+INFO z
+ERROR w
+ERROR v
+\`\`\`
+
+Eight lines total: **2 ERRORs in \`app.log\`, 3 in \`worker.log\`** — so you already know the answer your script must produce, which is the point of fixed test data. (\`printf\` here, not \`echo\`: \`printf\` expands \`\\n\` identically in every shell, while \`echo\`'s handling of it depends on which shell you're in — the trap Module 0.8 hit.)
 
 **Done when.** \`./worst.sh ERROR app.log worker.log\` reports \`app.log: 2\`, \`worker.log: 3\`, and \`WORST: worker.log\`; \`./worst.sh ERROR\` prints usage and \`echo $?\` shows a non-zero code; and pointing it at a missing file skips that file instead of aborting.
 
@@ -5953,6 +6044,30 @@ done
 echo "WORST: $worst ($max)"
 \`\`\`
 
+All three behaviours the spec demanded, verified in three runs:
+
+\`\`\`bash
+chmod +x worst.sh
+./worst.sh ERROR app.log worker.log          # the happy path
+./worst.sh ERROR ; echo "exit=$?"            # too few arguments
+./worst.sh ERROR app.log nope.log worker.log # one file missing
+\`\`\`
+\`\`\`
+app.log: 2
+worker.log: 3
+WORST: worker.log (3)
+
+Usage: ./worst.sh <pattern> <file...>
+exit=1
+
+app.log: 2
+skip: nope.log not found
+worker.log: 3
+WORST: worker.log (3)
+\`\`\`
+
+Read the third run carefully: the missing file produced a message and the script **kept going**, still reaching the right answer. That is the behaviour \`|| { ...; continue; }\` buys you, and it is not what \`set -e\` would have done on its own.
+
 The three things that make this a *tool* rather than a one-liner are exactly the three the spec forced: **argument validation** (usage + non-zero exit — so it composes safely in a bigger pipeline, per \`$?\` from the module), **per-item resilience** (a missing file is skipped with a message, not a crash), and **defensive quoting** (\`"$f"\`, \`"$@"\`). The subtle one is \`grep -c … || true\`: \`grep\` returns non-zero when it matches nothing, and under \`set -e\` that would kill your script on a perfectly normal "this file had zero errors." Knowing where \`set -e\` *over*-fires is as important as turning it on — that was the module's "\`-e\` is a safety net, not a substitute for real error handling."
 </details>
 
@@ -5967,6 +6082,21 @@ file=$1
 rm -rf $file/tmp
 curl https://get.example.com/setup.sh | bash
 \`\`\`
+
+To see the first hazard without risking anything, put \`echo\` in front of the \`rm\` so the shell expands the line but executes nothing:
+
+\`\`\`bash
+file=""            # what happens if the caller passes no argument
+echo rm -rf $file/tmp
+file="my backups"  # what happens if the path has a space
+echo rm -rf $file/tmp
+\`\`\`
+\`\`\`
+rm -rf /tmp
+rm -rf my backups/tmp
+\`\`\`
+
+Sit with those two lines. **With no argument the script deletes \`/tmp\`**, because an unset \`$file\` expands to nothing and \`$file/tmp\` collapses to \`/tmp\`. **With a space in the path it deletes two unrelated things**, \`my\` and \`backups/tmp\`, because the unquoted expansion word-splits. Neither is a typo you'd spot by reading; both are visible the moment you make the shell show its work. \`bash -x script.sh\` does the same thing for a whole script — print each command *as expanded* before running it — and is the single fastest way to audit someone else's shell code.
 
 **Part B — the pivot.** A database listens on \`127.0.0.1:5432\` on a lab server (\`you@10.10.10.5\`) — it's firewalled off from direct access, reachable *only* from that server itself. Using the tunneling the module taught, write the one command that lets a tool on **your** machine connect to that database as if it were local on port \`5433\`.
 
@@ -5992,6 +6122,22 @@ Part A: look at each line — \`$1\` assigned and used *unquoted* (and what if i
 ssh -L 5433:127.0.0.1:5432 you@10.10.10.5
 # now on your machine: psql -h 127.0.0.1 -p 5433   reaches the server's firewalled database
 \`\`\`
+\`\`\`
+you@lab-server:~$
+\`\`\`
+
+**The forward itself prints nothing.** You get an ordinary shell prompt *on the server* and the tunnel exists silently for as long as that session stays open — which trips people up, because "no output" reads like "didn't work." Verify it from a **third** terminal on your own machine:
+
+\`\`\`bash
+lsof -iTCP:5433 -sTCP:LISTEN -P -n
+\`\`\`
+\`\`\`
+COMMAND   PID   USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME
+ssh     35602    you    3u  IPv4  0x...      0t0  TCP 127.0.0.1:5433 (LISTEN)
+\`\`\`
+
+\`ssh\` itself is holding the port open on your loopback — that row *is* the tunnel. (PID and DEVICE will differ.) Add \`-N\` (\`ssh -N -L ...\`) if you want the forward without a shell, and \`-f\` to push it to the background. If instead you get \`bind [127.0.0.1]:5433: Address already in use\`, pick another local port — the left-hand number is yours to choose and only the right-hand \`5432\` has to match the database.
+
 The \`127.0.0.1\` in the middle is resolved **on the server**, so it means "the database as the server itself sees it" — which is the whole point: the DB is bound to the server's loopback and unreachable from outside, and the tunnel carries your connection *through* the authenticated SSH session to that loopback. One honest caveat the module flagged: SSH encrypts your hop to the server, but the server-to-database leg is whatever the DB uses locally — the tunnel is not a blanket end-to-end guarantee.
 
 **Outside the box:** Part A is how real supply-chain and insider incidents start — a "helpful" script pasted into chat, run without reading, on a machine with credentials. The defensive reflex the whole phase has been building — *don't run input you haven't inspected, quote everything, fail loudly* — is the same reflex whether the untrusted input is SQL, a URL, a workflow title, or a shell script. That's the through-line of Phase 1: you now write your own tools, which means you're now the one who has to not build the vulnerability in.
