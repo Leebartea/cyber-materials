@@ -11468,12 +11468,30 @@ Create \`~/appsec-journal/notes/phase-4-owasp-labs.md\` and answer, in your own 
 \`\`\`bash
 # macOS (Homebrew):
 brew install --cask burp-suite
-open "/Applications/Burp Suite Community Edition.app"
+open "/Applications/Burp Suite.app"     # NOTE the app is "Burp Suite.app", not "...Community Edition.app"
 
 # Windows (winget):  winget install PortSwigger.BurpSuite.Community
 # Linux:             download the .sh installer from portswigger.net/burp/communitydownload
 #                    and run it, or use the copy preinstalled in the Kali VM.
 \`\`\`
+
+**Expected output:** \`brew install\` prints a download-and-link log ending in a \`🍺\` line; \`open\` prints **nothing** and the GUI appears a few seconds later. If \`open\` instead prints \`The file /Applications/... does not exist.\`, the install worked and the *path* is wrong — see below.
+
+Check what you are about to install before you install it — and, more usefully, **what the app will be called on disk**:
+
+\`\`\`bash
+brew info --cask burp-suite
+\`\`\`
+\`\`\`
+==> burp-suite (Burp Suite Community Edition): 2026.6
+Web security testing toolkit
+https://portswigger.net/burp/
+Not installed
+==> Artifacts
+Burp Suite.app (App)
+\`\`\`
+
+The cask is *named* after Community Edition but the artifact it drops in \`/Applications\` is plain **\`Burp Suite.app\`** — get that wrong and \`open\` answers \`The file /Applications/... does not exist.\` with exit code 1, which reads like a failed install when the install was fine. (Version number will differ; \`Not installed\` becomes the installed version once the cask lands.) \`brew install\` itself prints a download/link log and \`open\` prints nothing at all — silence there means the GUI is starting.
 
 **Configure a browser to proxy through Burp** (use Firefox Developer Edition so you don't disturb your normal browsing):
 
@@ -11488,6 +11506,11 @@ open "/Applications/Burp Suite Community Edition.app"
 \`\`\`bash
 docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop   # native arm64
 \`\`\`
+\`\`\`
+513d31d417f8be454066f33cc7b1625b422584006be15889d295875f828e7508
+\`\`\`
+
+Just the container id (yours differs). As in Module 4.1, \`-d\` detaches — give it 30–60 seconds and confirm with \`curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:3000/\` returning \`200\` before you start clicking, or Burp will record nothing but connection errors.
 
 In Burp: **Target → Scope → Add** \`http://localhost:3000\` (and set "intercept only in-scope" so you don't capture unrelated traffic). Turn FoxyProxy on, set Burp **Proxy → Intercept → off** (for now), and browse \`http://localhost:3000\` — click around. Watch the **Target → Site map** and **Proxy → HTTP history** fill with the app's requests.
 
@@ -11552,6 +11575,12 @@ http.createServer((clientReq, clientRes)=>{
 EOF
 node lab.js     # leave running — starts BOTH the target and the proxy
 \`\`\`
+\`\`\`
+target on :4615
+proxy on :4616
+\`\`\`
+
+Two listeners in one process: \`:4615\` is the application, \`:4616\` is you sitting in the middle of it. **Keep this terminal visible** — the whole point of the drill is watching lines appear here as traffic passes through. (\`EADDRINUSE\` → \`lsof -ti:4615 -ti:4616 | xargs kill\`.)
 
 **The rule:** predict what the target receives before each request; write each TODO before opening its walkthrough.
 
@@ -11575,8 +11604,19 @@ console.log(\`[proxy] saw: \${clientReq.method} \${clientReq.url}\`);   // obser
 \`\`\`
 \`\`\`bash
 curl -s "http://localhost:4616/buy?item=widget&price=49.99"
-# {"item":"widget","charged":"49.99"}   (and the proxy logs the request)
 \`\`\`
+\`\`\`
+{"item":"widget","charged":"49.99"}
+\`\`\`
+
+and in the terminal running \`lab.js\`, a new line appears:
+
+\`\`\`
+[proxy] saw: GET /buy?item=widget&price=49.99
+\`\`\`
+
+**Two terminals, one request.** The response is unchanged — the client cannot tell it was proxied — while a complete record of it accumulates somewhere the client never sees. That asymmetry is the entire threat model of an intercepting proxy.
+
 That one line *is* Burp's **HTTP history / Site map**: every request the browser makes flows through the proxy, so the proxy sees and records all of it. You now have the "observe" half of an intercepting proxy in one \`console.log\`.
 </details>
 
@@ -11599,9 +11639,16 @@ Before building \`opts\`, mutate the parsed URL: \`if (u.searchParams.has("price
 if (u.searchParams.has("price")) u.searchParams.set("price", "0.01");   // MODIFY in flight
 \`\`\`
 \`\`\`bash
-curl -s "http://localhost:4615/buy?item=widget&price=49.99"   # direct  -> {"charged":"49.99"}
-curl -s "http://localhost:4616/buy?item=widget&price=49.99"   # proxied -> {"charged":"0.01"}
+curl -s "http://localhost:4615/buy?item=widget&price=49.99"   # direct
+curl -s "http://localhost:4616/buy?item=widget&price=49.99"   # proxied
 \`\`\`
+\`\`\`
+{"item":"widget","charged":"49.99"}
+{"item":"widget","charged":"0.01"}
+\`\`\`
+
+**Identical URLs. Identical \`price=49.99\` typed by the client. Different charge.** Nothing about the request the *user* composed changed — only the port it travelled through — and the server has no way to tell which one it got.
+
 That is **Burp Repeater / Intercept** in one line — take a request the client sent and change any part of it before the server sees it. Everything Burp adds on top (a GUI, marking positions, replaying with payload lists in Intruder, diffing in Comparer) is *ergonomics* around this exact capability. You proved two things at once: how the tool works, and why the price-trust bug (Module 3.6) is unfixable on the client — the value is editable in transit by anyone running what you just wrote.
 </details>
 
@@ -11670,6 +11717,18 @@ No code. In your journal:
 brew install --cask zap                 # OWASP ZAP, native arm64
 docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop   # your target
 \`\`\`
+\`\`\`
+513d31d417f8be454066f33cc7b1625b422584006be15889d295875f828e7508
+\`\`\`
+
+(The cask install log comes first; the hex line is the detached container's id, and yours differs.) Wait for Juice Shop to finish booting before scanning it — a scan started too early finds an empty site and reports a clean bill of health:
+
+\`\`\`bash
+until curl -s -o /dev/null http://localhost:3000/; do sleep 5; done; echo "juice ready"
+\`\`\`
+\`\`\`
+juice ready
+\`\`\`
 
 **Run a baseline scan** (you can use the desktop app's "Automated Scan" against \`http://localhost:3000\`, or the Dockerized ZAP baseline for the CI-style experience):
 
@@ -11681,6 +11740,31 @@ docker run --rm -t \\
   ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \\
   -t http://host.docker.internal:3000 || true
 \`\`\`
+\`\`\`
+PASS: Java Serialization Object [90002]
+PASS: Sub Resource Integrity Attribute Missing [90003]
+PASS: Application Error Disclosure [90022]
+WARN-NEW: Content Security Policy (CSP) Header Not Set [10038] x 5
+	http://host.docker.internal:3000 (200 OK)
+	http://host.docker.internal:3000/ftp/coupons_2013.md.bak (403 Forbidden)
+	http://host.docker.internal:3000/sitemap.xml (200 OK)
+WARN-NEW: Timestamp Disclosure - Unix [10096] x 5
+	http://host.docker.internal:3000/styles.css (200 OK)
+WARN-NEW: Cross-Domain Misconfiguration [10098] x 5
+	http://host.docker.internal:3000/robots.txt (200 OK)
+WARN-NEW: Dangerous JS Functions [10110] x 1
+	http://host.docker.internal:3000/main.js (200 OK)
+WARN-NEW: Cross-Origin-Embedder-Policy Header Missing or Invalid [90004] x 10
+	http://host.docker.internal:3000/ftp (200 OK)
+
+FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 8	WARN-INPROG: 0	INFO: 0	IGNORE: 0	PASS: 59
+\`\`\`
+
+(Abridged — the real run lists 59 \`PASS\` lines and every URL per warning. Counts drift as ZAP's rules and Juice Shop both get updated, so treat the exact numbers as illustrative and the *shape* as the lesson.)
+
+**Read the last line twice.** \`FAIL-NEW: 0\` — on an application that is, by design, one of the most vulnerable web apps in existence. The baseline profile only *warns* by default, so nothing "failed"; but even the warnings are all passive-header and information-disclosure findings. Every headline Juice Shop challenge — the SQLi login bypass, the basket manipulation, the admin-section access — is absent, because none of them is detectable without knowing what the application is *for*.
+
+That is the number to remember the next time someone shows you a green scan.
 
 **What to look at:** ZAP prints WARN/FAIL lines — missing security headers (CSP, \`X-Content-Type-Options\`), cookies without flags, perhaps an XSS or info-disclosure lead. Note two things: (1) several are *real* (Juice Shop is intentionally vulnerable), and (2) the scan will *not* surface the basket IDOR or business-logic flaws you found in Phase 4 — **the most important bugs are invisible to it.**
 
@@ -11742,6 +11826,11 @@ http.createServer((req,res)=>{
 EOF
 node app.js     # leave running
 \`\`\`
+\`\`\`
+app on http://localhost:4617
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4617 | xargs kill\`.)
 
 **The rule:** predict each result before running it; write your answers before opening a walkthrough.
 
@@ -11765,10 +11854,28 @@ H=$(curl -sI "http://localhost:4617/api/orders/100")
 for hdr in content-security-policy x-content-type-options strict-transport-security; do
   echo "$H" | grep -iq "$hdr" && echo "  OK: $hdr" || echo "  WARN: missing $hdr"
 done
-# WARN: missing content-security-policy
-# WARN: missing x-content-type-options
-# WARN: missing strict-transport-security
 \`\`\`
+\`\`\`
+  WARN: missing content-security-policy
+  WARN: missing x-content-type-options
+  WARN: missing strict-transport-security
+\`\`\`
+
+Worth seeing what it was actually reading — the entire response header block is four lines:
+
+\`\`\`bash
+curl -sI "http://localhost:4617/api/orders/100"
+\`\`\`
+\`\`\`
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Wed, 05 Aug 2026 11:24:59 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+\`\`\`
+
+(Your \`Date\` will differ.) There is nothing subtle to find here: the security headers are simply absent, and *absence* is a fact a machine can check perfectly, on every endpoint, in milliseconds, forever.
+
 Three real findings in one command — and this is exactly the class of thing scanners excel at: *pattern-matchable, context-free facts*. Is a header present? Is a cookie missing \`HttpOnly\`? Does a parameter reflect? A machine answers those fast and reliably, which is why baseline scans belong in CI (Phase 7). Keep this half of the relationship: **scanners are great lead generators for the mechanical stuff.**
 </details>
 
@@ -11785,8 +11892,13 @@ Same app, same endpoints. There's a far worse bug than the missing headers.
 
 \`\`\`bash
 curl -s "http://localhost:4617/api/orders/200"
-# {"id":200,"owner":2,"total":999}   <- another user's order, no authorization checked
 \`\`\`
+\`\`\`
+{"id":200,"owner":2,"total":999}
+\`\`\`
+
+**Status 200. Well-formed JSON. Not one header out of place.** Put this response next to the header scan above and the contrast is the entire module: the scanner found three genuine defects that cost you nothing to fix, and walked straight past the one that leaks another customer's order.
+
 That's an **IDOR / BOLA (OWASP A01)** — the exact #1-risk bug from Module 3.3 — and it's *invisible* to the header scanner because finding it requires knowing something the machine can't: **that order 200 belongs to someone else and this caller shouldn't see it.** A scanner sees a well-formed request returning a well-formed \`200 OK\` JSON response; nothing about the *bytes* is anomalous. Only a tester who understands the app's *intent* (ownership) recognizes the violation. This is the **false negative** that matters: the scan was "clean" on authorization while the worst bug in the app sat in plain sight.
 
 The lesson, felt rather than told: a clean scan is **not** "secure" — it's "clean *on the things a scanner can check*." The highest-value testing (object-by-object authorization, business logic) is precisely the human-only work step 6 of the workflow exists for.
@@ -11841,10 +11953,12 @@ The bug bounty pathway then extends this to *real* systems that have *explicitly
 docker run --rm -p 3000:3000 bkimminich/juice-shop
 
 # 2) Open Burp Suite Community
-#    macOS:   open "/Applications/Burp Suite Community Edition.app"
+#    macOS:   open "/Applications/Burp Suite.app"
 #    Windows: launch "Burp Suite Community Edition" from the Start menu
 #    Linux/Kali: run \`burpsuite\` (or launch it from the apps menu)
 \`\`\`
+
+**Expected output:** without \`-d\`, Juice Shop holds this terminal and streams its own startup log, ending in \`info: Server listening on port 3000\` — that line is your green light (the earlier \`warn:\` lines about \`ALCHEMY_API_KEY\` and a local LLM are expected; they disable four challenges you are not doing here). Launching Burp prints nothing. Give the app 30–60 seconds before you start clicking, or Burp's site map fills with connection errors instead of traffic.
 
 In Burp: **Proxy → Intercept off** (for now), **Target → Scope → add** \`http://localhost:3000\`. In Firefox + FoxyProxy, switch the Burp proxy on, visit \`http://localhost:3000\`, and click around.
 
@@ -11931,6 +12045,11 @@ http.createServer((req,res)=>{
 EOF
 node app.js     # leave running
 \`\`\`
+\`\`\`
+app on http://localhost:4618
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4618 | xargs kill\`.)
 
 **Goal.** You don't know which user ids exist. Enumerate ids 1–100 and report *only* the ones that are real — using the response difference the server leaks. (This is Burp Intruder's "Numbers payload, sort by status" done in bash.)
 
@@ -11950,8 +12069,23 @@ for i in $(seq 1 100); do
   code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4618/user/$i")
   [ "$code" = "200" ] && echo "  id $i EXISTS"
 done
-# id 3 / 7 / 42 / 99 EXISTS
 \`\`\`
+\`\`\`
+  id 3 EXISTS
+  id 7 EXISTS
+  id 42 EXISTS
+  id 99 EXISTS
+\`\`\`
+
+**Four lines out of a hundred requests.** You began knowing no valid id and ended with the complete list, without a single credential — and each one is now a live target for the object-level authorization check the endpoint never makes:
+
+\`\`\`bash
+curl -s http://localhost:4618/user/42
+\`\`\`
+\`\`\`
+{"id":"42","name":"user42","email":"42@x.com"}
+\`\`\`
+
 That's Burp **Intruder**: mark a position (\`$i\`), supply a payload list (1–100), fire, and **sort by response** (here, status code) to find the anomalies. The server handed you an *enumeration oracle* — a detectable difference between "exists" (200) and "doesn't" (404). Real apps leak this same way through status codes, response length, timing, or error text (a login that says "wrong password" for real users and "no such user" for others enumerates accounts identically). The defense is to make the responses **indistinguishable** — a generic 404/401 either way — which is why "user not found" vs "wrong password" is a finding. You just built the offensive tool *and* diagnosed the defensive requirement in one loop.
 </details>
 
