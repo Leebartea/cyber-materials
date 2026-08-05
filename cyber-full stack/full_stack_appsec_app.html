@@ -7472,14 +7472,14 @@ Run it and probe each guard:
 node secure-skeleton.js
 
 # 1) Oversized body -> rejected by the 1kb limit (DoS guard):
-curl -i -X POST :3000/login -H 'Content-Type: application/json' \\
+curl -i -X POST localhost:3000/login -H 'Content-Type: application/json' \\
   -d "{\\"email\\":\\"a@b.com\\",\\"password\\":\\"\$(printf 'x%.0s' {1..2000})\\"}"
 
 # 2) Malformed input -> rejected by zod, generic error (no internals leaked):
-curl -i -X POST :3000/login -H 'Content-Type: application/json' -d '{"email":"not-an-email"}'
+curl -i -X POST localhost:3000/login -H 'Content-Type: application/json' -d '{"email":"not-an-email"}'
 
 # 3) Rapid requests -> 6th within a minute gets 429 (rate limit):
-for i in \$(seq 1 6); do curl -s -o /dev/null -w "%{http_code}\\n" -X POST :3000/login \\
+for i in \$(seq 1 6); do curl -s -o /dev/null -w "%{http_code}\\n" -X POST localhost:3000/login \\
   -H 'Content-Type: application/json' -d '{"email":"a@b.com","password":"password1"}'; done
 \`\`\`
 
@@ -7714,8 +7714,22 @@ if (req.url === "/lookup") {
 \`\`\`
 \`\`\`bash
 curl -s localhost:4605/lookup
-# {"error":"Internal Server Error"}      <- nothing sensitive; detail is in your terminal
 \`\`\`
+\`\`\`
+{"error":"Internal Server Error"}
+\`\`\`
+
+That is the *entire* response now — no message, no stack, no connection string. Meanwhile the terminal running the server prints the detail you actually need:
+
+\`\`\`
+internal: Error: ECONNREFUSED postgres://app:hunter2@10.0.0.5:5432/appdb
+    at Server.<anonymous> (/Users/you/skeleton-workbench/skeleton.js:16:17)
+    at Server.emit (node:events:524:28)
+    at parserOnIncoming (node:_http_server:1153:12)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:117:17)
+\`\`\`
+
+(Your paths and line numbers will differ.) **Nothing was lost — it moved.** The same string that used to be a gift to an attacker is now in a channel only you can read, which is the whole shape of the fix: debuggability and disclosure are not a trade-off once you stop sending them down the same pipe.
 
 **3. Why validation isn't the whole story.** Input validation shrinks the attack surface *coming in* — it does nothing about what leaks *going out* when something fails. This endpoint could validate perfectly and still hand an attacker your DB password the moment a query errors. Each layer covers a different trust boundary: **validate** at the edge (constrain input), **parameterize** at the database (data ≠ code, Module 3.2), **encode** at output (data ≠ markup, Module 2.2), and **fail generic** at the error path (don't disclose internals). Reaching for one and calling it done is the recurring beginner mistake; the skeleton exists precisely so none of the four is the one you forgot.
 
@@ -7786,6 +7800,26 @@ docker exec -i pg psql -U postgres -c \\
   "CREATE TABLE users(id serial primary key, email text, password text);
    INSERT INTO users(email,password) VALUES ('admin@example.com','s3cret'),('bob@example.com','bobpass');"
 \`\`\`
+\`\`\`
+d14643d47731a8c19beb9da0002eb17e7c26e9d7bef340fb7ede173cc53592a7
+CREATE TABLE
+INSERT 0 2
+\`\`\`
+
+The long hex string is the new container's id — **yours will be different every time**, and that is all \`docker run -d\` prints. \`CREATE TABLE\` and \`INSERT 0 2\` are Postgres confirming the seed: two rows written. If instead you see \`FATAL: the database system is starting up\`, the container wasn't ready — wait a few seconds and re-run just the \`docker exec\` line. (First run also prints a screenful of \`Pull complete\` layers while the image downloads.)
+
+This lab needs two npm packages, so give it a folder of its own:
+
+\`\`\`bash
+mkdir -p ~/sqli-lab && cd ~/sqli-lab
+npm init -y && npm pkg set type=module
+npm install express pg
+\`\`\`
+\`\`\`
+added 81 packages in 11s
+\`\`\`
+
+**\`npm pkg set type=module\` is not optional here.** The lab file below uses \`import\`, and Node only auto-detects ESM in a \`.js\` file when there is *no* \`package.json\` — the moment \`npm init\` creates one without \`"type": "module"\`, Node reads the file as CommonJS and you get \`SyntaxError: Cannot use import statement outside a module\`. (Package count and timing will differ; what matters is that it ends in \`added N packages\` and not an error.)
 
 Vulnerable login (\`sqli-lab.js\`) — concatenated query:
 
@@ -7811,12 +7845,25 @@ Exploit the classic auth bypass — log in *without knowing any password*:
 \`\`\`bash
 node sqli-lab.js
 # password field closes the string and OR-trues the WHERE:
-curl -s -X POST :3000/login -H 'Content-Type: application/json' \\
+curl -s -X POST localhost:3000/login -H 'Content-Type: application/json' \\
   -d "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"' OR '1'='1\\"}"
-# -> logs you in as admin@example.com despite a wrong password
+\`\`\`
+\`\`\`
+:3000
+{"loggedInAs":{"id":1,"email":"admin@example.com"}}
 \`\`\`
 
-**Expected observation:** you authenticate as admin with a garbage password, because \`... AND password = '' OR '1'='1'\` is always true. You bypassed login purely by controlling part of the query string. Now fix it with parameters:
+(\`:3000\` is the server's own startup line, printed in the terminal running \`node sqli-lab.js\`; the JSON comes back in the terminal you ran \`curl\` in.) For contrast, send the *same* email with an ordinary wrong password and no payload:
+
+\`\`\`bash
+curl -s -X POST localhost:3000/login -H 'Content-Type: application/json' \\
+  -d '{"email":"admin@example.com","password":"nope"}'
+\`\`\`
+\`\`\`
+{"loggedInAs":null}
+\`\`\`
+
+**Expected observation:** you authenticate as admin with a garbage password, because \`... AND password = '' OR '1'='1'\` is always true. The two responses differ only in the *punctuation* of the password field — \`nope\` is compared as data and fails, \`' OR '1'='1\` becomes part of the query's logic and wins. You bypassed login purely by controlling part of the query string. Now fix it with parameters:
 
 \`\`\`js
 app.post("/login", async (req, res) => {
@@ -7830,7 +7877,20 @@ app.post("/login", async (req, res) => {
 });
 \`\`\`
 
-Re-run the exact same payload: it now fails (no row matches an email literally equal to \`admin@example.com\` with a password literally equal to \`' OR '1'='1\`). The injection is dead. Clean up: \`docker stop pg\`.
+Re-run the exact same payload against the fixed server, then a genuinely correct login:
+
+\`\`\`bash
+curl -s -X POST localhost:3000/login -H 'Content-Type: application/json' \\
+  -d "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"' OR '1'='1\\"}"
+curl -s -X POST localhost:3000/login -H 'Content-Type: application/json' \\
+  -d '{"email":"admin@example.com","password":"s3cret"}'
+\`\`\`
+\`\`\`
+{"loggedInAs":null}
+{"loggedInAs":{"id":1,"email":"admin@example.com"}}
+\`\`\`
+
+The payload now fails (no row matches an email literally equal to \`admin@example.com\` with a password literally equal to \`' OR '1'='1\`) — while the real password still works. **Both halves matter:** a "fix" that also breaks the legitimate login is not a fix, and the second line is what proves you closed the hole rather than the door. The injection is dead. Clean up: \`docker stop pg\`.
 
 *(Note: this lab stores plaintext passwords only to keep the focus on injection — never do that in real code; Phase 6 covers password hashing.)*
 
@@ -7953,6 +8013,17 @@ node --experimental-sqlite sqli.js "wrongpass"    # baseline: returns [] (no mat
 node --experimental-sqlite sqli.js "YOUR_PAYLOAD_HERE"
 \`\`\`
 
+The baseline run — an honest wrong password — looks like this:
+
+\`\`\`
+SQL : SELECT id,email FROM users WHERE email = 'admin@example.com' AND password = 'wrongpass'
+rows: []
+(node:54827) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use \`node --trace-warnings ...\` to show where the warning was created)
+\`\`\`
+
+Two things to note before you start. \`rows: []\` is what *correct* behaviour looks like: no user has that password, so nothing matches. And the \`ExperimentalWarning\` is **expected and harmless** — \`node:sqlite\` is still flagged experimental, so Node prints that on every run. It goes to stderr, so where it lands relative to the other lines can vary; the process id in \`(node:54827)\` will be different every time. Read the \`SQL :\` line each run — it is the query the database actually received.
+
 **Done when.** Your payload makes \`rows\` contain **both** users (admin *and* bob), and you can read the printed \`SQL\` line to explain why.
 
 <details>
@@ -7966,9 +8037,13 @@ Your input lands *inside* the \`password = '…'\` quotes. Close that quote, the
 
 \`\`\`bash
 node --experimental-sqlite sqli.js "' OR '1'='1"
-# SQL : SELECT id,email FROM users WHERE email = 'admin@example.com' AND password = '' OR '1'='1'
-# rows: [{"id":1,"email":"admin@example.com"},{"id":2,"email":"bob@example.com"}]
 \`\`\`
+\`\`\`
+SQL : SELECT id,email FROM users WHERE email = 'admin@example.com' AND password = '' OR '1'='1'
+rows: [{"id":1,"email":"admin@example.com"},{"id":2,"email":"bob@example.com"}]
+\`\`\`
+
+Put that \`SQL :\` line next to the baseline one and read them as a pair — the *only* difference is where the quotes fall, and it changed the query from "match one row" to "match every row."
 
 The printed SQL is the whole story: your input closed the password string and appended \`OR '1'='1'\`, so the condition became \`(email = 'admin' AND password = '') OR '1'='1'\` — and \`'1'='1'\` is true for *every* row, so the query dumped the entire \`users\` table. You didn't guess a password; you rewrote the query's **logic** by controlling part of its **code**. That's SQL injection in its most classic form, against a genuine database engine — and it's exactly the string experiment from 0.5, now with real consequences (an auth bypass and a full table dump in one request).
 </details>
@@ -7996,9 +8071,14 @@ console.log("FIXED rows:", JSON.stringify(fixed));
 \`\`\`
 \`\`\`bash
 node --experimental-sqlite sqli.js "' OR '1'='1"
-# rows      : [{"id":1,...},{"id":2,...}]   <- vulnerable: dumped
-# FIXED rows: []                            <- parameterized: no match
 \`\`\`
+\`\`\`
+SQL : SELECT id,email FROM users WHERE email = 'admin@example.com' AND password = '' OR '1'='1'
+rows: [{"id":1,"email":"admin@example.com"},{"id":2,"email":"bob@example.com"}]
+FIXED rows: []
+\`\`\`
+
+**One run, one payload, two opposite outcomes** — that side-by-side is the point of adding the fixed query to the *same* script rather than a separate file. Same input, same database, same process: the vulnerable query dumps the table, the parameterized one finds nothing.
 
 Why it's airtight: with \`?\`, the driver hands SQLite the query template *and* the value array as **separate things**. SQLite parses the query structure first, then binds \`' OR '1'='1\` in as a **literal string to compare against the password column** — it looks for a user whose password is *literally* the characters \`' OR '1'='1\`, finds none, returns \`[]\`. There is no string-building step where the input could become code. Same principle, different placeholder syntax, as \`$1\` (Postgres), \`%s\` (psycopg2), \`:name\` (SQLAlchemy) — learn it once, recognize it everywhere.
 </details>
@@ -8098,10 +8178,10 @@ Exploit:
 \`\`\`bash
 node api-lab.js
 # IDOR: Alice (user 1) reads Bob's order 200 just by changing the id:
-curl -s :3000/api/orders/200 -H 'X-User-Id: 1'        # -> Bob's order leaked
+curl -s localhost:3000/api/orders/200 -H 'X-User-Id: 1'        # -> Bob's order leaked
 
 # Mass assignment: Alice promotes herself to admin via an unexpected field:
-curl -s -X PATCH :3000/api/users/1 -H 'X-User-Id: 1' \\
+curl -s -X PATCH localhost:3000/api/users/1 -H 'X-User-Id: 1' \\
   -H 'Content-Type: application/json' -d '{"name":"Alice","isAdmin":true}'   # -> isAdmin:true
 \`\`\`
 
@@ -8223,10 +8303,26 @@ GraphQL is a query language that lets the client decide which fields and how dee
 **Try It Yourself: query a vulnerable GraphQL API.** Spin up DVGA (Damn Vulnerable GraphQL Application):
 
 \`\`\`bash
-docker run --rm -p 5013:5013 dolevf/dvga
+docker run --rm -e WEB_HOST=0.0.0.0 -p 5013:5013 dolevf/dvga
 # ARM64 host (Apple Silicon / ARM): DVGA is x86-only, so add --platform linux/amd64:
-# docker run --rm --platform linux/amd64 -p 5013:5013 dolevf/dvga
+# docker run --rm --platform linux/amd64 -e WEB_HOST=0.0.0.0 -p 5013:5013 dolevf/dvga
 \`\`\`
+\`\`\`
+(nothing — this image logs nothing at all, and the terminal simply stops)
+\`\`\`
+
+**\`WEB_HOST=0.0.0.0\` is required, and it is the one thing that will silently waste your afternoon.** DVGA's \`config.py\` defaults \`WEB_HOST\` to \`127.0.0.1\`, so out of the box it listens on the *container's own* loopback. \`-p 5013:5013\` forwards to the container's network interface, where nothing is bound — so the container looks healthy in \`docker ps\` while every browser request dies with \`connection reset\`. Setting \`WEB_HOST=0.0.0.0\` makes it listen on all interfaces so the published port actually reaches it.
+
+Since it prints no banner, confirm it is up from a second terminal rather than by staring at the first:
+
+\`\`\`bash
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:5013/
+\`\`\`
+\`\`\`
+200
+\`\`\`
+
+\`200\` means DVGA is serving — open the browser. \`000\` means curl could not connect at all: give it another 20–30 seconds (under x86 emulation the first boot is slow), then check \`docker ps\` and that you passed \`WEB_HOST\`.
 
 > **ARM64 note:** DVGA only publishes an x86 (\`linux/amd64\`) image. On an x86-64 host (Intel/AMD) it runs natively — drop the flag. On an ARM64 host the \`--platform linux/amd64\` flag makes Docker emulate it (Rosetta 2 on Apple Silicon — install once with \`softwareupdate --install-rosetta\` if Docker prompts; QEMU/binfmt on ARM Linux). It's a learning lab, so the emulation overhead is fine. **Ethics & scope:** DVGA is intentionally vulnerable and runs on your own machine — attack only this and other labs you control.
 
@@ -8353,6 +8449,11 @@ http.createServer(async (req,res)=>{
 EOF
 node api.js     # leave running
 \`\`\`
+\`\`\`
+api on http://localhost:4607
+\`\`\`
+
+One line and no prompt back — the server is up and holding this terminal. Drive it from a second one. (\`EADDRINUSE\` means port 4607 is still taken by an earlier run: \`lsof -ti:4607 | xargs kill\`.)
 
 The intended feature: a user PATCHes their own profile \`name\`. The form only ever sends \`{ "name": "..." }\`.
 
@@ -8375,8 +8476,12 @@ The handler does \`Object.assign(users[id], body)\` — it copies *every* field 
 
 \`\`\`bash
 curl -s -X PATCH localhost:4607/api/users/1 -H "X-User-Id: 1" -d '{"name":"Alice","isAdmin":true}'
-# {"id":1,"name":"Alice","email":"alice@x.com","isAdmin":true}
 \`\`\`
+\`\`\`
+{"id":1,"name":"Alice","email":"alice@x.com","isAdmin":true}
+\`\`\`
+
+Read that response twice. \`"isAdmin":true\` is the field you *wrote* — and \`"email"\` and \`"isAdmin"\` are fields you were merely *shown*. One request, two different bugs, and both are visible in a single line of JSON.
 
 That's **mass assignment**. The server trusted the *shape* of the request — it spread whatever fields arrived onto the record, so an attacker just adds \`"isAdmin":true\` (or \`"creditBalance":999999\`, \`"ownerId":…\`) and the write goes through. The form having no admin toggle is irrelevant: the form is client-side, and \`curl\` sends any fields it likes. Notice too that the *response* leaked \`email\` and \`isAdmin\` — fields a UI might hide but that are right there in the JSON (**excessive data exposure**). Two OWASP API bugs (BOPLA, API3) in one careless handler.
 </details>
@@ -8406,10 +8511,14 @@ if(m && req.method==="PATCH"){
 \`\`\`
 \`\`\`bash
 curl -s -X PATCH localhost:4607/api/users/1 -H "X-User-Id: 1" -d '{"name":"Alice","isAdmin":true}'
-# {"id":1,"name":"Alice"}          <- isAdmin ignored, email/isAdmin not returned
 curl -s -o /dev/null -w "%{http_code}\\n" -X PATCH localhost:4607/api/users/2 -H "X-User-Id: 1" -d '{"name":"x"}'
-# 403                              <- caller 1 can't edit user 2
 \`\`\`
+\`\`\`
+{"id":1,"name":"Alice"}
+403
+\`\`\`
+
+Note what the first line does **not** say: no error, no "isAdmin rejected" — the attacker's field was simply never read, and \`email\`/\`isAdmin\` never left the server. A silent, uninteresting response is exactly what a closed hole looks like. The \`403\` on the second is the ownership check refusing caller 1 the right to touch user 2.
 
 Three OWASP-class bugs closed by three habits: **authorize the object** (kills BOLA/BFLA), **allow-list writable fields** (kills mass assignment — the attacker's \`isAdmin\` is simply never read), and **return a DTO** (kills excessive exposure — you choose what leaves the server, field by field). The through-line: *the client controls the entire request and every field of it; the server must decide what it accepts and what it emits.* This is the same "distrust the whole request" rule from Module 3.1, applied to object and field granularity.
 </details>
@@ -8493,7 +8602,7 @@ Bypass it — upload a text/script file but *lie* about its type:
 node upload-lab.js
 echo '<script>alert("not an image")<\/script>' > evil.svg
 # claim it's a PNG with the forged Content-Type, defeating the naive check:
-curl -s -X POST :3000/upload -F "file=@evil.svg;type=image/png"
+curl -s -X POST localhost:3000/upload -F "file=@evil.svg;type=image/png"
 # -> accepted, because the server trusted the forged 'image/png'
 \`\`\`
 
@@ -8646,6 +8755,11 @@ http.createServer((req,res)=>{
 EOF
 node upload.js     # leave running
 \`\`\`
+\`\`\`
+upload on http://localhost:4608
+\`\`\`
+
+Server up, terminal held — work from a second one. (\`EADDRINUSE\` → \`lsof -ti:4608 | xargs kill\`.)
 
 **The rule:** predict the response before each upload; write \`realType\` before opening its walkthrough.
 
@@ -8653,7 +8767,7 @@ node upload.js     # leave running
 
 Make a file that is obviously not an image — an SVG carrying a script:
 \`\`\`bash
-printf '<script>alert(1)<\\/script>' > evil.svg
+printf '<script>alert(1)<\/script>' > evil.svg
 \`\`\`
 
 **Goal.** Upload \`evil.svg\` to the **vulnerable** endpoint (\`/upload\`) so the server *accepts it as an image*, by forging the one thing it checks.
@@ -8671,8 +8785,12 @@ The vulnerable endpoint only checks that the request's \`Content-Type\` starts w
 
 \`\`\`bash
 curl -s -X POST localhost:4608/upload -H "Content-Type: image/png" --data-binary @evil.svg
-# {"accepted":true,"claimed":"image/png"}
 \`\`\`
+\`\`\`
+{"accepted":true,"claimed":"image/png"}
+\`\`\`
+
+The server even *echoes back* the lie it believed — \`"claimed":"image/png"\` for a file whose bytes say \`<script>\`.
 
 Accepted — a scriptable SVG the server now believes is a PNG. The check inspected the *declared type*, and the declared type is attacker-controlled (you forged headers back in Phase 1). Extensions are no better: renaming \`evil.svg\` to \`evil.png\` would fool an extension check just as easily. **Nothing the client tells you about a file is trustworthy** — not the header, not the name, not the extension. Only the bytes are.
 </details>
@@ -8706,10 +8824,14 @@ function realType(buf){
 \`\`\`
 \`\`\`bash
 curl -s -X POST "localhost:4608/upload?fixed=1" -H "Content-Type: image/png" --data-binary @evil.svg
-# {"error":"not a real image","declared":"image/png","sniffed":null}   <- forged header ignored
 curl -s -X POST "localhost:4608/upload?fixed=1" -H "Content-Type: application/octet-stream" --data-binary @real.png
-# {"accepted":true,"realType":"image/png"}                             <- accepted on BYTES, not header
 \`\`\`
+\`\`\`
+{"error":"not a real image","declared":"image/png","sniffed":null}
+{"accepted":true,"realType":"image/png"}
+\`\`\`
+
+The rejection message is worth reading field by field: \`declared\` is what the client *said* (\`image/png\`), \`sniffed\` is what the bytes *are* (\`null\` — neither PNG nor JPEG). The server logged the disagreement and sided with the bytes. And notice the second line: the two requests carry **opposite** \`Content-Type\` headers from the ones that would let them through, and each still got the correct answer — proof the header stopped being consulted at all.
 
 The key thing to notice: the real PNG was accepted even though its declared \`Content-Type\` was \`application/octet-stream\` — because the decision is made **entirely from the bytes**, and the client's header is never consulted. That inversion is the whole lesson. In production you'd use a maintained library (\`file-type\` in Node, \`python-magic\` in Python) that knows hundreds of signatures rather than hand-checking two — but you now know exactly what it's doing, and why "I checked the MIME type" is not that. Note also this is an **allow-list** (only png/jpeg pass), never a deny-list of "bad" types — you can't enumerate every dangerous format, so you enumerate the few safe ones.
 </details>
@@ -9142,7 +9264,7 @@ When testing any application for business logic flaws:
 
 ---
 
-### 🧪 Workbench: make a one-use coupon pay out thirteen times
+### 🧪 Workbench: make a one-use coupon pay out over and over
 
 > **What this trains.** Logic flaws and races are the bugs *no scanner finds* — you find them by understanding intent and by making concurrency happen. Race conditions are notoriously hard to *see*; this Workbench makes one reproducible on your own machine, then you fix it and watch it die. Dependency-free.
 
@@ -9169,6 +9291,11 @@ http.createServer(async (req,res)=>{
 EOF
 node checkout.js     # leave running
 \`\`\`
+\`\`\`
+checkout on http://localhost:4610
+\`\`\`
+
+Server up and holding the terminal — drive it from a second one. (\`EADDRINUSE\` → \`lsof -ti:4610 | xargs kill\`.)
 
 **Goal.** Buy the \$49.99 Widget for **one cent** — by sending what the client should never get to decide.
 
@@ -9179,8 +9306,12 @@ node checkout.js     # leave running
 
 \`\`\`bash
 curl -s -X POST localhost:4610/checkout -d '{"productId":"p1","price":0.01}'
-# {"productId":"p1","charged":0.01}
 \`\`\`
+\`\`\`
+{"productId":"p1","charged":0.01}
+\`\`\`
+
+No error, no warning, status \`200\` — the endpoint did precisely what it was written to do. That is what makes this class of bug so different from everything else in the phase: there is no malformed input to point at, and nothing in the response looks wrong unless you already know the Widget costs \$49.99.
 
 The server trusted a **client-supplied price**. Nothing is "injected," no rule of any parser is broken — the code does *exactly* what it says, which is why SAST/DAST are blind to it: they'd need to know the *business rule* ("the customer doesn't set the price") to flag it, and that rule lives only in your head. The fix is to ignore the client's price entirely and look up the authoritative one:
 \`\`\`js
@@ -9219,6 +9350,11 @@ http.createServer(async (req,res)=>{
 EOF
 node race.js     # leave running
 \`\`\`
+\`\`\`
+race on http://localhost:4609
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4609 | xargs kill\`. This one matters more than usual: you will restart this server between parts A and B, and a leftover process from part A silently keeps serving the **vulnerable** code while you think you are testing your fix.)
 
 **Goal, part A — break it.** Send ~20 redemptions *concurrently* (not in a loop one after another) and show the one-use coupon was redeemed **many** times.
 
@@ -9239,8 +9375,13 @@ Part A: a sequential \`for\` loop won't race — the requests must be *in flight
 \`\`\`bash
 seq 1 20 | xargs -P20 -I{} curl -s -o /dev/null http://localhost:4609/redeem
 curl -s http://localhost:4609/count
-# {"successful_redemptions":13}      <- a ONE-use coupon paid out ~13 times
 \`\`\`
+\`\`\`
+{"successful_redemptions":15}
+\`\`\`
+
+**Yours will differ — and that is the finding, not a flaw in the lab.** This machine returned 15 three runs in a row; a busier or slower one might give 9, or 20. Any number greater than 1 is a successful exploit, because the coupon was declared one-use. (If you get exactly 1, the requests did not actually overlap: check you used \`xargs -P20\` and not a \`for\` loop, and that you restarted the server so \`uses\` began at 0.)
+
 Why it happens (TOCTOU — Time Of Check To Time Of Use): each request \`await getUses()\` reads \`uses = 0\`, and *because of the await*, many requests read that 0 **before any of them writes 1**. All of them pass \`uses < 1\` and all increment — the check and the use were separated by a gap the scheduler filled with other requests. The exact number varies with timing; the point is it's \`> 1\`, which for a coupon, a bank withdrawal, or an inventory count is a real-money bug.
 
 **Part B — fix it (atomic check-and-set, no gap):**
@@ -9254,8 +9395,18 @@ if (u.pathname==="/redeem"){
 # restart the server, then:
 seq 1 20 | xargs -P20 -I{} curl -s -o /dev/null http://localhost:4609/redeem
 curl -s http://localhost:4609/count
-# {"successful_redemptions":1}       <- exactly once, even under the burst
+# and one more, sequentially, to prove the coupon is now spent:
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:4609/redeem
 \`\`\`
+\`\`\`
+{"successful_redemptions":1}
+409
+\`\`\`
+
+**Exactly 1, from the identical burst that just paid out fifteen times** — and unlike the number in part A, this one is not timing-dependent: it is 1 on every machine, every run, which is what "atomic" buys you. The trailing \`409\` shows the coupon is properly spent afterwards, so you fixed the race without breaking the feature.
+
+> **Restart the server for real.** \`Ctrl+C\` in the first terminal, and if you are unsure, \`lsof -ti:4609 | xargs kill\`. A stale process from part A will keep answering on 4609 and hand you \`15\` again — you will conclude your correct fix does not work. (\`EADDRINUSE\` on the new server is the giveaway that this happened.)
+
 The check and the increment now run in **one uninterrupted step** (no \`await\` between them), so no two requests can both observe \`uses < 1\`. In a real database this is the difference between read-then-write and an **atomic conditional update**: \`UPDATE coupons SET uses = uses + 1 WHERE code = 'SAVE10' AND uses < 1\` — the database applies the \`WHERE\` and the \`SET\` as one locked operation, and you check *rows-affected* (0 = already used). \`SELECT … FOR UPDATE\` inside a transaction is the other standard tool. The principle: *for anything that must happen once, the check and the action must be a single atomic operation, never two steps with a gap between.*
 </details>
 
@@ -9512,6 +9663,8 @@ A reusable set of upgrade headers for curl:
 UP=(-s -i --max-time 2 -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZQ==")
 \`\`\`
 
+**Expected output:** none — a shell array assignment prints nothing. Check it took with \`echo "\${#UP[@]}"\`, which should print \`12\` (the number of arguments stored). Two gotchas: this lives in **one shell only**, so a new terminal needs the line again; and if a later \`curl\` fails with \`no URL specified\` or sends no headers, \`UP\` is unset in *that* terminal.
+
 **The rule:** predict \`101\` or \`403\` before each curl; write the Origin check before opening its walkthrough.
 
 #### 🟢 Drill 1 — connect from evil.example ~6 min
@@ -9526,8 +9679,12 @@ UP=(-s -i --max-time 2 -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-
 \`\`\`bash
 curl "\${UP[@]}" -H "Origin: https://evil.example" -H "Cookie: session=valid-session" \\
   "http://localhost:4611/chat" | head -1
-# HTTP/1.1 101 Switching Protocols
 \`\`\`
+\`\`\`
+HTTP/1.1 101 Switching Protocols
+\`\`\`
+
+\`101\` is the *success* code for a protocol upgrade — the server agreed to hand this caller a socket. (Drop the \`| head -1\` and you also see the \`Upgrade: websocket\` header; \`-i\` is what makes curl print the status line at all.)
 
 Accepted — from \`evil.example\`. That's **Cross-Site WebSocket Hijacking**: exactly like CSRF (Module 2.3), the browser attaches the victim's session cookie to the upgrade request the attacker's page initiates, and the server checked only that the cookie is *valid* — never *where the connection came from*. Now the attacker's page holds a live, authenticated socket to your server and can read/send whatever that user could. The cookie proved *who*; it said nothing about *origin* — the same gap, one protocol over.
 </details>
@@ -9554,10 +9711,15 @@ const accept = authed && ALLOWED.has(req.headers.origin);   // cookie AND origin
 \`\`\`
 \`\`\`bash
 curl "\${UP[@]}" -H "Origin: https://evil.example"     -H "Cookie: session=valid-session" "http://localhost:4611/chat" | head -1
-# HTTP/1.1 403 Forbidden
 curl "\${UP[@]}" -H "Origin: https://app.example.com"  -H "Cookie: session=valid-session" "http://localhost:4611/chat" | head -1
-# HTTP/1.1 101 Switching Protocols
 \`\`\`
+\`\`\`
+HTTP/1.1 403 Forbidden
+HTTP/1.1 101 Switching Protocols
+\`\`\`
+
+The **same cookie** in both requests, and opposite outcomes. That is the proof you want from any allow-list fix: the attack is refused *and* the legitimate origin still connects. If both lines say \`403\`, your allow-list string does not match the \`Origin\` header exactly — it is compared byte-for-byte, so scheme and any trailing slash matter.
+
 Validating \`Origin\` **at the upgrade handshake** is the primary CSWSH defense — because the handshake is *the only moment the browser sends the cookie*, it's the only moment you can gate the connection. Notice this is the same exact-allow-list move as CORS (Module 2.4): enumerate the origins you trust, reject everything else, never reflect.
 </details>
 
@@ -9769,6 +9931,16 @@ console.log(parseWithEntities(attack));
 EOF
 node xxe.js
 \`\`\`
+\`\`\`
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+  <!ENTITY secret SYSTEM "file:///Users/you/ssti-workbench/secret.txt">
+]>
+<order><note>TOP-SECRET: launch code is 0000
+</note></order>
+\`\`\`
+
+The \`file://\` path is \`__dirname\`, so **yours will show your own home directory** — that line is the only part that varies. Everything else is the point: look at where \`&secret;\` used to be. The parser did not print the entity name, or an error, or an empty element — it printed **the contents of a file off your disk**, spliced into the document as if the sender had typed it there. (The stray line break before \`</note>\` is the newline at the end of \`secret.txt\`, which tells you this really is the file's bytes and not a string the script made up.)
 
 Then, in your journal:
 1. The parser printed the secret file's contents inside the \`<note>\` element. In one sentence, why — what did the DOCTYPE make it do?
@@ -9979,6 +10151,13 @@ console.log("victim: user.isAdmin =", user.isAdmin);
 EOF
 node proto.js
 \`\`\`
+\`\`\`
+before: ({}).isAdmin = undefined
+after:  ({}).isAdmin = true
+victim: user.isAdmin = true
+\`\`\`
+
+This output is fully deterministic — you will get these three lines exactly. Line 1 is the sane world. Line 2 says that a **brand-new empty object literal**, one that did not exist when the merge ran, now reports \`isAdmin: true\`. Line 3 says the same of \`user\`, which was created *before* the attack. Nothing assigned anything to either of them, which is the part worth sitting with for a moment before you answer the questions below.
 
 Then, in your journal:
 1. \`user\` was created before the merge yet now reports \`isAdmin: true\`. What was actually modified, and why does it affect an already-existing object?

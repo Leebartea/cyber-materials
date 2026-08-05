@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 60, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 67, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -411,6 +411,15 @@ BANNED = [
      "builtin echo expands \\n, bash's does not, so the file differs by shell", "A12"),
     (r"node\s+22-slim\s+a1b2c3d4e5f6",
      "invented IMAGE ID/size for node:22-slim presented as real docker images output", "A13"),
+    (r"curl [^\n|]*(?:\s|\")\:[0-9]{2,5}/",
+     "curl against a bare :PORT target — curl 8.x rejects it with "
+     "'URL rejected: No host part in the URL'; write localhost:PORT", "A14"),
+    (r"<\\\\/script>",
+     "double-escaped closing script tag: renders a literal backslash into the "
+     "command the learner runs (one \\ is correct inside the template literal)", "A15"),
+    (r"dolevf/dvga(?![\s\S]{0,400}WEB_HOST)",
+     "DVGA defaults WEB_HOST=127.0.0.1 and so binds the CONTAINER's loopback — "
+     "-p 5013:5013 cannot reach it; pass -e WEB_HOST=0.0.0.0", "A16"),
 ]
 
 
