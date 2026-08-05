@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 67, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 70, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -420,6 +420,15 @@ BANNED = [
     (r"dolevf/dvga(?![\s\S]{0,400}WEB_HOST)",
      "DVGA defaults WEB_HOST=127.0.0.1 and so binds the CONTAINER's loopback — "
      "-p 5013:5013 cannot reach it; pass -e WEB_HOST=0.0.0.0", "A16"),
+    (r"bandit[^\n]*-ll[^\n]*hardcoded secrets",
+     "bandit -ll reports medium+ only, and hardcoded-secret (B105) / assert (B101) "
+     "findings are LOW — the flag silently filters out what the text promises", "A17"),
+    (r"safety scan(?![\s\S]{0,700}(?:login|register|account))",
+     "safety >=3 requires an account and prompts interactively, so it cannot run "
+     "unattended — do not present it as a drop-in CVE feed", "A18"),
+    (r"dependency-check-maven:check(?![\s\S]{0,600}nvdApiKey)",
+     "dependency-check 13 aborts without an NVD API key (NoDataException: No "
+     "documents exist) — it fails, it does not degrade", "A19"),
 ]
 
 

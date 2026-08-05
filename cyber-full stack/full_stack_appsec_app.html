@@ -8900,12 +8900,60 @@ cursor.execute("SELECT * FROM users WHERE id = %s", [user_id])
 
 **Security SCA/SAST tools**
 \`\`\`bash
+python3 -m venv .venv && source .venv/bin/activate   # never install scanners system-wide
 pip install pip-audit bandit safety
 
-pip-audit                        # CVE scan of installed packages
-bandit -r . -ll                  # SAST: finds hardcoded secrets, shell injection, assert use
-safety scan                      # alternative CVE feed (pypi)
+pip-audit                        # SCA: CVE scan of the packages installed in this env
 \`\`\`
+\`\`\`
+Found 7 known vulnerabilities in 1 package
+Name       Version ID               Fix Versions
+---------- ------- ---------------- ------------
+setuptools 65.5.0  PYSEC-2022-43012 65.5.1
+setuptools 65.5.0  PYSEC-2025-49    78.1.1
+setuptools 65.5.0  PYSEC-2026-1918  70.0.0
+setuptools 65.5.0  PYSEC-2026-3447  83.0.0
+\`\`\`
+
+**Yours will differ, and probably will not be empty either.** That run was a *brand-new, empty* virtualenv — every finding is in the \`setuptools\` that \`venv\` bundled, which is exactly the point of SCA: you inherit other people's code before you write a line of your own. Which advisories appear depends on your Python version and the day you run it.
+
+Now the SAST half. \`bandit\` reads *your* source for dangerous patterns:
+
+\`\`\`bash
+bandit -r . -ll                  # SAST over your code; -ll = report medium severity and above
+\`\`\`
+\`\`\`
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   Location: ./views.py:3:15
+2	cursor.execute("SELECT * FROM u WHERE id = %s", [uid])   # safe
+3	cursor.execute(f"SELECT * FROM u WHERE id = {uid}")      # opt-out?
+
+--------------------------------------------------
+>> Issue: [B602:subprocess_popen_with_shell_equals_true] subprocess call with shell=True identified, security issue.
+   Severity: High   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   Location: ./views.py:5:0
+5	subprocess.call("ls " + user_dir, shell=True)
+\`\`\`
+
+Note what bandit did **not** flag: the \`API_KEY = "hunter2"\` sitting two lines away. Hardcoded-secret findings (\`B105\`) and \`assert\` usage (\`B101\`) are **Low** severity, so \`-ll\` filters them out before you ever see them — and \`B105\` only fires on *password-ish variable names* anyway, so \`API_KEY\` would not match even at \`-l\`. If you want secrets, drop to plain \`bandit -r .\` and read the Low findings, or better, use a purpose-built secret scanner (Module 1.3's \`gitleaks\`). **A tool's default flags decide what you are allowed to find out** — read them before you trust a clean report.
+
+\`safety\` is often listed as a drop-in second CVE feed. It is not any more:
+
+\`\`\`bash
+safety scan
+\`\`\`
+\`\`\`
+Please login or register Safety CLI (free forever) to scan and secure your
+projects with Safety
+
+(R)egister for a free account in 30 seconds, or (L)ogin with an existing account
+to continue (R/L):
+\`\`\`
+
+Since version 3 it requires an account and prompts interactively, so it **cannot run unattended in CI** without a configured API key — and it hangs a pipeline waiting on stdin if you try. \`pip-audit\` (PyPA, no account) is the one to reach for by default.
 
 ---
 
@@ -8926,12 +8974,42 @@ rows, _ := db.Query("SELECT * FROM users WHERE id = ?", id)
 
 **Security SCA/SAST tools**
 \`\`\`bash
-go install golang.org/x/vuln/cmd/govulncheck@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest   # silent on success
 govulncheck ./...          # scans your module graph against Go vuln DB
+\`\`\`
+\`\`\`
+=== Symbol Results ===
 
-# semgrep with Go rules
+No vulnerabilities found.
+
+Your code is affected by 0 vulnerabilities.
+This scan also found 1 vulnerability in packages you import and 1 vulnerability
+in modules you require, but your code doesn't appear to call these
+vulnerabilities.
+Use '-show verbose' for more details.
+\`\`\`
+
+**Read that second paragraph — it is why \`govulncheck\` is not just another SCA tool.** That module *does* depend on a vulnerable version of \`golang.org/x/text\`; a plain dependency scanner would raise a ticket. \`govulncheck\` traced the call graph, found your code never reaches the vulnerable *function*, and told you so separately. That distinction — vulnerable **dependency** vs vulnerable **code path** — is what turns a 200-finding backlog into the handful that can actually be exploited. When your code *does* call one, the vulnerability moves up into the \`Symbol Results\` section with the exact call stack that reaches it.
+
+(If \`go install …@latest\` fails with \`requires go >= 1.25.0\`, your Go is older than the tool — either upgrade Go or pin an older govulncheck.)
+
+Semgrep covers the patterns a vulnerability database cannot know about, because they are in code you wrote:
+
+\`\`\`bash
 semgrep --config=p/golang ./
 \`\`\`
+\`\`\`
+    /src/main.go
+   ❯❯❱ go.lang.security.injection.tainted-sql-string.tainted-sql-string
+          User data flows into this manually-constructed SQL string. User data can be safely inserted into
+          SQL strings using prepared statements or an object-relational mapper (ORM). [...]
+           11┆ rows, _ := db.Query("SELECT * FROM users WHERE id = " + id)
+
+ • Findings: 1 (1 blocking)
+ • Rules run: 42
+\`\`\`
+
+Note "**User data flows into**" — semgrep followed the taint from \`r.URL.Query().Get("id")\` to the query string, which is why it flagged this line and not the many other places you concatenate strings. First run downloads the rule pack, so give it a minute.
 
 ---
 
@@ -8957,12 +9035,42 @@ Optional<User> findById(@Param("id") String id);
 
 **Security SCA/SAST tools**
 \`\`\`bash
-# OWASP Dependency-Check (Maven plugin or standalone)
-mvn org.owasp:dependency-check-maven:check
+# OWASP Dependency-Check (Maven plugin or standalone).
+# NOTE: needs a free NVD API key — see below. Without one it FAILS, it does not degrade.
+mvn org.owasp:dependency-check-maven:check -DnvdApiKey=\$NVD_API_KEY
+\`\`\`
 
-# Semgrep for Java
+**This is the one tool in the module that will not run out of the box, and its failure is loud but easy to misread.** Run it with no key and dependency-check 13 aborts after a stack trace with:
+
+\`\`\`
+[ERROR] Unable to continue dependency-check analysis.
+[ERROR] Failed to execute goal org.owasp:dependency-check-maven:13.0.0:check (default-cli) on
+        project app: Fatal exception(s) analyzing app: One or more exceptions occurred during analysis:
+[ERROR] 	UpdateException: Error updating the NVD Data
+[ERROR] 		caused by NvdApiException: Invalid API Key, length of 0 too short to provided a masked partial key
+[ERROR] 	NoDataException: No documents exist
+\`\`\`
+
+\`NoDataException: No documents exist\` is the giveaway — it never got a vulnerability database to compare against, so it has nothing to say about your dependencies. Request a free key at [nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key) and pass it as \`-DnvdApiKey=…\` (or \`NVD_API_KEY\` in the environment). Budget real time for the first successful run: it downloads the entire NVD feed into a local database before it scans anything. \`grype\` (below) needs no key and is the faster way to get a first answer on a Java project.
+
+Semgrep, by contrast, needs nothing but the rule pack:
+
+\`\`\`bash
 semgrep --config=p/java .
 \`\`\`
+\`\`\`
+    /src/Demo.java
+   ❯❯❱ java.lang.security.audit.formatted-sql-string.formatted-sql-string
+          Detected a formatted string in a SQL statement. This could lead to SQL injection if variables
+          in the SQL statement are not properly sanitized. Use a prepared statements
+          (java.sql.PreparedStatement) instead. [...]
+            8┆ stmt.execute("SELECT * FROM users WHERE id = " + id);
+
+ • Findings: 1 (1 blocking)
+ • Rules run: 60
+\`\`\`
+
+Same finding, same wording, different language from the Go scan above — which is this module's thesis in one output: the rule pack changes, the bug does not.
 
 ---
 
@@ -8984,6 +9092,33 @@ $stmt->execute([$id]);
 \`\`\`bash
 composer audit          # scans composer.lock for CVEs (built in since Composer 2.4)
 \`\`\`
+\`\`\`
+Found 18 security vulnerability advisories affecting 2 packages:
++-------------------+--------------------------------------------------------------+
+| Package           | guzzlehttp/guzzle                                            |
+| Severity          | high                                                         |
+| Advisory ID       | PKSA-gcrk-3vtt-1r14                                          |
+| CVE               | CVE-2026-69246                                               |
+| Title             | Guzzle: Noncanonical host can bypass host-based checks        |
+| URL               | https://github.com/advisories/GHSA-v5mv-p594-2x33            |
+| Affected versions | >=8.0.0,<8.0.1|<7.15.2                                       |
+| Reported at       | 2026-08-03T21:07:26+00:00                                    |
++-------------------+--------------------------------------------------------------+
+\`\`\`
+
+(One table per advisory; the run above printed 18 of them. Your package set and the advisory list will differ — advisories are added continuously.) \`No packages - skipping audit\` means there is no \`composer.lock\` to read: \`composer audit\` scans the **lock file**, not your source.
+
+**Modern Composer will often stop you before \`audit\` ever has anything to say.** Since 2.x it blocks installing a package with a known advisory outright:
+
+\`\`\`
+    - Root composer.json requires guzzlehttp/guzzle 6.5.0 (exact version match: 6.5.0 or
+      6.5.0.0), found guzzlehttp/guzzle[6.5.0] but these were not loaded, because they are
+      affected by security advisories ("PKSA-gcrk-3vtt-1r14", ...)
+
+Installation failed, reverting ./composer.json to its original content.
+\`\`\`
+
+That is a *good* default — the vulnerable dependency never enters the lock file. It also means a clean \`composer audit\` on a fresh project proves less than you might think; the real value is on an **inherited** lock file assembled before that policy existed.
 
 ---
 
@@ -9004,6 +9139,24 @@ gem install bundler-audit
 bundle-audit check --update    # scans Gemfile.lock against ruby-advisory-db
 brakeman -A                    # Rails-specific SAST
 \`\`\`
+\`\`\`
+Download ruby-advisory-db ...
+Cloning into '/root/.local/share/ruby-advisory-db'...
+ruby-advisory-db:
+  advisories:	1229 advisories
+  last updated:	2026-08-04 15:49:25 +0200
+  commit:	1fe38c32f136c99453f4b0912eefa3da079988c2
+Name: rack
+Version: 2.2.3
+CVE: CVE-2022-30123
+GHSA: GHSA-wq4h-7r42-5hrr
+Criticality: Critical
+URL: https://groups.google.com/g/ruby-security-ann/c/LWB10kWzag8
+Title: Possible shell escape sequence injection vulnerability in Rack
+Solution: update to '~> 2.0.9, >= 2.0.9.1', '~> 2.1.4, >= 2.1.4.1', '>= 2.2.3.1'
+\`\`\`
+
+\`--update\` is what the first four lines are: it git-clones \`ruby-advisory-db\` before scanning, so the advisory count, date and commit will always differ from the ones above — and *without* \`--update\` you are scanning against whatever snapshot you last pulled, which is how a stale checkout quietly reports a clean bill of health. One block per advisory follows, keyed to a \`Gemfile.lock\` entry; \`Solution:\` gives you the exact constraint to write.
 
 ---
 
@@ -9020,10 +9173,24 @@ syft . -o json > sbom.json
 
 # Scan it — works for any ecosystem (npm, pip, go, maven, gem, cargo…)
 grype sbom:sbom.json
+\`\`\`
+\`\`\`
+NAME      INSTALLED  FIXED IN  TYPE  VULNERABILITY        SEVERITY  EPSS          RISK
+lodash    4.17.15    4.17.21   npm   GHSA-35jh-r3h4-6jhm  High      21.3% (97th)  15.7
+minimist  1.2.0      1.2.6     npm   GHSA-xvch-5gv4-984h  Critical  4.6% (90th)   4.3
+lodash    4.17.15    4.17.19   npm   GHSA-p6mc-m468-83gw  High      5.2% (91st)   3.9
+lodash    4.17.15    4.17.23   npm   GHSA-xxjr-mmjv-4gpg  Medium    1.5% (72nd)   0.9
+\`\`\`
 
-# Scan a container image directly
+Two columns here are worth more than the severity you are used to reading. **EPSS** is the estimated probability that this vulnerability gets exploited in the wild in the next 30 days, with its percentile — and it is why the \`Critical\` \`minimist\` finding sits *below* a \`High\` \`lodash\` one: \`Critical\` describes how bad it would be, EPSS describes how likely anyone is to try. **RISK** combines the two, and sorting by it is how you turn a wall of findings into a work queue. \`syft\` itself prints only a \`WARN\` about deriving a name for a directory source (harmless) — the SBOM goes to the file.
+
+Scan a container image directly, and break the build on what matters:
+
+\`\`\`bash
 grype my-app:latest --fail-on high
 \`\`\`
+
+**Expected output:** the same table for everything in the image — OS packages *and* application dependencies — and, thanks to \`--fail-on high\`, a **non-zero exit status** if anything at that severity or above is present. The table is for you; the exit code is what CI acts on.
 
 Add \`grype --fail-on critical\` to your CI pipeline to break the build on unpatched critical CVEs regardless of language.
 
@@ -9106,12 +9273,24 @@ Use **basic** \`grep\` (no \`-E\`) so parentheses, \`!\`, and \`|\` are all lite
 <summary>Walkthrough — open after you've run your greps</summary>
 
 \`\`\`bash
-grep -rn "html_safe" .     # app.rb:3  — XSS escape hatch on user data
-grep -rn "permit!" .       # app.rb:4  — mass-assignment escape hatch
-grep -rn 'where("' .       # app.rb:2  — string-built SQL (hash form is the safe one)
-grep -rn "execute(f" .     # views.py:2 — f-string SQL
-grep -rn "|safe" .         # views.py:3 — Jinja2 autoescape opt-out
+grep -rn "html_safe" .
+grep -rn "permit!" .
+grep -rn 'where("' .
+grep -rn "execute(f" .
+grep -rn "|safe" .
 \`\`\`
+\`\`\`
+app.rb:3:render html: comment.body.html_safe         # opt-out?
+app.rb:4:params.permit!                              # opt-out?
+app.rb:2:User.where("id = #{params[:id]}")           # opt-out?
+views.py:2:cursor.execute(f"SELECT * FROM u WHERE id = {uid}")      # opt-out?
+views.py:3:return render_template_string("{{ x|safe }}", x=user)    # opt-out?
+\`\`\`
+
+**Five greps, five hits, zero false positives** — and every line they found is one of the four \`opt-out?\` lines you seeded (\`views.py\` contributes two). That precision is the whole technique: each pattern names a *token that disables a default*, so the safe lines sitting right next to them never match.
+
+(On macOS, BSD \`grep\` prints \`app.rb:3:\`; GNU \`grep\` on Linux prints \`./app.rb:3:\` for the same search. Same result, different prefix.)
+
 Each safe line (\`where(id:…)\`, \`permit(:name…)\`, parameterized \`execute("… %s")\`) is left untouched — because you're grepping for the *specific token that disables the default*, not for the feature itself. This is the real review technique the module's knowledge check points at: on a framework with good defaults, you don't audit every query — you audit the **escape hatches**, and there's a short, greppable list per framework (\`raw\`/\`html_safe\`/\`permit!\` in Rails, \`|safe\`/\`Markup\`/\`render_template_string\` in Jinja, \`$queryRawUnsafe\` in Prisma, \`dangerouslySetInnerHTML\` in React).
 
 **What SCA finds that grep can't:** grep audits *your* code for dangerous patterns (that's SAST-flavored). **SCA** (Software Composition Analysis — \`npm audit\`, \`pip-audit\`, \`bundle-audit\`, \`grype\` on an SBOM) audits your **dependencies** — the code you *didn't* write — against a CVE database. A vulnerable \`lodash\` or \`log4j\` version has no dangerous token in *your* files to grep for; only a scan of the dependency graph against known-CVE feeds surfaces it. The two are complementary: SAST/grep for your patterns, SCA for your supply chain (Module 1.4, and the whole of Phase 7). A CI pipeline runs both, e.g. \`grype … --fail-on critical\` alongside a SAST rule set.
