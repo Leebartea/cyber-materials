@@ -41,14 +41,26 @@ this, and nothing may be exempted by judgement call.
 | `fence` | an output fence immediately follows — **the documented convention** | shown |
 | `labelled` | a bolded `**Expected observation:**` paragraph immediately follows | shown |
 | `comment` | a result comment inside the block (`# -> root`) — weakest accepted form | shown |
+| `gated` | output fence lives in the next `<details>` Walkthrough — a predict-first drill | shown |
 | `setup` | every effective line is silent on success (`mkdir`, installs, `> file`) | **exempt** |
 | `listing` | the block is a file's contents (shebang); its result belongs to the block that runs it | **exempt** |
 | `prose_fence` | tagged runnable but contains no command at all | **exempt**, and warned |
 | `silent` | a command that produces output, with no result shown anywhere | **the gap** |
 
-`coverage = (fence + labelled + comment) / (total − exempt)`. Exempt blocks leave the
-denominator rather than counting as free passes, and the exempt total is printed on
+`coverage = (fence + labelled + comment + gated) / (total − exempt)`. Exempt blocks leave
+the denominator rather than counting as free passes, and the exempt total is printed on
 every run so an exemption can never quietly grow.
+
+`gated` exists because the workbench drills are deliberately **predict-first**: run the
+command, write down what you expect, *then* open the walkthrough. The learner is shown
+the result — just not before committing to a prediction. Without this bucket a future
+backfill would "fix" those blocks by pasting the answer directly under the command and
+destroy the exercise. It is kept tight so it cannot become a loophole: it must be the
+**next** `<details>`, its summary must say walkthrough/answer/solution, it must actually
+contain an output fence, and **no other runnable block may sit in between** — so one
+walkthrough can never cover a whole module. (A walkthrough that sits within 600 chars is
+already credited as `fence`; `gated` only catches the case where journal questions push
+the answer past that window.) It applies to 4 blocks course-wide, all verified by hand.
 
 Two sub-checks keep the headline number honest:
 
@@ -59,7 +71,7 @@ Two sub-checks keep the headline number honest:
   is either prose mis-tagged as code, or expected output written as `#` comments where
   an output fence belongs.
 
-Ordering matters and is asserted by the self-test: the three "shown" tests run before
+Ordering matters and is asserted by the self-test: the four "shown" tests run before
 any exemption, so a block that *does* show its result is never stolen by an exemption.
 
 > Two heuristics were removed as **false passes**: a bare `you see` / `Result:` anywhere

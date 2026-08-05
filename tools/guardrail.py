@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 81, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 85, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -211,6 +211,7 @@ def check_renders(name, src, cur):
 #   fence     an output fence immediately follows  ..... THE documented convention
 #   labelled  a bolded "**Expected observation:**" paragraph immediately follows
 #   comment   a result comment sits inside the block ... weakest accepted form
+#   gated     output fence lives in the next <details> Walkthrough (predict-first drill)
 #   ---------------------------------------------------------------- exempt below
 #   setup     every effective line is silent-on-success (mkdir/cd/install/...)
 #   listing   the block is a file's contents (shebang), not commands to run
@@ -246,6 +247,28 @@ SILENT_CMDS = re.compile(
     r"pip3?\s+install|python3?\s+-m\s+venv|brew\s+(?:install|tap)|apt(?:-get)?\s+install|"
     r"winget\s+install|go\s+install|cargo\s+install|pipx\s+install|git\s+clone)\b"
 )
+
+# The workbench drills are deliberately predict-first: "run this, write down what you
+# expect, THEN open the walkthrough." For those, the output fence lives inside the next
+# <details> Walkthrough rather than under the command — the learner is shown the result,
+# just not before they have committed to a prediction. Counting those as a gap would push
+# a future backfill into pasting the answer under the command and destroying the exercise.
+# Kept deliberately tight: it must be the NEXT <details>, its summary must say
+# walkthrough/answer/solution, it must actually contain an output fence, and no other
+# runnable block may sit in between (so one walkthrough cannot cover a whole module).
+DETAILS = re.compile(r"<details>\s*<summary>([^<]*)</summary>([\s\S]*?)</details>")
+WALKTHROUGH = re.compile(r"walkthrough|answer|solution", re.I)
+
+
+def gated_by_walkthrough(md, blocks, idx):
+    b = blocks[idx]
+    m = DETAILS.search(md, b["e"])
+    if not m or not WALKTHROUGH.search(m.group(1)):
+        return False
+    if any(x["lang"] in RUNNABLE for x in blocks if b["e"] <= x["s"] < m.start()):
+        return False
+    return any(f["lang"] in OUTPUT_LANGS for f in fenced(m.group(2)))
+
 
 # A line whose stdout is redirected into a file prints nothing to the terminal,
 # whatever the command is: `cat > s.js <<'EOF'`, `printf ... > app.log`,
@@ -297,6 +320,8 @@ def classify(md, blocks, idx):
         return "labelled"
     if RESULT_COMMENT.search(code):
         return "comment"
+    if gated_by_walkthrough(md, blocks, idx):
+        return "gated"
 
     lines = effective_lines(code)
     if not lines:
@@ -311,7 +336,7 @@ def classify(md, blocks, idx):
     return "silent"
 
 
-SHOWN = ("fence", "labelled", "comment")
+SHOWN = ("fence", "labelled", "comment", "gated")
 EXEMPT = ("setup", "listing", "prose_fence")
 
 
@@ -357,7 +382,7 @@ def check_coverage(name, cur):
         detail = (
             f"{shown}/{graded} = {pct}% (floor {floor}%, target {COVERAGE_TARGET}%) "
             f"[fence {b['fence']} · labelled {b['labelled']} · comment {b['comment']} "
-            f"· exempt {sum(b[k] for k in EXEMPT)}]"
+            f"· gated {b['gated']} · exempt {sum(b[k] for k in EXEMPT)}]"
         )
         if pct < floor:
             fail(f"{key}: expected-output coverage", f"REGRESSED — {detail}; worst: {worst}")
@@ -429,6 +454,27 @@ BANNED = [
     (r"dependency-check-maven:check(?![\s\S]{0,600}nvdApiKey)",
      "dependency-check 13 aborts without an NVD API key (NoDataException: No "
      "documents exist) — it fails, it does not degrade", "A19"),
+    (r"Semgrep flags[^\n]*concatenated SQL",
+     "p/owasp-top-ten + p/javascript contain no Node SQLi taint rule that fires on "
+     "pool.query(q) — verified: those two rulesets (and p/default) report only the "
+     "eval, never line 9. The SQLi rule needs p/nodejsscan", "A21"),
+    (r"npm install lodash@4\.17\.4\n(?![\s\S]{0,400}npm install express)",
+     "the phase7-scanme app.js requires express and pg; installing only lodash leaves "
+     "a 2-component dependency tree, so Module 7.2's SBOM demo has nothing to inventory "
+     "and its 'dozens of components' claim is false", "A22"),
+    (r"--format cyclonedx(?![\s\S]{0,1200}scanners vuln)",
+     "trivy's cyclonedx output SILENTLY disables vulnerability scanning — the file is an "
+     "inventory, not a scan result. Say so, and name --scanners vuln", "A23"),
+    (r"bumping to \`?lodash@\^4\.17\.21",
+     "4.17.21 is itself covered by newer lodash advisories (npm audit reports "
+     "'lodash <=4.17.23'); the current fix is 4.18.x", "A24"),
+    # NOTE the 4th element: an "acquitting" string. A plain lookahead was wrong here —
+    # the required caveat can just as legitimately appear ABOVE the command (a YAML
+    # comment on the step) as below it, and Python has no variable-width lookbehind.
+    (r"safety check",
+     "`safety check` prints a DEPRECATED banner (unsupported beyond 2024-06-01) and its "
+     "replacement `safety scan` needs an interactive account login, so neither is a "
+     "drop-in CI step — pip-audit is the one to depend on", "A25", "DEPRECATED"),
     (r"hashcat -m 34000 -a 0 ~/argonhash\.txt",
      "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
      "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "
@@ -436,10 +482,17 @@ BANNED = [
 ]
 
 
+ACQUIT_WINDOW = 900  # chars either side of a hit in which an acquitting string may sit
+
+
 def check_banned(name, src):
     hits = []
-    for pat, why, fid in BANNED:
+    for entry in BANNED:
+        pat, why, fid = entry[:3]
+        acquit = entry[3] if len(entry) > 3 else None
         for m in re.finditer(pat, src, re.M):
+            if acquit and acquit in src[max(0, m.start() - ACQUIT_WINDOW) : m.end() + ACQUIT_WINDOW]:
+                continue
             line = src[: m.start()].count("\n") + 1
             hits.append(f"{fid} @L{line}: {why}")
             break
@@ -584,6 +637,22 @@ SELF_TESTS = [
      "```bash\n#!/usr/bin/env bash\ngrep -c ERROR app.log\n```", "listing"),
     ("listing: loses to a shown result (ordering)",
      "```bash\n#!/usr/bin/env bash\necho hi\n```\n```\nhi\n```", "fence"),
+    # NB: these pad the gap past the 600-char `fence` window on purpose. A walkthrough
+    # that sits close enough is already credited as `fence`; `gated` exists for the real
+    # shape, where journal questions push the answer well past that window.
+    ("gated: output fence inside the next Walkthrough details",
+     "```bash\nnode rag.js\n```\n" + "Journal questions. " * 40 + "\n<details>\n<summary>"
+     "Walkthrough — open after you've run it</summary>\n\n```\nretrieved [acme/d1]\n```\n"
+     "</details>", "gated"),
+    ("gated: NOT when a runnable block sits in between",
+     "```bash\nnode rag.js\n```\n" + "Journal questions. " * 40 + "\n```bash\nnode other.js\n"
+     "```\n<details>\n<summary>Walkthrough</summary>\n\n```\nout\n```\n</details>", "silent"),
+    ("gated: NOT when the details holds no output fence",
+     "```bash\nnode rag.js\n```\n" + "Journal questions. " * 40 + "\n<details>\n<summary>"
+     "Walkthrough</summary>\n\nJust prose about why this matters.\n</details>", "silent"),
+    ("gated: NOT for a Nudge/hint details",
+     "```bash\nnode rag.js\n```\n" + "Journal questions. " * 40 + "\n<details>\n<summary>"
+     "Nudge — open if stuck</summary>\n\n```\nhint\n```\n</details>", "silent"),
     ("prose_fence: comments only, nothing runnable",
      "```bash\n# first 3 bytes: 0x16 0x3 0x1\n# password readable? false\n```", "prose_fence"),
     ("heredoc payload is not a command",

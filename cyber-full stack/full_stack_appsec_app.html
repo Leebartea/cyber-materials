@@ -14725,7 +14725,17 @@ mkdir -p ~/securelab/phase7-scanme && cd ~/securelab/phase7-scanme
 npm init -y
 # lodash 4.17.4 has prototype-pollution advisories — a harmless demo target for SCA.
 npm install lodash@4.17.4
+# express and pg are what app.js actually requires. Install them too, or the
+# dependency tree is 1 package deep and Module 7.2's SBOM has nothing to inventory.
+npm install express pg
 \`\`\`
+
+\`\`\`
+added 1 package in 835ms
+added 81 packages in 5s
+\`\`\`
+
+*(Package counts change as express/pg update their own dependencies — "about 80" is the shape. **Those ~80 packages are the point:** you typed three names and got eighty-two, which is Module 7.2's entire argument in one command.)*
 
 Create \`app.js\` with three planted bugs — one for SAST, one (the secret) for gitleaks, and the dependency above for SCA:
 
@@ -14757,7 +14767,55 @@ app.listen(3000);
 semgrep scan --config p/owasp-top-ten --config p/javascript .
 \`\`\`
 
-Semgrep flags the \`eval(req.query.expr)\` line and the concatenated SQL (tainted-sql-string). Each finding shows file, line, rule ID, explanation, and severity. It never *ran* your code — it pattern-matched the source and traced that \`req.query\` (untrusted) reaches a dangerous sink.
+\`\`\`
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 2 (2 blocking)
+ • Rules run: 76
+ • Targets scanned: 3
+
+┌─────────────────┐
+│ 2 Code Findings │
+└─────────────────┘
+    app.js
+    ❯❱ javascript.express.security.audit.xss.direct-response-write.direct-response-write
+          Detected directly writing to a Response object from user-defined input...
+           17┆ app.get("/calc", (req, res) => res.send(String(eval(req.query.expr))));
+
+   ❯❯❱ javascript.lang.security.audit.code-string-concat.code-string-concat
+          Found data from an Express or Next web request flowing to \`eval\`...
+           17┆ app.get("/calc", (req, res) => res.send(String(eval(req.query.expr))));
+\`\`\`
+
+**Read that output carefully — and notice what is *missing*.** Both findings point at **line 17**, the \`eval\`. **Your concatenated SQL on line 9 was not flagged at all.** These two rulesets contain no Node SQL-injection taint rule that fires on \`pool.query(q)\` where \`q\` was built earlier; \`p/default\` misses it too. The SQLi rule lives in a *different* ruleset:
+
+\`\`\`bash
+semgrep scan --config p/owasp-top-ten --config p/javascript --config p/nodejsscan .
+\`\`\`
+
+\`\`\`
+┌─────────────────┐
+│ 5 Code Findings │
+└─────────────────┘
+    app.js
+   ❯❯❱ ajinabraham.njsscan.database.sql_injection.node_sqli_injection
+          Untrusted input concatinated with raw SQL query can result in SQL Injection.
+            9┆ const q = "SELECT * FROM users WHERE name = '" + req.query.name + "'";
+           10┆ pool.query(q).then(r => res.json(r.rows));
+
+   ❯❯❱ ajinabraham.njsscan.xss.xss_node.express_xss
+   ❯❯❱ ajinabraham.njsscan.eval.eval_node.eval_nodejs
+    ❯❱ javascript.express.security.audit.xss.direct-response-write...
+   ❯❯❱ javascript.lang.security.audit.code-string-concat...
+\`\`\`
+
+*(Exact counts drift as rulesets are updated — the point is the **shape**: the first command finds the \`eval\` and misses the SQLi; adding \`p/nodejsscan\` finds both. If your counts differ, check **which lines** are reported, not how many.)*
+
+Each finding shows file, line, rule ID, explanation, and severity. Semgrep never *ran* your code — it pattern-matched the source and traced that \`req.query\` (untrusted) reaches a dangerous sink.
+
+> **The lesson is the missing finding, not the two you got.** You *planted* that SQL bug, so you knew to look for it. On a real codebase you would have read "2 findings, 0 SQL injection" as good news. **Your ruleset choice silently decides which vulnerability classes you are even capable of finding** — a scanner reports "nothing here" and "nothing I was configured to look for" using exactly the same output. Whenever you adopt a scanner, plant a bug of each class you care about and confirm the tool actually catches it. (Semgrep's deeper cross-function taint analysis is a paid Pro feature; the free engine leans on per-ruleset pattern coverage, which is why the ruleset you pick matters this much.)
 
 **Step 3 — secret scanning with gitleaks.** Secrets live in git history once you commit, so commit *locally* (never push):
 
@@ -14766,7 +14824,32 @@ git init && git add -A && git commit -m "wip" -q
 gitleaks detect --source . --verbose
 \`\`\`
 
-gitleaks reports \`STRIPE_KEY\` (the \`KEY\`-named variable holding a high-entropy string matches its generic-api-key rule). The lesson: once a secret is committed, deleting the line is **not** enough — it persists in history forever, which is why the real remediation is *rotate the key*, not "edit the file."
+\`\`\`
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+Finding:     const STRIPE_KEY = "qT7mZ2vB9nL4xR8wA1cF6dK3jH0sY5pE"
+Secret:      qT7mZ2vB9nL4xR8wA1cF6dK3jH0sY5pE
+RuleID:      generic-api-key
+Entropy:     5.000000
+File:        app.js
+Line:        14
+Commit:      2524d6ce0503125637112890bf9fd5bcd56952ea
+Author:      lab
+Email:       lab@local
+Date:        2026-08-05T16:09:14Z
+Fingerprint: 2524d6ce0503125637112890bf9fd5bcd56952ea:app.js:generic-api-key:14
+
+5:09PM INF 1 commits scanned.
+5:09PM WRN leaks found: 1
+\`\`\`
+
+*(Your commit SHA, author, email, date and timestamps will differ — they come from **your** git identity and clock. What must match: **RuleID \`generic-api-key\`, File \`app.js\`, and \`leaks found: 1\`.**)*
+
+gitleaks reports \`STRIPE_KEY\` (the \`KEY\`-named variable holding a high-entropy string matches its generic-api-key rule; \`Entropy: 5.0\` is *why* — the string has no dictionary structure). The lesson: once a secret is committed, deleting the line is **not** enough — it persists in history forever, which is why the real remediation is *rotate the key*, not "edit the file."
 
 **Step 4 — SCA with three tools (same job, compare them):**
 
@@ -14776,7 +14859,68 @@ trivy fs .                      # node_modules + lockfile against many DBs
 osv-scanner scan source --lockfile=package-lock.json   # v2 syntax; v1 was 'osv-scanner --lockfile=...'
 \`\`\`
 
-All three report the \`lodash@4.17.4\` advisory (plus transitive ones). They don't always agree on count/severity — each maps to a different vuln database (npm vs GHSA vs OSV vs NVD). That disagreement is *normal*, and is why mature teams run more than one SCA source. \`npm audit fix\` (or bumping to \`lodash@^4.17.21\`) clears it.
+\`\`\`
+# ---- npm audit ----
+# npm audit report
+
+lodash  <=4.17.23
+Severity: critical
+Prototype Pollution in lodash - https://github.com/advisories/GHSA-fvqr-27wr-82fm
+Command Injection in lodash - https://github.com/advisories/GHSA-35jh-r3h4-6jhm
+... (10 advisory lines) ...
+fix available via \`npm audit fix\`
+node_modules/lodash
+
+1 critical severity vulnerability          <-- npm counts PACKAGES
+
+# ---- trivy fs . ----
+package-lock.json (npm)
+=======================
+Total: 10 (UNKNOWN: 0, LOW: 1, MEDIUM: 4, HIGH: 4, CRITICAL: 1)    <-- trivy counts CVEs
+┌─────────┬──────────────────┬──────────┬───────────────────┬───────────────┐
+│ Library │  Vulnerability   │ Severity │ Installed Version │ Fixed Version │
+├─────────┼──────────────────┼──────────┼───────────────────┼───────────────┤
+│ lodash  │ CVE-2019-10744   │ CRITICAL │ 4.17.4            │ 4.17.12       │
+│         │ CVE-2018-16487   │ HIGH     │                   │ >=4.17.11     │
+│         │ CVE-2021-23337   │ HIGH     │                   │ 4.17.21       │
+│         │ ...              │ ...      │                   │ ...           │
+└─────────┴──────────────────┴──────────┴───────────────────┴───────────────┘
+
+# ---- osv-scanner ----
+Total 1 package affected by 8 known vulnerabilities
+(1 Critical, 2 High, 4 Medium, 0 Low, 1 Unknown) from 1 ecosystem.   <-- OSV counts GHSAs
++-------------------------------------+------+---------+---------+---------------+
+| OSV URL                             | CVSS | PACKAGE | VERSION | FIXED VERSION |
++-------------------------------------+------+---------+---------+---------------+
+| https://osv.dev/GHSA-jf85-cpcp-j695 | 9.1  | lodash  | 4.17.4  | 4.17.12       |
+| https://osv.dev/GHSA-35jh-r3h4-6jhm | 8.1  | lodash  | 4.17.4  | 4.17.21       |
+| ...                                 |      |         |         |               |
++-------------------------------------+------+---------+---------+---------------+
+\`\`\`
+
+*(Advisory databases gain entries constantly, so **your totals will be higher than these, not equal** — the numbers above were captured in Aug 2026. Do not chase an exact match. What must hold: all three name \`lodash@4.17.4\`, and **no two of them agree on the count**.)*
+
+**Stop and compare the three totals: 1, 10, and 8 — for the same single dependency.** Nobody is wrong; they are counting different things. npm audit reports **1** because it counts *affected packages*. trivy reports **10** because it counts *CVE IDs*. osv-scanner reports **8** because it counts *OSV/GHSA advisory records*, and several GHSAs are grouped or lack a CVE (hence its \`1 Unknown\` severity). Severity disagrees too: npm calls the package "critical" overall, trivy grades one CVE CRITICAL and the rest HIGH-and-below.
+
+The practical consequence is a trap: **"npm audit: 1 vulnerability" and "trivy: 10 vulnerabilities" describe an identical dependency tree.** A count from one tool is meaningless as a security metric unless you say which tool produced it — so never compare this week's number from one scanner against last week's from another, and never let a dashboard aggregate them. That disagreement is *normal*, and is exactly why mature teams run more than one SCA source: each maps to a different database (npm vs GHSA vs OSV vs NVD), with different coverage and different lag.
+
+\`npm audit fix\` clears it, bumping to the current 4.x (\`4.18.1\` at time of writing):
+
+\`\`\`bash
+npm audit fix && npm ls lodash && npm audit
+\`\`\`
+
+\`\`\`
+changed 1 package, and audited 2 packages in 2s
+
+found 0 vulnerabilities
+phase7-scanme@1.0.0 /Users/you/securelab/phase7-scanme
+└── lodash@4.18.1
+
+found 0 vulnerabilities
+\`\`\`
+
+> **Note the version in that output, because it contradicts something you have probably memorised.** For years "\`lodash@4.17.21\`" was *the* safe answer to a lodash advisory. Look at npm audit's first line again: \`lodash <=4.17.23\`. Newer advisories now cover 4.17.21 itself, and the fix is 4.18.x. **"The patched version" is a moving target, not a fact you learn once** — which is the whole argument for SCA that re-runs continuously (shift-right) instead of a version number pinned in a wiki page.
 
 **The same SCA on the Python side (\`pip-audit\` and \`safety\`).** SCA is language-specific — a Node-only \`npm audit\` step silently skips the Python half of a polyglot repo. \`pip-audit\` (PyPA/Google) is the counterpart to \`npm audit\`; \`safety\` is the second source you run alongside it.
 
@@ -14789,6 +14933,31 @@ pip-audit                              # or audit the installed venv
 safety check -r requirements.txt       # second source, different advisory DB
 pip-audit -r requirements.txt --fix --dry-run   # shows the bumps WITHOUT applying
 \`\`\`
+
+\`\`\`
+# ---- pip-audit -r requirements.txt (requirements.txt holds flask==2.0.0) ----
+Found 2 known vulnerabilities in 1 package
+Name  Version ID              Fix Versions
+----- ------- --------------- ------------
+flask 2.0.0   PYSEC-2023-62   2.2.5,2.3.2
+flask 2.0.0   PYSEC-2026-2151 3.1.3
+
+# ---- safety check -r requirements.txt ----
+DEPRECATED: this command (\`check\`) has been DEPRECATED, and will be
+unsupported beyond 01 June 2024.
+...
+  Found and scanned 1 package
+  2 vulnerabilities reported
+
+-> Vulnerability found in flask version 2.0.0
+   Vulnerability ID: 55261
+   Affected spec: <2.2.5
+   CVE-2023-30861
+\`\`\`
+
+*(Your advisory counts and IDs will be higher/different as the databases grow.)*
+
+> **Two traps in that output.** First, \`safety check\` prints a **DEPRECATED** banner — its replacement, \`safety scan\`, requires a **registered account and an interactive login**, so \`scan\` cannot run unattended in CI the way \`check\` can. Keep using \`check\` while it survives, but treat \`pip-audit\` as the tool your pipeline actually depends on and \`safety\` as the bonus second source. Second, look at what each one *names* the same bug. Both found the same two flask advisories, and **neither used the same identifier**: pip-audit reports \`PYSEC-2023-62\`, safety reports PyUp id \`55261\`, and only safety prints the \`CVE-2023-30861\` that most humans would search for. One finding, three names (PYSEC / PyUp / CVE), no cross-reference offered. Deduplicating findings across scanners is real work, not a config option — the Python-side version of the 1-vs-10-vs-8 lesson above. (\`pip-audit -f json\` includes \`aliases\`, which is where the mapping actually lives.)
 
 The Python lockfile story differs from npm's. A bare \`requirements.txt\` with ranges (\`flask>=2.0\`) is *not* a lockfile — two installs can resolve different trees. The fix is a real lockfile with hashes: \`pip-compile\` (pip-tools) with \`--generate-hashes\`, or \`poetry\`/\`uv\`/\`pipenv\`. Install with \`pip install --require-hashes -r requirements.txt\` so a tampered PyPI tarball *fails* — the analogue of npm's integrity-hash verification.
 
@@ -14888,11 +15057,21 @@ The fix that actually matters is **not in the YAML** — it's in the repository 
           python-version: "3.12"
       - run: pip install --require-hashes -r requirements.txt   # hashed install (≈ npm ci)
       - run: pip-audit -r requirements.txt    # SCA vs PyPI/OSV; non-zero exit fails the job
-      - run: pip install safety && safety check -r requirements.txt   # second SCA source
+      # 'safety check' is DEPRECATED (unsupported past 2024-06-01) and its replacement
+      # 'safety scan' requires an interactive account login, so it cannot be load-bearing.
+      # pip-audit above IS the gate; safety is a second opinion that must not block on its
+      # own deprecation noise. continue-on-error is honest here for one reason: a DIFFERENT
+      # step already fails the build on this exact risk. See the note below before copying
+      # this pattern anywhere else.
+      - name: SCA (second opinion, advisory only)
+        continue-on-error: true
+        run: pip install safety && safety check -r requirements.txt
       - run: pipx run semgrep scan --error --config p/python .   # SAST: Python ruleset
 \`\`\`
 
 A repo with both Node and Python services needs *both* SCA tools wired into the gate — \`npm audit\` will never look at \`requirements.txt\`, and \`pip-audit\` will never look at \`package-lock.json\`. Same gate, same branch protection, one job per ecosystem.
+
+> **You just wrote a \`continue-on-error: true\` two sections after being told it's the #1 way teams disable their own gate.** Both facts are true, so learn the test that separates them: **is there another step that fails the build on this same risk?** Here, \`pip-audit\` blocks the merge on Python dependency CVEs, so a *second* opinion that also blocks would mean any deprecation notice or advisory-DB disagreement halts every PR — and a gate that cries wolf gets deleted within a month. That is a deliberate, commented, redundant-by-design exception. It becomes theater the moment it's the **only** step covering that risk, or the moment nobody reads its output. The rule is not "never use \`continue-on-error\`" — it is **"every risk must have at least one step that can fail the build,"** and you should be able to point at that step by name.
 
 ### ⚠️ Common pitfalls and false-confidence traps
 
@@ -15077,7 +15256,18 @@ trivy fs --format cyclonedx --output sbom.json .
 cat sbom.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('components',[])), 'components')"
 \`\`\`
 
-Even this trivial app reports dozens of components — every transitive dependency of \`express\`, \`pg\`, and \`lodash\`. The \`sbom.json\` is the artifact you attach to each release; when the next Log4Shell-class CVE lands, you \`grep\` this file across all services instead of guessing.
+\`\`\`
+INFO	"--format cyclonedx" disables security scanning. Specify "--scanners vuln"
+	explicitly if you want to include vulnerabilities in the "cyclonedx" report.
+INFO	Number of language-specific files	num=1
+82 components
+\`\`\`
+
+*(Your count will differ as express/pg update their own dependency trees — expect "roughly 80", not exactly 82. If you get **2**, you skipped \`npm install express pg\` in Module 7.1 — go back and add it, or the rest of this demo has nothing to inventory.)*
+
+**Eighty-two components from three \`npm install\` names.** That ratio *is* the module: you vetted three packages and shipped eighty-two, of which seventy-nine arrived without you ever typing their names. The \`sbom.json\` is the artifact you attach to each release; when the next Log4Shell-class CVE lands, you query this file across all services instead of guessing.
+
+> **Read that first INFO line — it is a trap, not noise.** \`--format cyclonedx\` **silently disables vulnerability scanning**. The file you just produced is an *inventory*, not a scan result: it lists what you have, and says nothing about what is vulnerable. A team that files this away thinking "trivy ran, we're covered" has an ingredients list mistaken for a health certificate. Want both in one artifact? Add \`--scanners vuln\`. This is the same lesson as 7.1's ruleset gap: **a flag you set for one reason quietly changed what the tool was allowed to find.**
 
 **Step 2 — see the pinned versions + integrity hashes in your lockfile:**
 
@@ -15087,6 +15277,13 @@ p=d['packages'].get('node_modules/lodash',{}); \\
 print('version', p.get('version')); print('integrity', p.get('integrity'))"
 \`\`\`
 
+\`\`\`
+version 4.17.4
+integrity sha512-6X37Sq9KCpLSXEh8uM12AKYlviHPNNk4RxiGBn4cmKGJinbXBneWIV7iE/nXkM928O7ytHcHb6+X6Svl0f4hXg==
+\`\`\`
+
+*(That integrity value is **not** environment-specific — it is the hash of the published \`lodash-4.17.4.tgz\` tarball on the registry, so **yours must match this exactly, character for character.** If it does not, you resolved a different version. This is the one value in the whole phase you should expect to be identical to the book.)*
+
 You see the exact \`version\` and an \`integrity: sha512-...\`. That hash is what makes \`npm ci\` tamper-evident: a compromised registry serving a different \`lodash-4.17.4.tgz\` wouldn't match the hash and the install would abort. Supply-chain integrity in one field.
 
 **Step 3 — feel dependency confusion as a resolution rule:**
@@ -15095,7 +15292,15 @@ You see the exact \`version\` and an \`integrity: sha512-...\`. That hash is wha
 # scope an internal namespace to an internal registry
 printf '@acme:registry=https://npm.internal.acme.example/\\nregistry=https://registry.npmjs.org/\\n' > .npmrc
 npm config get @acme:registry
+npm config get registry          # the default, for everything unscoped
 \`\`\`
+
+\`\`\`
+https://npm.internal.acme.example/
+https://registry.npmjs.org/
+\`\`\`
+
+**Those two lines are the entire defense.** \`@acme/*\` resolves from the first URL and *only* the first URL; everything else resolves from public npm.
 
 \`npm config get @acme:registry\` returns your internal URL. With this scope rule, \`@acme/auth-utils\` resolves *only* from the internal registry — an attacker publishing \`@acme/auth-utils\` to public npm can never win the resolution, regardless of version. **The vulnerability exists when this scoping is missing:** an unscoped internal name (\`acme-auth-utils\`) lets the public registry's higher version win. The fix is structural: scope every internal package and bind the scope to the internal registry.
 
@@ -15207,6 +15412,29 @@ RECORDED=$(shasum -a 512 pkg.js | cut -d' ' -f1)          # the lockfile records
 printf 'module.exports = () => { steal(process.env); };\\n' > pkg.js   # attacker tampers the tarball
 [ "$(shasum -a 512 pkg.js | cut -d' ' -f1)" = "$RECORDED" ] && echo "match" || echo "MISMATCH -> install FAILS, malware never runs"
 \`\`\`
+\`\`\`
+MATCH -> install proceeds
+MISMATCH -> install FAILS, malware never runs
+\`\`\`
+
+Print the two hashes side by side and look at them, because *that* is the lesson:
+
+\`\`\`bash
+printf 'module.exports = () => "safe original code";\n' > pkg.js
+shasum -a 512 pkg.js | cut -c1-64
+printf 'module.exports = () => { steal(process.env); };\n' > pkg.js
+shasum -a 512 pkg.js | cut -c1-64
+\`\`\`
+
+\`\`\`
+022a8e4a8955a953c844fee17cd450411d35c1b8e62e6917ec808e5b9dfd1272
+58e5cd9dc12f1c1510d10a685adffcf2517a29fd2839e33ff9cb449909e85c5d
+\`\`\`
+
+*(These two \`printf\` strings are fixed, so **your hashes will match these exactly** — a good check that you typed the file contents correctly.)*
+
+Both files are one short line. They share a prefix (\`module.exports = () => \`) and differ in the rest — yet the hashes have **nothing in common**. That is the *avalanche* property: a hash gives an attacker no way to nudge the file toward a target digest, so "tamper with the tarball but keep the hash" is not a thing you can grind at. Note also what the check does **not** need: it never inspects the code, never decides whether \`steal(process.env)\` looks malicious. It only asks *"are these the bytes we recorded?"* — which is why it catches malware nobody has ever seen before.
+
 That mismatch is the whole security value of the lockfile's \`integrity: "sha512-..."\` field. \`package.json\` says \`"express": "^4.18.0"\` — a *range*, so two installs can resolve differently — but the lockfile freezes the exact version **and its content hash**. On \`npm ci\`, npm downloads each tarball and verifies it hashes to exactly the recorded value; a registry (or man-in-the-middle) that serves a *tampered* tarball produces a different hash, so the install **fails loudly** rather than silently running the attacker's code. This is why the rules are: **commit the lockfile, and use \`npm ci\` (strict) in CI, never \`npm install\`** (which may rewrite the lock). The hash turns "trust the registry" into "verify the bytes."
 </details>
 
@@ -15248,7 +15476,7 @@ const hits = sbom.components.filter(c => c.name==="lodash" && lt(c.version, "4.1
 console.log(hits.length ? "AFFECTED: "+hits.map(c=>c.name+"@"+c.version).join(", ") : "not affected");
 // AFFECTED: lodash@4.17.4
 \`\`\`
-That query answered in *seconds* what teams without an SBOM answer in *days*. When Log4Shell dropped (Dec 2021), every org's first scramble was "which of our 300 services even use the vulnerable version?" — teams grepping repos and pinging maintainers lost critical days while attackers exploited; teams with an SBOM per release ran exactly this filter and had a list immediately. **The SBOM turns "are we vulnerable?" from archaeology into a database lookup.** Generate one per release (\`trivy fs --format cyclonedx\`, \`syft\`) and store it; the version compare you just wrote is the core of every "affected components" tool. (Note the lexicographic trap you avoided — \`"4.17.4" < "4.17.21"\` is *false* as strings; version comparison must be numeric per segment.)
+That query answered in *seconds* what teams without an SBOM answer in *days*. When Log4Shell dropped (Dec 2021), every org's first scramble was "which of our 300 services even use the vulnerable version?" — teams grepping repos and pinging maintainers lost critical days while attackers exploited; teams with an SBOM per release ran exactly this filter and had a list immediately. **The SBOM turns "are we vulnerable?" from archaeology into a database lookup.** Generate one per release (\`trivy fs --format cyclonedx --scanners vuln\` — **without \`--scanners vuln\` trivy silently drops vulnerability data and gives you inventory only** — or \`syft\`) and store it; the version compare you just wrote is the core of every "affected components" tool. (Note the lexicographic trap you avoided — \`"4.17.4" < "4.17.21"\` is *false* as strings; version comparison must be numeric per segment.)
 </details>
 
 #### 🔴 Break & Defend — the attacks these mechanisms answer ~10 min
