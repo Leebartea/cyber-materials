@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 76, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 81, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -429,6 +429,10 @@ BANNED = [
     (r"dependency-check-maven:check(?![\s\S]{0,600}nvdApiKey)",
      "dependency-check 13 aborts without an NVD API key (NoDataException: No "
      "documents exist) — it fails, it does not degrade", "A19"),
+    (r"hashcat -m 34000 -a 0 ~/argonhash\.txt",
+     "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
+     "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "
+     "reorder to ~/argonhash.hc first", "A20"),
 ]
 
 

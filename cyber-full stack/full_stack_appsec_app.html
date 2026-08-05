@@ -12250,6 +12250,13 @@ for (const [u, p] of Object.entries(users)) {
 }' > ~/fasthashes.txt
 cat ~/fasthashes.txt
 \`\`\`
+\`\`\`
+alice:0b14d501a594442a01c6859541bcb3e8164d183d32937b851835442f69d5c94e
+bob:e4ad93ca07acb8d908a3aa41e920ea4f4ef4f26e7f86cf8291c5db289780a5ae
+carol:a941a4c4fd0c01cddef61b8be963bf4c1e2b0811c037ce3f1835fddf6ef6c223
+\`\`\`
+
+These are **deterministic** — a bare hash has no salt, so \`sha256("password1")\` is that exact string on every machine on earth. That is precisely the weakness the next step exploits: no salt means an attacker can precompute once and look up millions of accounts. (If your three lines match these character-for-character, that sameness *is* the vulnerability.)
 
 **Step 2 — crack them.** Mode \`1400\` is raw SHA-256; \`--username\` tells hashcat the file is \`user:hash\`:
 
@@ -12257,6 +12264,17 @@ cat ~/fasthashes.txt
 hashcat -m 1400 -a 0 --username ~/fasthashes.txt ~/rockyou-sample.txt
 hashcat -m 1400 --username ~/fasthashes.txt --show
 \`\`\`
+\`\`\`
+Speed.#02........:  2574.7 kH/s (0.00ms) @ Accel:1024 Loops:1 Thr:64 Vec:1
+Recovered........: 3/3 (100.00%) Digests (total), 3/3 (100.00%) Digests (new)
+Status...........: Cracked
+
+alice:0b14d501a594442a01c6859541bcb3e8164d183d32937b851835442f69d5c94e:password1
+bob:e4ad93ca07acb8d908a3aa41e920ea4f4ef4f26e7f86cf8291c5db289780a5ae:iloveyou
+carol:a941a4c4fd0c01cddef61b8be963bf4c1e2b0811c037ce3f1835fddf6ef6c223:sunshine
+\`\`\`
+
+(Output abridged; \`--show\` reprints each line with the cracked password appended after a second colon. Your exact \`kH/s\` figure depends on your CPU — the *order of magnitude* is the point.)
 
 **Expected observation.** On any modern CPU this finishes essentially instantly — all three fall in well under a second, at a hash rate in the *millions to hundreds-of-millions per second* range. **This is the entire point:** a fast hash means the attacker's only limit is the size of their wordlist, and wordlists are free. Bare SHA-256 is a speed bump made of tissue paper.
 
@@ -12267,22 +12285,43 @@ npm install argon2          # native arm64 prebuilt binary, no compile needed on
 node -e '
 const argon2 = require("argon2");
 (async () => {
+  const lines = [];
   for (const p of ["password1","iloveyou","sunshine"]) {
-    const h = await argon2.hash(p, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
-    console.log(h);
+    lines.push(await argon2.hash(p, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 }));
   }
+  require("fs").writeFileSync(process.env.HOME + "/argonhash.txt", lines.join("\\n") + "\\n");
+  console.log(lines.join("\\n"));
 })();'
 \`\`\`
-
-Each line is a long string like \`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<digest>\`. That string is **self-describing**: it embeds the algorithm, the parameters, the per-user salt, and the digest. You store that one string; on login you hand it and the submitted password to \`argon2.verify\` and it reads the parameters back out. (bcrypt's \`$2b$...\` strings work the same way — this is why you never store the salt in a separate column.)
-
-**Step 4 — try to crack the Argon2id hashes.** hashcat mode \`34000\` is Argon2:
-
-\`\`\`bash
-hashcat -m 34000 -a 0 ~/argonhash.txt ~/rockyou-sample.txt
+\`\`\`
+$argon2id$v=19$m=19456,p=1,t=2$N6WofPqZZ7ridJ0//ZjpUQ$+e5+qp6ipZBECjq1RzMTipUR/jgSeTKzacW5Ygm5xNQ
+$argon2id$v=19$m=19456,p=1,t=2$oUDF+DN6lbWaAD6u8DSQ3w$Nmnqf6v9Prc/+qR5D7VeLtBMkO2xzZ8Zb+OQfyZjkNw
+$argon2id$v=19$m=19456,p=1,t=2$FPqPElzrl3TR3yFc3efxYQ$uewwzV9D2stOp9X8AQBlDddXJDOO7yHm7kJM8HGQjkM
 \`\`\`
 
-**Expected observation.** The hash rate collapses from millions/sec to a *handful per second* on the same hardware, and each guess now eats ~19 MB of RAM. The wordlist that fell in milliseconds against SHA-256 now takes an impractical amount of time, and parallelizing is throttled by memory, not cores. **You have personally measured why "slow + memory-hard" is the whole game.**
+**Yours will differ on every line — and that difference is the whole improvement over Step 1.** Each hash carries a fresh CSPRNG salt, so the same password (\`password1\`) produces a different string for every user and on every run. Compare that to the SHA-256 output, which was identical for everyone: salting is what defeats precomputation and cross-account lookup. (This step also *writes* the three hashes to \`~/argonhash.txt\`, which Step 4 will read.)
+
+Each line is a long string like \`$argon2id$v=19$m=19456,p=1,t=2$<salt>$<digest>\`. That string is **self-describing**: it embeds the algorithm, the parameters, the per-user salt, and the digest. You store that one string; on login you hand it and the submitted password to \`argon2.verify\` and it reads the parameters back out. (bcrypt's \`$2b$...\` strings work the same way — this is why you never store the salt in a separate column.)
+
+**Step 4 — try to crack the Argon2id hashes.** hashcat mode \`34000\` is Argon2 — but there is a real trap here worth learning before you fire it. hashcat v7 parses the PHC parameters in the order **\`m,t,p\`** (the order in its own \`--example-hashes\`), while the Node \`argon2\` library *emits* them as **\`m,p,t\`**. Feed hashcat the library's native string and it will run to \`Exhausted\` and report **0/3 cracked** — not because Argon2 is unbreakable, but because hashcat computed a *different* hash than the one you stored and never matched. Reorder the parameters first:
+
+\`\`\`bash
+# transpose the library's m,p,t into the m,t,p hashcat expects
+sed -E 's/m=([0-9]+),p=([0-9]+),t=([0-9]+)/m=\\1,t=\\3,p=\\2/' ~/argonhash.txt > ~/argonhash.hc
+hashcat -m 34000 -a 0 ~/argonhash.hc ~/rockyou-sample.txt
+hashcat -m 34000 ~/argonhash.hc --show
+\`\`\`
+\`\`\`
+Speed.#02........:      470 H/s (1.37ms) @ Accel:29 Loops:4 Thr:32 Vec:1
+Recovered........: 3/3 (100.00%) Digests (total), 3/3 (100.00%) Digests (new), 3/3 (100.00%) Salts
+Status...........: Cracked
+
+$argon2id$v=19$m=19456,t=2,p=1$N6WofPqZZ7ridJ0//ZjpUQ$...:password1
+$argon2id$v=19$m=19456,t=2,p=1$oUDF+DN6lbWaAD6u8DSQ3w$...:iloveyou
+$argon2id$v=19$m=19456,t=2,p=1$FPqPElzrl3TR3yFc3efxYQ$...:sunshine
+\`\`\`
+
+**Expected observation.** The hash rate collapses from ~2.5 **million** guesses/sec (Step 2) to a few **hundred** per second — here ~470 H/s, a roughly 5,000× fall on the same hardware — and each guess now eats ~19 MB of RAM. These three passwords are all in the first ~600 lines of the wordlist, so they still fall; but notice \`3/3 Salts\` in the status — because every hash has a *unique* salt, hashcat cannot share work across them and must run the wordlist once per hash (30,000 attempts for 3 hashes × 10,000 words). Point a real-sized wordlist at a *strong* password hashed this way and it becomes computationally hopeless, throttled by memory rather than cores. **You have personally measured why "slow + memory-hard" is the whole game — and that a tool reporting "0 cracked" can mean "you fed it the wrong format," not "it's secure."**
 
 ### 🛡️ Defense: the rules, and the reasoning behind each
 
@@ -12741,6 +12780,11 @@ docker run --rm -d -p 3000:3000 --name juice bkimminich/juice-shop
 # then open http://localhost:3000
 #   macOS: open <url>  |  Linux: xdg-open <url>  |  Windows: start <url>
 \`\`\`
+\`\`\`
+513d31d417f8be454066f33cc7b1625b422584006be15889d295875f828e7508
+\`\`\`
+
+Just the container id (yours differs). \`-d\` detaches, so wait ~30–60s and confirm with \`curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:3000/\` returning \`200\` before you open DevTools.
 
 **Demo A — observe a token missing protections.** Log into Juice Shop, open DevTools → Application → Storage. Juice Shop deliberately stores its auth token in \`localStorage\` (the *wrong* place — readable by JS). In the console run:
 
@@ -12970,6 +13014,11 @@ http.createServer((req,res)=>{
 EOF
 node sess.js     # leave running
 \`\`\`
+\`\`\`
+sess on http://localhost:4619
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4619 | xargs kill\`.)
 
 **The rule:** predict each response before running; write the fix before opening its walkthrough.
 
@@ -12990,10 +13039,15 @@ node sess.js     # leave running
 
 \`\`\`bash
 curl -s -b "sid=ATTACKER123" "http://localhost:4619/login"    # victim logs in carrying the planted id
-# {"loggedIn":true,"sessionId":"ATTACKER123"}                 <- the server kept the attacker's id!
 curl -s -b "sid=ATTACKER123" "http://localhost:4619/whoami"   # attacker reuses it
-# {"user":"victim"}                                           <- attacker is now the victim
 \`\`\`
+\`\`\`
+{"loggedIn":true,"sessionId":"ATTACKER123"}
+{"user":"victim"}
+\`\`\`
+
+Two lines tell the whole story: the login **echoed back the attacker's own \`ATTACKER123\`** as the authenticated session id (the server never issued a fresh one), and a *separate* request carrying that same id is greeted as \`victim\`. The attacker knew the id before the victim ever logged in.
+
 That's **session fixation**. The server, on login, *reused* the id the browser already had instead of issuing a fresh one — so an id the attacker planted *before* login (via an XSS, a subdomain cookie, or a login CSRF) becomes a valid authenticated session the moment the victim signs in. The victim did nothing wrong; the server failed to change the credential at the exact moment the privilege level changed.
 </details>
 
@@ -13023,10 +13077,15 @@ if (u.pathname==="/login"){
 \`\`\`bash
 # restart the server first (sessions map is in-memory), then:
 curl -s -b "sid=ATTACKER123" "http://localhost:4619/login"
-# {"loggedIn":true,"sessionId":"f26e1dee6426975c35b77efd"}   <- a NEW id, not ATTACKER123
 curl -s -b "sid=ATTACKER123" "http://localhost:4619/whoami"
-# {"user":null}                                              <- the planted id was never authenticated
 \`\`\`
+\`\`\`
+{"loggedIn":true,"sessionId":"b0ed0c7f84a5685bfa72e1cd"}
+{"user":null}
+\`\`\`
+
+The login now returns a **new random id** (yours will differ — that unpredictability is the defense) instead of the \`ATTACKER123\` the browser sent, and \`/whoami\` on the planted id is now \`{"user":null}\`: it was never authenticated, because the server stored the session under the *fresh* id only. If you still see \`{"user":"victim"}\` here, you did not restart the server — \`ATTACKER123\` is still live in the in-memory \`sessions\` map from Drill 1.
+
 One line — *issue a new id at the privilege boundary* — kills the whole class. This is exactly what Express's \`req.session.regenerate()\` and Flask-Session's \`session.clear()\`-then-set do for you; you just built the mechanism by hand. (And note the \`HttpOnly; SameSite=Lax\` you added to the \`Set-Cookie\`: those are the flags the next task is about — the cookie is now unreadable by JS and unsent on cross-site POSTs.) **Restarting to test is itself the lesson**: sessions are *stateful*, which is precisely why server-side sessions can be *revoked* — a property JWTs will struggle with in 6.3.
 </details>
 
@@ -13388,6 +13447,11 @@ http.createServer((req,res)=>{
 EOF
 node jwt.js     # leave running
 \`\`\`
+\`\`\`
+jwt on http://localhost:4620
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4620 | xargs kill\`.)
 
 **The rule:** predict each result before running; write the verifier before opening its walkthrough.
 
@@ -13413,8 +13477,14 @@ FORGED=$(node -e 'const b=o=>Buffer.from(JSON.stringify(o)).toString("base64url"
   console.log(b({alg:"none",typ:"JWT"})+"."+b({sub:"42",role:"admin"})+".")')
 echo "$FORGED"
 curl -s "http://localhost:4620/admin" -H "Authorization: Bearer $FORGED"
-# {"data":"SECRET ADMIN DATA"}
 \`\`\`
+\`\`\`
+eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiI0MiIsInJvbGUiOiJhZG1pbiJ9.
+{"data":"SECRET ADMIN DATA"}
+\`\`\`
+
+The first line is your forged token — note it **ends in a dot**: the third segment (the signature) is empty. The second line is the server handing an anonymous attacker its admin data in response. Decode that middle segment yourself (\`echo eyJzdWIi... | base64 -d\`) and you will read \`{"sub":"42","role":"admin"}\` in plaintext — proof that a JWT payload is *encoding*, not encryption, and that you authored it.
+
 You just committed **two** of the module's mistakes at once and it took ten seconds. **Mistake #1 (decode ≠ verify):** the server read the payload without checking the signature, so it trusted attacker-authored JSON. **Mistake #2 (\`alg:none\`):** because nothing verifies the signature, you didn't even need to fake one — you declared "no algorithm" and wrote \`role:admin\`. No secret, no cracking, no cleverness: the security of this token was *decorative*. Base64url is encoding, not a lock; the signature was the only thing standing between a user and admin, and the server never looked at it.
 </details>
 
@@ -13446,13 +13516,25 @@ function verify(token){
 // in /admin?fixed=1:  try { const c = verify(token); ... } catch(e){ 401 e.message }
 \`\`\`
 \`\`\`bash
-curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED"     # {"error":"alg not allowed"}
-# HS256 forged with the WRONG secret:
+# 1) the alg:none forgery from Drill 1 — now rejected on the alg pin:
+curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED"
+# 2) an HS256 token forged with the WRONG secret — rejected on the signature:
 FORGED2=$(node -e 'const c=require("crypto");const b=o=>Buffer.from(JSON.stringify(o)).toString("base64url");
   const d=b({alg:"HS256",typ:"JWT"})+"."+b({sub:"42",role:"admin"});
   console.log(d+"."+c.createHmac("sha256","WRONG").update(d).digest("base64url"))')
-curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED2"    # {"error":"bad signature"}
+curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $FORGED2"
+# 3) the LEGIT token from /token — passes verification (but its role is genuinely 'user'):
+T=$(curl -s http://localhost:4620/token | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).token))')
+curl -s "http://localhost:4620/admin?fixed=1" -H "Authorization: Bearer $T"
 \`\`\`
+\`\`\`
+{"error":"alg not allowed"}
+{"error":"bad signature"}
+{"error":"nope"}
+\`\`\`
+
+Read the three responses as a set. The first two are **rejections at verification** — the forgery never reaches the role check at all (\`alg not allowed\` fires on the pin, \`bad signature\` on the HMAC compare). The third is different in kind: that token *passed* verification — it is authentic — and was then refused by the **authorization** check because its real role is \`user\`. That distinction is the entire lesson: authentication (is this token genuine?) and authorization (may this genuine caller do this?) are separate gates, and the vulnerable endpoint had neither.
+
 Two lines carry the whole defense: **pinning \`alg\` to \`HS256\`** (never trusting the token's own \`alg\` field) and **recomputing + constant-time-comparing the signature**. The pin is the crucial one — it's what defeats *both* \`alg:none\` and the RS256→HS256 confusion attack (where an attacker signs with your public key as an HMAC secret). The rule, memorized: **the token never gets to tell you how to verify it.** This is exactly what \`jwt.verify(t, key, { algorithms: ['HS256'] })\` does — you just built its safety-critical core by hand and can now never be fooled by "my library is safe by default."
 </details>
 
@@ -13737,6 +13819,11 @@ http.createServer((req,res)=>{
 EOF
 node oauth.js     # leave running
 \`\`\`
+\`\`\`
+oauth on http://localhost:4621
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4621 | xargs kill\`.)
 
 **The rule:** predict each result before running; write the fix before opening its walkthrough.
 
@@ -13761,8 +13848,13 @@ The victim's session is in \`victim.txt\` (\`curl -b victim.txt\`). The attacker
 
 \`\`\`bash
 curl -s -b victim.txt "http://localhost:4621/callback?code=attacker-code&state=anything"
-# {"loggedInAs":"attacker"}
 \`\`\`
+\`\`\`
+{"loggedInAs":"attacker"}
+\`\`\`
+
+Note the \`state=anything\` — a value the attacker invented, which the vulnerable callback never even looks at. The victim's own session (\`victim.txt\`) is now bound to \`attacker\`.
+
 That's **login CSRF**. The attacker completed *their own* OAuth flow, captured *their* authorization code, and lured the logged-in-progress victim to hit the callback with it — so the victim's session is silently bound to the **attacker's** identity. Now anything the victim saves (a payment method, a document, a note) goes into the *attacker's* account, where the attacker later reads it. The callback's sin: it bound the session to a code without ever confirming *this code belongs to this browser's login attempt* — which is exactly what \`state\` is for.
 </details>
 
@@ -13793,11 +13885,21 @@ if (u.pathname==="/callback"){
 \`\`\`
 \`\`\`bash
 # attacker's forged callback — mismatched state:
-curl -s -b victim.txt "http://localhost:4621/callback?code=attacker-code&state=guess"     # {"error":"state mismatch — rejected"}
+curl -s -c victim.txt "http://localhost:4621/login" >/dev/null
+curl -s -b victim.txt "http://localhost:4621/callback?code=attacker-code&state=guess"
 # legit: use the real state the session got at /login (the yourSessionState value)
 S=$(curl -s -c v2.txt "http://localhost:4621/login" | sed 's/.*yourSessionState":"//;s/".*//')
-curl -s -b v2.txt "http://localhost:4621/callback?code=victim-code&state=$S"               # {"loggedInAs":"victim"}
+echo "captured state: $S"
+curl -s -b v2.txt "http://localhost:4621/callback?code=victim-code&state=$S"
 \`\`\`
+\`\`\`
+{"error":"state mismatch — rejected"}
+captured state: 49b9f6e0679c7a55
+{"loggedInAs":"victim"}
+\`\`\`
+
+The same Drill 1 attack now dies on the \`state\` check, while the legitimate flow — which reads back the *actual* random \`state\` its own \`/login\` issued (\`captured state\`, yours will differ) — still logs in as \`victim\`. The attacker's \`state=guess\` could never match a value they never saw.
+
 \`state\` is a random value you generate before redirecting, bind to the session, and verify on return — so a callback is only honored if it belongs to a login *this browser actually started*. The attacker can't produce the victim session's state (it's random and never left that session), so their forged callback is rejected. This is the same anti-CSRF-token idea from Module 2.3, applied to the OAuth callback: **prove the request came from a flow you initiated, not just that it carries a valid code.** (A vetted library — \`openid-client\`, Authlib — does this for you; you just built why it matters.)
 </details>
 
@@ -13881,21 +13983,21 @@ Build the project-management app (Users → Organizations → Projects → Tasks
 \`\`\`bash
 curl -s http://localhost:6060/api/projects/PROJECT_IN_ORG_B -H "Cookie: $ORG_A_SESSION"
 \`\`\`
-*Vulnerable:* you get Org B's project. *Fixed:* \`403\`/\`404\`.
+**Expected observation:** on the *vulnerable* build this returns \`200\` with Org B's project JSON; once *fixed* it returns \`403\`/\`404\`. (These four probes use placeholder session cookies and ids — substitute values from the app you built; they are the *shape* of each attack, not copy-paste one-liners.)
 
 **Probe 2 — BFLA: viewer performs a write.** As a read-only \`viewer\`, call the edit endpoint the UI hides:
 \`\`\`bash
 curl -s -X PATCH http://localhost:6060/api/tasks/5 -H "Cookie: $VIEWER_SESSION" \\
   -H 'Content-Type: application/json' -d '{"title":"hacked"}'
 \`\`\`
-*Vulnerable:* the task changes. *Fixed:* \`403\`.
+**Expected observation:** *vulnerable* — \`200\` and the task's \`title\` becomes \`"hacked"\` (re-GET it to confirm); *fixed* — \`403\`, the write refused because a viewer's role may not edit.
 
 **Probe 3 — mass-assignment self-promotion.** Send a field the form never exposes:
 \`\`\`bash
 curl -s -X PATCH http://localhost:6060/api/users/me -H "Cookie: $MEMBER_SESSION" \\
   -H 'Content-Type: application/json' -d '{"name":"Joe","role":"owner"}'
 \`\`\`
-*Vulnerable (server spreads \`req.body\`):* you're now \`owner\`. *Fixed:* \`role\` is ignored.
+**Expected observation:** *vulnerable* — the response shows \`"role":"owner"\` because the handler spread \`req.body\` onto the record; *fixed* — the response still shows your original role, the \`role\` field silently dropped by an allow-list.
 
 **Probe 4 — stale token after deletion.** Delete/deactivate a user, then replay their old session/JWT. *Vulnerable (stateless JWT, no server check):* still works until expiry. *Fixed (server-side session or refresh-revocation):* \`401\`.
 
@@ -14144,6 +14246,11 @@ http.createServer((req,res)=>{
 EOF
 node authz.js     # leave running
 \`\`\`
+\`\`\`
+authz on http://localhost:4622
+\`\`\`
+
+(\`EADDRINUSE\` → \`lsof -ti:4622 | xargs kill\`.)
 
 \`alice\` is an admin of **Org A**; \`bob\` is an admin of **Org B**. Project 1 belongs to Org A, project 2 to Org B.
 
@@ -14159,9 +14266,16 @@ node authz.js     # leave running
 <summary>Walkthrough — open after you've run it</summary>
 
 \`\`\`bash
-curl -s -H "X-User: alice" "http://localhost:4622/api/projects/1"   # {"id":1,"org":"A",...}  her own — fine
-curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2"   # {"id":2,"org":"B","name":"OrgB-Secret"}  LEAK
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/1"   # her own — fine
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2"   # another tenant — LEAK
 \`\`\`
+\`\`\`
+{"id":1,"org":"A","name":"OrgA-Secret"}
+{"id":2,"org":"B","name":"OrgB-Secret"}
+\`\`\`
+
+Both return \`200\` with a full project body. The second one is the leak: \`alice\` is in Org A, and the server just handed her \`OrgB-Secret\` — the *only* difference between the two requests is an id she changed from 1 to 2.
+
 The endpoint *did* check authorization — it confirmed alice is an \`admin\` — and still handed her another company's data. That's the deadly multi-tenant bug: **"is admin" was verified, "is admin *of this resource's tenant*" was not.** In real SaaS this is how one customer reads another's records by changing an id, and it returns a perfectly normal \`200\` — nothing errors, which is why scanners miss it and why A01 tops the OWASP list. Role checks stop BFLA (a viewer writing); they do *nothing* for cross-tenant object access.
 </details>
 
@@ -14187,10 +14301,18 @@ if (u.searchParams.get("fixed")==="1"){
 }
 \`\`\`
 \`\`\`bash
-curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2?fixed=1"   # {"error":"not found"}   cross-tenant blocked
+curl -s -H "X-User: alice" "http://localhost:4622/api/projects/2?fixed=1"   # cross-tenant — blocked
 curl -s -H "X-User: alice" "http://localhost:4622/api/projects/1?fixed=1"   # her own project
 curl -s -H "X-User: bob"   "http://localhost:4622/api/projects/2?fixed=1"   # Bob's own project
 \`\`\`
+\`\`\`
+{"error":"not found"}
+{"id":1,"org":"A","name":"OrgA-Secret"}
+{"id":2,"org":"B","name":"OrgB-Secret"}
+\`\`\`
+
+Read the three as a set: alice is refused Org B (\`not found\` — a 404 that doesn't even admit the id exists elsewhere), still gets her *own* Org A project, and bob still gets *his* Org B project. Same endpoint, same "admin" role for both callers — the only thing that changed is that the object is now matched against the caller's tenant.
+
 The fix binds the object lookup to the caller's tenant. The **structural** version — \`WHERE id = ? AND org_id = $session_org\` on *every* tenant query, or Postgres **Row-Level Security** — is far safer than a per-handler \`if\`, because it makes cross-tenant access impossible *by construction* rather than relying on every developer remembering the check on every new endpoint. That's the whole philosophy of authorization: **make the safe thing structural, because "remember to check" always eventually forgets one.** Note also you 404 (not 403) an out-of-tenant id — don't confirm to an attacker that id 2 exists somewhere.
 </details>
 
