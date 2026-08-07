@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 85, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 91, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -475,6 +475,35 @@ BANNED = [
      "`safety check` prints a DEPRECATED banner (unsupported beyond 2024-06-01) and its "
      "replacement `safety scan` needs an interactive account login, so neither is a "
      "drop-in CI step — pip-audit is the one to depend on", "A25", "DEPRECATED"),
+    (r"(?:listen\(|localhost:|127\.0\.0\.1:|-ti:|-i:|-p )(?:5000|7000)\b",
+     "macOS AirPlay Receiver (ControlCenter) permanently binds ports 5000 and 7000, so a "
+     "lab server there dies with EADDRINUSE and curl gets answered by AirTunes (a bare "
+     "403 with Server: AirTunes/...). Verified on this machine. Use 5050/7010",
+     "A26", "AirPlay"),  # acquits the note that TEACHES this, incl. `lsof -i:7000`
+    (r"Secret +STRIPE_KEY +CRITICAL",
+     "trivy's secret scanner reads FILE CONTENTS in layers, not image config metadata, so "
+     "an ENV-planted key produces NO secret finding (verified: Secrets column reads '-'). "
+     "docker history is what catches it", "A27"),
+    (r"docker exec lab-good whoami(?![\s\S]{0,400}(?:not found|FAILS))",
+     "distroless ships no shell and no coreutils, so `docker exec <distroless> whoami` "
+     "fails with 'executable file not found in $PATH'. Verify the user from outside with "
+     "docker inspect -f '{{.Config.User}}' or docker top", "A28"),
+    (r"appsec-lab:hardened[^\n]*\n\s*Total: 0 ",
+     "the distroless hardened image is NOT 0 CVEs — measured 6 (5 HIGH, 1 CRITICAL, all "
+     "libssl3) vs 342 for node:22. Hardening is a ~98% reduction, not elimination", "A29"),
+    (r"kindnet\\?`?\) does \*\*not enforce\*\*|kindnet\\?`?\) does not \*enforce\*",
+     "stale: recent kindnet DOES enforce NetworkPolicy (verified kind v0.32.0 / "
+     "kindnetd v20260528 / k8s v1.36.1 — attacker Pod goes 200 -> 000). Teach the A/B/A "
+     "test instead of asserting either behaviour", "A30"),
+    (r"kubesec scan default-deny\.yaml",
+     "kubesec only scores WORKLOAD manifests; on a NetworkPolicy it returns 'could not "
+     "find schema for NetworkPolicy' with score 0 — a passing-looking number for a scan "
+     "that never happened. Point it at a Pod/Deployment",
+     "A31", "could not find schema"),  # acquits the note that TEACHES this trap
+    (r"kube-bench run --targets node(?![\s\S]{0,600}(?:version_mapping|on a node|kubectl run))",
+     "kube-bench must run ON a Kubernetes node; on macOS it exits with 'unable to get "
+     "benchmark version. error: config file is missing version_mapping section'. Run it "
+     "in-cluster as a Pod with the hostPath mounts", "A32"),
     (r"hashcat -m 34000 -a 0 ~/argonhash\.txt",
      "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
      "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "

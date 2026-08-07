@@ -17177,11 +17177,29 @@ printf '<!doctype html><script type="module" src="/src/main.js"><\/script>\\n' >
 npx vite build
 \`\`\`
 
+\`\`\`
+vite v8.2.1 building client environment for production...
+✓ 4 modules transformed.
+dist/index.html                0.09 kB │ gzip: 0.10 kB
+dist/assets/index-DAB2DoAJ.js  0.87 kB │ gzip: 0.52 kB
+✓ built in 28ms
+\`\`\`
+
+*(Vite version and the \`index-XXXXXXXX.js\` content hash will differ — the hash is derived from your bundle's bytes. Use **your** filename in the commands below.)*
+
 **Step 2 — find the secret in the shipped bundle (the attacker's view):**
 
 \`\`\`bash
-grep -r "sk_live_FAKE" dist/
+grep -rl "sk_live_FAKE" dist/                          # which shipped file holds it
+grep -ro '.\\{0,30\\}sk_live_FAKE.\\{0,20\\}' dist/       # ...and its surroundings, readably
 \`\`\`
+
+\`\`\`
+dist/assets/index-DAB2DoAJ.js
+dist/assets/index-DAB2DoAJ.js:eaders:{Authorization:\`Bearer sk_live_FAKE_DO_NOT_SHIP_0000\`}}
+\`\`\`
+
+*(The second command exists because a bare \`grep -r\` prints the **entire** minified line — hundreds of unreadable characters. Minification is not obfuscation and it is certainly not encryption: the string survives it completely intact.)*
 
 <details>
 <summary>What you'll observe / the lesson</summary>
@@ -17195,6 +17213,26 @@ grep -r "sk_live_FAKE" dist/
 npx vite build --sourcemap
 ls dist/assets/*.map && head -c 300 dist/assets/*.map
 \`\`\`
+
+\`\`\`
+dist/assets/index-DAB2DoAJ.js.map
+{"version":3,"file":"index-DAB2DoAJ.js","names":[],"sources":["../../src/main.js","../../index.html"],"sourcesContent":["const url = import.meta.env.VITE_PUBLIC_API;\\nconst secret = import.meta.env.VITE_STRIPE_SECRET;\\nconsole.log(\\"calling\\", url);\\nfetch(url, { headers: { Authorization: \`Bearer \${
+\`\`\`
+
+**Look at what those two fields actually are.** \`sources\` is your **original directory layout** (\`../../src/main.js\`) and \`sourcesContent\` is your **original source code, verbatim** — not a reconstruction, not an approximation. The map ships a literal copy. Print it whole to see the un-minified file come back:
+
+\`\`\`bash
+python3 -c "import json,glob; d=json.load(open(glob.glob('dist/assets/*.map')[0])); print(d['sourcesContent'][0])"
+\`\`\`
+
+\`\`\`
+const url = import.meta.env.VITE_PUBLIC_API;
+const secret = import.meta.env.VITE_STRIPE_SECRET;
+console.log("calling", url);
+fetch(url, { headers: { Authorization: \`Bearer \${secret}\` } });
+\`\`\`
+
+That is your source file, byte for byte, served from your public web root. Every comment you left in, every internal path, every variable name you thought minification hid.
 
 A \`.map\` file reverses minification — reconstructing your *original* source, comments, internal file structure, and sometimes commented-out secrets. Don't deploy public source maps for production (upload them privately to your error tracker only).
 
@@ -17243,11 +17281,22 @@ While a \`.env\` still lives on disk, restrict it to its owner so other local ac
 chmod 600 .env            # macOS / Linux / WSL2 — Unix permission bits: owner rw, nobody else
 ls -l .env                # -rw-------  (confirm)
 \`\`\`
+
+\`\`\`
+-rw-------@ 1 you  staff  89 Aug  7 11:22 .env
+\`\`\`
+
+*(Owner, group, size and date are yours. The part that must match is the mode string \`-rw-------\`: **nine characters, six of them dashes.**)*
+
+> **On macOS you will see a trailing \`@\` and it is not a mistake.** \`-rw-------@\` means the file carries an extended attribute — here \`com.apple.provenance\`, which macOS 13+ stamps on files and which \`xattr -c\` will *not* remove. Check with \`xattr -l .env\`. It is metadata, not a permission: no extra account can read the file. (A trailing \`+\` would be different and worth investigating — that means a full ACL is attached, which *can* grant access beyond the mode bits. \`ls -le .env\` prints it.)
+
 \`\`\`powershell
 # Native Windows (PowerShell): NTFS uses ACLs, not permission bits — chmod does nothing here.
 icacls .env /inheritance:r /grant:r "$env:USERNAME:F"   # remove inherited ACEs, grant only you
 icacls .env                                            # confirm only your account is listed
 \`\`\`
+
+**Expected observation:** the first command reports \`processed file: .env\` with \`Successfully processed 1 files\`. In the second command's listing, verify **exactly one** entry — \`DOMAIN\\yourname:(F)\` — and confirm that \`BUILTIN\\Users\`, \`Everyone\`, and \`Authenticated Users\` are **gone**. Their absence is the whole point of \`/inheritance:r\`; if any of them is still listed, the file is still readable by other accounts on the machine. *(Output verified on macOS/Linux only — the icacls listing format varies by Windows version, so check the account names, not the layout.)*
 
 > **Why this matters cross-platform.** On native Windows there are no \`600\` permission bits — file access is governed by NTFS **ACLs**, so the equivalent control is \`icacls\` (strip inheritance, grant Full to just your user). Inside WSL2 the Unix \`chmod\` works as written. Either way the goal is identical: the secret file is readable by exactly one account. (This \`chmod\`↔\`icacls\` mapping is the same one taught in the sibling Cyber Guardians course, Module 7.)
 
@@ -17300,10 +17349,34 @@ On Unix the permission is a three-digit octal mode: owner read+write is \`6\`, g
 chmod 600 .env        # macOS / Linux / WSL2 — owner rw, nobody else
 ls -l .env            # -rw-------  (confirm)
 \`\`\`
+
+\`\`\`
+-rw-------@ 1 you  staff  89 Aug  7 11:22 .env
+\`\`\`
+
 \`\`\`powershell
 icacls .env /inheritance:r /grant:r "$env:USERNAME:F"   # native Windows: only you
 icacls .env
 \`\`\`
+
+**Expected observation:** \`Successfully processed 1 files\`, then a listing naming **only your account** with \`(F)\` — no \`BUILTIN\\Users\`, no \`Everyone\`.
+
+Run the wrong answers too, so the mode string stops being an abstraction:
+
+\`\`\`bash
+for m in 600 644 640 700; do chmod $m .env; printf '%s -> %s\\n' "$m" "$(ls -l .env | cut -d' ' -f1)"; done
+chmod 600 .env
+\`\`\`
+
+\`\`\`
+600 -> -rw-------@
+644 -> -rw-r--r--@
+640 -> -rw-r-----@
+700 -> -rwx------@
+\`\`\`
+
+Read the middle and right triads: \`644\` shows \`r--\` twice — **group and everyone can read your Stripe key.** \`640\` shows \`r--\` once — the deploy group can. Only \`600\` shows dashes in both.
+
 Common wrong attempts: \`chmod 644\` *looks* locked down but the trailing \`4\`s grant read to group and everyone on the box — on a shared host that's your Stripe key handed to every login. \`chmod 640\` still lets the group read it (often every deploy user). \`chmod 700\` is owner-only but the execute bit on a data file is meaningless noise — \`600\` is the exact intent. The principle: **least privilege is a file-permission idea, not just an IAM-role idea** — the same "grant exactly what's needed, to exactly who needs it" you'll apply to cloud roles in 8.3.
 </details>
 
@@ -17428,11 +17501,46 @@ The single most valuable and most misunderstood is **CSP**, because it is *defen
 mkdir -p ~/securelab/phase8-headers && cd ~/securelab/phase8-headers
 npm init -y && npm install express
 printf 'const e=require("express")();e.get("/",(_,r)=>r.send("hi"));e.get("/boom",(_,_r)=>{throw new Error("db password is hunter2 at /var/app/db.js:42")});e.listen(4000)\\n' > server.js
-node server.js &
+lsof -ti:4000 | xargs kill 2>/dev/null   # a stale server on 4000 would answer instead
+node server.js 2>/tmp/server.log &       # keep the SERVER's stderr out of your terminal
 sleep 1
 curl -sD - -o /dev/null http://localhost:4000/
 curl -s http://localhost:4000/boom
 \`\`\`
+
+\`\`\`
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: text/html; charset=utf-8
+Content-Length: 2
+ETag: W/"2-witfkXg0JglCjW9RssWvTAveakI"
+Date: Fri, 07 Aug 2026 10:29:38 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Error: db password is hunter2 at /var/app/db.js:42<br>    at /Users/you/securelab/phase8-headers/server.js:1:90<br>    at Layer.handleRequest (/Users/you/securelab/phase8-headers/node_modules/router/lib/layer.js:152:17)<br>    at next (.../node_modules/router/lib/route.js:157:13)<br>    ...</pre>
+</body>
+</html>
+\`\`\`
+
+*(Date and ETag vary. Note that \`2>/tmp/server.log\` above matters for reading this: without it, node prints the same stack trace to your terminal as a **server-side log**, and it is easy to mistake that for the HTTP response. The stack above is the response body — what a **remote attacker** receives.)*
+
+Count what those eight header lines gave away before you sent a single malicious byte: the framework (\`X-Powered-By: Express\`), and — by their **absence** — that there is no CSP, no HSTS, no \`nosniff\`, and no \`Referrer-Policy\`. Then \`/boom\` hands over an internal file path, your directory layout, and the fake credential.
+
+> **One environment variable changes this entire demo, and you must know which.** Express's default error handler prints the stack **only when \`NODE_ENV\` is not \`production\`**. Run the same server as \`NODE_ENV=production node server.js\` and the client gets:
+>
+> \`\`\`
+> <pre>Internal Server Error</pre>
+> \`\`\`
+>
+> ...while the full stack still goes to the server's stderr — exactly the split you want. So if \`/boom\` looks "already fixed" on your machine, check \`echo $NODE_ENV\` before concluding the lab is broken. Two lessons, and the second is bigger: **shipping with \`NODE_ENV\` unset silently downgrades your error handler into an information-disclosure bug**, and it is a deploy-config mistake, not a code mistake — nothing in the source looks wrong. \`X-Powered-By\` is *not* covered by this and still leaks; that needs \`app.disable("x-powered-by")\` or helmet.
 
 <details>
 <summary>What you'll observe</summary>
@@ -17592,8 +17700,16 @@ Start a deliberately-soft server (dependency-free) and probe it the way an attac
 \`\`\`bash
 mkdir -p ~/harden-workbench && cd ~/harden-workbench
 printf 'const http=require("http");http.createServer((req,res)=>{res.setHeader("X-Powered-By","Express");if(req.url==="/boom"){res.statusCode=500;return res.end("Error: db pw hunter2 at /var/app/db.js:42");}res.end("hi");}).listen(4000,()=>console.log("soft server on 4000"));\\n' > soft.js
+lsof -ti:4000 | xargs kill 2>/dev/null   # the 8.2 demo server may still hold the port
 node soft.js &
 \`\`\`
+
+\`\`\`
+[1] 51234
+soft server on 4000
+\`\`\`
+
+*(Your job number and PID differ. If you instead see \`EADDRINUSE\`, the \`lsof\` line above did not catch a server still holding 4000 — find it with \`lsof -i:4000\` and kill it, or every probe below will be answered by the **wrong server**.)*
 
 **Goal.** Without reading the source, determine (a) what tech stack the server discloses and (b) at least three security protections it is *failing* to tell the browser to enforce.
 
@@ -17612,6 +17728,20 @@ You want the *response headers*, not the body — the curl flag that dumps heade
 curl -sD - -o /dev/null http://localhost:4000/     # dump headers, drop body
 curl -s http://localhost:4000/boom                 # the verbose error leak
 \`\`\`
+
+\`\`\`
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Date: Fri, 07 Aug 2026 10:30:39 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 2
+
+Error: db pw hunter2 at /var/app/db.js:42
+\`\`\`
+
+**Five header lines, and the security posture is in the four that aren't there.** \`X-Powered-By: Express\` is the only thing present that helps an attacker; CSP, HSTS, \`nosniff\` and \`Referrer-Policy\` are all absent, and absence is not visible unless you go looking for it. That is the black-box skill: a header dump reads as "normal" until you know the list of what *should* be in it.
+
 The header dump shows \`X-Powered-By\` (free tech-stack recon) and **none** of CSP/HSTS/nosniff/Referrer-Policy — so an injected script would run, HTTP isn't forced, and MIME-sniffing is on. \`/boom\` returns the internal file path and the fake password straight to the client. Common wrong attempts: \`curl localhost:4000\` prints only the body — you never see the headers, which is where the posture lives; and *reading the source* defeats the exercise — the attacker can't, and the whole skill is reading a server you can't see inside. Stop it when done: \`kill %1 2>/dev/null\`.
 </details>
 
@@ -17657,6 +17787,38 @@ curl -sD - -o /dev/null localhost:4100/ | grep -i nonce   # note the value...
 curl -sD - -o /dev/null localhost:4100/ | grep -i nonce   # ...it's different this time
 curl -s localhost:4100/boom                               # {"error":"Internal error","correlationId":"..."}
 \`\`\`
+
+\`\`\`
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-CkEVG9oAR9pFHUsk1yBfTw=='; object-src 'none'; base-uri 'self'
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-2RiPMqtYNIV6yTfekTJTZA=='; object-src 'none'; base-uri 'self'
+{"error":"Internal error","correlationId":"8edc0882-17b9-46f5-aae5-29adedc5f972"}
+\`\`\`
+
+*(Every nonce and the correlation id are random — **yours will differ, and the two nonces must differ from each other.** That difference is the entire test: identical values mean you computed the nonce once at startup and your CSP is decorative.)*
+
+Now look at the other half — the server's own stderr, where the detail went instead:
+
+\`\`\`
+8edc0882-17b9-46f5-aae5-29adedc5f972 Error: internal detail that must NOT reach the client
+    at Server.<anonymous> (/Users/you/harden-workbench/hard.js:10:36)
+\`\`\`
+
+**The same id appears on both sides, and only the id crosses the boundary.** A user reports "error 8edc0882", you grep the logs, and you have the full stack — with none of it ever reaching the network. Compare the full header set against the soft server's five lines:
+
+\`\`\`
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-YEJH2RdoXzSRthvODTgMig=='; object-src 'none'; base-uri 'self'
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+Referrer-Policy: no-referrer
+Date: Fri, 07 Aug 2026 10:30:27 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 2
+\`\`\`
+
+Four security headers present, \`X-Powered-By\` gone — and it is gone because it was **never set**, not because something removed it.
+
 Common wrong attempts: **computing the nonce once at startup** — a static, guessable nonce is no nonce; it must change per response or an attacker can just include it. Adding **\`'unsafe-inline'\` "so my own inline scripts work"** silently deletes the entire protection (the Break task drives this home). Sending **\`err.message\` to the client** still leaks internal detail — the client gets a *correlation id*, and *you* join it to the full error in the logs. The load-bearing detail is identical in \`helmet\` and \`flask-talisman\`: a per-request nonce is the only thing that makes CSP real XSS defense.
 </details>
 
@@ -17719,14 +17881,25 @@ printf 'const e=require("express")();e.get("/latest/meta-data/iam/security-crede
 node imds.js &
 \`\`\`
 
+\`\`\`
+fake IMDS on 8169
+\`\`\`
+
+> **Why 8169 and 7010, and not 5000 or 7000?** On macOS, **AirPlay Receiver (Control Center) permanently holds ports 5000 and 7000**. A lab server told to use them fails with \`EADDRINUSE\` — and if you miss that line scrolling past, your \`curl\` gets answered by **AirTunes** instead, returning a bare \`403\` with a \`Server: AirTunes/...\` header. You then debug an SSRF filter that was never running. \`lsof -i:7000\` shows the real owner. (You can turn it off in System Settings → General → AirDrop & Handoff → AirPlay Receiver, but choosing a free port is the better habit.)
+
 **Step 2 — a vulnerable "image preview" endpoint that fetches any URL the user gives it (the SSRF bug):**
 
 \`\`\`bash
-printf 'const e=require("express")();\\ne.get("/preview",async(req,res)=>{const u=req.query.url;const r=await fetch(u);res.send(await r.text())});\\ne.listen(7000,()=>console.log("vuln app on 7000"))\\n' > app.js
+printf 'const e=require("express")();\\ne.get("/preview",async(req,res)=>{const u=req.query.url;const r=await fetch(u);res.send(await r.text())});\\ne.listen(7010,()=>console.log("vuln app on 7010"))\\n' > app.js
 node app.js &
 sleep 1
 # the attacker points the SERVER at the metadata service:
-curl "http://localhost:7000/preview?url=http://localhost:8169/latest/meta-data/iam/security-credentials/webrole"
+curl "http://localhost:7010/preview?url=http://localhost:8169/latest/meta-data/iam/security-credentials/webrole"
+\`\`\`
+
+\`\`\`
+vuln app on 7010
+{"AccessKeyId":"FAKEKEY","SecretAccessKey":"FAKESECRET","Token":"FAKE"}
 \`\`\`
 
 <details>
@@ -17735,15 +17908,67 @@ curl "http://localhost:7000/preview?url=http://localhost:8169/latest/meta-data/i
 The vulnerable app returns the (fake) credentials JSON. You — sitting outside the server — just made the *server* fetch its own "cloud credentials" and hand them to you. In a real cloud VM, \`localhost:8169\` would be \`169.254.169.254\`, the creds would be real STS credentials, and if that role had \`s3:GetObject\` on a customer-data bucket you'd be downloading customer data from your laptop. That is Capital One in three commands.
 </details>
 
-**Step 3 — patch the SSRF with egress filtering, then watch the attack fail:**
+**Step 3 — patch the SSRF with egress filtering.** Write this as a real file rather than a \`printf\` one-liner, because you are going to *break* it in a moment:
 
 \`\`\`bash
 kill %2 2>/dev/null   # stop the vulnerable app
-printf 'const e=require("express")();const dns=require("dns").promises;\\nfunction isBlocked(ip){return ip.startsWith("169.254.")||ip.startsWith("127.")||ip.startsWith("10.")||ip.startsWith("192.168.")||/^172\\\\.(1[6-9]|2\\\\d|3[01])\\\\./.test(ip)}\\ne.get("/preview",async(req,res)=>{try{const u=new URL(req.query.url);if(u.protocol!=="https:"&&u.protocol!=="http:")return res.status(400).send("bad scheme");const {address}=await dns.lookup(u.hostname);if(isBlocked(address))return res.status(403).send("blocked: internal address");const r=await fetch(u);res.send(await r.text())}catch(e){res.status(400).send("bad url")}});\\ne.listen(7000,()=>console.log("patched app on 7000"))\\n' > app_fixed.js
+cat > app_fixed.js <<'EOF'
+const e = require("express")(); const dns = require("dns").promises;
+function isBlocked(ip) {
+  const v = ip.replace(/^::ffff:/i, "");            // IPv4-mapped IPv6 -> plain IPv4
+  if (v.includes(":")) {                            // a real IPv6 address
+    const a = v.toLowerCase();
+    return a === "::1" || a === "::" || /^f[cd]/.test(a) || /^fe[89ab]/.test(a);
+  }
+  return v.startsWith("169.254.") || v.startsWith("127.") || v.startsWith("10.") ||
+         v.startsWith("192.168.") || /^172\\.(1[6-9]|2\\d|3[01])\\./.test(v) || v === "0.0.0.0";
+}
+e.get("/preview", async (req, res) => { try {
+  const u = new URL(req.query.url);
+  if (u.protocol !== "https:" && u.protocol !== "http:") return res.status(400).send("bad scheme");
+  const host = u.hostname.replace(/^\\[|\\]$/g, "");   // URL keeps the brackets on IPv6 literals
+  const addrs = await dns.lookup(host, { all: true }); // ALL records, not just the first
+  if (addrs.some(a => isBlocked(a.address))) return res.status(403).send("blocked: internal address");
+  const r = await fetch(u); res.send(await r.text());
+} catch (e) { res.status(400).send("bad url"); } });
+e.listen(7010, () => console.log("patched app on 7010"));
+EOF
 node app_fixed.js &
 sleep 1
-curl "http://localhost:7000/preview?url=http://localhost:8169/latest/meta-data/iam/security-credentials/webrole"
+curl "http://localhost:7010/preview?url=http://localhost:8169/latest/meta-data/iam/security-credentials/webrole"
 \`\`\`
+
+\`\`\`
+patched app on 7010
+blocked: internal address
+\`\`\`
+
+Now confirm it blocks the *variants* and still permits ordinary traffic:
+
+\`\`\`bash
+for u in "http://127.0.0.1:8169/x" "http://[::1]:8169/x" "http://169.254.169.254/latest/meta-data/" \\
+         "file:///etc/passwd" "https://example.com"; do
+  printf '%-42s -> %s\\n' "$u" "$(curl -s "http://localhost:7010/preview?url=$u" | head -c 40)"
+done
+\`\`\`
+
+\`\`\`
+http://127.0.0.1:8169/x                    -> blocked: internal address
+http://[::1]:8169/x                        -> blocked: internal address
+http://169.254.169.254/latest/meta-data/   -> blocked: internal address
+file:///etc/passwd                         -> bad scheme
+https://example.com                        -> <!doctype html><html lang="en"><head><ti
+\`\`\`
+
+> **Four of the lines in \`isBlocked\` exist because of one bug, and it is worth breaking the fix to see it.** Delete the whole \`if (v.includes(":"))\` branch — the obvious IPv4-only filter almost everyone writes first — restart, and re-run the very first attack:
+>
+> \`\`\`
+> {"AccessKeyId":"FAKEKEY","SecretAccessKey":"FAKESECRET","Token":"FAKE"}
+> \`\`\`
+>
+> **The credentials come straight back through the "fixed" app.** The reason is one line you never wrote: on macOS and most modern Linux, \`dns.lookup("localhost")\` returns **\`::1\`**, the *IPv6* loopback — and \`"::1".startsWith("127.")\` is false, as is every other IPv4 prefix in the list. The filter is not bypassed by a clever payload; it simply never had an opinion about IPv6. Meanwhile \`http://127.0.0.1:8169/x\` *is* blocked, so a spot-check with the IPv4 literal makes the filter look correct. **A deny-list you tested with one address family is a deny-list you have not tested.** (Check yours: \`node -e 'require("dns").promises.lookup("localhost").then(console.log)'\`.)
+>
+> The other two hardening details are the same lesson: \`{ all: true }\` because a hostname resolving to *several* addresses must be blocked if **any** is internal — checking only the first record is a DNS-rebinding foothold — and stripping \`[\` \`]\` because \`new URL("http://[::1]/").hostname\` keeps the brackets, so \`dns.lookup\` throws and you get a misleading \`bad url\` instead of \`blocked\`.
 
 <details>
 <summary>What you'll observe</summary>
@@ -17817,6 +18042,8 @@ function isBlocked(ip) {
          /^172\\.(1[6-9]|2\\d|3[01])\\./.test(ip);   // 172.16–172.31 only
 }
 \`\`\`
+**This predicate is IPv4-only, and that is a real hole, not a simplification.** \`dns.lookup("localhost")\` returns **\`::1\`** on macOS and most modern Linux — which matches none of the five prefixes above, so a filter built from exactly this function forwards the request. The Attack Demo above breaks it on purpose so you can watch the credentials come back through the "fixed" app. A complete version needs an IPv6 branch (\`::1\`, \`::\`, \`fc00::/7\`, \`fe80::/10\`) and must strip the \`::ffff:\` prefix from IPv4-mapped addresses first. Test any deny-list you write against **both** address families before believing it.
+
 Common wrong attempts: blocking **all of \`172.\`** breaks \`172.32+\`, which is public — the range is only \`.16\`–\`.31\`. Forgetting **\`169.254.\`** is the fatal one: that *is* the metadata range, so an SSRF filter without it stops nothing that matters. And checking the **hostname string** instead of the resolved IP is the bypass the Break task exploits. The transferable idea: express the deny-list as *IP ranges*, and prefer a vetted library (\`ipaddress\`) over hand-rolled prefixes — it's exhaustive and IPv6-aware, so it also blocks \`[::1]\` and \`fd00::/8\` you'd forget by hand.
 </details>
 
@@ -17827,11 +18054,21 @@ Stand up a fake metadata service (dependency-free); then you write the vulnerabl
 mkdir -p ~/ssrf-workbench && cd ~/ssrf-workbench
 printf 'require("http").createServer((_,r)=>{r.writeHead(200,{"content-type":"application/json"});r.end(JSON.stringify({AccessKeyId:"FAKEKEY",SecretAccessKey:"FAKESECRET",Token:"FAKE"}));}).listen(8169,()=>console.log("fake IMDS on 8169"));\\n' > imds.js
 node imds.js &
+sleep 1
+curl -s localhost:8169/creds     # sanity-check the stand-in before you attack through it
 \`\`\`
+
+\`\`\`
+[1] 51987
+fake IMDS on 8169
+{"AccessKeyId":"FAKEKEY","SecretAccessKey":"FAKESECRET","Token":"FAKE"}
+\`\`\`
+
+*(Job number and PID differ. It answers on **any** path — \`/creds\` is just a short one to type. Confirm this line before continuing: if the stand-in isn't up, your SSRF will "fail" for the wrong reason.)*
 
 **Goal.** (1) Write a \`/preview\` endpoint (Node \`http\` + the built-in \`fetch\`) that fetches whatever URL the caller supplies — the SSRF bug — and use it to make the *server* return the fake credentials. (2) Then add egress filtering (your Drill-1 predicate, on the *resolved* IP) so the identical request is refused.
 
-**Done when.** Pre-fix, \`curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"\` returns the fake-credentials JSON; post-fix, the same request returns \`403 blocked\`.
+**Done when.** Pre-fix, \`curl "localhost:7010/preview?url=http://127.0.0.1:8169/creds"\` returns the fake-credentials JSON; post-fix, the same request returns \`403 blocked\`.
 
 <details>
 <summary>Nudge — open if you've been stuck more than four minutes</summary>
@@ -17849,7 +18086,7 @@ http.createServer(async (req, res) => {
   const target = new URL(req.url, "http://x").searchParams.get("url");
   const r = await fetch(target);                 // no restriction whatsoever = SSRF
   res.end(await r.text());
-}).listen(7000, () => console.log("vuln on 7000"));
+}).listen(7010, () => console.log("vuln on 7010"));
 \`\`\`
 \`\`\`javascript
 // fixed.js — resolve, then judge the IP
@@ -17864,13 +18101,13 @@ http.createServer(async (req, res) => {
     const r = await fetch(u, { redirect: "manual" });       // don't follow a 302 to the metadata ip
     res.end(await r.text());
   } catch { res.statusCode = 400; res.end("bad url"); }
-}).listen(7000, () => console.log("fixed on 7000"));
+}).listen(7010, () => console.log("fixed on 7010"));
 \`\`\`
 \`\`\`bash
 # with vuln.js running:
-curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"   # -> {"AccessKeyId":"FAKEKEY",...}
+curl "localhost:7010/preview?url=http://127.0.0.1:8169/creds"   # -> {"AccessKeyId":"FAKEKEY",...}
 # swap to fixed.js, then:
-curl "localhost:7000/preview?url=http://127.0.0.1:8169/creds"   # -> blocked: internal address
+curl "localhost:7010/preview?url=http://127.0.0.1:8169/creds"   # -> blocked: internal address
 \`\`\`
 Common wrong attempts: filtering \`target.includes("169.254")\` (string check — the Break task walks two ways around it); resolving nothing and trusting the **hostname** (DNS rebinding: an attacker's domain resolves to \`169.254.169.254\`); leaving redirects on (a \`302\` to the metadata IP defeats a filter that only checked the first URL). **Why the target is an IP literal here:** real IMDS lives at \`169.254.169.254\` — an *address*, never a hostname — so the exploit points at \`127.0.0.1\` for the same reason, and a resolved IP is unambiguous. It also sidesteps a real trap worth knowing: on a dual-stack host \`localhost\` can resolve to IPv6 \`::1\`, which this IPv4-only predicate misses entirely — exactly why the Drill pushed you toward \`ipaddress\`, which blocks \`::1\` and \`fd00::/8\` for free. This is the exact same SSRF fix you built in **Module 4.2** — the Flask version there uses \`ipaddress\` with \`allow_redirects=False\`; this is its cloud-specific twin. The reframe: SSRF isn't "a fetch of a bad URL," it's "the server making a request *as itself*, with its own network position and identity" — which is why it can reach \`169.254.169.254\` and you can't.
 </details>
@@ -17951,9 +18188,20 @@ ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer   # flaw 2: secret baked into a l
 CMD ["node", "server.js"]
 \`\`\`
 
+The hardened rebuild later in this module uses \`npm ci\`, which needs a \`package.json\` **and** a lockfile — create them now so that build doesn't fail:
+
 \`\`\`bash
+npm init -y >/dev/null && npm install >/dev/null   # server.js has no deps; this just makes the lockfile
 docker build -f Dockerfile.bad -t appsec-lab:bad .
+docker images appsec-lab:bad
 \`\`\`
+
+\`\`\`
+REPOSITORY   TAG   IMAGE ID       CREATED         SIZE
+appsec-lab   bad   f563483f456b   3 seconds ago   1.62GB
+\`\`\`
+
+*(Your IMAGE ID will differ — it is a hash of your build. **1.62GB** is flaw 1 made concrete: that is the size of a "hello world" HTTP server. Hold onto that number; you will rebuild it at 212MB.)*
 
 **Flaw 2 — recover the "deleted" secret from a layer.** Even if a later step unset it, \`docker history\` reads it straight out of the image (the Module 0.8 lesson, now weaponized):
 
@@ -17985,13 +18233,38 @@ brew install trivy                        # macOS; apt/others: see trivy docs
 trivy image --severity CRITICAL,HIGH appsec-lab:bad
 \`\`\`
 \`\`\`
-appsec-lab:bad (debian 12)
-Total: 47 (HIGH: 39, CRITICAL: 8)         # from the full node:22 base
-...
-Secret  STRIPE_KEY  CRITICAL  Stripe secret key baked into image
+Report Summary
+┌───────────────────────────────┬────────┬─────────────────┬─────────┐
+│            Target             │  Type  │ Vulnerabilities │ Secrets │
+├───────────────────────────────┼────────┼─────────────────┼─────────┤
+│ appsec-lab:bad (debian 12.15) │ debian │       342       │    -    │
+└───────────────────────────────┴────────┴─────────────────┴─────────┘
+
+appsec-lab:bad (debian 12.15)
+Total: 342 (HIGH: 306, CRITICAL: 36)      # from the full node:22 base
 \`\`\`
 
-The huge CVE count comes from the fat base; the secret finding is the \`ENV\` you planted. Now fix both.
+*(Your total will differ — and will almost certainly be **higher**, because advisory databases only grow. Don't chase the number; the point is its **order of magnitude**, and the comparison you'll make against the hardened image in a moment.)*
+
+Three hundred-plus HIGH/CRITICAL CVEs, and **you have not written a single line of application code** — \`server.js\` is one line and has no dependencies. Every one of those findings came from the base image: compilers, package managers, and libraries you will never call, shipped to production because \`FROM node:22\` was the convenient thing to type.
+
+> **Now look at what trivy did *not* say, because it matters more than the 342.** There is no \`Secrets\` finding. Your planted \`ENV STRIPE_KEY\` — the one \`docker history\` printed a moment ago — **does not appear anywhere in this scan**, and the \`Secrets\` column reads \`-\` ("not scanned"). Trivy's secret scanner reads **file contents inside layers**; \`ENV\` is image **config metadata**, not a file, so it is outside what that scanner looks at. You can prove the boundary is metadata-vs-file rather than a broken scanner — put the same key in a file:
+>
+> \`\`\`bash
+> printf 'stripe_key = "sk_test_EXAMPLEKEYNOTREAL00000000"\\n' > leak.py
+> trivy fs --scanners secret .
+> \`\`\`
+>
+> \`\`\`
+> leak.py (secrets)
+> Total: 1 (CRITICAL: 1)
+> CRITICAL: Stripe (stripe-secret-token)
+>    1 [ stripe_key = "********************************"
+> \`\`\`
+>
+> Same value, same tool: **CRITICAL in a file, invisible in \`ENV\`.** (Note also that the planted value \`EXAMPLE_secret_planted_in_layer\` isn't Stripe-shaped, so it would fail the pattern match too — two independent reasons it stays hidden.) The operational lesson is the one from Module 7.1's missing SQLi, and it is why this module makes you run **both** probes: \`docker history\` is what catches a secret in \`ENV\`, and no amount of image scanning substitutes for it. Delete \`leak.py\` before continuing — \`rm leak.py\`.
+
+The huge CVE count comes from the fat base; the secret is real but only \`docker history\` showed it. Now fix both.
 
 ### 🛡️ Defense: rebuild hardened, then re-run the exact same commands
 
@@ -18024,22 +18297,63 @@ CMD ["server.js"]
 
 \`\`\`bash
 docker build -t appsec-lab:hardened .
+docker images appsec-lab
 \`\`\`
 
-Now re-run the **same three probes** and watch every finding disappear:
+\`\`\`
+REPOSITORY   TAG        IMAGE ID       CREATED          SIZE
+appsec-lab   hardened   d57f5ef5d74a   5 seconds ago    212MB
+appsec-lab   bad        f563483f456b   4 minutes ago    1.62GB
+\`\`\`
+
+**1.62GB → 212MB for the identical one-line server.** Now re-run the same probes:
 
 \`\`\`bash
 docker history --no-trunc appsec-lab:hardened | grep -i stripe    # → (no output: secret gone)
 docker run -d --name lab-good -e STRIPE_KEY=EXAMPLE_injected_at_runtime -p 8081:3000 appsec-lab:hardened
-docker exec lab-good whoami                                        # → nonroot (not root)
+docker exec lab-good whoami                                        # this one FAILS — see below
 trivy image --severity CRITICAL,HIGH appsec-lab:hardened
 \`\`\`
+
 \`\`\`
-appsec-lab:hardened (debian 12)
-Total: 0 (HIGH: 0, CRITICAL: 0)
+OCI runtime exec failed: exec failed: unable to start container process:
+exec: "whoami": executable file not found in $PATH
+
+appsec-lab:hardened (debian 12.13)
+Total: 6 (HIGH: 5, CRITICAL: 1)
 \`\`\`
 
-Same commands, clean results — the "re-run the same command to prove the fix" beat from Module 1.6. **What distroless bought you:** no shell (\`/bin/sh\`), no \`apt\`/\`yum\`, no debugging tools — so even if an attacker gets code execution, they have no tools to pivot with, and the CVE surface of the base collapses to near-zero. Wire \`trivy image --exit-code 1 --severity CRITICAL,HIGH\` into your CI \`push\` workflow (Module 7.1) so a vulnerable image can never reach a registry. Clean up: \`docker rm -f lab-bad lab-good\`.
+**Read both of those surprises carefully — neither is a mistake in your build.**
+
+**1. \`whoami\` is not found, and that failure is the feature.** Distroless ships no shell and no coreutils, so there is no \`whoami\` binary to run — which is exactly the property you wanted: an attacker with code execution has no tools either. It does mean you need a different way to verify the user, from *outside* the container:
+
+\`\`\`bash
+docker inspect -f '{{.Config.User}}' appsec-lab:hardened   # what the image declares
+docker inspect -f '{{.Config.User}}' appsec-lab:bad        # ...and the bad one, for contrast
+docker top lab-good                                        # the UID the process ACTUALLY runs as
+curl -s localhost:8081/                                    # and it still serves
+\`\`\`
+
+\`\`\`
+nonroot:nonroot
+
+UID     PID    PPID   C   STIME   TTY   TIME       CMD
+65532   3248   3225   0   11:02   ?     00:00:00   /nodejs/bin/node server.js
+ok
+\`\`\`
+
+The bad image prints an **empty** line — no \`USER\` declared means root. The hardened one declares \`nonroot:nonroot\`, and \`docker top\` confirms the process is really UID **65532** on the host, not UID 0. Prefer \`docker top\`: \`inspect\` shows what the image *asked for*, while \`docker top\` shows what is *actually running* — a \`docker run --user 0\` would override the Dockerfile and only \`docker top\` would tell you.
+
+**2. It is 6, not 0.** CVEs dropped from **342 to 6** — a 98% reduction — but "distroless" does not mean "empty": it still contains a minimal Debian userland, and all six findings here are in a single package, \`libssl3\` (OpenSSL), every one of them with a fixed version already published:
+
+\`\`\`
+│ libssl3 │ CVE-2026-31789 │ CRITICAL │ fixed │ 3.0.18-1~deb12u2 │ 3.0.19-1~deb12u2 │
+│         │ CVE-2026-28387 │ HIGH     │       │                  │                  │
+\`\`\`
+
+That \`Fixed Version\` column is the actionable part: the remedy is to rebuild on a current base tag, not to abandon distroless. **Treat "hardened" as a floor that must be re-scanned, not a state you reach once** — a base image is a dependency like any other (Module 7.2), and it decays on exactly the same schedule. Your own numbers will differ from these and will drift upward between rebuilds; that drift is the signal to rebuild.
+
+**What distroless bought you:** no shell (\`/bin/sh\`), no \`apt\`/\`yum\`, no debugging tools — so even if an attacker gets code execution, they have no tools to pivot with — plus an 87% smaller image and a 98% smaller CVE surface. Wire \`trivy image --exit-code 1 --severity CRITICAL,HIGH\` into your CI \`push\` workflow (Module 7.1) so a vulnerable image can never reach a registry — and note that with 6 findings still present, that gate would **fail this build**, which is the honest outcome and a decision for you to make deliberately (fix the base, or accept and document the risk). Clean up: \`docker rm -f lab-bad lab-good\`.
 
 ### ⚔️ Hands-on: a real local Kubernetes cluster with kind
 
@@ -18070,7 +18384,7 @@ reached victim: HTTP 200
 
 Any Pod can hit any other Pod — **east-west traffic is wide open** by default. In a real breach, one compromised Pod pivots freely to every service in the namespace.
 
-> **Honest limitation (the Module 1.6 discipline).** kind's default CNI (\`kindnet\`) does **not enforce** NetworkPolicy — applying the policy below on a default kind cluster will *not* actually block traffic. To see enforcement, create the cluster with a policy-enforcing CNI: \`kind create cluster --config kind-calico.yaml\` (disable the default CNI, then \`kubectl apply\` Calico), or run this half on any managed cluster where NetworkPolicy is enforced. The manifest is correct either way; only enforcement depends on the CNI. Don't let "the demo still returned 200" convince you the policy is wrong — verify your CNI enforces policy first.
+> **Check your CNI before you trust the result (the Module 1.6 discipline).** Whether the policy below actually *blocks* anything depends on your CNI, not on the manifest. **Recent kindnet does enforce NetworkPolicy** — verified on kind v0.32.0 / \`kindnetd:v20260528\` / k8s v1.36.1, where the attacker Pod goes from \`HTTP 200\` to \`HTTP 000\`. **Older kindnet did not**, and on those versions the manifest is silently accepted and ignored. Some CNIs still don't. So do not infer either way from a single run — **A/B it**: run the attacker Pod, apply the policy, run it again, then \`kubectl delete\` the policy and run it a third time. If the result is identical all three times, your CNI is not enforcing, and you need a policy-enforcing CNI (Calico: create the cluster with the default CNI disabled, then \`kubectl apply\` Calico) or a managed cluster. **The manifest is correct either way; only enforcement depends on the CNI** — and "the control appears to work" and "the control is enforced" are different claims that only that A/B distinguishes.
 
 **Defense 1 — default-deny ingress.** Without a NetworkPolicy every Pod is reachable; start by denying all ingress, then explicitly allow only what a service needs:
 
@@ -18088,8 +18402,35 @@ spec:
 \`\`\`
 \`\`\`bash
 kubectl apply -f default-deny.yaml
-# On an enforcing CNI, re-running the attacker Pod now times out instead of printing HTTP 200.
+# Re-run the attacker. Use --restart=Never (not -it --rm) so you can read the log afterwards.
+kubectl -n production run attacker2 --image=curlimages/curl --restart=Never -- \\
+  curl -s -m 10 -o /dev/null -w "reached victim: HTTP %{http_code}\\n" http://victim
+sleep 15 && kubectl -n production logs attacker2
 \`\`\`
+
+\`\`\`
+networkpolicy.networking.k8s.io/default-deny-ingress created
+pod/attacker2 created
+reached victim: HTTP 000
+\`\`\`
+
+**\`HTTP 000\` is curl's code for "no response at all"** — the connection never completed, which is exactly what a default-deny ingress policy should produce. Contrast it with the \`HTTP 200\` from a minute ago: same command, same Pods, one manifest applied.
+
+Now do the third leg of the A/B, because a single "it changed" is not proof the *policy* is what changed it:
+
+\`\`\`bash
+kubectl delete -f default-deny.yaml
+kubectl -n production delete pod attacker2
+kubectl -n production run attacker3 --image=curlimages/curl --restart=Never -- \\
+  curl -s -m 10 -o /dev/null -w "reached victim: HTTP %{http_code}\\n" http://victim
+sleep 15 && kubectl -n production logs attacker3
+\`\`\`
+
+\`\`\`
+reached victim: HTTP 200
+\`\`\`
+
+**200 → 000 → 200.** That round trip is the evidence; either single reading alone is not. Re-apply the policy before continuing (\`kubectl apply -f default-deny.yaml\`). If instead you get \`200\` all three times, your CNI is not enforcing NetworkPolicy — see the note above, and don't spend an hour debugging a manifest that is already correct.
 
 **Defense 2 — enforce the \`restricted\` Pod Security Standard** so the namespace refuses privileged, root, or hostPath Pods (exactly the container-escape conditions from the top of this module):
 
@@ -18146,16 +18487,113 @@ no
 
 **Scan the live cluster** with the tools that matter — run these against the real \`kind\` cluster so the output is real, not a screenshot:
 
+**1. \`kubesec\` — static analysis of a *workload* manifest.** It has no Homebrew formula and its \`:v2\` image is **amd64-only**, so on Apple Silicon you need \`--platform linux/amd64\` (Rosetta emulation). Point it at a **Pod/Deployment**, not at the NetworkPolicy — kubesec scores *workload* security context and knows nothing about other kinds:
+
 \`\`\`bash
-kubesec scan default-deny.yaml                          # static analysis of a manifest
-trivy k8s --report summary                              # misconfig scan of the running cluster
-kube-bench run --targets node                           # CIS Kubernetes Benchmark checks
+cat > pod-bad.yaml <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rooty
+spec:
+  containers:
+    - name: app
+      image: nginx
+      securityContext:
+        privileged: true
+EOF
+docker run --rm --platform linux/amd64 -i kubesec/kubesec:v2 scan /dev/stdin < pod-bad.yaml
 \`\`\`
+
+\`\`\`
+[{
+  "object": "Pod/rooty.default",
+  "valid": true,
+  "message": "Failed with a score of -30 points",
+  "score": -30,
+  "scoring": {
+    "critical": [{
+      "id": "Privileged",
+      "selector": "containers[] .securityContext .privileged == true",
+      "reason": "Privileged containers can allow almost completely unrestricted host access",
+      "points": -30
+    }],
+    "advise": [
+      { "id": "ApparmorAny", "points": 3 },
+      { "id": "ServiceAccountName", "points": 3 },
+      { "id": "SeccompAny", "points": 1 },
+      { "id": "AutomountServiceAccountToken", "points": 1 }
+    ]
+  }
+}]
+\`\`\`
+
+> **Feed it the wrong kind and it fails quietly with a passing-looking score.** \`kubesec scan default-deny.yaml\` on the NetworkPolicy returns \`"message": "could not find schema for NetworkPolicy", "score": 0\` — a **zero, not a warning**. If you were eyeballing scores in a CI log, "0" reads like "nothing wrong." Always check the \`message\` and \`valid\` fields, not just the number. (Same trap as trivy's \`Secrets: -\` column earlier: *not scanned* and *clean* look alike.)
+
+**2. \`trivy k8s\` — misconfiguration scan of the running cluster.** Expect it to take **several minutes**; it spawns a node-collector Job and can die with \`FATAL ... context deadline exceeded\` on a laptop. Scope it and skip the node collector to keep it manageable:
+
+\`\`\`bash
+trivy k8s --report summary --skip-version-check          # whole cluster; slow (~5 min)
+trivy k8s --report summary --include-namespaces production --disable-node-collector
+\`\`\`
+
+\`\`\`
+RBAC Assessment
+┌──────────────┬─────────────────────────────────────────────┬───┬───┬───┬───┐
+│  Namespace   │                  Resource                   │ C │ H │ M │ L │
+├──────────────┼─────────────────────────────────────────────┼───┼───┼───┼───┤
+│ kube-system  │ ClusterRole/cluster-admin                   │ 2 │   │   │   │
+│              │ ClusterRole/admin                           │ 2 │ 4 │ 6 │   │
+│              │ ClusterRole/edit                            │ 2 │ 4 │ 6 │   │
+│              │ ClusterRole/system:kube-controller-manager  │ 5 │   │   │   │
+└──────────────┴─────────────────────────────────────────────┴───┴───┴───┴───┘
+Severities: C=CRITICAL H=HIGH M=MEDIUM L=LOW
+\`\`\`
+
+Note *what* it flags: the built-in \`cluster-admin\`/\`admin\`/\`edit\` ClusterRoles, on a cluster where you deployed almost nothing. Those are Kubernetes' own defaults — a reminder that "out of the box" is not "least privilege."
+
+**3. \`kube-bench\` — CIS Kubernetes Benchmark.** It must run **on a node**. Running it on your Mac fails immediately:
+
+\`\`\`
+unable to get benchmark version. error: config file is missing 'version_mapping' section
+\`\`\`
+
+That is not a broken install — a macOS laptop is not a Kubernetes node, and there is no kubelet config for it to check. Run it *inside* the cluster instead:
+
+\`\`\`bash
+kubectl run kube-bench --image=docker.io/aquasec/kube-bench:latest --restart=Never \\
+  --overrides='{"spec":{"hostPID":true,"containers":[{"name":"kube-bench","image":"docker.io/aquasec/kube-bench:latest","command":["kube-bench","run","--targets","node"],"volumeMounts":[{"name":"varlib","mountPath":"/var/lib","readOnly":true},{"name":"etckube","mountPath":"/etc/kubernetes","readOnly":true}]}],"volumes":[{"name":"varlib","hostPath":{"path":"/var/lib"}},{"name":"etckube","hostPath":{"path":"/etc/kubernetes"}}]}}'
+sleep 30 && kubectl logs kube-bench
+\`\`\`
+
+\`\`\`
+[INFO] 4 Worker Node Security Configuration
+[INFO] 4.1 Worker Node Configuration Files
+[FAIL] 4.1.1 Ensure that the kubelet service file permissions are set to 600 or more restrictive
+[PASS] 4.1.2 Ensure that the kubelet service file ownership is set to root:root
+[WARN] 4.1.3 If proxy kubeconfig file exists ensure permissions are set to 600 or more restrictive
+[FAIL] 4.1.9 If the kubelet config.yaml is being used validate permissions set to 600 or more restrictive
+[INFO] 4.2 Kubelet
+[PASS] 4.2.1 Ensure that the --anonymous-auth argument is set to false
+[PASS] 4.2.2 Ensure that the --authorization-mode argument is not set to AlwaysAllow
+...
+== Summary node ==
+17 checks PASS
+2 checks FAIL
+6 checks WARN
+\`\`\`
+
+*(Counts vary by Kubernetes version and CIS benchmark revision.)* Read 4.1.1 and note that this Pod needed \`hostPath\` mounts of \`/var/lib\` and \`/etc/kubernetes\` to do its job — **the scanner requires exactly the privileges the \`restricted\` PSS exists to forbid.** That is why it runs in \`default\` here and not in your \`production\` namespace, and why security tooling needs its own namespace with its own deliberately-elevated policy. A scanner is not exempt from the threat model; it *is* part of it.
 
 **Tear the cluster down** when you're done — it costs nothing to recreate:
 
 \`\`\`bash
 kind delete cluster --name appsec-lab
+\`\`\`
+
+\`\`\`
+Deleting cluster "appsec-lab" ...
+Deleted nodes: ["appsec-lab-control-plane"]
 \`\`\`
 
 **Secrets in Kubernetes — env vars vs Secrets vs external managers.** This is where the \`docker history\` secret from the container half meets the orchestrator:
@@ -18189,7 +18627,7 @@ A Kubernetes dashboard was exposed to the internet without authentication. An at
 1. The Docker socket grants full control over the Docker daemon. Any process inside the container can use it to create a new privileged container with the host filesystem mounted, then chroot or exec into that to read, write, or execute anything on the host. Mounting the Docker socket is functionally equivalent to giving the container root access to the host — it completely undermines container isolation.
 2. Base64 is an encoding, not encryption — it adds no confidentiality whatsoever. Kubernetes Secrets are stored in etcd, and unless etcd encryption-at-rest is explicitly configured, the base64-decoded value is readable by anyone with etcd access, raw etcd backups, or sufficient RBAC permissions to read the Secret. The right approach is to enable etcd encryption-at-rest AND use an external secret manager (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault) as the authoritative source, synced in via the External Secrets Operator.
 3. \`docker history --no-trunc <image> | grep -i stripe\` prints the key verbatim. The later step can't remove it because image layers are **immutable and stacked**: deleting the file adds a *new* layer on top, but the earlier layer that contains the secret is still present and shippable to anyone who can pull the image. The only real fix is to never put the secret in a layer — inject it at runtime (\`-e\`/\`--env-file\`) or use \`--mount=type=secret\` build secrets.
-4. The policy is not wrong — kind's default CNI (\`kindnet\`) does not *enforce* NetworkPolicy, so the manifest is accepted but ignored. To see enforcement you need a policy-enforcing CNI such as Calico (create the cluster with the default CNI disabled and apply Calico), or test on a managed cluster. Never conclude a control works or fails without first confirming the layer that enforces it is actually active.
+4. The manifest is almost certainly not wrong — **enforcement depends on your CNI, so measure it rather than assuming either way.** Recent kindnet *does* enforce NetworkPolicy (verified on kind v0.32.0 / k8s v1.36.1: the attacker Pod goes 200 → 000); older kindnet and some other CNIs silently accept the manifest and ignore it. The test that settles it is the A/B/A: attacker Pod, apply policy, attacker Pod, delete policy, attacker Pod. Identical results all three times means your CNI isn't enforcing — reach for Calico or a managed cluster. Never conclude a control works *or* fails without first confirming the layer that enforces it is actually active.
 5. The fat \`node:22\` base ships hundreds of OS packages, each a potential CVE; \`-slim\` and then a **distroless** runtime strip that down to near-nothing, so Trivy's count drops toward zero. The same removal shrinks blast radius: distroless has no shell, no package manager, and no debugging tools, so an attacker who gets code execution has nothing to pivot with — and a non-root \`USER\` means that code doesn't start with root either.
 6. A wildcard Role lets a compromised Pod's token do *anything* in the namespace (read all secrets, delete workloads, escalate) — it turns one compromised Pod into cluster-wide reach. Scoping to a single named resource and verb bounds the blast radius to exactly \`get app-config\`. Confirm with \`kubectl auth can-i <verb> <resource> --as=system:serviceaccount:<ns>:<sa> -n <ns>\`, which returns \`no\` for anything outside the grant.
 </details>
@@ -18215,8 +18653,14 @@ You don't need to run it — the image's *build history* records every layer's i
 
 \`\`\`bash
 docker history --no-trunc appsec-lab:bad | grep -i stripe
-# <missing> ... ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer
 \`\`\`
+
+\`\`\`
+<missing>   12 seconds ago   ENV STRIPE_KEY=EXAMPLE_secret_planted_in_layer   0B   buildkit.dockerfile.v0
+\`\`\`
+
+Two details in that one line are worth naming. The layer ID is literally **\`<missing>\`** — you cannot \`docker pull\` or delete that layer by ID, yet its *instruction* is still recorded and readable. And its size is **\`0B\`**: an \`ENV\` adds no file bytes, only metadata — which is precisely why an image-content scanner walks past it (you saw trivy report no secret at all) while \`docker history\` prints it in full. **A finding with zero bytes is still a finding.**
+
 Common wrong attempts: \`docker exec ... env\` needs the container *running* and misses the point — the secret ships in the *image* whether or not it's running. "Deleting" the secret in a later \`RUN\` hides nothing — the earlier layer still holds it, which is exactly what \`history\` reveals. The principle from Module 0.8, now weaponized: **image layers are immutable and additive** — the only real fix is to never put the secret in a layer, and to *rotate* the one you already leaked.
 </details>
 
@@ -18308,7 +18752,7 @@ rules:
 \`\`\`bash
 kubectl auth can-i delete pods --as=system:serviceaccount:production:app-service-account -n production   # -> no
 \`\`\`
-Answers to the journal prompts: **(a) the policy is not wrong** — kind's default CNI (\`kindnet\`) doesn't *enforce* NetworkPolicy, so the manifest is accepted and ignored; you need a policy-enforcing CNI (Calico) or a managed cluster to see the attacker Pod time out. Never conclude a control works *or* fails without confirming the layer that enforces it is active — the same discipline as Module 1.6. **(b) escape condition → control:** running as root → the \`restricted\` PSS rejects it at admission (you watched \`runAsUser: 0\` get \`Forbidden\`); mounted Docker socket → don't mount it, and \`restricted\` forbids the \`hostPath\` volume you'd need; \`--privileged\`/\`SYS_ADMIN\` → \`restricted\` blocks privileged Pods and added capabilities. Common wrong attempts: a Role with \`resources: ["*"], verbs: ["*"]\` (one compromised Pod's token now owns the namespace — the opposite of least privilege); an "allow-all" NetworkPolicy that lists an empty \`ingress: [{}]\` (that *allows* everything — deny-all means *omitting* the rules, not writing an empty one). **Outside the box:** the through-line of this whole phase is that the fix is almost never in the flashy technology — it's a boring default flipped: a non-root \`USER\`, a namespace label, a named ARN instead of \`*\`. Blast radius is set by the least-privilege line, not the exploit.
+Answers to the journal prompts: **(a) the manifest is almost certainly not wrong** — enforcement is the CNI's job, so *measure* it: recent kindnet enforces NetworkPolicy (attacker Pod goes 200 → 000), older kindnet and some CNIs accept the manifest and ignore it. Run the A/B/A (attacker, apply, attacker, delete, attacker); identical results all three times means no enforcement, and you need Calico or a managed cluster. Never conclude a control works *or* fails without confirming the layer that enforces it is active — the same discipline as Module 1.6. **(b) escape condition → control:** running as root → the \`restricted\` PSS rejects it at admission (you watched \`runAsUser: 0\` get \`Forbidden\`); mounted Docker socket → don't mount it, and \`restricted\` forbids the \`hostPath\` volume you'd need; \`--privileged\`/\`SYS_ADMIN\` → \`restricted\` blocks privileged Pods and added capabilities. Common wrong attempts: a Role with \`resources: ["*"], verbs: ["*"]\` (one compromised Pod's token now owns the namespace — the opposite of least privilege); an "allow-all" NetworkPolicy that lists an empty \`ingress: [{}]\` (that *allows* everything — deny-all means *omitting* the rules, not writing an empty one). **Outside the box:** the through-line of this whole phase is that the fix is almost never in the flashy technology — it's a boring default flipped: a non-root \`USER\`, a namespace label, a named ARN instead of \`*\`. Blast radius is set by the least-privilege line, not the exploit.
 </details>
 
 ---
@@ -18340,7 +18784,7 @@ Create \`~/appsec-journal/notes/phase-8-production-security.md\` and answer, in 
       "Confirmed the bad image runs as root (`docker exec ... whoami`) and can reason through why the Docker-socket mount is fatal",
       "Ran Trivy against the bad image, then rebuilt hardened (multi-stage, distroless, non-root USER, no secret) and re-ran the same commands to watch the findings vanish",
       "Created a real local cluster with `kind` and proved cross-Pod reachability with no NetworkPolicy",
-      "Applied a default-deny NetworkPolicy and understands why kind's default CNI doesn't enforce it (Calico/managed cluster needed)",
+      "Applied a default-deny NetworkPolicy and proved enforcement with an A/B/A test (200 → 000 → 200), rather than assuming the CNI enforces it",
       "Enforced `pod-security.kubernetes.io/enforce: restricted` and watched a root Pod get rejected at admission",
       "Wrote a scoped RBAC Role (named resource, not wildcard) and confirmed the limit with `kubectl auth can-i`",
       "Ran kubesec / trivy k8s / kube-bench against the live cluster and tore it down with `kind delete cluster`",
@@ -18426,13 +18870,13 @@ app.post("/login", (req, res) => {
         email_hash: hash(email), ip: req.ip, ua: req.get("user-agent") });
   res.status(ok ? 200 : 401).json({ ok });
 });
-app.listen(5000, () => console.error("app on 5000"));
+app.listen(5050, () => console.error("app on 5050"));
 EOF
 node server.js > app.log 2>/dev/null &
 sleep 1
 # simulate a credential-stuffing burst:
 for i in $(seq 1 60); do
-  curl -s -X POST http://localhost:5000/login -H 'content-type: application/json' \\
+  curl -s -X POST http://localhost:5050/login -H 'content-type: application/json' \\
     -d "{\\"email\\":\\"alice@example.com\\",\\"password\\":\\"guess$i\\"}" >/dev/null
 done
 # detect it from the structured logs:
@@ -18708,7 +19152,7 @@ EOF
 python3 alert.py &
 sleep 1
 # now run the attack and watch the alert fire:
-for i in $(seq 1 30); do curl -s -X POST http://localhost:5000/login -H 'content-type: application/json' -d "{\\"email\\":\\"alice@example.com\\",\\"password\\":\\"g$i\\"}" >/dev/null; done
+for i in $(seq 1 30); do curl -s -X POST http://localhost:5050/login -H 'content-type: application/json' -d "{\\"email\\":\\"alice@example.com\\",\\"password\\":\\"g$i\\"}" >/dev/null; done
 sleep 1
 \`\`\`
 
