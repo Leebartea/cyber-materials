@@ -2756,8 +2756,11 @@ mkdir -p ~/cyber-journal/m6 && cd ~/cyber-journal/m6
 #    Save the recovery key OFFLINE. Verify:
 fdesetup status                      # "FileVault is On."
 
-# 2. Firewall state (0=off, 1=specific, 2=essential-only):
-sudo defaults read /Library/Preferences/com.apple.alf globalstate
+# 2. Firewall state (State = 0 off, 1 on, 2 essential-only). The old
+#    NOTE: 'defaults read /Library/Preferences/com.apple.alf globalstate' is
+#    dead - that preferences domain is gone on current macOS. Use socketfilterfw:
+/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
+#    -> Firewall is enabled. (State = 1)
 
 # 3. Require password immediately after sleep:
 #    System Settings > Lock Screen > Require password = Immediately
@@ -2808,10 +2811,19 @@ Each has a status subcommand — encryption is \`fdesetup status\`, the app gate
 <summary>Walkthrough — open after you've run them</summary>
 
 \`\`\`bash
-fdesetup status     # "FileVault is On."
-spctl --status      # "assessments enabled"   (Gatekeeper)
-csrutil status      # "System Integrity Protection status: enabled"  (never disable)
+fdesetup status     # disk encryption
+spctl --status      # Gatekeeper
+csrutil status      # System Integrity Protection (never disable)
 \`\`\`
+\`\`\`
+FileVault is On.
+assessments enabled
+System Integrity Protection status: enabled.
+\`\`\`
+Three separate defenses, three one-line answers, no GUI. If any line reads \`Off\`, \`assessments disabled\`, or \`status: disabled\`, that is your first finding and it goes in the report *with the command that produced it* — which is the real reason to prefer these over the Settings pane. "I looked and it seemed on" is not evidence; a pasted command and its output is.
+
+Each one is a different layer, and it is worth being able to say which: **FileVault** encrypts the disk, so a stolen laptop is a brick rather than a data breach. **Gatekeeper** checks that an app is signed and notarized before first launch. **SIP** stops even \`root\` from modifying system files — which is precisely why tutorials that tell you to disable it are asking you to remove the control that contains a root compromise. Turn it off for one stubborn tool and you have permanently lowered the ceiling on every future attack.
+
 Common wrong attempts: opening System Settings and eyeballing toggles (fine for a human, but you can't script or evidence it — and this is the exact output your capstone report needs); disabling SIP because a tutorial said to (SIP blocks even root from tampering with system files — leaving it on is the point).
 </details>
 
@@ -2824,7 +2836,7 @@ Common wrong attempts: opening System Settings and eyeballing toggles (fine for 
 <details>
 <summary>Nudge — open if you've been stuck more than three minutes</summary>
 
-Wrap the Drill's commands plus the firewall global-state read (\`defaults read /Library/Preferences/com.apple.alf globalstate\`) and the update setting, each behind an \`echo\` label using \`$(...)\` command substitution. These reads are unprivileged — no \`sudo\` needed.
+Wrap the Drill's commands plus the firewall global-state read (\`/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate\`) and the update schedule (\`softwareupdate --schedule\`), each behind an \`echo\` label using \`$(...)\` command substitution. These reads are unprivileged — no \`sudo\` needed.
 </details>
 
 <details>
@@ -2836,11 +2848,26 @@ cat > ~/cyber-journal/harden-check.sh <<'EOF'
 echo "FileVault : $(fdesetup status)"
 echo "Gatekeeper: $(spctl --status 2>&1)"
 echo "SIP       : $(csrutil status)"
-echo "Firewall  : globalstate=$(defaults read /Library/Preferences/com.apple.alf globalstate 2>/dev/null) (0=off 1=on 2=strict)"
-echo "AutoUpdate: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null)"
+echo "Firewall  : $(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>&1)"
+echo "AutoUpdate: $(softwareupdate --schedule 2>&1)"
+echo "AutoInstall: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || echo '(unset)')"
 EOF
 bash ~/cyber-journal/harden-check.sh
 \`\`\`
+\`\`\`
+FileVault : FileVault is On.
+Gatekeeper: assessments enabled
+SIP       : System Integrity Protection status: enabled.
+Firewall  : Firewall is enabled. (State = 1)
+AutoUpdate: Automatic checking for updates is turned on
+AutoInstall: 0
+\`\`\`
+Labeled evidence, one machine, one command — this is a config audit in six lines, and it is genuinely the same shape as what a commercial posture tool does across ten thousand endpoints.
+
+**Read the last two lines together, because they disagree in a way that matters.** Checking for updates is on; \`AutomaticallyInstallMacOSUpdates\` is \`0\`. The machine will *notice* a patch and will not *apply* it. A posture dashboard that reports only "automatic updates: enabled" scores this box green while the host stays unpatched for as long as the user keeps clicking Later — and the window between a patch shipping and a host applying it is exactly where mass exploitation lives. Findings like this one exist in the gap between two settings that are each individually fine.
+
+**A warning about this script's own construction, which is a security lesson in itself.** An earlier version of it read the firewall from \`defaults read /Library/Preferences/com.apple.alf globalstate\`. That domain **no longer exists** on current macOS (verified on 26.5.1), so the command failed — and because the failure was routed to \`2>/dev/null\`, the script printed \`Firewall : globalstate= \` and carried on. An empty value in a report reads as "fine," or is skipped entirely. **A check that silently reports nothing is worse than no check**, because it manufactures the belief that you looked. Two habits fix it: prefer the supported interface over poking at a plist (\`socketfilterfw\` and \`softwareupdate --schedule\` are Apple's, and survive OS releases that move storage around), and use \`2>&1\` rather than \`2>/dev/null\` so a broken probe announces itself instead of impersonating a pass. You will meet this same failure mode in Phase 8's scanners: "0 findings" and "the scan never ran" print identically.
+
 Common wrong attempts: hard-coding "enabled" instead of reading the live value (the whole point is to report *reality*); reaching for \`sudo\` (these reads are unprivileged); one giant unlabeled dump (a report needs labeled evidence). This tiny script is exactly what a config-audit tool does at scale — read each control's real state and flag drift.
 </details>
 
@@ -2981,10 +3008,18 @@ The permission is a three-digit octal mode — owner read+write is \`6\`, group 
 \`\`\`bash
 mkdir -p ~/cyber-journal/wb-m7 && cd ~/cyber-journal/wb-m7
 printf 'API_KEY=abc123\\n' > .env
-ls -l .env        # likely -rw-r--r-- (644): readable by EVERYONE on the box
+ls -l .env
 chmod 600 .env
-ls -l .env        # -rw------- : owner only — SSH-grade hygiene
+ls -l .env
 \`\`\`
+\`\`\`
+-rw-r--r--@ 1 you  staff  15 Aug  7 17:19 .env
+-rw-------@ 1 you  staff  15 Aug  7 17:19 .env
+\`\`\`
+Owner, group, timestamp and size will differ; **the first ten characters are the finding.** Before: \`-rw-r--r--\` — every account on the machine can read your API key. After: \`-rw-------\` — owner only, the same posture SSH demands of a private key (it flatly refuses to use one that others can read).
+
+Two things that trip people up. The \`@\` is macOS marking extended attributes, picked up just by creating the file; it is metadata, not a permission, and Linux will not show it. And the "before" line depends on your \`umask\` — \`022\` is the usual default and yields \`644\`, but under \`077\` the file is born \`600\` and both lines look identical. Run \`umask\` to see which case you are in; the drill still works, you just started already-safe.
+
 Common wrong attempts: \`chmod 644\`/\`640\` (still lets group or everyone read your key — on a shared host that's credential theft); \`chmod 700\` (the execute bit on a data file is meaningless; \`600\` is the exact intent); trusting that "it's my laptop" makes permissions irrelevant — the moment a second account or a file-read bug exists, the bits are the boundary between "one bug" and "full credential theft." SSH itself *refuses* a private key that's group/world-readable.
 </details>
 
@@ -3004,9 +3039,27 @@ Chain small tools with \`|\`. Largest files: disk-usage → sort by size descend
 <summary>Walkthrough — open after you've built it</summary>
 
 \`\`\`bash
-du -ah ~ 2>/dev/null | sort -hr | head -5           # top 5 biggest files/dirs
-ps aux | grep -i node | grep -v grep | wc -l        # count of node processes
+du -h -d 1 ~/Documents 2>/dev/null | sort -hr | head -5   # biggest things, one level down
+ps aux | grep -i node | grep -v grep | wc -l             # count of node processes
 \`\`\`
+\`\`\`
+822M	/Users/you/Documents
+ 15M	/Users/you/Documents/venv
+2.1M	/Users/you/Documents/my-first-project
+1.0M	/Users/you/Documents/LatestBot
+  0B	/Users/you/Documents/project
+13
+\`\`\`
+Your directories and sizes are your own; what should match is the *shape* — a size column sorted largest-first, then a count. The count is whatever \`node\` processes you happen to be running, and is often \`0\`.
+
+**Two traps live in this one line, and both produce confident wrong answers.**
+
+First, \`-h\` on both commands or neither. \`du -h\` prints \`822M\`, \`15M\`, \`2.1M\`, \`1.0M\` — and a plain \`sort -r\` compares those as *text*, so \`2.1M\` sorts above \`15M\` and \`9K\` above \`2G\`. \`sort -hr\` is what teaches sort to read the suffix. The failure is quiet: you still get five lines in a plausible order.
+
+Second — and this is why the command reads \`-d 1\` rather than the more obvious \`-a\` — **\`du\` totals are nested, so a naive top-5 counts the same bytes repeatedly.** Run \`du -ah ~/Documents | sort -hr | head -5\` and you get \`822M Documents\`, then \`15M venv/lib/python3.13/site-packages\`, \`15M venv/lib/python3.13\`, \`15M venv/lib\`, \`15M venv\` — one directory reported four times, because each parent's total includes its child's. Four of your five slots are spent restating a single 15M answer. \`-d 1\` (\`--max-depth=1\` on Linux) reports each level once, and dropping \`-a\` stops it enumerating individual files.
+
+There is a practical reason too, worth knowing before you point this at your home folder. \`du\` must walk everything to add it up, so **\`du -ah ~\` on a real home directory can run for many minutes** — mine took nine, and returned a nesting chain through a messaging app's media cache. Start from a bounded directory. And note that depth-limiting shortens the *output*, not the *traversal*: \`-d 1\` on a 500 GB home folder is still slow, it just prints less.
+
 Common wrong attempts: \`sort\` without \`-h\` (a lexical sort puts \`9K\` above \`2G\`); forgetting \`grep -v grep\` (your own grep process inflates the count by one); no \`2>/dev/null\`, so permission-denied noise buries the answer. Each stage *transforms* the previous stage's output — the Unix philosophy: small tools, one job each, composed. This is the same muscle you use to read logs and hunt processes for the rest of the course.
 </details>
 
@@ -3031,8 +3084,27 @@ with os.fdopen(fd, "w") as f:
     f.write("API_KEY=sk_live_FAKE_000")
 \`\`\`
 \`\`\`bash
-ls -l .env    # -rw-------  from the first instant
+ls -l .env
 \`\`\`
+\`\`\`
+-rw-------@ 1 you  staff  24 Aug  7 17:28 .env
+\`\`\`
+One line, and both versions above produce it identically — that is the whole claim: the file is owner-only from the first instant, with no moment at which it was anything else.
+
+**Prove the race rather than believe it**, by making the naive version show you its own gap. Run the wrong way and \`ls\` *between* the two steps:
+\`\`\`python
+import os, subprocess
+open(".env", "w").write("API_KEY=x")   # step 1: create
+subprocess.run(["ls", "-l", ".env"])   # <- look at the file right here
+os.chmod(".env", 0o600)                # step 2: secure
+subprocess.run(["ls", "-l", ".env"])
+\`\`\`
+\`\`\`
+-rw-r--r--@ 1 you  staff  9 Aug  7 17:28 .env
+-rw-------@ 1 you  staff  9 Aug  7 17:28 .env
+\`\`\`
+The first line **is** the vulnerability, and it is a state your program really passed through. The \`subprocess.run\` only makes visible what was already true for the microseconds between the two statements — and a microsecond is not a defence, it is a race you are hoping to win. Note also that the file is world-readable here because \`umask\` is \`022\`; under a stricter \`umask\` the naive code looks safe on your machine and ships the same bug to a server with a laxer default. Correctness that depends on an ambient setting you did not set is not correctness.
+
 The naive version — \`open(path,"w")\` then \`os.chmod(path, 0o600)\` on the next line — creates the file with the default (often world-readable \`644\`) and only restricts it a moment later. In that gap, however brief, another process can open and read the secret; the window is small but real, and attackers live in exactly these gaps between "do the thing" and "secure the thing." Setting the mode **at creation** eliminates it. **Outside the box:** this is the same principle as M1's "who controls the baseline?" and M6's "drop privileges before handling requests" — secure the resource *at the moment it comes into existence*, never as a cleanup step, because every "I'll lock it down right after" is a window. (The secret above is an obvious fake — never write a real key into example code.)
 </details>`,
     tracker: ["I can navigate the filesystem with no GUI", "I built a 3+ stage pipeline (ps | grep | wc -l)", "I can read -rw-r--r-- and translate to/from octal", "I set a secrets file to 600 and understand why", "I can write code (Node or Python) that creates a 600 file atomically", "Workbench: locked a secret file to 600 and proved it, then composed a multi-stage investigation pipeline that prints only the answer", "Workbench: wrote code that creates a 600 secrets file atomically and explained the race window the naive open-then-chmod leaves open"]

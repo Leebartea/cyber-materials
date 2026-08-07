@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 57, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 65, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -514,6 +514,19 @@ BANNED = [
      "slice(0, 12)"),   # acquits the Build 1 logger.js walkthrough, which really is 12
     (r"^\s*(?:#\s*)?40 +ff8d9819\b(?![\s\S]{0,200}logger\.js)",
      "9.1's lab burst is 60 attempts, so reusing its app.log aggregates to 60, not 40", "A33"),
+    # A35: the com.apple.alf preferences domain no longer exists (verified absent on
+    # macOS 26.5.1), so the firewall probe fails; routed through 2>/dev/null it printed
+    # an EMPTY value into a posture report, which reads as a pass. Use socketfilterfw.
+    (r"com\.apple\.alf",
+     "the com.apple.alf defaults domain is gone on current macOS — the read fails and, "
+     "silenced by 2>/dev/null, reports an empty firewall state that looks like a pass. "
+     "Use /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate", "A35",
+     "socketfilterfw"),  # acquits a passage that names the dead domain AND the fix
+    # A36: same defect, same script — AutomaticCheckEnabled is absent from the
+    # SoftwareUpdate plist on current macOS. `softwareupdate --schedule` is supported.
+    (r"AutomaticCheckEnabled",
+     "AutomaticCheckEnabled is no longer present in com.apple.SoftwareUpdate; the read "
+     "returns nothing. Use `softwareupdate --schedule`", "A36"),
     # A34: neverssl.com accepts the TCP connection and then never answers — `nc` and
     # `curl` both hang and return nothing, so the "plaintext is readable" demo silently
     # produces no output and looks like the learner's own mistake. Same failure class as
