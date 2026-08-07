@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 65, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 72, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}

@@ -3217,6 +3217,22 @@ Reuse the M6 checks (\`fdesetup status\`, \`spctl --status\`, \`csrutil status\`
 \`\`\`bash
 { echo "== endpoint =="; fdesetup status; spctl --status; csrutil status; echo "== cookie awareness =="; curl -sI https://github.com | grep -i set-cookie; } | tee ~/cyber-journal/m8-evidence.txt
 \`\`\`
+\`\`\`
+== endpoint ==
+FileVault is On.
+assessments enabled
+System Integrity Protection status: enabled.
+== cookie awareness ==
+set-cookie: _gh_sess=...; path=/; HttpOnly; secure; SameSite=Lax
+set-cookie: _octo=GH1.1....; expires=...; domain=.github.com; path=/; secure; SameSite=Lax
+set-cookie: logged_in=no; expires=...; domain=.github.com; path=/; HttpOnly; secure; SameSite=Lax
+\`\`\`
+Your values differ; the structure is the deliverable. Note what \`{ ...; } | tee\` bought you: the braces group several commands so a **single** pipe captures all of their output, and \`tee\` writes the file *while still printing to your terminal* — so you see the result and have the artifact, without running anything twice. Redirecting with \`>\` would have given you the file and a blank screen.
+
+The section headers are not decoration. An evidence file that is a wall of unlabeled output is unusable three weeks later when someone asks which command produced which line — and "which command produced this" is the first question anyone reviewing a finding asks.
+
+**Two honesty checks before you paste any of this into a report.** First, this captures only what these five commands looked at; it is evidence for five specific findings, not a statement that the endpoint is secure. Second, \`tee\` faithfully records *failures* too — if \`fdesetup\` had errored, that error is now in your evidence file, and the right move is to investigate it rather than quietly delete the line. An evidence file you have edited is no longer evidence.
+
 Paste those real lines into the Evidence field of the matching finding. Common wrong attempts: writing "FileVault: on (I'm pretty sure)" instead of the literal \`fdesetup status\` output; screenshotting a Settings pane when a one-line command is more reproducible and greppable. Real evidence is *reproducible by the reader* — that's what separates an assessment from an opinion.
 </details>
 
@@ -3370,9 +3386,25 @@ You want *listening* sockets with their bind address and owning process — \`ls
 
 \`\`\`bash
 sudo lsof -iTCP -sTCP:LISTEN -P -n
-# NAME column: 127.0.0.1:PORT = localhost-only (good)
-#              *:PORT or 0.0.0.0:PORT = exposed to the whole network
 \`\`\`
+\`\`\`
+COMMAND    PID      USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME
+rapportd   619 you        10u  IPv4  0xf22...    0t0  TCP *:49228 (LISTEN)
+ControlCe  686 you         9u  IPv4  0xd60...    0t0  TCP *:7000 (LISTEN)
+ControlCe  686 you        11u  IPv4  0x246...    0t0  TCP *:5000 (LISTEN)
+Code\\x20H 2220 you        36u  IPv4  0x2e9...    0t0  TCP 127.0.0.1:23563 (LISTEN)
+\`\`\`
+Your process list is your own — **do not expect these names or PIDs.** Read the \`NAME\` column and nothing else:
+
+- \`127.0.0.1:23563\` — bound to loopback. Only this machine can reach it. This is what a local dev server *should* look like.
+- \`*:7000\` and \`*:5000\` — \`*\` means **every interface**, so anything on the same network can connect. On café Wi-Fi that is every stranger in the room.
+
+The port tells you *which* service; the bind address tells you *who can reach it*. A vulnerability in a loopback-only service needs local access first; the same vulnerability on \`*\` is remotely exploitable. That single distinction is most of what a network-exposure review is.
+
+**And now use this list for something concrete**, because those two \`*\` lines are not hypothetical: on macOS, ports **5000 and 7000** are held by ControlCenter — the AirPlay Receiver. If you ever start a lab server on 5000, it dies with \`EADDRINUSE\`; worse, if you start it on a *different* port but \`curl\` 5000 by mistake, **AirTunes answers you** with a bare \`403\` and you will spend an afternoon debugging a filter that never ran. This is exactly why \`lsof -i:PORT\` is the first command to run when a server "won't start" — it names the owner instead of leaving you guessing. (You can turn the receiver off in System Settings ▸ General ▸ AirDrop & Handoff.)
+
+The \`sudo\` matters too: without it \`lsof\` only shows **your own** processes, so a service running as another user — often the interesting one — is simply missing, with no warning that the list is partial.
+
 Common wrong attempts: reading only the port number and ignoring the *address* — the port tells you which service, the bind address tells you who can reach it; assuming "it's my laptop, so it's fine" — \`0.0.0.0\` means every interface, including café Wi-Fi. Knowing what's listening and on which interface is step one of defending any host.
 </details>
 
@@ -3729,14 +3761,24 @@ The setuid bit is octal \`4000\`. \`find\`'s \`-perm -4000\` means "has at least
 
 \`\`\`bash
 find /usr/bin -perm -4000 -type f 2>/dev/null
-# /usr/bin/top   /usr/bin/atq   /usr/bin/crontab  /usr/bin/atrm  /usr/bin/newgrp
-# /usr/bin/su    /usr/bin/batch /usr/bin/sudo     /usr/bin/at    /usr/bin/quota  /usr/bin/login
 
 ls -l /usr/bin/sudo /usr/bin/su /usr/bin/passwd
-# -r-s--x--x  root  wheel  /usr/bin/sudo     <- the 's' IS the setuid bit
-# -rwsr-xr-x  root  wheel  /usr/bin/su       <- also setuid-root
-# -rwxr-xr-x  root  wheel  /usr/bin/passwd   <- NOT setuid on macOS
 \`\`\`
+\`\`\`
+/usr/bin/top      /usr/bin/atq    /usr/bin/crontab  /usr/bin/su     /usr/bin/atrm
+/usr/bin/newgrp   /usr/bin/batch  /usr/bin/at       /usr/bin/quota  /usr/bin/login
+/usr/bin/sudo
+
+-rwxr-xr-x  1 root  wheel   139840 May 21 09:57 /usr/bin/passwd
+-rwsr-xr-x  1 root  wheel   121904 May 21 09:57 /usr/bin/su
+-r-s--x--x  1 root  wheel  1580368 May 21 09:57 /usr/bin/sudo
+\`\`\`
+Eleven binaries, one per line in the real output (wrapped here to fit). \`find\` does **not** sort, so yours will come back in a different order, and the exact set shifts between macOS releases — the count and the membership are the interesting part, not the sequence. Sizes and dates are from your own OS build.
+
+Then read the permission strings, because the whole lesson is in one character. \`passwd\` shows \`-rwx\` — a normal executable. \`su\` shows \`-rw**s**\` — where the owner's execute bit \`x\` would be, there is an \`s\`. That is the **setuid bit**: run this file and you become its *owner* (\`root\`) for the duration, no matter who you are. \`sudo\` shows \`-r-s--x--x\`, the same bit plus a deliberately stingier layout — not even writable by root, and others get execute-only with no read.
+
+That is why this list is a security review and not trivia: **eleven programs on this machine will run as root for any user who can execute them.** Each one is a complete privilege-escalation path if it can be made to do something unintended, which is why a setuid binary with a shell escape, an unsanitized \`$PATH\`, or a library-loading bug is such a prized find. It is also why the correct instinct on seeing a setuid binary *you* installed is alarm, not convenience.
+
 **Why these need it.** \`sudo\` and \`su\` exist precisely to *change* who you are running as — that requires root, and the caller isn't root, so the bit is the mechanism. \`crontab\` and \`at\` need to write into root-owned spool directories on behalf of a normal user. **Why \`passwd\` is not setuid here:** on Linux it classically is (it must edit root-owned \`/etc/shadow\`), but macOS routes password changes through the Open Directory service instead — so the same job is done by talking to a privileged daemon rather than by becoming root. That difference *is* the lesson: setuid is one way to cross a privilege boundary, and the safer modern pattern is to ask a narrowly-scoped privileged service instead.
 
 Common wrong attempts: running \`find / -perm -4000\` and drowning in permission errors (scope it, or redirect stderr); concluding "11 setuid binaries = 11 vulnerabilities" — these are *expected*, and the audit's value is comparing against a known baseline so a **surprise** entry stands out (a setuid copy of \`find\`, \`vim\`, \`python\`, or a custom script is the escalation path from the case study); assuming your Mac's list matches Linux's — check both, they differ.
@@ -3999,11 +4041,27 @@ EOF
 chmod +x scan.sh
 
 printf 'INFO login ok\\nERROR db timeout\\nERROR db timeout\\nWARN slow query\\n' > app.log
-./scan.sh ERROR app.log        # matches: 2   temp mode: 600
-./scan.sh ERROR;  echo "exit=$?"   # Usage: ... (stderr)   exit=2
-./scan.sh ERROR nope.log; echo "exit=$?"   # cannot read: nope.log   exit=3
-cp app.log "my app.log" && ./scan.sh ERROR "my app.log"   # matches: 2  <- the space is handled
+./scan.sh ERROR app.log
+./scan.sh ERROR;  echo "exit=$?"
+./scan.sh ERROR nope.log; echo "exit=$?"
+cp app.log "my app.log" && ./scan.sh ERROR "my app.log"
 \`\`\`
+\`\`\`
+matches: 2
+temp mode: 600
+Usage: ./scan.sh <pattern> <logfile>
+exit=2
+cannot read: nope.log
+exit=3
+matches: 2
+temp mode: 600
+\`\`\`
+Everything here is deterministic — you wrote \`app.log\` with the heredoc — so your run should match line for line.
+
+Four cases, and each is asserting something different. The happy path finds its 2 matches and reports \`temp mode: 600\`, which is the security claim: \`mktemp\` created the file **atomically with owner-only permissions**, so there is no window like M7's naive open-then-chmod, and no predictable name for an attacker to pre-create as a symlink pointing somewhere else. The missing-argument case fails *before* touching anything, with usage on **stderr** and a distinct exit code. The unreadable-file case fails the same way with a *different* code. The last case is the one people skip: \`my app.log\` contains a space, and it still reports 2 — proof that the quoting around \`"$logfile"\` is doing real work. Drop those quotes and the shell hands \`grep\` two arguments, \`my\` and \`app.log\`, and you get an error about a file called \`my\`.
+
+**Distinct exit codes are the point of the whole exercise.** \`2\` and \`3\` mean the caller — a cron job, a CI step, another script — can tell "you invoked me wrong" apart from "your file is missing" apart from "I ran and found nothing," without parsing English error text that changes the next time someone edits it. A script that exits \`1\` for every kind of failure, or \`0\` regardless, cannot be automated against; it can only be watched by a human. Note also \`|| true\` on the \`grep\` line: under \`set -e\`, grep's perfectly normal "no matches" exit of 1 would kill the script, and \`matches: 0\` — a legitimate answer — would never be printed.
+
 **Why each guard earns its place.** \`set -e\` stops the script at the first failure instead of charging on with bad state; \`-u\` turns a **typo'd variable name into a loud error** rather than a silent empty string (write \`$nmae\` without \`-u\` and your command quietly runs with a missing argument); \`-o pipefail\` makes a pipeline fail when *any* stage fails, not just the last — without it \`grep missing_file | wc -l\` reports a cheerful \`0\` and a success status, which is how a broken security check silently reports "no findings." Distinct exit codes (2 vs 3) matter because a caller — cron, CI, another script — needs to tell "you invoked me wrong" from "the data wasn't there."
 
 Common wrong attempts: forgetting \`|| true\` on the grep and watching \`set -e\` kill the script whenever there are zero matches (then "fixing" it by dropping \`set -e\` — keep the safety, scope the exception); writing the usage message to stdout, which pollutes the output a caller is parsing (\`>&2\`); using \`/tmp/scan.$$\` for the temp file (the PID is guessable — that's the race from the challenge, and it's what \`mktemp\` exists to close); leaving the temp file behind on error because cleanup was the last line instead of a \`trap\`; and using \`grep "$pattern"\` without \`-F --\`, so a pattern like \`-v\` is read as a flag and \`.\*\` as a regex.
