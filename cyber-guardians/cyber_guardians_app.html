@@ -6868,15 +6868,25 @@ int main(int argc, char **argv) {
 \`\`\`
 \`\`\`bash
 cc -o overflow overflow.c -fno-stack-protector -Wno-deprecated-declarations
-./overflow alice
-#   hello, alice
-#   greet() returned normally                 <- fits in 16 bytes, all fine
-./overflow AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-echo "exit=$?"
-#   (no "returned normally" line)
-#   exit=133                                   <- 128 + 5 (SIGTRAP): the return was corrupted
+./overflow alice; echo "exit=$?"
+./overflow AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; echo "exit=$?"
 rm overflow
 \`\`\`
+\`\`\`
+  buf is 16 bytes; secret() is at 0x10013c460
+  hello, alice
+  greet() returned normally
+exit=0
+
+exit=133
+\`\`\`
+The address changes on every run — that is **ASLR**, the OS randomizing where code lands so an attacker cannot simply hard-code a jump target. Compare the two runs: \`alice\` is 5 bytes, fits the 16-byte buffer, and \`greet()\` returns normally. The 48-byte argument does not, and the program never reaches its final \`printf\`.
+
+**\`exit=133\` is the finding, and it is worth decoding rather than pattern-matching.** A shell reports a signal-terminated process as \`128 + signum\`, so 133 means signal 5, \`SIGTRAP\` — the CPU refused to take the corrupted return address. On arm64 that refusal is hardware: Apple Silicon signs the return address (Pointer Authentication) and the mismatch traps immediately. On older x86-64 you would more often see \`139\` (SIGSEGV, signal 11). **Different number, same lesson** — do not treat 133 as the memorable fact, treat "the process died on a signal instead of returning" as the memorable fact. Try 24 bytes rather than 48 and it still crashes: you do not need to overshoot dramatically, just past the buffer's end.
+
+Note also what you *did not* see: \`secret()\` never ran, even though the program helpfully printed its address. Overwriting the return address is easy; landing it precisely on a chosen function is the hard part, and it is what modern mitigations (ASLR above, stack canaries, PAC) are designed to make impractical. We compiled with \`-fno-stack-protector\` specifically to remove one of those, and the bug is *still* caught. That layering is the actual state of the art — not one perfect defence, several imperfect ones.
+
+**One environment detail that will confuse you if nobody says it.** Pipe this into anything (\`./overflow AAAA... | cat\`) and you get **no output whatsoever**, not even the first two lines. Writing to a pipe makes stdio block-buffered, and the crash kills the process before the buffer is ever flushed — so the printed output vanishes while the exit code survives. This is exactly why crash diagnosis leans on exit codes, signals, and crash reports rather than on \`printf\` breadcrumbs: **the last thing a program printed is not the last thing it did.**
 **Walk through what happened on the stack.** \`buf\` lives in \`greet\`'s stack frame, and just past it sits the **saved return address** — where the CPU jumps when \`greet\` finishes. \`strcpy\` copies your input byte by byte with no idea how big \`buf\` is, so 48 bytes runs off the end of the 16-byte buffer and overwrites that return address with \`0x4141...\` (\`"AAAA"\`). Classically, an attacker chooses those bytes to point at code of their choosing — that's how a mere *input-too-long* becomes *arbitrary code execution*, and why the unused \`secret()\` is a stand-in for "somewhere the attacker wants to go." **But notice you never saw \`secret()\` run**, and that's the good news of the modern era: on Apple Silicon the return address is **signed** (pointer authentication / PAC), so when the CPU pops the smashed value it fails the signature check and traps *before* jumping anywhere — the exploit is reduced to a crash. Recompile with \`-fstack-protector-all\` and a **stack canary** catches it too: a known value placed between \`buf\` and the return address is checked on exit, and a copy long enough to reach the return address also clobbered the canary, so the program aborts. Two independent nets, and you removed one to see the other.
 
 Common wrong attempts: expecting \`secret()\` to actually print (that was true in 1996; PAC/canaries/ASLR make a naïve overwrite crash instead — turning it into real code execution now takes ROP and an info-leak, which is the module's "mitigations aren't a complete fix" point, not a beginner exercise); reading \`133\` as an error in *your* code rather than a **signal** (\`128 + 5\`); leaving the stack protector on and seeing \`134\` (SIGABRT from the canary) and thinking that's a different bug — it's the same overflow, caught by a different layer; and compiling with optimisation, which may inline \`greet\` or elide \`buf\` and hide the effect — compile at \`-O0\`.
@@ -8489,12 +8499,35 @@ print(f"{len(hits)} potential secret(s)", file=sys.stderr)
 sys.exit(1 if hits else 0)                                     # non-zero blocks the commit
 \`\`\`
 \`\`\`bash
+# two specimens to scan: one careless, one correct
+cat > config.py <<'EOF'
+API_KEY = "sk_live_ABCD1234efgh5678ijkl"
+AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
+db_url = "postgres://user:hunter2@localhost/app"
+EOF
+cat > cleanfile.py <<'EOF'
+import os
+API_KEY = os.environ["API_KEY"]
+EOF
+
 python3 secretscan.py config.py cleanfile.py; echo "exit=$?"
-#   config.py:1  [Stripe live key]  API_KEY = "sk_live_ABCD1234efgh5678ijkl"
-#   config.py:2  [AWS access key id]  AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
-#   config.py:3  [password in URL]  db_url = "postgres://user:hunter2@localhost/app"
-#   exit=1                                    <- cleanfile.py (os.environ) correctly untouched
 \`\`\`
+\`\`\`
+5 potential secret(s)
+  config.py:1  [Stripe live key]  API_KEY = "sk_live_ABCD1234efgh5678ijkl"
+  config.py:1  [assigned secret literal]  API_KEY = "sk_live_ABCD1234efgh5678ijkl"
+  config.py:2  [AWS access key id]  AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
+  config.py:2  [assigned secret literal]  AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
+  config.py:3  [password in URL]  db_url = "postgres://user:hunter2@localhost/app"
+exit=1
+\`\`\`
+Both files are written above, so this output is exact — yours will match.
+
+**Three real secrets, five findings.** Lines 1 and 2 each trip *two* rules: the precise one (\`sk_live_...\`, \`AKIA...\`) and the broad catch-all (\`api_key = "..."\`). Nothing is wrong — the scanner is reporting every rule that matched — but it is the single most common complaint about secret scanners in practice, and it is worth meeting here rather than in a code review. One leaked key reported four times looks like four incidents; a repository with 40 real secrets produces a few hundred findings, and a triage queue that long is a triage queue nobody works. Real tools deduplicate by (file, line, matched span) and report the highest-confidence rule, keeping the others as corroboration. Try it: dedupe \`hits\` on \`(path, ln)\` and watch five become three.
+
+Notice **where each stream went**. The count went to \`stderr\` and the findings to \`stdout\`, which is why \`python3 secretscan.py *.py > findings.txt\` gives you a clean machine-readable file while the human-facing summary still appears on your terminal. That separation is what makes a tool composable.
+
+And \`exit=1\` is the part that does the actual defending. \`cleanfile.py\` loads its key from \`os.environ\` and is correctly untouched — the scanner has to be right about the *good* pattern too, or developers route around it. As a pre-commit hook, this non-zero exit is what stops the commit. **Which is the whole point: a key committed to git is leaked permanently**, because rewriting history does not recall the copies, and the only real remediation is rotating the key.
 **Why this exact tool, and why it's the module's "automation is powerful" lesson pointed at yourself.** Hardcoded secrets are one of the most common and most damaging mistakes in software — a key committed to git is a key **leaked forever**, because git history is permanent and public repos are scraped continuously by bots that find and abuse new keys within *minutes* (the same "everything is scanned constantly" reality as M12). The fix isn't vigilance, which fails; it's **automation** — a scanner in a pre-commit hook (\`git config core.hooksPath\`, or a framework like \`pre-commit\`/\`gitleaks\`) that makes committing a secret *hard* by exiting non-zero and aborting the commit. Note the design choices that keep it usable: it **skips env-loaded values** so it doesn't punish the correct pattern, it's **conservative** to limit false-positive fatigue (M16's lesson — a scanner that cries wolf gets disabled), and it prints file:line so the finding is actionable. This is also the exact discipline behind the rule "scan before every push to a public repo" — and now you have the tool that enforces it.
 
 Common wrong attempts: relying on \`.gitignore\` alone (it stops *tracked* files, but a secret pasted into a *tracked* source file sails through — the scanner reads content, which is the point); making the regexes so broad they flag every string and get switched off (tune for signal); scanning only the working tree and not what's actually **staged** (a real hook checks \`git diff --cached\`); and thinking detection is enough after a leak — a committed secret must be **rotated**, because removing it from history doesn't un-leak it (M23's rotation lesson).
@@ -8546,13 +8579,26 @@ if __name__ == "__main__":
         print(json.dumps(probe(t)))                          # 4. structured, pipeline-friendly
 \`\`\`
 \`\`\`bash
-python3 safetool.py
-#   refusing to run: TOOL_API_KEY not set (never hardcode it)
+python3 safetool.py; echo "exit=$?"
 TOOL_API_KEY=dummy python3 safetool.py
-#   {"target": "127.0.0.1", "status": "up", ...}
-#   {"target": "8.8.8.8", "status": "REFUSED", "reason": "out of scope"}   <- not probed
-#   {"target": "192.0.2.1", "status": "down", ...}
 \`\`\`
+\`\`\`
+refusing to run: TOOL_API_KEY not set (never hardcode it)
+exit=1
+
+{"target": "127.0.0.1", "status": "up", "checked_utc": "2026-08-07T17:05:54.601434+00:00"}
+{"target": "8.8.8.8", "status": "REFUSED", "reason": "out of scope"}
+{"target": "192.0.2.1", "status": "down", "checked_utc": "2026-08-07T17:05:55.605383+00:00"}
+\`\`\`
+Timestamps are yours; everything else should match. Four things are being demonstrated at once, and each is a line you can point at.
+
+**It fails closed and it fails loudly.** No key, no run — and \`sys.exit("message")\` prints to stderr and exits **1**, so a scheduler notices. A tool that starts up without its credentials and does something degraded instead is how "the scan has been green for six weeks" happens.
+
+**The out-of-scope target is refused, not probed.** Look at what \`8.8.8.8\`'s record lacks: there is no \`checked_utc\`, because nothing was checked. That absence is the evidence — the allow-list was consulted *before* acting, not after. In an authorized engagement this line is the difference between a finding and an incident report about you.
+
+**\`192.0.2.1\` is \`down\` while \`127.0.0.1\` is \`up\`, and both are correct.** 192.0.2.0/24 is IANA-reserved for documentation, so nothing answers — which makes it the perfect in-scope negative test. Note carefully that \`down\` and \`REFUSED\` are **different states** and the script keeps them apart; collapsing both into "not up" would let an out-of-scope target masquerade as an unreachable one.
+
+**And it emits one JSON object per line**, so \`| jq 'select(.status=="up")'\` works without any parsing. That format is not decoration either: \`subprocess.run([...])\` passes the target as an inert list element with **no shell**, so a target string containing \`; rm -rf ~\` is a hostname that fails to resolve rather than a command. Building the same call as a string and handing it to a shell is how a scanner becomes the exploit.
 **Why each property earns its place, and answering both module challenges.** The **SCOPE allow-list is more than style** (challenge 1): a scanning script is an *amplifier*, and automation amplifies mistakes as readily as work — a typo'd target, a mis-expanded range, or a copy-pasted CIDR without the guard means your loop hammers hosts you never meant to touch, at machine speed, which is how a "quick script" becomes an unauthorized scan or a self-inflicted denial of service (the module's own case study). The guard, checked *before* action and failing closed, is the difference between a bug and an incident — the same fail-closed principle as M18's engagement scope. The **env-loaded secret** (challenge 2): \`API_KEY = "sk_live_..."\` in source is a serious problem because the secret is now in git forever, shared with everyone who can read the repo, and leaked the moment the repo is (the Drill-1 lesson) — the fix is to read it from the environment (or a secrets manager) so the code is shareable and the secret is rotatable independently (M7). **No shell** stops your own tool becoming a command-injection vector when a target name contains a metacharacter (M11), and **structured output** lets the tool compose into pipelines and SIEMs (M16) instead of being a dead-end of human-readable prose. Copy this skeleton; every security script you write should start from these four lines of discipline, because the tool that protects your systems must not be the thing that compromises them.
 
 Common wrong attempts: checking scope in \`main\` but letting \`probe\` be callable without the check (put the guard *inside* the action so it can't be bypassed); loading the secret but printing it in a debug log (M16 redaction applies to your own tools too); building the ping command as an f-string "because the target is validated" (validated today, refactored tomorrow — M11's argument stands); and emitting human-prose output that the next script has to regex-parse (you felt that pain in M16 — emit JSON).
