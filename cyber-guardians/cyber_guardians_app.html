@@ -5091,14 +5091,27 @@ docker run --rm --platform linux/amd64 -p 8080:80 vulnerables/web-dvwa   # x86 e
 
 \`\`\`bash
 lsof -nP -iTCP -sTCP:LISTEN
-# COMMAND     PID   USER  ...  NAME
-# node       2850   you   ...  TCP 127.0.0.1:9301 (LISTEN)   <- loopback only: unreachable off-box
-# postgres    611   you   ...  TCP *:5432 (LISTEN)           <- EVERY interface: LAN-reachable
-# rapportd    500   you   ...  TCP *:58104 (LISTEN)
 
 # just the exposed ones:
 lsof -nP -iTCP -sTCP:LISTEN | awk '$9 ~ /^\\*:|^0\\.0\\.0\\.0:/ { print $1, $9 }' | sort -u
 \`\`\`
+\`\`\`
+COMMAND     PID  USER  ...  NAME
+node       2850  you   ...  TCP 127.0.0.1:9301 (LISTEN)
+ControlCe   686  you   ...  TCP *:7000 (LISTEN)
+rapportd    619  you   ...  TCP *:49228 (LISTEN)
+
+ControlCe *:5000
+ControlCe *:7000
+rapportd *:49228
+\`\`\`
+Your list is your own — the second command is the one to read, because it has already thrown away everything that is only reachable from this machine. Whatever it prints is your **actual network attack surface**, and it is usually shorter and more surprising than people expect.
+
+The \`awk\` is doing something specific: \`$9\` is the \`NAME\` field, and the pattern keeps only names beginning \`*:\` or \`0.0.0.0:\` — the two ways a socket says "every interface." A \`127.0.0.1:\` line fails the match and drops out. Note it is anchored with \`^\`; without the anchor you would also match a *remote* address later in the field and pull in lines that are not exposed at all.
+
+**A caveat that matters more than it looks.** Run this without \`sudo\` and \`lsof\` quietly reports **only your own processes** — a database running as \`_postgres\`, or anything started by a system daemon, is simply absent, and the output looks like a clean bill of health. Run it both ways and compare; the difference is the part you did not know about.
+
+If \`*:5000\` and \`*:7000\` appear, those are macOS's AirPlay Receiver (ControlCenter), not something you installed — and they are the reason a lab server on 5000 dies with \`EADDRINUSE\` while a \`curl\` to it gets answered by AirTunes with a bare 403.
 **Expect a surprise, and take it seriously.** Most developer Macs turn up at least one database — Postgres, MySQL, Redis, Mongo — listening on \`*\`, because that's the default in a lot of installers and Docker port mappings, and nobody ever looked. On a home network that means every device on your Wi-Fi can reach it; on a café network it means **everyone in the café** can, and a dev database usually has weak or no authentication because "it's just local." That is M9's lesson showing up uninvited on your own machine, and it is precisely the mistake the case study's victims made at a larger scale. Note also \`rapportd\` and similar Apple services — the goal isn't to kill everything, it's to be able to *account for* every line.
 
 Common wrong attempts: reading \`localhost:PORT\` as safe without checking whether it resolved to \`127.0.0.1\` or \`::1\` (both are loopback, but a service on \`::1\` only can surprise an IPv4 client, and vice versa); running \`lsof -i\` without \`-sTCP:LISTEN\` and drowning in established outbound connections; assuming a port is closed because a *browser* couldn't reach it (browsers block some ports outright — probe with a socket); forgetting UDP entirely (\`lsof -nP -iUDP\` — DNS, mDNS, and VPN services live there).
@@ -5147,11 +5160,24 @@ if [[ -n "$lan" ]]; then probe "$lan" "$port"; else echo "  (no LAN address — 
 SH
 chmod +x isolation-check.sh
 
-./isolation-check.sh 9301     #   127.0.0.1:9301  REACHABLE
-                              #   192.168.x.y:9301  refused      <- CORRECT isolation
-./isolation-check.sh 9302     #   127.0.0.1:9302  REACHABLE
-                              #   192.168.x.y:9302  REACHABLE    <- FAIL: exposed to the LAN
+./isolation-check.sh 9301
+./isolation-check.sh 9302
 \`\`\`
+\`\`\`
+== isolation report for port 9301 ==
+  127.0.0.1:9301         REACHABLE
+  192.168.0.161:9301     refused
+== isolation report for port 9302 ==
+  127.0.0.1:9302         REACHABLE
+  192.168.0.161:9302     REACHABLE
+\`\`\`
+Your LAN address will be a different \`192.168.x.y\` (or \`10.x.y.z\`); the four verdicts are what must match. **9301 is the pass and 9302 is the finding.** Both are reachable from the machine itself — that tells you nothing, and it is exactly the check most people stop at. The second line of each report is the one that carries information: 9301 refuses from the LAN address, 9302 answers it. Same laptop, same \`curl localhost\` success, completely different exposure.
+
+The two servers differ by one argument — \`listen(9301, "127.0.0.1")\` versus \`listen(9302, "0.0.0.0")\` — and that argument is the entire security boundary. It is also the argument frameworks pick for you: a dev server that binds \`0.0.0.0\` by default publishes your work-in-progress to the coffee shop, and nothing in its startup banner says so.
+
+**Two ways this check can lie to you, both worth knowing before you trust a \`refused\`.** If Wi-Fi is down there is no LAN address, and the script prints \`(no LAN address — Wi-Fi down)\` rather than a verdict — read that as "not tested," never as "isolated." And \`refused\` from *your own* LAN address proves the service is not listening there; it does not prove a firewall would stop a **different** machine, since traffic to your own address never leaves the host. To close that gap properly you probe from a second device on the network. This one is still worth running constantly, because it catches the common case — a service bound wider than you meant — in half a second.
+
+Note \`connect_ex\` rather than \`connect\`: it returns an error *code* instead of raising, so one code path handles both outcomes. The timeout matters too — a **filtered** port (dropped by a firewall rather than refused) does not answer at all, and without \`settimeout(0.5)\` the probe would hang instead of reporting.
 **What makes this the right check.** You are not asking "did I configure it correctly?" — you are asking the network the same question an attacker would, from the same position, and reading the answer. Configuration can lie: a hypervisor's "Host-Only" dropdown can be overridden by a second adapter you forgot, a Docker \`-p 5432:5432\` publishes to all interfaces regardless of what the app binds, and a firewall rule can be present but disabled. **Empirical verification is the only kind that counts**, and it takes two seconds once the script exists. Keep it and run it whenever you boot a deliberately vulnerable machine — that habit is the entire difference between a lab and an incident.
 
 **The other half of isolation.** This script checks *inbound*. A real lab check also confirms the target cannot reach **outbound** — from inside the target VM, \`curl -m 5 https://example.com\` should fail. Inbound isolation stops the internet reaching your vulnerable box; outbound isolation stops a compromised box phoning home, joining a botnet, or attacking someone else *from your IP address*, which is the part that turns your mistake into someone else's incident and your legal problem.
@@ -5312,11 +5338,16 @@ python3 make-auth-log.py
 grep "Failed password" auth.log \\
   | awk '{ for (i=1;i<=NF;i++) if ($i=="from") print $(i+1) }' \\
   | sort | uniq -c | sort -rn | head -5
-#   25 203.0.113.77      <- the burst: 25 failures, all against root, seconds apart
-#    4 10.0.0.5
-#    3 10.0.0.9
 \`\`\`
-**Notice what made it detectable.** Not the *presence* of failed logins — alice fumbles her password too, and 4 failures is Tuesday. It was the **rate and the shape**: 25 failures from one source, in under a minute, all targeting \`root\`, a user that should never be logging in remotely at all. That contrast *is* the signature-versus-anomaly distinction made concrete. A **signature** rule says "more than N failures from one IP in M minutes" — cheap, explainable, and trivially evaded by an attacker who slows down or spreads across source addresses. An **anomaly** approach says "this account has never authenticated from this ASN at 3am" — catches the slow attacker, but needs a baseline and produces false positives that untuned teams learn to ignore, which is how Target's alert got dismissed. Real programs run both, and the useful question is never "which is better" but "what does each one *miss*, and what covers that gap?"
+\`\`\`
+  25 203.0.113.77
+   8 10.0.0.9
+   2 10.0.0.5
+\`\`\`
+These numbers are **exact, not illustrative** — \`make-auth-log.py\` calls \`random.seed(7)\`, so it generates the same 65 lines on every machine and your three counts must match these. (That is worth doing on purpose when you write an exercise: a fixed seed turns "roughly like this" into an assertion a learner can actually check.)
+
+Thirty-five failures total, from three sources. \`203.0.113.77\` accounts for 25 of them — and going back to the raw lines shows all 25 landed in **50 seconds**, every one against \`root\`.
+**Notice what made it detectable.** Not the *presence* of failed logins — alice fumbles her password too, and 4 failures is Tuesday. It was the **rate and the shape**: 25 failures from one source, in under a minute, all targeting \`root\`, a user that should never be logging in remotely at all. Compare that with \`10.0.0.9\`'s 8 failures spread across the whole log — a threshold of "more than 8" would have missed a real attack, and a threshold on the raw count alone would eventually flag a colleague having a bad morning. **Time is the discriminator**, which is why the next module's rule counts failures *per window* rather than per day. That contrast *is* the signature-versus-anomaly distinction made concrete. A **signature** rule says "more than N failures from one IP in M minutes" — cheap, explainable, and trivially evaded by an attacker who slows down or spreads across source addresses. An **anomaly** approach says "this account has never authenticated from this ASN at 3am" — catches the slow attacker, but needs a baseline and produces false positives that untuned teams learn to ignore, which is how Target's alert got dismissed. Real programs run both, and the useful question is never "which is better" but "what does each one *miss*, and what covers that gap?"
 
 Common wrong attempts: using a fixed \`$9\`-style column index and breaking the moment a hostname or message format shifts (anchor on the \`from\` keyword instead); forgetting \`sort\` before \`uniq -c\` (\`uniq\` only collapses *adjacent* duplicates, so you get a scattered undercount — this is the single most common log-pipeline bug); grepping for \`failed\` lowercase and getting nothing; counting all lines rather than filtering to failures, so a busy legitimate user out-ranks the attacker.
 </details>
@@ -5748,10 +5779,17 @@ print("false positives:", fired - {"203.0.113.77"} or "none")
 \`\`\`
 \`\`\`bash
 python3 detect.py
-# alerting IPs: {'203.0.113.77'}
-# alert events: 20
-# false positives: none
 \`\`\`
+\`\`\`
+alerting IPs: {'203.0.113.77'}
+alert events: 20
+false positives: none
+\`\`\`
+Exact values again, because M16's generator is seeded — your run must produce these three lines.
+
+**Read \`alert events: 20\` carefully, because it is the number that surprises people.** The burst was 25 failures, and the rule fired 20 times, not once and not 25. It stays quiet for the first 6 (the window has to *fill* before the count exceeds 5), then fires on every subsequent failure while the window stays over threshold. That is correct behaviour for the logic as written, and it is also **one incident**, not twenty. If this rule were wired to a pager it would page twenty times for a single attacker — which is how alert fatigue starts, and how the twenty-first genuine alert gets dismissed. Real detection pipelines add *deduplication* on top of the rule: group by source IP, alert once, then suppress for a cooldown and report a count instead. Worth knowing that the rule and the alerting policy are two separate pieces, and that a rule which is exactly right can still produce an unusable pager.
+
+\`false positives: none\` is the other half of the test, and the reason to build the log with known-good traffic in it rather than only the attack. A rule that catches the attacker is easy; a rule that catches the attacker **and leaves alice and bob alone** is the one you can deploy. Both halves have to be measured, or you have only shown that your rule fires — not that it discriminates.
 **Report it the way a professional would**, which means including the limitations rather than only the win:
 
 > **Detection rule DR-01 — SSH brute force.** *Logic:* more than 5 failed authentications from a single source IP within 60 seconds. *Tested against:* \`auth.log\`, 65 events, 3 sources, containing one brute-force burst and normal user error. *Result:* fired on \`203.0.113.77\` (20 alert events); **0 false positives** against benign traffic. *Evasion:* an attacker who slows to 4 attempts per minute, or spreads the same attempt across many source IPs, is invisible to this rule. *Compensating detection:* alert on failed-authentication volume **per targeted account** rather than per source, and treat any authentication attempt against \`root\` as high-signal regardless of rate.
