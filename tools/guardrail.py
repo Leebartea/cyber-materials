@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 57, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -514,6 +514,14 @@ BANNED = [
      "slice(0, 12)"),   # acquits the Build 1 logger.js walkthrough, which really is 12
     (r"^\s*(?:#\s*)?40 +ff8d9819\b(?![\s\S]{0,200}logger\.js)",
      "9.1's lab burst is 60 attempts, so reusing its app.log aggregates to 60, not 40", "A33"),
+    # A34: neverssl.com accepts the TCP connection and then never answers — `nc` and
+    # `curl` both hang and return nothing, so the "plaintext is readable" demo silently
+    # produces no output and looks like the learner's own mistake. Same failure class as
+    # httpbin (A?): a third-party host the lab's whole point depends on. example.com
+    # serves plain HTTP on :80 without redirecting, and is IANA-reserved.
+    (r"neverssl",
+     "neverssl.com no longer responds (TCP connect succeeds, zero bytes returned) — the "
+     "plaintext-vs-TLS demo silently shows nothing. Use example.com on port 80", "A34"),
     (r"hashcat -m 34000 -a 0 ~/argonhash\.txt",
      "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
      "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "

@@ -1393,7 +1393,7 @@ Every command in the next two modules now has a home. When Module 1 says \`opens
     lab: {
       mac: `# 🛠️ Field-guide warm-up — run each command once, in your own sandbox.
 # Ethics: everything here touches only files you create and public sites that
-# exist for exactly this (example.com, neverssl.com). Nothing you don't own.
+# exist for exactly this (example.com). Nothing you don't own.
 
 mkdir -p ~/cyber-journal/m0-5 && cd ~/cyber-journal/m0-5
 
@@ -1695,8 +1695,17 @@ mkdir -p ~/cyber-journal/wb-m1 && cd ~/cyber-journal/wb-m1
 echo "Balance: 100" > acct.txt
 shasum -a 256 acct.txt | tee baseline.sha256     # capture the fingerprint
 sed -i '' 's/100/999/' acct.txt                  # tamper one field (Linux: drop the '')
-shasum -a 256 -c baseline.sha256                 # acct.txt: FAILED  <- detected, eyes-free
+shasum -a 256 -c baseline.sha256                 # verify against the baseline
 \`\`\`
+\`\`\`
+23759873421adc26e77d9a0c707dbce43023de50196138816ffad3988216e9c4  acct.txt
+acct.txt: FAILED
+shasum: WARNING: 1 computed checksum did NOT match
+\`\`\`
+Line 1 is \`tee\` echoing the baseline as it saves it — that hash is reproducible, so **yours should match these 64 characters exactly**, because \`echo "Balance: 100"\` produces the same 13 bytes on every machine. Lines 2-3 are the verification failing after the tamper.
+
+Two details worth having: \`shasum -c\` prints **two** lines on failure, the per-file verdict and a summary, and it **exits 1**. That exit code is the part a script uses — \`shasum -a 256 -c baseline.sha256 || alert\` is a tamper alarm in one line, and it never needs a human to read either line. Check it with \`echo $?\` right after the command.
+
 Common wrong attempts: \`cat\`-ing the file and comparing by eye — that doesn't scale to 10,000 files and misses a single flipped bit; re-hashing with no saved baseline (a hash alone tells you nothing without something to compare against). The principle: **integrity means "unchanged unless authorized," and you prove it with a fingerprint captured *before* the change and checked *after*.**
 </details>
 
@@ -1749,8 +1758,15 @@ echo "Balance: 100" > ledger.txt
 shasum -a 256 ledger.txt | tee base.sha256
 sed -i '' 's/100/999/' ledger.txt          # attacker edits the data...
 shasum -a 256 ledger.txt | tee base.sha256 # ...and regenerates the "baseline"
-shasum -a 256 -c base.sha256               # ledger.txt: OK   <- FALSE confidence
+shasum -a 256 -c base.sha256               # verify
 \`\`\`
+\`\`\`
+23759873421adc26e77d9a0c707dbce43023de50196138816ffad3988216e9c4  ledger.txt
+ae86afe77c4fec41f6220a962fbae875eab99d9bc891a815a6efdf1003ba9f81  ledger.txt
+ledger.txt: OK
+\`\`\`
+Read those three lines carefully, because the last one is a lie. The first hash is the honest baseline. The second is a **completely different** hash — that is the avalanche effect, one character changed and the fingerprint shares nothing with the original. So the file provably changed. And the verdict is still \`OK\`, exit code **0**, because the attacker overwrote \`base.sha256\` in between. Compare it to Drill 1, where the identical command printed \`FAILED\`: **the command did not get weaker — its input got captured.**
+
 The check passes on forged data because the attacker controlled *both* the file and its fingerprint — a self-validating check is theater (Challenge 2's lesson made concrete). A trustworthy baseline lives where the file's owner **can't** reach it: a **read-only/WORM volume**, a **separate append-only logging host**, a **signed manifest** whose key is offline, or an HSM. This scales up: file-integrity monitors (Tripwire/AIDE) ship hashes off-box; code-signing verifies against a key you don't store next to the artifact. **Journal — the cross-leg chain:** e.g. LockBit/BlackCat double-extortion *copies* the database (confidentiality), may *alter* records to cover tracks (integrity), then *encrypts and deletes* the originals and locks you out (availability). Real incidents rarely stay in one leg — as Colonial Pipeline went leaked-credential → shutdown. **Outside the box:** a control's trust is only as good as its weakest dependency — always ask "what does this check *assume*, and who controls that?"
 </details>`,
     tracker: ["I can explain Confidentiality, Integrity, and Availability to a 10-year-old", "I derived why there are exactly three legs (read / change / deny)", "I ran the lab and personally broke each property on my own file", "I can trace the cross-property chain in a real incident (Colonial Pipeline)", "I can spot a self-validating false-confidence check", "Workbench: captured a hash baseline and detected a one-character tamper eyes-free, then broke-and-restored all three CIA legs on my own file with mechanical proof", "Workbench: demonstrated the self-validating-baseline trap (tampered file + regenerated hash still 'passes'), named attacker-out-of-reach baseline locations, and traced one incident across all three CIA legs"]
@@ -1880,7 +1896,7 @@ You don't need to memorize all of 800-53. You need to know *which framework answ
 
 \`Please Do Not Throw Sausage Pizza Away\` → **P**hysical, **D**ata Link, **N**etwork, **T**ransport, **S**ession, **P**resentation, **A**pplication. Naming the layer of an attack tells you which tool to reach for: a DDoS at layer 3/4 (flood the network) needs a different defense than one at layer 7 (flood the app).`,
     lab: {
-      mac: `# === ETHICS: observes YOUR traffic and public services that allow it (google.com, neverssl.com). ===
+      mac: `# === ETHICS: observes YOUR traffic and public services that allow it (google.com, example.com). ===
 # Not attacking anyone. Don't capture on networks you don't own.
 # All tools below are native arm64 on macOS.
 
@@ -1903,8 +1919,8 @@ traceroute google.com
 echo | openssl s_client -connect google.com:443 -servername google.com 2>/dev/null \\
   | openssl x509 -noout -subject -issuer -dates
 
-# 6. PROVE plaintext is readable without TLS (neverssl.com exists for this)
-printf 'GET / HTTP/1.1\\r\\nHost: neverssl.com\\r\\nConnection: close\\r\\n\\r\\n' | nc neverssl.com 80 | head -20
+# 6. PROVE plaintext is readable without TLS (example.com serves plain HTTP on :80)
+printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc -w 8 example.com 80 | head -20
 # Everything is plaintext. On hostile Wi-Fi, so are your cookies.`,
       windows: `# PowerShell
 ipconfig
@@ -1929,7 +1945,7 @@ cat /etc/resolv.conf`
       q: "Run traceroute to google.com. How many hops? Where is the first hop? Where is the last?",
       a: "Hop 1 is almost always your home router (192.168.x.1 or 10.0.0.1). The next few are your ISP. Then you cross 'peering points' where ISPs exchange traffic. Eventually you reach Google's network; the final hop's IP belongs to Google. Hops showing '* * *' are routers configured not to answer traceroute — normal, not an error."
     }, {
-      q: "You read the neverssl.com response in plaintext (step 6). Imagine that was a login form on coffee-shop Wi-Fi. What can an attacker on the same Wi-Fi capture, and what one change defeats them?",
+      q: "You read the example.com response in plaintext (step 6). Imagine that was a login form on coffee-shop Wi-Fi. What can an attacker on the same Wi-Fi capture, and what one change defeats them?",
       a: "Over plaintext HTTP, anyone on the network (or any router in between) reads the full URL, all headers, cookies/session tokens, and the POSTed username and password — and can even modify the page in flight to inject scripts. The one change that defeats them: HTTPS (TLS), which encrypts the entire request/response so intermediaries see only THAT you talked to the host, not WHAT you said. This is why 'no login, no need for HTTPS' is wrong."
     }],
     quiz: ["What is the difference between an IP address and a domain name, and which system maps one to the other?", "Why does TLS matter? Name two concrete things an attacker can do on plaintext HTTP that TLS prevents.", "Your friend says 'I don't need HTTPS on my blog, there's no login.' Give the strongest argument for HTTPS anyway.", "You have perfect HTTPS but use default plaintext DNS on public Wi-Fi. What can a snooping observer still learn?"],
@@ -1966,7 +1982,7 @@ Common wrong attempts: \`ping\`-ing the host and reading the IP off ping (works,
 <details>
 <summary>Nudge — open if you've been stuck more than three minutes</summary>
 
-The cert is presented during the TLS handshake — \`openssl s_client -connect host:443\` starts one; pipe into \`openssl x509 -noout -issuer -subject -dates\` to read it. For plaintext, speak HTTP by hand to port 80 with \`nc\` (or \`curl -v http://...\`) against a host that intentionally serves HTTP — \`neverssl.com\` exists for exactly this.
+The cert is presented during the TLS handshake — \`openssl s_client -connect host:443\` starts one; pipe into \`openssl x509 -noout -issuer -subject -dates\` to read it. For plaintext, speak HTTP by hand to port 80 with \`nc\` (or \`curl -v http://...\`) against a host that serves plain HTTP without redirecting you to HTTPS — \`example.com\` does, and being IANA-reserved for documentation it is safe to poke.
 </details>
 
 <details>
@@ -1976,8 +1992,26 @@ The cert is presented during the TLS handshake — \`openssl s_client -connect h
 # TLS: read the certificate the server presents
 echo | openssl s_client -connect github.com:443 -servername github.com 2>/dev/null | openssl x509 -noout -issuer -subject -dates
 # PLAINTEXT: everything below is readable by any router in between
-printf 'GET / HTTP/1.1\\r\\nHost: neverssl.com\\r\\nConnection: close\\r\\n\\r\\n' | nc neverssl.com 80 | head -20
+printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc -w 8 example.com 80 | head -20
 \`\`\`
+\`\`\`
+issuer=C=GB, O=Sectigo Limited, CN=Sectigo Public Server Authentication CA DV E36
+subject=CN=github.com
+notBefore=Jul  3 00:00:00 2026 GMT
+notAfter=Sep 30 23:59:59 2026 GMT
+HTTP/1.1 200 OK
+Date: Fri, 07 Aug 2026 16:12:32 GMT
+Content-Type: text/html
+Transfer-Encoding: chunked
+Connection: close
+Server: cloudflare
+...
+<!doctype html><html lang="en"><head><title>Example Domain</title>...
+\`\`\`
+**Do not memorize any of those values.** GitHub's issuer was DigiCert, is Sectigo as of this writing, and will be something else again; certificates are reissued every ~90 days, so \`notBefore\`/\`notAfter\` are guaranteed to differ from yours. What must be true for *anyone* is the shape: \`subject=CN=\` names the host you actually asked for, \`issuer=\` names a **different** organization (that separation is the entire trust model — a certificate you issued to yourself proves nothing), and \`notAfter\` is in the future. An expired cert is the single most common TLS outage in production, and this one command is how you check it.
+
+Then look at the second half and notice what you can *read*: the method, the path, the Host, every response header, and the HTML itself — all in plain text, on the wire, with no decryption. Any router between you and Cloudflare sees exactly this. If that request had carried \`Cookie: session=...\` or a POSTed password, they would be sitting in the same readable stream. The \`-w 8\` is a timeout; without it \`nc\` can sit waiting on a server that never closes the connection.
+
 Common wrong attempts: reading only \`curl -I https://...\` (you see headers but never inspect the *certificate* — the thing that proves identity); concluding "HTTP and HTTPS look the same" because the page renders — the difference isn't visible in the browser, it's what an intermediary can *read*. Over plaintext the observer sees the full URL, headers, cookies, and any posted credentials; over TLS they see only *that* you talked to the host, not *what* you said. The padlock proves **encryption and that the cert chains to a trusted CA — not that the site is honest**; a phishing site can hold a perfectly valid cert.
 </details>
 
@@ -2367,9 +2401,25 @@ Reply-To: <collect@apple-verification.xyz>
 Authentication-Results: mx.example.com; spf=fail; dkim=fail; dmarc=fail
 Subject: URGENT: Your Apple ID has been suspended
 EOF
-grep -iE "Authentication-Results|spf=|dkim=|dmarc=" evil.eml   # the verdict: all fail
-grep -iE "^From:|Return-Path:|^Reply-To:" evil.eml            # trusted-looking From, foreign Return-Path
+grep -iE "Authentication-Results|spf=|dkim=|dmarc=" evil.eml
+grep -iE "^From:|Return-Path:|^Reply-To:" evil.eml
 \`\`\`
+\`\`\`
+Authentication-Results: mx.example.com; spf=fail; dkim=fail; dmarc=fail
+From: Apple Support <security@app1e-support.co>
+Return-Path: <bounce@xq7-mailer.ru>
+Reply-To: <collect@apple-verification.xyz>
+\`\`\`
+Because you wrote \`evil.eml\` yourself with the heredoc, this output is fully determined — yours will match line for line. That is the point of building the specimen instead of hunting for a live one: you can be certain which signals are present, so you are testing your *reading*, not your luck.
+
+Four independent tells, and any one of them is enough:
+- **\`dmarc=fail\`** is the machine verdict. SPF says "this server wasn't authorized to send for that domain," DKIM says "the signature doesn't verify," DMARC is the policy that ties them to the visible \`From:\`. All three failing is not ambiguous.
+- **\`app1e-support.co\`** — digit \`1\` for letter \`l\`. At normal reading speed, and in most sans-serif fonts, that is invisible.
+- **\`Return-Path:\` is a different domain entirely.** Bounces go to \`xq7-mailer.ru\`, which is the sender's real infrastructure — the envelope address is much harder to fake convincingly than the \`From:\` line.
+- **\`Reply-To:\` is a third domain.** Hit reply and your answer goes to the attacker, not to the address you were looking at.
+
+The reason \`grep\` is the right tool rather than your eyes: a real message carries 40-plus header lines of routing noise, and the tells are scattered through it. Two greps reduce it to four lines. Note also that these greps are **case-insensitive and anchored** — \`^From:\` matters, because without the anchor you also match \`X-Original-From:\` and any body text starting "From". Header names are case-insensitive per RFC 5322, so \`-i\` is not optional politeness; a sender writing \`FROM:\` is perfectly legal and a case-sensitive grep would hand you a clean bill of health.
+
 Common wrong attempts: reading the \`From:\` display name and stopping there — that text is 100% attacker-controlled (SMTP never proved it); assuming a trustworthy-looking sender is safe without checking the \`Authentication-Results\` verdict. The tell here is layered: a lookalike domain (\`app1e\` with a digit \`1\`), a \`Return-Path\` on an unrelated \`.ru\`, a \`Reply-To\` on a third domain, and \`dmarc=fail\`. The root cause of nearly all phishing is that **email trusts an unauthenticated \`From:\`** — so you read the cryptographic verdict, not the claim.
 </details>
 
@@ -2561,8 +2611,16 @@ You only need the *headers*, not the page — \`curl -sI\` (or \`curl -sD -\`) f
 
 \`\`\`bash
 curl -sI https://github.com | grep -i set-cookie
-# look for: Secure; HttpOnly; SameSite=Lax/Strict  — the three flags you'll set as a dev
 \`\`\`
+\`\`\`
+set-cookie: _gh_sess=fs1bOrookAfylgHRX%2BcXdKA7...%3D%3D; path=/; HttpOnly; secure; SameSite=Lax
+set-cookie: _octo=GH1.1.540178558.1786118533; expires=Sat, 07 Aug 2027 16:02:13 GMT; domain=.github.com; path=/; secure; SameSite=Lax
+set-cookie: logged_in=no; expires=Sat, 07 Aug 2027 16:02:13 GMT; domain=.github.com; path=/; HttpOnly; secure; SameSite=Lax
+\`\`\`
+Your cookie *values* are random per request, so they will not match — the flags after each \`;\` are the finding. Note the header name and \`secure\` come back lower-cased: HTTP/2 requires lower-case header names, and flag names are case-insensitive, so \`secure\` and \`Secure\` are the same flag. A grep of \`grep Secure\` (capital, no \`-i\`) finds **nothing here** and you would wrongly report the flag missing.
+
+**Now read what is *not* there, which is the more interesting half.** Three cookies, and they are not configured alike. \`_gh_sess\` — the actual session — carries all three flags. But \`_octo\` is deliberately **not** \`HttpOnly\`: it is an analytics identifier that GitHub's own JavaScript needs to read, so the flag is *correctly* absent. This is the point people miss when they run a scanner that reports "cookie without HttpOnly" as a finding: the question is never "does every cookie have every flag," it is **"can this specific cookie's value be used to impersonate the user?"** For \`_gh_sess\`, yes, so it is locked down. For \`_octo\`, no. A flag report with no idea what the cookie *does* generates noise, and teams learn to ignore the scanner.
+
 Common wrong attempts: opening DevTools and eyeballing (fine for a human, but you can't script or diff it); fetching the body (\`curl -s\`) and wondering where the cookie info is — the flags live in *headers*. A site may set several cookies with different flags; a *session* cookie should carry all three.
 </details>
 
@@ -2589,8 +2647,16 @@ require("http").createServer((req, res) => {
 \`\`\`
 \`\`\`bash
 curl -si http://localhost:7200 | grep -i set-cookie
-# Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
 \`\`\`
+\`\`\`
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+\`\`\`
+Exactly what you set, echoed back off the wire — and unlike the GitHub fetch it is **capitalized here**, because Node sends your string verbatim over HTTP/1.1. That contrast is the reason to always \`grep -i\`.
+
+Start the server in one terminal (it prints \`cookie server on 7200\` and then stays running — correct, not hung) and \`curl\` from a second. If you get \`Error: listen EADDRINUSE\`, an old copy still holds the port: \`lsof -ti:7200 | xargs kill\`.
+
+One thing to prove to yourself rather than take on faith: \`Secure\` appears in this response even though you fetched over **plain HTTP**. \`Secure\` is an instruction to the *browser* about when it may send the cookie back, not a condition the server checks before setting it. So \`curl\` showing the flag confirms you emitted it — it does not confirm any transport was encrypted. A real browser would accept this cookie on localhost (which it special-cases as secure) but refuse it from a plain-HTTP site on any other host, and you would spend an afternoon wondering why the session never sticks.
+
 Common wrong attempts: setting only \`HttpOnly\` and calling it done (each flag defends a *different* attack — next task); putting the session id in a *non*-HttpOnly cookie "so the frontend JS can read it" (that hands the session to any XSS); omitting \`SameSite\` and relying on nothing for CSRF. Same three flags in every language because they're an HTTP standard.
 </details>
 
@@ -4154,10 +4220,10 @@ Talisman(app, force_https=True, strict_transport_security=True,
     lab: {
       mac: `# LAB: Plaintext vs TLS with your own eyes (Apple Silicon)
 # ETHICS: capture ONLY your own machine/network, your own traffic. Capturing others'
-# traffic on shared/public Wi-Fi can be illegal wiretapping. neverssl.com is safe to test.
+# traffic on shared/public Wi-Fi can be illegal wiretapping. example.com is safe to test.
 brew install --cask wireshark
 # 1. Open Wireshark > select active interface (Wi-Fi) > start capture
-# 2. Visit http://neverssl.com (intentionally HTTP). Stop capture.
+# 2. Visit http://example.com (plain HTTP, no redirect to HTTPS). Stop capture.
 # 3. Filter: http  > find GET > right-click > Follow > HTTP Stream  (READ the plaintext)
 # 4. Visit https://www.google.com, filter: tls  (handshake visible, content encrypted)
 # 5. Filter SYN packets:  tcp.flags.syn == 1 and tcp.flags.ack == 0
