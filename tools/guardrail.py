@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 91, "guardians_theory": 47, "guardians_lab": 49}
+COVERAGE_FLOOR = {"appsec": 93, "guardians_theory": 47, "guardians_lab": 49}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -504,6 +504,16 @@ BANNED = [
      "kube-bench must run ON a Kubernetes node; on macOS it exits with 'unable to get "
      "benchmark version. error: config file is missing version_mapping section'. Run it "
      "in-cluster as a Pod with the hostPath mounts", "A32"),
+    # A33: a truncated hash pasted as expected output must be as long as the slice() that
+    # made it. 9.2's walkthrough showed the 12-char `ff8d9819fc0e` against the log written
+    # by 9.1's `.slice(0, 8)` logger — and 40 failures against a 60-attempt burst. A learner
+    # comparing terminals concludes their own correct run is wrong.
+    (r"^\s*(?:#\s*)?\d+ +ff8d9819fc0e",
+     "aggregation output showing the 12-char email_hash. 9.1's lab logger slices to 8, so "
+     "its app.log aggregates to `ff8d9819`; only Build 1's logger.js emits 12", "A33",
+     "slice(0, 12)"),   # acquits the Build 1 logger.js walkthrough, which really is 12
+    (r"^\s*(?:#\s*)?40 +ff8d9819\b(?![\s\S]{0,200}logger\.js)",
+     "9.1's lab burst is 60 attempts, so reusing its app.log aggregates to 60, not 40", "A33"),
     (r"hashcat -m 34000 -a 0 ~/argonhash\.txt",
      "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
      "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "

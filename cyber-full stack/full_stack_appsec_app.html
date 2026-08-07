@@ -18886,11 +18886,25 @@ c = collections.Counter(json.loads(l)['email_hash'] for l in sys.stdin)
 for h, n in c.most_common(): print(f'{n:4d} failures  email_hash={h}')
 "
 \`\`\`
+\`\`\`
+  60 failures  email_hash=ff8d9819
+\`\`\`
+
+One line, one account, sixty failures. The \`email_hash\` is stable across runs (it is \`sha256("alice@example.com")\` truncated to 8 hex chars), so yours will match exactly. What *will* differ is the log records themselves — peek at one:
+
+\`\`\`bash
+head -1 app.log
+\`\`\`
+\`\`\`
+{"ts":"2026-08-07T15:33:31.438Z","event":"auth.login.failure","email_hash":"ff8d9819","ip":"::1","ua":"curl/8.7.1"}
+\`\`\`
+
+Your \`ts\` and \`ua\` will differ. Note \`"ip":"::1"\` — that is IPv6 loopback, not \`127.0.0.1\`: curl resolves \`localhost\` to \`::1\` first, and \`req.ip\` records what actually connected. Worth internalising now, because an IP allow/deny-list that only knows about IPv4 will silently miss this exact traffic (you'll meet that trap head-on in Module 8.3).
 
 <details>
 <summary>What you'll observe / the lesson</summary>
 
-You see ~60 failures against a single \`email_hash\` in seconds — an unmistakable credential-stuffing signature. Because the log is *structured*, detection is a one-line aggregation; with free-text logs it would be fragile \`grep\`. You detected the attack **without ever logging a password or the raw email** — the hash is enough to correlate. Clean up: \`kill %1 2>/dev/null\`.
+You see 60 failures against a single \`email_hash\` in seconds — an unmistakable credential-stuffing signature. Because the log is *structured*, detection is a one-line aggregation; with free-text logs it would be fragile \`grep\`. You detected the attack **without ever logging a password or the raw email** — the hash is enough to correlate. Clean up: \`kill %1 2>/dev/null\`.
 </details>
 
 ### 🛡️ Defense: a logging architecture that survives an incident
@@ -19216,8 +19230,12 @@ Keep only \`auth.login.failure\` events, group by \`email_hash\`, count, sort de
 
 \`\`\`bash
 grep '"auth.login.failure"' app.log | sed -E 's/.*"email_hash":"([^"]+)".*/\\1/' | sort | uniq -c | sort -rn | head
-#   40 ff8d9819fc0e      <- the attacked account, unmistakable at the top
 \`\`\`
+\`\`\`
+  60 ff8d9819
+\`\`\`
+The attacked account, unmistakable at the top. (60 because 9.1's burst is 60 attempts and its logger truncates the hash to 8 hex chars — if you reused the 40-attempt \`logger.js\` from 9.1's Build 1 instead, you'll see \`40 ff8d9819fc0e\`, the same account at 12 chars. Either is correct; what matters is that one \`email_hash\` towers over everything else.)
+
 Common wrong attempts: forgetting the *first* \`sort\` before \`uniq -c\` (\`uniq\` only collapses *adjacent* duplicates, so an unsorted stream miscounts), and \`sort -r\` instead of \`sort -rn\` (lexical reverse puts \`9\` above \`40\`). The pipeline is identical to the log-analysis muscle from Modules 0.7/1.6 — a detection query is just a *saved* version of it.
 </details>
 
@@ -19847,6 +19865,10 @@ http.createServer((req, res) => {
 EOF
 node api.js &
 \`\`\`
+\`\`\`
+api on 6001
+\`\`\`
+If instead you get \`Error: listen EADDRINUSE: address already in use :::6001\`, a server from an earlier run is still holding the port — \`lsof -ti:6001 | xargs kill\` and re-run. (A stale process answering on the port is the single most common way these labs give a false result: your new code never runs, and the *old* behaviour looks like your finding.)
 
 **Goal.** You are org A and you own invoice 1. Demonstrate the object-level authorization flaw: read an object that isn't yours by changing only its id.
 
@@ -19862,9 +19884,17 @@ The id is right there in the path. Request your own (\`/invoices/1\`), then chan
 <summary>Walkthrough — open after you've run it</summary>
 
 \`\`\`bash
-curl -s localhost:6001/invoices/1     # {"id":1,"org":"A","total":100}   <- yours
-curl -s localhost:6001/invoices/2     # {"id":2,"org":"B","total":999}   <- NOT yours = BOLA
+curl -s localhost:6001/invoices/1     # yours
+curl -s localhost:6001/invoices/2     # NOT yours
+curl -s localhost:6001/invoices/3     # doesn't exist
 \`\`\`
+\`\`\`
+{"id":1,"org":"A","total":100}
+{"id":2,"org":"B","total":999}
+{}
+\`\`\`
+The second line is the whole finding: org B's invoice, returned to you, because you changed one character. The third line is worth noticing too — a missing id returns \`{}\` with a **200**, not a 404, so an enumerator can tell "exists" from "doesn't exist" by response body alone and map the entire id space without a single error.
+
 The bug is that the handler looks up the object by id and returns it with **no check that the caller owns it** — a valid request path is treated as authorization. In a report this is API1:2023 (BOLA), typically High-to-Critical when the object holds financial or personal data, because the attacker just enumerates ids (\`1,2,3,…\`) to vacuum the whole table. The fix is the Module 3.3/6.5 lesson: scope every object fetch by the caller's identity taken from the *server-side* session (\`WHERE id=$1 AND org=$2\`), and return 404 so ids aren't confirmable. Clean up: \`kill %1 2>/dev/null\`.
 </details>
 
@@ -19887,6 +19917,10 @@ http.createServer((req, res) => {
 EOF
 node api2.js &
 \`\`\`
+\`\`\`
+api2 on 6002
+\`\`\`
+(Different port from Drill 1 on purpose, so both servers can run side by side. Same \`EADDRINUSE\` caveat — \`lsof -ti:6002 | xargs kill\` if it's taken.)
 
 **Goal.** (1) Send a PATCH that promotes yourself to \`admin\` by including a field the client should never control. (2) Then write the fix — an allow-list of client-updatable fields — and show the same PATCH no longer escalates.
 
@@ -19903,14 +19937,39 @@ The exploit is just adding \`"role":"admin"\` to the JSON body — \`Object.assi
 
 \`\`\`bash
 curl -s -X PATCH localhost:6002/users/7 -d '{"name":"you","role":"admin"}'
-# {"id":7,"name":"you","role":"admin"}    <- self-promoted via mass assignment
 \`\`\`
+\`\`\`
+{"id":7,"name":"you","role":"admin"}
+\`\`\`
+Self-promoted to admin, in one request, with no exploit more sophisticated than an extra JSON key. Note the server never even required \`content-type: application/json\` — \`JSON.parse\` on the raw body doesn't care, so there is no accidental protection there either.
+
+It isn't only \`role\`. Any property on the object is writable, including its identity:
+
+\`\`\`bash
+curl -s -X PATCH localhost:6002/users/7 -d '{"id":999}'
+\`\`\`
+\`\`\`
+{"id":999,"name":"you","role":"admin"}
+\`\`\`
+
+That is the point of the *allow-list* argument below: if you'd patched this by blocking \`role\`, \`id\` would still have gone through.
+
 The fix replaces \`Object.assign(users[7], JSON.parse(b))\` with an allow-list:
 \`\`\`javascript
 const body = JSON.parse(b);
 const allowed = ["name"];                 // the ONLY fields a client may set
 for (const k of allowed) if (k in body) users[7][k] = body[k];
 \`\`\`
+Restart the server and send the *identical* attack again:
+\`\`\`bash
+lsof -ti:6002 | xargs kill; node api2.js &
+curl -s -X PATCH localhost:6002/users/7 -d '{"name":"you","role":"admin"}'
+\`\`\`
+\`\`\`
+{"id":7,"name":"you","role":"user"}
+\`\`\`
+Same request, \`role\` unchanged — and note the request still succeeds with a 200 rather than erroring. The unexpected field is *ignored*, not rejected, which is the usual choice here.
+
 Now \`role\` (and \`id\`, \`orgId\`, \`isAdmin\`, …) can't be set from the request no matter what the client sends. This is API6/API3 territory (mass assignment / broken property-level authorization) and it's an *allow-list* problem specifically: a blocklist of "fields to reject" always misses one, but an allow-list of "fields to accept" fails safe. Same principle as the 3.3 exploit — the client never gets to nominate its own privileges. Clean up: \`kill %1 2>/dev/null\`.
 </details>
 
