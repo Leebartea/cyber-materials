@@ -37,7 +37,7 @@ COURSES = {
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 100, "guardians_lab": 54}
+COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 100, "guardians_lab": 100}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -127,7 +127,11 @@ def module_texts(name, cur):
             yield label + "/workbench", m.get("workbench") or ""
             lab = m.get("lab") or {}
             if isinstance(lab, dict) and lab.get("mac"):
-                yield label + "/lab", "```bash\n" + lab["mac"] + "\n```"
+                # `lab.mac` stays one pristine copy-paste script; its expected result
+                # lives in the sibling `lab.expected.mac` markdown, appended here so
+                # an output fence there is credited to the lab's command block.
+                exp = (lab.get("expected") or {}).get("mac") or ""
+                yield label + "/lab", "```bash\n" + lab["mac"] + "\n```\n\n" + exp
 
 
 # ── 2. authoring hygiene ──────────────────────────────────────────────────────
@@ -787,8 +791,8 @@ def main():
         if n_f:
             print("\n  \033[31mNOT production grade\033[0m — fix the failures above.\n")
         elif n_w:
-            print("\n  \033[33mGate PASSED with warnings\033[0m — no defects, but "
-                  "expected-output coverage is still below the production target.\n")
+            print("\n  \033[33mGate PASSED with warnings\033[0m — no defects; "
+                  "read each warning above and decide whether it is worth clearing.\n")
         else:
             print("\n  \033[32mPRODUCTION GRADE\033[0m — all checks clean.\n")
 

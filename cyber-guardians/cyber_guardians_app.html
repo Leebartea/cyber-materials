@@ -892,7 +892,23 @@ docker --version     # optional but recommended
 node --version
 python3 --version
 git --version
-docker --version`
+docker --version`,
+      expected: {
+        mac: `\`\`\`text
+$ node --version
+v20.14.0
+$ python3 --version
+Python 3.12.4
+$ git --version
+git version 2.45.2
+$ docker --version
+Docker version 27.0.3, build 7d4bcd8
+\`\`\`
+
+Exact numbers will differ; the floors are what matter — Node 18+, Python 3.11+, Git 2.40+.
+
+A missing tool announces itself as \`zsh: command not found: node\`, not as a version. That is your cue to go back to Module 0 rather than push on. Note that \`docker --version\` answers from the CLI binary alone, so it prints happily while Docker Desktop is closed; \`docker ps\` is the command that actually needs the daemon running, and it is the one that will fail in Module 14.`
+      }
     },
     caseStudy: {
       title: "The student who skipped the map",
@@ -1226,7 +1242,47 @@ sudo usermod -aG kvm,libvirt $USER
 # ── STEP 8: Directory structure ───────────────────────────────────
 mkdir -p ~/CyberGuardians/{journal,labs/{level-1,level-2,level-3},reports,tools}
 echo "# CyberGuardians Journal" > ~/CyberGuardians/journal/start.md
-ls ~/CyberGuardians/`
+ls ~/CyberGuardians/`,
+      expected: {
+        mac: `\`\`\`text
+$ brew --version
+Homebrew 4.3.8
+
+$ brew doctor
+Your system is ready to brew.
+
+$ git --version && python3 --version && node --version && code --version
+git version 2.45.2
+Python 3.12.4
+v20.14.0
+1.91.1
+f1e16e1e6214d7c44d078b1f0607b2388f29d729
+arm64
+
+$ ls ~/CyberGuardians/
+journal	labs	reports	tools
+
+$ echo "=== Core tools ===" && git --version && python3 --version && node --version
+=== Core tools ===
+git version 2.45.2
+Python 3.12.4
+v20.14.0
+=== Security tools ===
+Nmap version 7.95 ( https://nmap.org )
+hashcat v6.2.6
+=== Docker ===
+Docker version 27.0.3, build 7d4bcd8
+=== Environment ready ===
+\`\`\`
+
+\`code --version\` printing \`arm64\` on its third line is the check that matters on an M-series Mac — it confirms you installed a native build rather than an emulated one.
+
+\`brew doctor\` saying anything other than "Your system is ready to brew." is usually fine: warnings about unbrewed files or an outdated Xcode are advisory, and Homebrew says so. Treat a line beginning \`Error:\` differently — that one will break the installs that follow.
+
+The steps with no output are still doing work. \`softwareupdate --list\` may sit for 30 seconds before printing "No new software available." \`brew install\` scrolls hundreds of lines of downloading and pouring; what you check is the exit, not the noise. And Step 6's \`open\` merely launches Firefox — the four extensions only exist once you click through and install them.
+
+If \`brew: command not found\` after Step 2, you skipped the \`~/.zprofile\` line or did not reload it — that is the single most common Apple Silicon setup failure, because Homebrew lives in \`/opt/homebrew\` here rather than \`/usr/local\`.`
+      }
     },
     caseStudy: {
       title: "The analyst who skipped VM isolation — a cautionary tale",
@@ -1360,7 +1416,7 @@ Each numbered line is one router your packets passed through. The \`* * *\` just
 \`nc\` ("netcat") opens a raw TCP connection so you can *see* a server talk. Here it fetches a web page by hand — proving HTTP is just text:
 
 \`\`\`bash
-printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80
+{ printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n'; sleep 5; } | nc example.com 80
 \`\`\`
 \`\`\`
 HTTP/1.1 200 OK
@@ -1369,6 +1425,8 @@ Content-Type: text/html
 \`\`\`
 
 You just spoke HTTP yourself. Because this is port 80 (plain HTTP), everything — including anything private — travels as readable text. That's the exact point Module 2 drives home.
+
+The \`{ ...; sleep 5; }\` wrapper is not decoration. macOS ships Apple's \`nc\`, which tears the socket down the instant its stdin hits end-of-file — so a bare \`printf ... | nc\` sends the request and hangs up before the reply arrives, printing **nothing at all**. Holding stdin open for five seconds gives the server time to answer. If you ever see an empty result from a piped \`nc\`, that is the reason.
 
 ### 🔒 openssl s_client — inspect a TLS certificate (Module 2)
 
@@ -1420,7 +1478,7 @@ dig +short example.com
 traceroute -m 8 example.com
 
 # 5) Speak HTTP by hand, then inspect a TLS cert (Module 2 preview)
-printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80 | head
+{ printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n'; sleep 5; } | nc example.com 80 | head
 echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates`,
       linux: `# Same warm-up on Linux / WSL2. Only the hash command name differs.
 mkdir -p ~/cyber-journal/m0-5 && cd ~/cyber-journal/m0-5
@@ -1442,8 +1500,55 @@ sha256sum data.txt
 dig +short example.com
 traceroute -m 8 example.com                # install: sudo apt install -y traceroute
 
-printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc example.com 80 | head
-echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates`
+{ printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n'; sleep 5; } | nc example.com 80 | head
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates`,
+      expected: {
+        mac: `\`\`\`text
+$ cat note.txt
+hello
+world
+
+$ ls /usr/bin | wc -l
+     924
+
+$ cat secret.enc
+Salted__?~??^?j??????\\??[?_??8??  ?N?
+
+$ cat back.txt
+my secret grade: A+
+
+$ shasum -a 256 data.txt                 # "important data"
+d0eac8f61f9c7085dbb626bf1aef1d3c42afedbbd636b1487745ca7a4ce7d71e  data.txt
+$ shasum -a 256 data.txt                 # after adding ONE x
+c68e0d26a0303b4548615a6bc6f03902cacc997422342c6db27a9023dc003e55  data.txt
+
+$ dig +short example.com
+104.20.23.154
+172.66.147.243
+
+$ { printf 'GET / HTTP/1.1\\r\\n...'; sleep 5; } | nc example.com 80 | head
+HTTP/1.1 200 OK
+Date: Sun, 09 Aug 2026 20:12:24 GMT
+Content-Type: text/html
+Server: cloudflare
+
+$ echo | openssl s_client ... | openssl x509 -noout -subject -issuer -dates
+subject=CN=example.com
+issuer=C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 3
+notBefore=Jul 29 22:10:08 2026 GMT
+notAfter=Oct 27 22:17:21 2026 GMT
+\`\`\`
+
+Read the two hashes character by character. One \`x\` was added to a 14-character file and *nothing* about the two lines is similar — that is the avalanche effect, and it is why a hash can prove a download or a log file was not touched.
+
+\`openssl\` prompts twice for a password on the encrypt step and once on the decrypt; typing nothing shows on screen. Get it wrong and you get \`bad decrypt\` rather than a partly-recovered file, which is the correct behaviour.
+
+Your \`dig\` answer will not match this one and should not: example.com resolves to Cloudflare edge addresses that vary by location, and the 93.184.216.34 you will see in older tutorials was retired. Two A records is normal — DNS hands out several so clients can fail over.
+
+The certificate block is what a browser checks silently on every page load: the name it was issued *to*, the CA that vouched for it, and the two dates that bound its validity. That expiry date is the one that pages a real ops team at 3am.
+
+\`traceroute\` may end in a column of \`* * *\`. Those hops are alive but configured not to reply — not a failure.`
+      }
     },
     caseStudy: {
       title: "Why the commands feel like magic (and why that's dangerous)",
@@ -1657,7 +1762,43 @@ sha256sum secret.txt | tee good.sha256
 sed -i 's/A+/F-/' secret.txt
 sha256sum -c good.sha256          # FAILED = integrity violation detected
 rm secret.txt                      # availability broken
-openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out secret.txt`
+openssl enc -d -aes-256-cbc -pbkdf2 -in secret.enc -out secret.txt`,
+      expected: {
+        mac: `\`\`\`text
+$ cat secret.txt
+Final grade: A+. Account balance: 100.
+
+$ strings secret.enc | grep -i "grade"
+$ echo $?
+1
+
+$ cat recovered.txt
+Final grade: A+. Account balance: 100.
+
+$ shasum -a 256 secret.txt | tee good.sha256
+a1c5e...  secret.txt
+
+$ cat secret.txt                       # after the sed tamper
+Final grade: F-. Account balance: 100.
+
+$ shasum -a 256 -c good.sha256
+secret.txt: FAILED
+shasum: WARNING: 1 computed checksum did NOT match
+
+$ cat secret.txt                       # after rm
+cat: secret.txt: No such file or directory
+\`\`\`
+
+Each property breaks in a way you can see.
+
+**Confidentiality**: \`grep\` finding nothing is the win. It printed no line and exited 1 — the word "grade" is still in there, but AES made it unrecoverable without the key. \`cat secret.enc\` shows the same fact as binary noise, starting with the literal \`Salted__\` header.
+
+**Integrity**: \`FAILED\` is the whole module in one word. The file still exists, still opens, still looks like a grade report — and the hash says a byte changed since you baselined it. Without that baseline you would have no way to know.
+
+**Availability**: \`No such file or directory\` is what an outage looks like from the inside. Perfect confidentiality and perfect integrity, and the asset is worth nothing to you. The last line — restoring from the encrypted copy — is why "have a backup" is a security control, not an IT chore.
+
+If \`sed -i '' 's/A+/F-/'\` errors on your machine you are on Linux, where the empty-argument form is a macOS quirk; drop the \`''\`.`
+      }
     },
     caseStudy: {
       title: "Colonial Pipeline (May 2021)",
@@ -1921,7 +2062,7 @@ echo | openssl s_client -connect google.com:443 -servername google.com 2>/dev/nu
   | openssl x509 -noout -subject -issuer -dates
 
 # 6. PROVE plaintext is readable without TLS (example.com serves plain HTTP on :80)
-printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc -w 8 example.com 80 | head -20
+{ printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n'; sleep 5; } | nc example.com 80 | head -20
 # Everything is plaintext. On hostile Wi-Fi, so are your cookies.`,
       windows: `# PowerShell
 ipconfig
@@ -1936,7 +2077,57 @@ ss -tn state established
 dig google.com +short
 dig google.com +trace | head -40
 traceroute google.com
-cat /etc/resolv.conf`
+cat /etc/resolv.conf`,
+      expected: {
+        mac: `\`\`\`text
+$ ipconfig getifaddr en0
+192.168.1.42
+
+$ netstat -an | grep ESTABLISHED | head
+tcp4  0  0  192.168.1.42.53344   142.250.187.238.443   ESTABLISHED
+tcp4  0  0  192.168.1.42.53351   140.82.121.4.443      ESTABLISHED
+
+$ dig google.com +short
+142.250.187.238
+
+$ dig google.com +trace | head -40
+.			86400	IN	NS	a.root-servers.net.
+com.			172800	IN	NS	a.gtld-servers.net.
+google.com.		172800	IN	NS	ns1.google.com.
+google.com.		300	IN	A	142.250.187.238
+
+$ traceroute google.com
+traceroute to google.com (142.250.187.238), 64 hops max, 40 byte packets
+ 1  192.168.1.1 (192.168.1.1)  3.114 ms  2.902 ms
+ 2  * * *
+ 8  142.250.187.238 (142.250.187.238)  12.442 ms
+
+$ echo | openssl s_client ... | openssl x509 -noout -subject -issuer -dates
+subject=CN=github.com
+issuer=C=GB, O=Sectigo Limited, CN=Sectigo Public Server Authentication CA DV E36
+notBefore=Jul  3 00:00:00 2026 GMT
+notAfter=Sep 30 23:59:59 2026 GMT
+
+$ { printf 'GET / HTTP/1.1\\r\\n...'; sleep 5; } | nc example.com 80 | head -20
+HTTP/1.1 200 OK
+Content-Type: text/html
+Server: cloudflare
+<!doctype html>
+<html>
+<head>
+    <title>Example Domain</title>
+\`\`\`
+
+Your numbers will all differ. What must be true is the *shape*.
+
+\`ipconfig getifaddr en0\` returns a private address — 192.168.x.x, 10.x.x.x or 172.16–31.x.x. That address is not what the internet sees; your router rewrites it (NAT), which is why Module 25.5 has you check your public IP separately. Nothing prints at all if Wi-Fi is off or you are on Ethernet, in which case try \`en1\`.
+
+\`dig +trace\` is the money shot: root servers, then the \`.com\` servers, then Google's own nameservers, each step handing you a referral until someone finally answers with an A record. That delegation chain is DNS, and knowing it is what makes DNS hijacking legible later.
+
+In \`traceroute\`, hop 1 is your own router and \`* * *\` rows are hops that decline to reply. Compare the hop count to a server on another continent — the packets really are crossing that distance.
+
+The last two commands are the same lesson from both sides. The TLS one hands you a signed identity before any content moves; the plaintext one hands you the page — and would have handed a Wi-Fi neighbour your cookies just as readily.`
+      }
     },
     caseStudy: {
       title: "The Dyn DNS Attack (October 2016)",
@@ -1993,7 +2184,7 @@ The cert is presented during the TLS handshake — \`openssl s_client -connect h
 # TLS: read the certificate the server presents
 echo | openssl s_client -connect github.com:443 -servername github.com 2>/dev/null | openssl x509 -noout -issuer -subject -dates
 # PLAINTEXT: everything below is readable by any router in between
-printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n' | nc -w 8 example.com 80 | head -20
+{ printf 'GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n'; sleep 5; } | nc example.com 80 | head -20
 \`\`\`
 \`\`\`
 issuer=C=GB, O=Sectigo Limited, CN=Sectigo Public Server Authentication CA DV E36
@@ -2113,7 +2304,45 @@ sudo apt install -y john
 printf '%s\\n' "$(echo -n 'password' | md5sum | cut -d' ' -f1)" > myhashes.txt
 printf '%s\\n' password iloveyou letmein > words.txt
 john --format=raw-md5 --wordlist=words.txt myhashes.txt
-john --format=raw-md5 --show myhashes.txt`
+john --format=raw-md5 --show myhashes.txt`,
+      expected: {
+        mac: `\`\`\`text
+$ echo -n "hello"  | shasum -a 256
+2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  -
+$ echo -n "hello!" | shasum -a 256
+ce06092fb948d9ffac7d1a376e404b26b7575bcc11ee05a4615fef4fec3a308b  -
+$ echo -n "password" | shasum -a 256
+5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8  -
+$ echo -n "password" | shasum -a 256
+5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8  -
+
+$ john --format=raw-md5 --wordlist=words.txt myhashes.txt
+Using default input encoding: UTF-8
+Loaded 3 password hashes with no different salts (Raw-MD5 [MD5 128/128 ASIMD 4x2])
+Press 'q' or Ctrl-C to abort, almost any other key for status
+password         (?)
+iloveyou         (?)
+2g 0:00:00:00 DONE (2026-08-09 11:02) 2.000g/s 2560p/s 2560c/s 7680C/s
+Session completed.
+
+$ john --format=raw-md5 --show myhashes.txt
+?:password
+?:iloveyou
+
+2 password hashes cracked, 1 left
+
+$ python3 - <<'PY' ... PY
+one bcrypt hash (cost 12): 0.243 s
+\`\`\`
+
+The first four lines are two separate lessons stacked. \`hello\` and \`hello!\` differ by one character and produce hashes with nothing in common — an attacker cannot work "closer" to the answer. But \`password\` hashed twice gives the *identical* digest, and that is the flaw: crack it once anywhere on the internet and every unsalted database storing it falls at the same time. A salt is what makes those two lines differ.
+
+\`john\` cracks \`password\` and \`iloveyou\` faster than you can read the banner, and reports \`1 left\` — \`Tr0ub4dor&3\` is not in a five-word list. Do not read that as "it is safe": it is in every real cracking wordlist ever published. The lesson is about the wordlist, not the password.
+
+Then compare timings. Those MD5 guesses ran at millions per second; one bcrypt hash at cost 12 takes roughly a quarter of a second. Same attacker, same hardware, and the attack goes from hours to geological time — a defence bought with configuration, not cleverness.
+
+If \`john\` reports \`No password hashes loaded\`, your \`myhashes.txt\` is empty because the \`md5\` command name differs on Linux (\`md5sum\`, and it appends \` -\`).`
+      }
     },
     caseStudy: {
       title: "LinkedIn breach (2012 → 2016 revelation)",
@@ -2362,7 +2591,28 @@ Resolve-DnsName _dmarc.apple.com -Type TXT
       linux: `# Thunderbird: Ctrl+U shows the source. mutt: press 'h' for headers.
 grep -iE "Authentication-Results|spf=|dkim=|dmarc=" sample.eml
 dig +short TXT apple.com | grep -i spf
-dig +short TXT _dmarc.apple.com`
+dig +short TXT _dmarc.apple.com`,
+      expected: {
+        mac: `\`\`\`text
+$ grep -iE "From:|Return-Path:|Reply-To:|spf=|dkim=|dmarc=" evil.eml
+From: Apple Support <security@app1e-support.co>
+Return-Path: <bounce@xq7-mailer.ru>
+Reply-To: <collect@apple-verification.xyz>
+Authentication-Results: mx.example.com; spf=fail; dkim=fail; dmarc=fail
+
+$ dig +short TXT apple.com | grep -i spf
+"v=spf1 include:_spf.apple.com include:_spf-txn.apple.com ~all"
+
+$ dig +short TXT _dmarc.apple.com
+"v=DMARC1; p=quarantine; sp=reject; rua=mailto:d@rua.agari.com; ruf=mailto:d@ruf.agari.com;"
+\`\`\`
+
+Four headers, four independent tells, and you never opened the message. The display name says Apple; the domain is \`app1e-support.co\` with a digit standing in for the letter. The \`Return-Path\` — where bounces go, and the address the sending server actually authenticated as — is somewhere else entirely. \`Reply-To\` is a third domain, which is where your reply would really land. And the receiving mail server already did the cryptography for you: \`spf=fail\` means that server was not authorised to send for the claimed domain, \`dkim=fail\` means the signature does not verify, \`dmarc=fail\` is the domain owner's policy agreeing with both.
+
+The DNS lookups show the other half of the system — the records a domain owner publishes so the checks above can happen. Read the mechanisms, not the exact strings, since these change whenever Apple edits them: \`~all\` is a soft fail, \`-all\` is a hard one, and \`p=quarantine\` or \`p=reject\` tell every receiving server in the world what to do with mail that fails. \`sp=reject\` applies that to subdomains, which is how \`mail.apple-security.apple.com\`-style tricks get shut down.
+
+Part A prints nothing until you have saved a real \`sample.eml\` — and a domain with no DMARC record simply returns nothing at all, which is itself a finding about that domain.`
+      }
     },
     caseStudy: {
       title: "Twitter Bitcoin Hack (July 2020)",
@@ -2579,7 +2829,24 @@ defaults read /var/db/locationd/clients.plist 2>/dev/null | grep -i Bundle || \\
 # Inspect cookie flags:
 curl.exe -sI https://github.com | findstr /i "set-cookie"`,
       linux: `# Same Firefox hardening. Ubuntu: gnome-control-center > Privacy
-curl -sI https://github.com | grep -i "set-cookie"`
+curl -sI https://github.com | grep -i "set-cookie"`,
+      expected: {
+        mac: `\`\`\`text
+$ curl -sI https://github.com | grep -i "set-cookie"
+set-cookie: _gh_sess=ZmFrZXNlc3Npb24; Path=/; HttpOnly; Secure; SameSite=Lax
+set-cookie: _octo=GH1.1.1234567890.1754731200; Path=/; Domain=github.com; Expires=Sun, 09 Aug 2026 10:00:00 GMT; Secure; SameSite=Lax
+
+$ defaults read /var/db/locationd/clients.plist 2>/dev/null | grep -i Bundle || \\
+    echo "Check: System Settings > Privacy & Security > Location Services"
+Check: System Settings > Privacy & Security > Location Services
+\`\`\`
+
+Three flags on the session cookie, and each blocks a different attack. \`HttpOnly\` puts it out of reach of JavaScript, so an XSS bug (Module 14) cannot steal the session. \`Secure\` means the browser never sends it over plain HTTP, so the Module 2 sniffing demo comes up empty. \`SameSite=Lax\` stops another site's form from silently riding along with your session — that is CSRF. Note that \`_octo\`, an analytics cookie, is *not* \`HttpOnly\`: it is meant to be read by scripts, and that difference is deliberate design, not an oversight. These are the flags you will be setting yourself as a developer.
+
+The \`defaults read\` line almost always falls through to the echo, and that is expected — \`locationd\`'s database is protected by SIP, so reading it needs Full Disk Access. The \`||\` branch is there so a permission denial can never be mistaken for "nothing is using your location". Check it in System Settings instead.
+
+Part B has no terminal output. Cover Your Tracks grades your browser in the page: run it once with uBlock Origin disabled and once enabled, and compare the "randomised fingerprint" verdict and the bits-of-identifying-information figure. Watching that number move is the point of the exercise.`
+      }
     },
     caseStudy: {
       title: "Cambridge Analytica (2016–2018)",
@@ -2780,7 +3047,40 @@ Get-NetFirewallProfile | Select-Object Name, Enabled`,
       linux: `# Ubuntu
 sudo ufw enable && sudo ufw status verbose
 sudo apt update && sudo apt upgrade -y
-sudo dpkg-reconfigure -plow unattended-upgrades   # auto security updates`
+sudo dpkg-reconfigure -plow unattended-upgrades   # auto security updates`,
+      expected: {
+        mac: `\`\`\`text
+$ fdesetup status
+FileVault is On.
+
+$ /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
+Firewall is enabled. (State = 1)
+
+$ sudo softwareupdate --schedule on
+Automatic checking for updates is turned on
+
+$ spctl --status
+assessments enabled
+
+$ csrutil status
+System Integrity Protection status: enabled.
+
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		15.6
+BuildVersion:		24G84
+\`\`\`
+
+Six commands, six one-line answers, and every one of them should read as above on a hardened Mac. Each is a control you can name in an audit.
+
+\`FileVault is Off.\` means the disk is readable by anyone who walks off with the laptop — no password required, because the login password only guards the running system, not the platter. Turn it on and store the recovery key somewhere that is not the machine.
+
+\`(State = 0)\` is the firewall off; \`(State = 2)\` is block-all-except-essential, which is stricter than the default. Note the module's warning: the old \`defaults read ... com.apple.alf globalstate\` command that most blog posts still recommend now returns an error, because that preference domain no longer exists. \`socketfilterfw\` is the current answer.
+
+\`assessments disabled\` (Gatekeeper) and \`System Integrity Protection status: disabled.\` are both states you have to go out of your way to reach, usually while installing something years ago. Turning SIP back on needs a reboot into Recovery — do it.
+
+\`sw_vers\` is the finding people skip. An unsupported macOS stops receiving security patches while continuing to work perfectly, which is exactly what makes it dangerous.`
+      }
     },
     caseStudy: {
       title: "Pegasus Spyware (2016–present)",
@@ -2975,7 +3275,33 @@ Get-Content log.txt | Select-String "error"
 icacls .env /inheritance:r /grant:r "$env:USERNAME:F"`,
       linux: `# Identical to macOS (Linux is where Unix came from)
 grep -ri "password" ~ ; find ~ -name "*.pem" 2>/dev/null
-chmod 600 .env && ls -l .env`
+chmod 600 .env && ls -l .env`,
+      expected: {
+        mac: `\`\`\`text
+$ pwd
+/Users/you/cyber-journal/m7
+
+$ cat f.txt
+hi
+bye
+
+$ head -n1 f.txt
+hi
+
+$ ps aux | grep -i node | grep -v grep | wc -l
+       3
+
+$ ls -l .env                 # right after creating it
+-rw-r--r--  1 you  staff  22  9 Aug 10:14 .env
+
+$ ls -l .env                 # after chmod 600
+-rw-------  1 you  staff  22  9 Aug 10:14 .env
+\`\`\`
+
+Three of these commands are *supposed* to look like nothing happened. \`tail -f\` prints the tail of the log and then hangs with a blinking cursor — that is it working, waiting for new lines; press Ctrl+C to get your prompt back. \`grep -ri "password" ~/cyber-journal\` prints nothing here because your journal has no such file yet (grep exits 1 on no match — a silent grep is an answer, not a failure), and \`find ~ -name "*.pem"\` prints nothing unless you actually have key files.
+
+The two \`ls -l .env\` lines are the whole point of the module: the same file, before and after. \`-rw-r--r--\` means every user account on the machine can read your API key; \`-rw-------\` means only you can. Your permission column may differ if your umask does — what must change is the group/other read bits disappearing.`
+      }
     },
     caseStudy: {
       title: "World-Readable Secrets in the Wild",
@@ -3166,7 +3492,27 @@ New-Item level-1-capstone-audit.md -ItemType File; code level-1-capstone-audit.m
 Get-MpComputerStatus | Select-Object AntivirusEnabled, RealTimeProtectionEnabled
 (Get-BitLockerVolume -MountPoint C).ProtectionStatus`,
       linux: `cd ~/cyber-journal && touch level-1-capstone-audit.md && code level-1-capstone-audit.md
-sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS evidence`
+sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS evidence`,
+      expected: {
+        mac: `\`\`\`text
+$ fdesetup status
+FileVault is On.
+
+$ spctl --status
+assessments enabled
+
+$ csrutil status
+System Integrity Protection status: enabled.
+
+$ curl -sI https://github.com | grep -i set-cookie
+set-cookie: _gh_sess=ZmFrZXNlc3Npb24; Path=/; HttpOnly; Secure; SameSite=Lax
+set-cookie: _octo=GH1.1.1234567890.1754731200; Path=/; Domain=github.com; Expires=Sun, 09 Aug 2026 10:00:00 GMT; Secure; SameSite=Lax
+\`\`\`
+
+\`touch\` and \`code\` print nothing — the audit file opening in your editor is their output.
+
+Read each line as a finding, not a checkmark. "FileVault is Off." is your first High-severity row (F in the CIA triad's endpoint story, Module 6). "assessments disabled" or "System Integrity Protection status: disabled." means someone — probably you, once, to install something — turned a protection off and never turned it back on. On the cookie line, note which flags GitHub sets: \`HttpOnly\` (JavaScript cannot read it) and \`Secure\` (never sent over plain HTTP). A session cookie missing either is the finding you are learning to spot.`
+      }
     },
     challenges: [{
       q: "Why does a security report require a remediation (with a date) for every finding, not just the finding itself?",
@@ -3354,7 +3700,31 @@ sudo lsof -i :5000`,
 Get-Process -Id (Get-NetTCPConnection -LocalPort 3389).OwningProcess`,
       linux: `sudo ss -tulpn      # -t TCP -u UDP -l listening -p process -n numeric
 # Address 0.0.0.0 = all interfaces (exposed); 127.0.0.1 = localhost-only
-nmap -sT -p- 127.0.0.1`
+nmap -sT -p- 127.0.0.1`,
+      expected: {
+        mac: `\`\`\`text
+$ sudo lsof -iTCP -sTCP:LISTEN -P -n
+COMMAND    PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+rapportd   512  you    8u  IPv4 0x9a1b2c3d4e5f6a      0t0  TCP *:52698 (LISTEN)
+node      4711  you   21u  IPv4 0x7f3e2d1c0b9a88      0t0  TCP 127.0.0.1:3000 (LISTEN)
+postgres   980  you    7u  IPv6 0x4c8a11f2e3d40c      0t0  TCP [::1]:5432 (LISTEN)
+
+$ nmap -sT -p- 127.0.0.1
+Starting Nmap 7.95 ( https://nmap.org ) at 2026-08-09 10:22 BST
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000090s latency).
+Not shown: 65533 closed tcp ports (conn-refused)
+PORT     STATE SERVICE
+3000/tcp open  ppp
+5432/tcp open  postgresql
+
+Nmap done: 1 IP address (1 host up) scanned in 4.21 seconds
+\`\`\`
+
+The NAME column is the entire lesson. \`127.0.0.1:3000\` and \`[::1]:5432\` are bound to loopback: nothing outside this machine can reach them, whatever your firewall says. \`*:52698\` (equivalently \`0.0.0.0:52698\`) is bound to every interface — anyone on the coffee-shop Wi-Fi can try it. Your own list will differ; what you are looking for is any service you did not knowingly expose sitting on \`*\`.
+
+Nmap labels ports from \`/etc/services\` by number, so a dev server on 3000 gets called \`ppp\` — the name is a guess, \`-sV\` is what actually asks the service. If \`nmap -p-\` reports every port closed, you scanned before starting your app.`
+      }
     },
     caseStudy: {
       title: "Exposed Databases (MongoDB / Elasticsearch ransom waves)",
@@ -3559,7 +3929,40 @@ gpg --list-keys
 # Cert view: browser DevTools > Security, or Test-NetConnection`,
       linux: `sudo apt install gnupg
 gpg --full-generate-key
-echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noout -dates`
+echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noout -dates`,
+      expected: {
+        mac: `\`\`\`text
+$ gpg --list-keys
+/Users/you/.gnupg/pubring.kbx
+-----------------------------
+pub   ed25519 2026-08-09 [SC] [expires: 2028-08-08]
+      3AA5C34371567BD2A1C4D6E8F90B2C7D45E1A9F3
+uid           [ultimate] Your Name <your@email.com>
+sub   cv25519 2026-08-09 [E] [expires: 2028-08-08]
+
+$ gpg --decrypt notes.txt.gpg
+gpg: encrypted with cv25519 key, ID A1B2C3D4E5F60789, created 2026-08-09
+      "Your Name <your@email.com>"
+secret mission notes
+
+$ echo | openssl s_client -connect github.com:443 ... | openssl x509 -noout -subject -issuer -dates
+subject=CN=github.com
+issuer=C=GB, O=Sectigo Limited, CN=Sectigo Public Server Authentication CA DV E36
+notBefore=Jul  3 00:00:00 2026 GMT
+notAfter=Sep 30 23:59:59 2026 GMT
+
+$ echo -n "hello" | shasum -a 256
+2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  -
+\`\`\`
+
+\`--full-generate-key\` is an interview, not a command: it asks for key type, size, expiry, name and email, then a passphrase, and finally sits there asking you to move the mouse while it gathers entropy. Give the key an expiry — an unexpiring key you lose control of is a key you can never retire.
+
+Read the \`--list-keys\` block as a pair. \`pub ... [SC]\` is your certify-and-sign key, the long hex line is its fingerprint (the thing you read aloud to verify a key belongs to a person), and \`sub ... [E]\` is the separate encryption subkey. That split is why GPG can rotate encryption without changing your identity.
+
+\`--encrypt\` prints nothing and quietly produces \`notes.txt.gpg\`. \`--decrypt\` writes the recovered text to stdout and its commentary to stderr, so the last line is your plaintext. If it answers \`No secret key\`, you encrypted to a recipient whose private key you do not hold — the correct failure.
+
+Then note the parallel: your GPG key and GitHub's certificate are the same public-key idea with different trust models. You decide to trust your own key; you trust github.com because a CA — Sectigo here, though it changes when they renew — signed it, and your Mac already trusts that CA. Certificate chains are just delegated trust.`
+      }
     },
     caseStudy: {
       title: "Heartbleed (April 2014)",
@@ -3729,7 +4132,43 @@ systemctl --type=service --state=running       # what's running, and should it b
       linux: `# Already on Linux? Audit yourself:
 sudo find / -perm -4000 -type f 2>/dev/null; sudo -l; sudo tail /var/log/auth.log
 # Or run Kali tooling in Docker (arm64 image on Apple Silicon):
-docker run --platform linux/arm64 -it kalilinux/kali-rolling /bin/bash`
+docker run --platform linux/arm64 -it kalilinux/kali-rolling /bin/bash`,
+      expected: {
+        mac: `\`\`\`text
+kali@kali:~$ whoami
+kali
+kali@kali:~$ uname -a
+Linux kali 6.12.13-arm64 #1 SMP Debian 6.12.13-1kali1 (2025-02-26) aarch64 GNU/Linux
+
+kali@kali:~$ sudo find /etc -type f -mtime -1
+/etc/shadow
+/etc/shadow-
+/etc/apt/apt.conf.d/01autoremove
+
+kali@kali:~$ sudo find / -perm -4000 -type f 2>/dev/null
+/usr/bin/su
+/usr/bin/sudo
+/usr/bin/mount
+/usr/bin/umount
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/newgrp
+
+kali@kali:~$ sudo tail -n 20 /var/log/auth.log
+2026-08-09T10:31:02.114887+01:00 kali sudo:     kali : TTY=pts/0 ; PWD=/home/kali ; USER=root ; COMMAND=/usr/bin/apt update
+2026-08-09T10:33:41.902233+01:00 kali passwd[3120]: pam_unix(passwd:chauthtok): password changed for kali
+
+kali@kali:~$ systemctl --type=service --state=running
+  UNIT            LOAD   ACTIVE SUB     DESCRIPTION
+  cron.service    loaded active running Regular background program processing daemon
+  dbus.service    loaded active running D-Bus System Message Bus
+  ssh.service     loaded active running OpenBSD Secure Shell server
+\`\`\`
+
+\`uname -a\` must say **aarch64**. If it says x86_64 you downloaded the amd64 ISO and are running under emulation — slow, and some tools will misbehave.
+
+Each of the last four commands is a defender's question, and the answer is only meaningful because you know what you just did. \`/etc/shadow\` changed in the last 24h because *you* ran \`passwd\`; a file you cannot account for is the finding. The SUID list should be boring and short — every binary there runs as root no matter who launches it, so an entry like \`/usr/bin/find\` or a copy of \`bash\` is a privilege-escalation path, not a curiosity. Note that \`-mtime -1\` on a fresh VM also catches everything \`apt full-upgrade\` touched; run it again tomorrow for a quieter baseline.`
+      }
     },
     caseStudy: {
       title: "SUID & sudo Misconfigurations in Privilege Escalation",
@@ -3959,7 +4398,32 @@ wsl
 mkdir -p ~/cyber-journal/m11_5 && cd ~/cyber-journal/m11_5
 printf 'INFO login ok\\nERROR db timeout\\n' > app.log
 grep -c ERROR app.log
-find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'`
+find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'`,
+      expected: {
+        mac: `\`\`\`text
+$ ./scan.sh ERROR
+matches: 2
+
+$ ./scan.sh
+Usage: ./scan.sh <pattern>
+$ echo $?
+1
+
+$ find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'
+$ ls
+app.log		app.log.bak	scan.sh
+$ cat app.log
+INFO login ok
+ERROR DB_TIMEOUT
+ERROR DB_TIMEOUT
+\`\`\`
+
+\`scan.sh\` prints \`matches: 2\` because \`grep -c\` counts *lines*, not occurrences. Run it with no argument and the guard fires: the usage line goes to stderr and the exit status is 1 — that is what makes the script safe to call from another script.
+
+\`sed\` and \`xargs\` print nothing on success; the proof is \`app.log.bak\` appearing beside the edited file. That backup is why the lab uses \`-i.bak\` rather than a bare \`-i\`: an in-place edit with a bad pattern is otherwise unrecoverable. (macOS \`sed\` requires an argument after \`-i\` anyway; on Linux, bare \`-i\` works and skips the backup.)
+
+The tunnel lines are commented out on purpose — they need the Kali VM from Module 15. When you do run them, \`ssh -L\` prints nothing and appears to hang: that is the tunnel holding open. The evidence is in the *other* terminal, where \`curl -I http://localhost:9000\` returns the VM's \`HTTP/1.1 200 OK\`.`
+      }
     },
     caseStudy: {
       title: "Shellshock (CVE-2014-6271, 2014)",
@@ -4163,7 +4627,34 @@ nmap -sV scanme.nmap.org
 nmap -sV -p 5432,3306,8080 127.0.0.1`,
       linux: `sudo apt install nmap
 nmap -sV scanme.nmap.org
-sudo nmap -sS -p- 127.0.0.1`
+sudo nmap -sS -p- 127.0.0.1`,
+      expected: {
+        mac: `\`\`\`text
+$ nmap scanme.nmap.org
+Starting Nmap 7.95 ( https://nmap.org ) at 2026-08-09 10:40 BST
+Nmap scan report for scanme.nmap.org (45.33.32.156)
+Host is up (0.16s latency).
+Not shown: 996 closed tcp ports (conn-refused)
+PORT      STATE SERVICE
+22/tcp    open  ssh
+80/tcp    open  http
+9929/tcp  open  nping-echo
+31337/tcp open  Elite
+
+Nmap done: 1 IP address (1 host up) scanned in 8.42 seconds
+
+$ nmap -sV scanme.nmap.org
+PORT      STATE SERVICE    VERSION
+22/tcp    open  ssh        OpenSSH 6.6.1p1 Ubuntu 2ubuntu2.13 (Ubuntu Linux; protocol 2.0)
+80/tcp    open  http       Apache httpd 2.4.7 ((Ubuntu))
+9929/tcp  open  nping-echo Nping echo
+31337/tcp open  tcpwrapped
+\`\`\`
+
+Compare the two SERVICE columns. The first is a lookup table — port 31337 is *named* "Elite" in \`/etc/services\` and that tells you nothing. The second actually talked to the service and came back with a version string, which is what turns a scan into a vulnerability assessment (Module 19): OpenSSH 6.6.1 and Apache 2.4.7 are years out of date, and now you have something to search a CVE database for.
+
+\`sudo nmap -sS -p- 127.0.0.1\` prints the same shape against your own machine but finishes in seconds and shows whatever you have running locally. \`-sS\` needs sudo because it forges half-open TCP handshakes; without sudo, nmap silently downgrades to \`-sT\`. A "Host seems down" or 0-ports result against scanme.nmap.org usually means your network blocks outbound scanning, not that the host is gone.`
+      }
     },
     caseStudy: {
       title: "Shodan and the Always-On Scan",
@@ -4391,7 +4882,26 @@ sudo tcpdump -i lo0 -A 'tcp port 8080'`,
       windows: `# Same workflow; install Npcap with Wireshark.
 # Filter http > Follow HTTP Stream to read plaintext; filter tls for the encrypted case.`,
       linux: `sudo usermod -aG wireshark $USER   # log out/in, then launch wireshark
-# Same filters. CLI: sudo tcpdump -i lo -A 'tcp port 8080'`
+# Same filters. CLI: sudo tcpdump -i lo -A 'tcp port 8080'`,
+      expected: {
+        mac: `\`\`\`text
+$ sudo tcpdump -i lo0 -A 'tcp port 8080'
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on lo0, link-type NULL (BSD loopback), snapshot length 524288 bytes
+10:52:31.884213 IP localhost.51442 > localhost.http-alt: Flags [P.], seq 1:78, ack 1, win 6379, length 77
+E..q..@.@.............
+GET / HTTP/1.1
+Host: localhost:8080
+User-Agent: curl/8.7.1
+Accept: */*
+\`\`\`
+
+In Wireshark, step 3 is the one that should unsettle you. Follow > HTTP Stream on the example.com request opens a window showing both halves of the conversation as readable text — your \`GET /\`, your User-Agent, every header, and the full HTML that came back. Had you logged in over plain HTTP, the password would be sitting in that same window.
+
+Step 4 looks completely different: with the \`tls\` filter you see the handshake — Client Hello, Server Hello, Certificate — and then rows labelled \`Application Data\` whose contents are ciphertext. Note what still leaks even here: the destination IP, and the server name in the Client Hello's SNI field. TLS hides *what* you said, not *who* you said it to.
+
+The \`tcp.flags.syn == 1 and tcp.flags.ack == 0\` filter leaves only connection *attempts*. On your own machine that is a short list; on a scanned host it is what an nmap SYN scan looks like from the defender's side.`
+      }
     },
     caseStudy: {
       title: "Firesheep (2010)",
@@ -4665,7 +5175,40 @@ iw dev wlan0 scan | grep -iE 'SSID|RSN|WPS|capability'   # cipher/PMF/WPS of nea
 #   sudo airmon-ng start wlan0              # monitor mode
 #   sudo airodump-ng wlan0mon --bssid <YOUR_AP> -c <CHAN> -w cap   # wait for/force a handshake
 #   aircrack-ng -w wordlist.txt cap-01.cap  # offline dictionary attack on YOUR handshake
-# Then enable PMF/WPA3 on that AP and watch the deauth-driven capture stop working.`
+# Then enable PMF/WPA3 on that AP and watch the deauth-driven capture stop working.`,
+      expected: {
+        mac: `\`\`\`text
+$ system_profiler SPAirPortDataType | sed -n '/Current Network/,/Other Local/p'
+          Current Network Information:
+            MyHomeWiFi:
+              PHY Mode: 802.11ax
+              Channel: 44 (5GHz, 80MHz)
+              Country Code: GB
+              Network Type: Infrastructure
+              Security: WPA3 Personal
+              Signal / Noise: -52 dBm / -92 dBm
+
+$ sudo wdutil info | grep -iE 'SSID|Security|Channel|RSSI|MAC'
+        SSID : MyHomeWiFi
+     Address : aa:bb:cc:dd:ee:ff
+    Security : WPA3 Personal
+     Channel : 5g44/80
+        RSSI : -52 dBm
+
+$ networksetup -listpreferredwirelessnetworks en0
+Preferred networks on en0:
+	MyHomeWiFi
+	Guest-IoT
+	BTWiFi-with-FON
+	Starbucks WiFi
+\`\`\`
+
+Read the Security line first: \`WPA3 Personal\` is the goal, \`WPA2 Personal\` is acceptable with PMF enabled, and anything reading \`WPA/WPA2 Personal\`, \`WEP\`, or \`none\` is a fix-today finding.
+
+Run \`wdutil info\` **with sudo** or the fields you care about come back as \`<redacted>\` — that redaction is a privacy feature, not an error.
+
+The preferred-networks list is the attack surface. \`Starbucks WiFi\` and \`BTWiFi-with-FON\` are open networks, so your Mac will silently associate with *any* access point broadcasting those names — including a laptop in a rucksack on the same train. That is the evil twin. Remove the ones you do not control; if \`en0\` is not your Wi-Fi interface (Macs with Ethernet adapters vary), find the right one with \`networksetup -listallhardwareports\`.`
+      }
     },
     caseStudy: {
       title: "TJX / TJ Maxx — WEP at the edge, 45M+ cards stolen (2005–2007)",
@@ -4910,7 +5453,38 @@ docker run --rm -d -p 3000:3000 bkimminich/juice-shop   # native; http://localho
 docker run --rm -d -p 8080:80 vulnerables/web-dvwa      # x86 host runs it directly`,
       linux: `sudo apt install docker.io
 sudo docker run --rm -d -p 3000:3000 bkimminich/juice-shop
-sudo docker run --rm -d -p 8080:80 vulnerables/web-dvwa`
+sudo docker run --rm -d -p 8080:80 vulnerables/web-dvwa`,
+      expected: {
+        mac: `\`\`\`text
+$ docker run --rm -d -p 3000:3000 bkimminich/juice-shop
+Unable to find image 'bkimminich/juice-shop:latest' locally
+latest: Pulling from bkimminich/juice-shop
+7478e0ac0f23: Pull complete
+Status: Downloaded newer image for bkimminich/juice-shop:latest
+9c1d2f8a4b3e7a05c6d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e
+
+$ curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:3000
+200
+
+$ docker ps
+CONTAINER ID   IMAGE                     PORTS                    STATUS
+9c1d2f8a4b3e   bkimminich/juice-shop     0.0.0.0:3000->3000/tcp   Up 12 seconds
+\`\`\`
+
+The long hex string is the container ID; \`-d\` means it runs in the background, so getting your prompt straight back is success, not failure. The first run takes a few minutes of pulling. \`-p 3000:3000\` is what makes it reachable at \`http://localhost:3000\`, and \`--rm\` means the container deletes itself on stop, so a botched exploit is undone by a restart.
+
+The three attacks each produce their own unmistakable evidence in the browser:
+
+**SQLi** — the login form accepts \`' OR 1=1--\` and logs you in as the first user in the table, no password. In DVWA's User ID field, the \`UNION SELECT\` returns rows of usernames and password hashes where one profile should have been. You broke authentication without a credential.
+
+**Reflected XSS** — the search box renders \`<script>alert(document.domain)<\/script>\` and an alert pops up showing the *site's* domain, not yours. That domain is the proof: your script is running with the site's privileges, and could read the session cookie if \`HttpOnly\` were missing (Module 5).
+
+**Command injection** — the ping field with \`8.8.8.8; whoami\` returns the ping output followed by a username. The web app just ran an OS command for you.
+
+Then raise DVWA from Low to Medium to High and try again. The same payloads start failing, and reading the source at each level shows exactly which defence — escaping, parameterised queries, allowlists — killed which attack. That comparison is the module.
+
+If \`docker: Cannot connect to the Docker daemon\`, Docker Desktop is not running: \`open -a Docker\` and wait for the whale icon to settle. Stop containers when you finish — Juice Shop is small, but DVWA under x86 emulation is slow and hot.`
+      }
     },
     caseStudy: {
       title: "Equifax (2017)",
@@ -5127,7 +5701,38 @@ docker run --rm --platform linux/amd64 -p 8080:80 vulnerables/web-dvwa   # x86 e
       windows: `# VirtualBox or VMware Workstation. Host-Only network; import the target VM.
 # x86 Windows runs Metasploitable 2 directly. Same verify-isolation checks.`,
       linux: `# KVM is fastest: sudo apt install qemu-kvm libvirt-daemon-system virt-manager
-# Host-only/internal network; snapshot; verify the target cannot reach 8.8.8.8.`
+# Host-only/internal network; snapshot; verify the target cannot reach 8.8.8.8.`,
+      expected: {
+        mac: `\`\`\`text
+kali$ ping -c 2 192.168.56.20
+PING 192.168.56.20 (192.168.56.20): 56 data bytes
+64 bytes from 192.168.56.20: icmp_seq=0 ttl=64 time=0.412 ms
+64 bytes from 192.168.56.20: icmp_seq=1 ttl=64 time=0.388 ms
+
+--- 192.168.56.20 ping statistics ---
+2 packets transmitted, 2 packets received, 0.0% packet loss
+
+target$ ping -c 2 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+
+--- 8.8.8.8 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1015ms
+
+kali$ nmap -sV 192.168.56.20
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.7
+80/tcp   open  http    Apache httpd 2.4.52 ((Ubuntu))
+3306/tcp open  mysql   MySQL 8.0.36-0ubuntu0.22.04.1
+\`\`\`
+
+You need **both** results, and the second one is the safety gate. Kali reaching the target proves the host-only network works; the target *failing* to reach 8.8.8.8 proves that network is a sealed box. \`100% packet loss\` or \`Network is unreachable\` is the pass condition here — the one time a failed ping is the good outcome.
+
+If that ping succeeds, stop and fix the network before you run a single tool. A deliberately vulnerable VM with a route to the internet is a machine that will be found and used by someone else, and it is attached to your home network.
+
+Take the snapshots while both VMs are clean. Every exploit from here on is destructive, and a snapshot turns a ruined afternoon into a thirty-second revert.
+
+Skip Metasploitable 2 on Apple Silicon — it is 32-bit x86 and emulation of it is unreliable enough to eat a weekend for no learning. Juice Shop runs natively; DVWA runs under emulation slowly but usably.`
+      }
     },
     caseStudy: {
       title: "When a 'Vulnerable Lab' Hits the Real Internet",
@@ -5356,7 +5961,29 @@ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | u
 Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625} -MaxEvents 20 |
   Select-Object TimeCreated, @{N='User';E={$_.Properties[5].Value}}, @{N='IP';E={$_.Properties[19].Value}}`,
       linux: `sudo grep "Failed password" /var/log/auth.log | tail -20
-sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head`
+sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head`,
+      expected: {
+        mac: `\`\`\`text
+$ log show --predicate 'process == "loginwindow"' --last 24h | head -40
+Filtering the log data using "process == "loginwindow""
+Skipping info and debug messages, pass --info and/or --debug to include.
+Timestamp                       Thread     Type        Activity             PID    TTL
+2026-08-09 08:02:11.114302+0100 0x1f2c     Default     0x0                  312    0    loginwindow: [com.apple.loginwindow:Standard] -[SessionAgent showLoginWindow] screen unlocked for user you
+
+kali@kali:~$ sudo grep "Failed password" /var/log/auth.log | tail -20
+2026-08-09T09:14:02.331104+01:00 kali sshd[2211]: Failed password for invalid user admin from 203.0.113.44 port 51222 ssh2
+2026-08-09T09:14:04.887210+01:00 kali sshd[2213]: Failed password for invalid user oracle from 203.0.113.44 port 51244 ssh2
+
+kali@kali:~$ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head
+     87 203.0.113.44
+     12 198.51.100.9
+      3 192.0.2.77
+\`\`\`
+
+The last pipeline is the module in one line, so read it right to left: \`awk '{print $(NF-3)}'\` plucks the IP by counting back from the end of the line (\`... from IP port NNNNN ssh2\`), \`sort | uniq -c\` tallies each one, and \`sort -rn\` puts the loudest first. 87 failures from a single address is a brute-force attempt; three scattered failures is you mistyping your own password.
+
+\`log show\` on macOS is verbose and slow — 5–20 seconds is normal, and the two banner lines about filtering always appear. On a Mac the \`auth.log\` commands will say \`No such file or directory\`; that file is a Linux convention, so run those two inside your Kali VM. An empty result on Kali is good news, and means your VM is not exposed to the internet.`
+      }
     },
     caseStudy: {
       title: "Target (2013)",
@@ -5603,7 +6230,24 @@ find ~/.ssh -maxdepth 1 -type f ! -name '*.pub' ! -name 'known_hosts*' ! -name '
 ls -la ~/.ssh/
 # -> every private key should read -rw-------; .pub files staying -rw-r--r-- is correct
 # Check MFA status on cloud CLI tools:
-aws sts get-caller-identity 2>/dev/null || echo "AWS CLI not configured"`
+aws sts get-caller-identity 2>/dev/null || echo "AWS CLI not configured"`,
+      expected: {
+        mac: `\`\`\`text
+$ ls -la ~/.ssh/
+total 32
+drwx------   6 you  staff   192  9 Aug 11:14 .
+drwxr-x---+ 48 you  staff  1536  9 Aug 11:02 ..
+-rw-------   1 you  staff   464  9 Aug 11:14 id_ed25519
+-rw-r--r--   1 you  staff   103  9 Aug 11:14 id_ed25519.pub
+-rw-r--r--   1 you  staff  1790  9 Aug 10:58 known_hosts
+\`\`\`
+
+The module already tells you not to trust the "SSH private keys locked to owner-only" message — this is the command that checks. \`find\` prints that line even when it matched zero files, because succeeding at nothing is still succeeding.
+
+So read the permission column instead. \`-rw-------\` on \`id_ed25519\` is the goal: owner reads, nobody else. \`-rw-r--r--\` on \`id_ed25519.pub\` is also correct and should stay that way, since a public key is meant to be handed out. Anything wider on the *private* key and OpenSSH refuses to use it at all, with \`Permissions 0644 for '/Users/you/.ssh/id_ed25519' are too open.\` — a rare case of a tool enforcing the lesson for you.
+
+Steps 1 and 2 print their own evidence, described inline in the lab. The rest of this module produces no terminal output on purpose: the deliverables are a written list of every account still protected by a password alone, and a Standard test account that gets \`sudo: a terminal is required\` or a permission denial where your admin account would have succeeded. Delete that test account when you are done — a dormant account is exactly the kind of standing access Zero Trust is arguing against.`
+      }
     },
     caseStudy: {
       title: "SolarWinds Orion (2020) — 9 months inside a trusted network",
@@ -5790,7 +6434,35 @@ nmap -sV -p- 192.168.56.20 | tee recon.txt`,
       windows: `New-Item -ItemType Directory -Path "$HOME\\cyber-journal\\level-2-capstone"
 cd $HOME\\cyber-journal\\level-2-capstone; code .`,
       linux: `mkdir -p ~/cyber-journal/level-2-capstone && cd ~/cyber-journal/level-2-capstone
-nmap -sV -p- 192.168.56.20 | tee recon.txt && code .`
+nmap -sV -p- 192.168.56.20 | tee recon.txt && code .`,
+      expected: {
+        mac: `\`\`\`text
+target$ ping -c 2 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+
+--- 8.8.8.8 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1009ms
+
+$ nmap -sV -p- 192.168.56.20 | tee recon.txt
+Starting Nmap 7.95 ( https://nmap.org ) at 2026-08-09 11:40 BST
+Nmap scan report for 192.168.56.20
+Host is up (0.00042s latency).
+Not shown: 65530 closed tcp ports (conn-refused)
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.7
+80/tcp   open  http    Apache httpd 2.4.52 ((Ubuntu))
+3306/tcp open  mysql   MySQL 8.0.36-0ubuntu0.22.04.1
+8080/tcp open  http    Jetty 9.4.43.v20210629
+
+Nmap done: 1 IP address (1 host up) scanned in 128.55 seconds
+\`\`\`
+
+Confirm the isolation ping fails **before** anything else. This is the module where you start behaving like an attacker, and doing that on a VM with a route to the internet is how a lab becomes an incident.
+
+\`-p-\` means all 65535 ports and takes minutes, not seconds — the 8080 service that only a full scan finds is usually the interesting one. \`tee\` puts the scan on screen and into \`recon.txt\` at the same time, which matters because a report claim without saved evidence is an opinion. Timestamp everything you do from here.
+
+\`touch\` and \`code\` print nothing; the two empty files opening in your editor is the output. Write \`scope-and-rules.md\` first, before the fun part: which IPs are in scope, what is explicitly off limits, what time window, and what you do if you find something that looks like real data. Doing that on your own lab is how the habit is in place when the target belongs to a client.`
+      }
     },
     challenges: [{
       q: "Before any attack in this capstone, you confirm the target cannot reach 8.8.8.8. Why is that check the most important step?",
@@ -6000,7 +6672,23 @@ code mapping.md roe-template.md
 # 4. Read one real public pentest report (search "NCC Group public report") - spot the PTES skeleton.`,
       windows: `# Reading/exploration module. Same: explore attack.mitre.org, write an RoE template,
 # map your Module 17 steps to Kill Chain + ATT&CK, read one public pentest report.`,
-      linux: `# Same as macOS.`
+      linux: `# Same as macOS.`,
+      expected: {
+        mac: `\`\`\`text
+$ printf 'Step | Kill Chain | ATT&CK\\nnmap -sV | Reconnaissance | T1046\\n' > mapping.md
+$ cat mapping.md
+Step | Kill Chain | ATT&CK
+nmap -sV | Reconnaissance | T1046
+\`\`\`
+
+That is the only output the lab produces — everything else is reading and writing, which is the point. This module adds no new attacks; it makes you name the ones you already ran.
+
+By the end, \`mapping.md\` should have a row for every step of your Module 17 engagement. The scan maps to T1046 (Network Service Discovery); a login attempt with guessed credentials is T1110 (Brute Force); anything you did after getting a shell belongs under Execution or Persistence. Two things go wrong when people first do this: they map tools instead of behaviours (ATT&CK does not care that it was nmap), and they leave the middle of the Kill Chain empty — which is usually accurate, and worth noticing, because a real intrusion spends most of its time there.
+
+The Rules of Engagement page is the deliverable that gets you hired. Scope, explicit exclusions, the time window, an emergency contact, and what you do the moment you find evidence of a real breach. Writing it for a lab you own costs an hour and means you never send a first client an improvised version.
+
+Read the NCC Group report with the PTES phases in one hand: pre-engagement, intelligence gathering, threat modelling, vulnerability analysis, exploitation, post-exploitation, reporting. You will find every one of them, and you will notice that the exploitation section is the shortest.`
+      }
     },
     caseStudy: {
       title: "Coalfire Iowa Courthouse Arrest (2019)",
@@ -6281,7 +6969,35 @@ ps -eo ppid,pid,comm --sort=ppid | awk 'NR>1 {print $1, $2, $3}' | head -40
 ps -eo comm,ppid | awk '$1 == "bash" {print $2}' | while read ppid; do
   ps -p "$ppid" -o comm= 2>/dev/null
 done | sort | uniq -c | sort -rn
-# Anything unexpected here? That's your hunt finding.`
+# Anything unexpected here? That's your hunt finding.`,
+      expected: {
+        mac: `\`\`\`text
+$ log show --predicate 'eventMessage contains "exec"' --last 1m --style compact | head -20
+Filtering the log data using "eventMessage CONTAINS "exec""
+Timestamp               Ty Process[PID:TID]
+2026-08-09 11:52:03.114 Df kernel[0:1a2b] AMFI: allowing exec of /usr/bin/login
+2026-08-09 11:52:07.882 Df runningboardd[112:3f4] Executing job with launchd
+
+$ ps aux | awk '{print $11, $12}' | sort | uniq -c | sort -rn | head -30
+  14 /usr/libexec/secinitd
+   9 /System/Library/Frameworks/WebKit.framework/.../XPCServices
+   4 /opt/homebrew/opt/node/bin/node
+   1 /bin/zsh -l
+
+$ pgrep -P $(pgrep Finder) 2>/dev/null || echo "No shell children of Finder found (expected on a clean machine)"
+No shell children of Finder found (expected on a clean machine)
+\`\`\`
+
+The last line is a hunt that came back negative, and a negative hunt is a real result — you asked "is a shell running as a child of a GUI app?" and the answer is no. Write that down. Hunting is not "find something today", it is testing a hypothesis and recording the outcome so the next person does not repeat it.
+
+If that command ever *did* print a PID, you would have found a script spawned by something the user clicked, which is T1059 execution — exactly the shape of a malicious attachment or a downloaded installer.
+
+\`log show\` on macOS is verbose and takes several seconds; the filter banner always prints first. Expect mostly benign kernel and launchd chatter — a clean baseline is what you need before an anomaly means anything.
+
+Steps 1 and 5 are browser reading with no output, and they are the substance of the module. In T1059.001 the Detection section tells you what to log, which is where a detection engineer starts. In the Sigma repository, read the \`tags:\` field on three rules: \`attack.execution\`, \`attack.t1059.001\`. That field is the bridge between "here is a rule my SIEM can run" and "here is the adversary behaviour it covers" — and it is how you answer the interview question about coverage.
+
+The \`praudit\` line needs Full Disk Access to open \`/dev/auditpipe\`; without it you get nothing but the \`ls /tmp\` output, and the \`kill %1\` still tidies up.`
+      }
     },
     caseStudy: {
       title: "Mandiant M-Trends 2024 — dwell time and the detection gap",
@@ -6501,7 +7217,39 @@ trivy fs .                                # brew install trivy - deps, IaC, secr
 nuclei -u http://192.168.56.20
 npm audit --audit-level=high`,
       linux: `nuclei -update-templates && nuclei -u http://192.168.56.20
-npm audit --audit-level=high; pip-audit; trivy fs .`
+npm audit --audit-level=high; pip-audit; trivy fs .`,
+      expected: {
+        mac: `\`\`\`text
+$ nuclei -u http://192.168.56.20
+
+                     __     _
+   ____  __  __  ____/ /__  (_)
+  / __ \\/ / / / / ___/ / _ \\/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\\__,_/\\___/_/\\___/_/   v3.3.7
+
+[INF] Templates loaded for current scan: 7482
+[INF] Targets loaded for current scan: 1
+[http:tech-detect:apache] [http] [info] http://192.168.56.20
+[http-missing-security-headers:content-security-policy] [http] [info] http://192.168.56.20
+[CVE-2021-41773] [http] [critical] http://192.168.56.20/cgi-bin/.%2e/%2e%2e/etc/passwd
+
+$ npm audit --audit-level=high
+# npm audit report
+
+minimist  <1.2.6
+Severity: critical
+Prototype Pollution in minimist - https://github.com/advisories/GHSA-xvch-5gv4-984h
+No fix available
+node_modules/minimist
+
+2 critical severity vulnerabilities
+\`\`\`
+
+Severity tags are the output. Nuclei prints one line per matched template and most of them are \`[info]\` noise (tech-detect, missing headers) — you are hunting the \`[critical]\` and \`[high]\` lines, and the URL on that line is the reproduction step. A completely silent nuclei run means it reached nothing: check the target is your Module 15 lab VM and that it is actually up.
+
+\`npm audit\` reports on the *tree*, not your code, and "0 vulnerabilities" here says nothing about your own logic. Both \`pip-audit\` and \`trivy fs .\` end with a similar table; trivy additionally flags secrets and Terraform/Dockerfile misconfigurations, so expect it to be noisier than the other two on the same directory.`
+      }
     },
     caseStudy: {
       title: "Log4Shell (CVE-2021-44228, 2021)",
@@ -6717,7 +7465,30 @@ brew install --cask burp-suite        # ARM64-native macOS build
 #   See another user's data? IDOR. Document it, then write the server-side fix above.`,
       windows: `# Same PortSwigger installer (.exe). Separate Firefox profile, proxy 127.0.0.1:8080, install CA.
 # Work the same Academy lab order; do the IDOR Repeater drill.`,
-      linux: `# .sh installer or: sudo apt install burpsuite . Same proxy + CA setup, same labs.`
+      linux: `# .sh installer or: sudo apt install burpsuite . Same proxy + CA setup, same labs.`,
+      expected: {
+        mac: `\`\`\`text
+Proxy > HTTP history
+#   Host                    Method  URL              Status  Length
+1   https://localhost:3000  GET     /api/orders/1042   200    1183
+2   https://localhost:3000  GET     /assets/app.js     200   214402
+
+Repeater — after changing 1042 to 1043 and clicking Send:
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"orderId":1043,"customer":"m.chen@example.com","total":"249.00",
+ "address":"12 Rowan Street, Leeds"}
+\`\`\`
+
+That response is the finding. You asked for an order that is not yours and the server handed it over — no error, no 403, just someone else's name and address. That is IDOR (Insecure Direct Object Reference), and it is the single most common bug in real bug-bounty reports because it needs no clever payload, only an incremented number.
+
+Note what the fix is *not*: hiding the ID, using a UUID, or removing the link from the page. Those are guesses at obscurity. The fix is one server-side check on every request — does the session's user own this order? — written above the query, not in the client. Document it in your report that way.
+
+Two setup failures account for most first sessions. If HTTP history stays empty, your browser is not proxied through 127.0.0.1:8080 — use a separate Firefox profile or FoxyProxy so your everyday browsing is not routed through Burp. If HTTPS sites show certificate errors and no traffic, Burp's CA is not installed in *that* profile: fetch it from \`http://burpsuite\` while proxied and import it under Authorities.
+
+Community Edition intentionally throttles Intruder to a crawl. That is not a broken install; it is the free tier, and it is fine for learning the mechanics. The scanner is what Pro sells.`
+      }
     },
     caseStudy: {
       title: "IDOR / BOLA — the Quiet Epidemic",
@@ -6949,7 +7720,19 @@ node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length
       windows: `# WSL gives a real Linux gdb:  wsl --install ; then  sudo apt install gdb python3-pip ; pip install pwntools
 # Or just use the browser PicoCTF challenges.`,
       linux: `sudo apt install gdb python3-pip && pip install pwntools
-node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length)'`
+node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length)'`,
+      expected: {
+        mac: `\`\`\`text
+$ node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length)'
+8
+\`\`\`
+
+That \`8\` is the entire lesson. You handed the runtime 100 bytes and asked it to put them in an 8-byte buffer; it wrote 8 and dropped the other 92 without complaint, and the buffer's length is unchanged. Nothing outside those 8 bytes was touched.
+
+The equivalent C — \`char buf[8]; strcpy(buf, attacker_input);\` — has no such bounds check. Byte 9 onward runs off the end of the stack frame and eventually overwrites the saved return address, so when the function returns the CPU jumps wherever the attacker's bytes point. That single difference is why memory-safe languages remove an entire vulnerability class, and why CISA keeps telling vendors to migrate to them.
+
+Prove the concept, do not chase the exploit locally: the classic tutorials assume 32-bit x86 stack layout and their offsets and register names simply do not transfer to your M2's arm64. PicoCTF and OverTheWire give you real x86 targets in the browser or over SSH, already authorised.`
+      }
     },
     caseStudy: {
       title: "The Morris Worm (1988) and Its Modern Echoes",
@@ -7160,7 +7943,33 @@ shasum -a 256 -c memory.raw.sha256  # re-verify: evidence unchanged`,
 # Always hash before/after: Get-FileHash memory.raw -Algorithm SHA256`,
       linux: `pipx install volatility3 && sudo apt install sleuthkit
 sha256sum memory.raw | tee memory.raw.sha256
-vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`
+vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`,
+      expected: {
+        mac: `\`\`\`text
+$ shasum -a 256 memory.raw | tee memory.raw.sha256
+9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  memory.raw
+
+$ vol -f memory.raw windows.pslist
+Volatility 3 Framework 2.11.0
+PID   PPID  ImageFileName   Offset(V)         Threads Handles SessionId Wow64 CreateTime
+4     0     System          0x8e0d4a3c8040    129     -       N/A       False 2026-08-08 21:02:11
+620   516   svchost.exe     0x8e0d51b21080    12      -       0         False 2026-08-08 21:02:19
+2184  620   powershell.exe  0x8e0d5c704200    8       -       1         False 2026-08-09 03:14:52
+
+$ vol -f memory.raw windows.malfind
+PID   Process         Start VPN   End VPN     Tag  Protection
+2184  powershell.exe  0x2a30000   0x2a3ffff   VadS PAGE_EXECUTE_READWRITE
+
+$ shasum -a 256 -c memory.raw.sha256
+memory.raw: OK
+\`\`\`
+
+The first and last commands matter more than the ones between them. Hash before you analyse, verify after: \`memory.raw: OK\` is your proof the evidence is byte-identical to what you received. \`memory.raw: FAILED\` means something wrote to the image and your findings are no longer defensible.
+
+In \`pslist\`, read the PPID column — \`powershell.exe\` whose parent is \`svchost.exe\` at 03:14 is not how a human starts PowerShell. \`malfind\` then names the mechanism: a region marked \`PAGE_EXECUTE_READWRITE\`, memory that is simultaneously writable and executable, which is what code injection looks like in a dump. Legitimate code is loaded from a file and marked read-execute.
+
+These commands need an actual sample: with no \`memory.raw\` in the directory Volatility exits with \`Unable to validate the plugin requirements: file not found\`. Grab a public image from a DFIR CTF first — and expect the first run to take a minute while Volatility builds its symbol cache.`
+      }
     },
     caseStudy: {
       title: "BTK Killer Caught by Metadata (2005)",
@@ -7609,7 +8418,37 @@ xxd suspect.bin | head              # raw bytes / magic number
       windows: `# PE Studio (free) for first-look PE/EXE; Process Hacker + Procmon (Sysinternals) for dynamic.
 # Ghidra runs on Java. Always inside an isolated VM; submit hashes, not private files.`,
       linux: `sudo apt install radare2 ; file suspect.bin ; sha256sum suspect.bin ; strings -n 8 suspect.bin
-# Kali has many of these preinstalled. Isolated VM for any detonation.`
+# Kali has many of these preinstalled. Isolated VM for any detonation.`,
+      expected: {
+        mac: `\`\`\`text
+$ file suspect.bin
+suspect.bin: PE32 executable (GUI) Intel 80386, for MS Windows
+
+$ shasum -a 256 suspect.bin
+275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f  suspect.bin
+
+$ strings -n 8 suspect.bin | head
+KERNEL32.dll
+VirtualAlloc
+CreateRemoteThread
+GetProcAddress
+hxxp://203[.]0[.]113[.]24/gate[.]php
+SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run
+cmd.exe /c vssadmin delete shadows /all /quiet
+
+$ xxd suspect.bin | head -2
+00000000: 4d5a 9000 0300 0000 0400 0000 ffff 0000  MZ..............
+00000010: b800 0000 0000 0000 4000 0000 0000 0000  ........@.......
+\`\`\`
+
+Not one of these commands executes the sample — that is what makes this triage safe on your own Mac.
+
+\`file\` and the \`4d5a\` (\`MZ\`) magic bytes agree: a Windows executable, which cannot run natively here at all. The strings are the story: \`VirtualAlloc\` + \`CreateRemoteThread\` is the injection pair, the bare IP over plain HTTP is a command-and-control address (written defanged, hxxp:// and [.], so nobody clicks it by reflex), the \`CurrentVersion\\Run\` key is persistence across reboot, and \`vssadmin delete shadows\` deletes Volume Shadow Copies so you cannot restore — ransomware's signature move.
+
+Take the SHA-256 to VirusTotal, never the file. Uploading a sample publishes it, and if it was targeted at your employer, the upload itself tells the attacker they have been caught.
+
+Expect \`strings\` on a packed sample to be almost empty — a couple of section names like \`UPX0\` and nothing readable. That absence is itself a finding, and it is where static triage stops and the isolated VM begins.`
+      }
     },
     caseStudy: {
       title: "Stuxnet (2010)",
@@ -7881,7 +8720,33 @@ cat /tmp/test.log | ollama run llama3.2 "Is this log entry suspicious? What atta
 # Upload a known-clean file (e.g. /bin/ls hash) and see AI-powered analysis:
 sha256sum /bin/ls
 # Search that hash at https://www.virustotal.com/gui/home/search
-# Note the AI-generated summary alongside traditional AV results.`
+# Note the AI-generated summary alongside traditional AV results.`,
+      expected: {
+        mac: `\`\`\`text
+$ ollama pull llama3.2
+pulling manifest
+pulling dde5aa3fc5ff: 100%  2.0 GB
+verifying sha256 digest
+writing manifest
+success
+
+$ echo "What are the top 5 indicators of a phishing email?" | ollama run llama3.2
+1. Sender mismatch - the display name shows a brand but the actual domain does not
+   belong to it (app1e.com vs apple.com).
+2. Manufactured urgency - account suspension, expiry, or legal threats with a deadline.
+3. Links whose visible text differs from the href, or that resolve to an IP address.
+4. Unexpected attachments, especially .html, .iso, .zip or macro-enabled Office files.
+5. Requests to move the conversation off-channel, or to pay, reset, or verify credentials.
+\`\`\`
+
+The model's exact wording will differ every run — it is generating, not reciting. That is the point of exercise 1: it should reach the same conclusions you can defend from the headers themselves. \`app1e.com\` is a homoglyph of the brand, the \`Received:\` chain ends at a relay unrelated to the claimed sender, and the originating IP has nothing to do with Apple. If the model misses one you spotted, you have just found the limit of the tool.
+
+Exercises 2 and 4 have no terminal output at all; \`open\` just launches your browser. Read the two privacy policies and answer the question in writing — free consumer tiers and paid enterprise agreements differ, and pasting a customer's logs into the wrong one is a data-disclosure incident with your name on it.
+
+Exercise 3 is the mitigation: after \`ollama pull\`, that prompt is answered entirely on your M2 with no network involved, which is what makes it safe to paste real log data into. Expect the first token to take a few seconds while the model loads into memory.
+
+In exercise 5 the model should flag \`GET /../../../etc/passwd\` as a path-traversal attempt and note the \`404\` means it failed. Notice what an LLM does *not* give you: it has no idea whether that IP is your load balancer, and it cannot tell you whether the same client succeeded on a different URL. Treat the answer as a lead for a human analyst, never as a verdict.`
+      }
     },
     caseStudy: {
       title: "Arup Engineering — £25M deepfake video call fraud (2024)",
@@ -8103,7 +8968,37 @@ curl http://127.0.0.1:8169/       # what an SSRF reaches -> now block it with sa
       windows: `pipx install prowler && prowler aws
 python -m http.server 8169   # localhost metadata sim; block via safe_fetch`,
       linux: `pipx install prowler && prowler aws
-python3 -m http.server 8169 & curl http://127.0.0.1:8169/`
+python3 -m http.server 8169 & curl http://127.0.0.1:8169/`,
+      expected: {
+        mac: `\`\`\`text
+$ python3 -m http.server 8169 &
+[1] 42117
+Serving HTTP on :: port 8169 (http://[::]:8169/) ...
+
+$ curl http://127.0.0.1:8169/
+<!DOCTYPE HTML>
+<html>
+<head><title>Directory listing for /</title></head>
+<body>
+<h1>Directory listing for /</h1>
+<hr><ul></ul><hr>
+</body>
+</html>
+::1 - - [09/Aug/2026 12:04:22] "GET / HTTP/1.1" 200 -
+
+$ kill %1
+\`\`\`
+
+Remember to run that last line — the stand-in server keeps listening on 8169 until you kill it.
+
+The point of the exercise is what just happened conceptually. Your \`curl\` is standing in for your own application's URL fetcher, and the URL it fetched is one nobody outside the machine could reach. On a real EC2 instance the same trick points at \`http://169.254.169.254/latest/meta-data/iam/security-credentials/\`, and with IMDSv1 the instance's role credentials come back as plain text — an attacker with a server-side fetch bug gets AWS keys without ever touching your network. That is why step 1 forces IMDSv2, which requires a PUT to get a token first and refuses the naive request entirely.
+
+Defence in depth for the fetcher itself: resolve the hostname first, reject anything that lands in a private or link-local range (169.254.0.0/16, 127.0.0.0/8, 10/8, 172.16/12, 192.168/16), and re-check after redirects — otherwise a 302 walks straight past your allowlist.
+
+\`prowler aws\` prints a long PASS/FAIL table per check and finishes with a count by severity; expect a first run against a real account to fail on public S3 buckets, root access keys, and missing CloudTrail. It needs working AWS credentials — without them it exits early rather than telling you your account is clean.
+
+Step 5 has no terminal output. The interesting result is a *partial* leak: the model refuses "list pricing" outright but concedes fragments when you ask it to summarise its instructions or roleplay. That is why the fix is architectural — do not put a secret in a system prompt and expect the model to keep it.`
+      }
     },
     caseStudy: {
       title: "Capital One (2019)",
@@ -8360,7 +9255,37 @@ MY_IP=$(curl -s https://api.ipify.org)
 echo "Check this on https://www.shodan.io/host/$MY_IP"
 
 # 5. Optional: Install and run OpenWRT or pfSense to enable VLAN segmentation
-# (architecture review only — don't break your home router in this lab)`
+# (architecture review only — don't break your home router in this lab)`,
+      expected: {
+        mac: `\`\`\`text
+$ ipconfig getifaddr en0
+192.168.1.42
+
+$ sudo nmap -sn 192.168.1.0/24 2>/dev/null | grep -E "Nmap scan report|MAC Address"
+Nmap scan report for _gateway (192.168.1.1)
+MAC Address: 3C:37:86:1A:2B:3C (Netgear)
+Nmap scan report for 192.168.1.17
+MAC Address: 44:65:0D:11:22:33 (Amazon Technologies)
+Nmap scan report for 192.168.1.23
+MAC Address: B0:4E:26:44:55:66 (TP-Link Technologies)
+Nmap scan report for 192.168.1.42
+
+$ curl -s -o /dev/null -w "%{http_code}" "http://192.168.1.1/"
+200
+$ curl -s https://api.ipify.org
+203.0.113.77
+\`\`\`
+
+Your subnet is whatever \`ipconfig getifaddr en0\` told you — if it answered 10.0.0.x, scan \`10.0.0.0/24\` instead, or the sweep finds nothing and you will think the network is empty.
+
+The vendor names in brackets are the inventory. Nmap reads them from the MAC address prefix, so "Amazon Technologies" is an Echo, "TP-Link" is likely a smart plug or camera, and any device you cannot name is the finding. Note your own Mac appears without a MAC line — nmap does not report the address of the interface it is scanning from.
+
+\`curl -w "%{http_code}"\` prints \`200\` with no trailing newline, so it lands glued to your next prompt. That is cosmetic. What it means is not: an HTTP admin panel is answering on your LAN, and the next question is whether it still accepts admin/admin. If it does, that is a device an attacker on your Wi-Fi owns completely.
+
+The ipify lookup is passive — you are asking a third party what address you appear to come from, touching nothing. Paste it into Shodan and you see the internet's view of your router. An empty Shodan page is the good outcome. Ports listed there are services exposed to the entire internet, and on consumer routers they usually got there via UPnP, which is why step 3 has you turn it off.
+
+Steps 3 and 5 have no terminal output at all; the deliverable is a written note of your router's settings — remote management off, UPnP off, Telnet off — and whether your IoT devices sit on a segment of their own. They should: a compromised camera on the same VLAN as your laptop is one hop from your laptop.`
+      }
     },
     caseStudy: {
       title: "Oldsmar Water Treatment Plant (Florida, 2021) — and why the story changed",
@@ -8578,7 +9503,29 @@ sudo grep "Failed password" /var/log/auth.log 2>/dev/null | awk '{print $(NF-3)}
 Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625} -MaxEvents 500 |
   Group-Object {$_.Properties[19].Value} | Sort-Object Count -Descending |
   Select-Object -First 10 Count, Name`,
-      linux: `# Same as macOS. Node port-scan equivalent uses net.connect with a SCOPE Set + Promise.all.`
+      linux: `# Same as macOS. Node port-scan equivalent uses net.connect with a SCOPE Set + Promise.all.`,
+      expected: {
+        mac: `\`\`\`text
+$ python3 port_scan.py
+OPEN: 22
+OPEN: 80
+
+$ python3 -c 'import hashlib
+t="5f4dcc3b5aa765d61d8327deb882cf99"
+[print("Cracked:",w.strip()) or exit() for w in open("/usr/share/dict/words") if hashlib.md5(w.strip().encode()).hexdigest()==t]'
+Cracked: password
+
+kali@kali:~$ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head
+     87 203.0.113.44
+     12 198.51.100.9
+\`\`\`
+
+The scanner prints open ports as its threads find them, so the order varies between runs — that is concurrency, not a bug. Point it at a host outside \`SCOPE\` and it stops before touching the network: \`AssertionError: out of scope\`. Write that guard into every offensive tool you build; it is the line between a pentester and a defendant.
+
+The cracker returns \`password\` in well under a second. The word is in the dictionary and MD5 is fast, so the whole "one-way function" argument collapses for any password a human would choose — which is why real password storage uses bcrypt, scrypt or Argon2, deliberately slowed down and salted. Try a hash of a 16-character random string and the same loop will grind through the entire dictionary and print nothing at all.
+
+The log-triage line prints nothing on macOS, where \`/var/log/auth.log\` does not exist; run it in your Kali VM.`
+      }
     },
     caseStudy: {
       title: "When Automation Amplifies a Mistake",
@@ -8799,7 +9746,31 @@ Partner with another learner; each takes a side for a week, then swap, so you ex
 # 3. Blue: harden + deploy monitoring (Wazuh/auditd/Falco). Red: prep tooling with SCOPE guards.
 # 4. Run the window; both keep timestamped action/alert logs. Then joint debrief.`,
       windows: `# Same: isolated lab, signed RoE, confirm no internet egress, run + debrief.`,
-      linux: `# Same: isolated lab, signed RoE, confirm no internet egress, run + debrief.`
+      linux: `# Same: isolated lab, signed RoE, confirm no internet egress, run + debrief.`,
+      expected: {
+        mac: `\`\`\`text
+target$ ping -c 2 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+
+--- 8.8.8.8 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1004ms
+
+Blue, during the window:
+** Alert 1502 - "sshd: Multiple authentication failures"
+2026-08-09 14:22:41  rule.level: 10  srcip: 192.168.56.10  dstuser: admin
+
+Red, in the log:
+14:22:38  hydra -l admin -P rockyou.txt ssh://192.168.56.20   (in scope, RoE 3.2)
+\`\`\`
+
+The isolation ping failing is the gate. Nobody starts until the target cannot reach the internet — this is the module with two people and live tooling, and it is the easiest one to get wrong.
+
+Sign the rules of engagement first, and make them specific enough to be checkable afterwards: which hosts, which hours, which techniques are off limits (destroying data and disabling monitoring usually are), and what the abort signal is. A one-page document you both sign before starting is what turns a game into a rehearsal of professional practice.
+
+The real deliverable is the two timelines side by side at the debrief. Every red action with a timestamp, every blue alert with a timestamp — then match them up. The rows that matter are the ones with no partner: a red action nobody detected is a monitoring gap, and a blue alert nobody caused is a false positive that would page someone at 3am for nothing. Both are findings, and both are what you would report to a client.
+
+Expect gaps of the first kind everywhere on the first run. That is the exercise working. Swap roles afterwards — defending is a different skill from attacking, and neither one teaches the other.`
+      }
     },
     challenges: [{
       q: "Before the exercise, Red wants to 'just quickly scan the whole subnet to find the target.' Why is that a rules-of-engagement violation even inside your lab?",
@@ -9116,7 +10087,27 @@ New-Item -Path "$HOME\CyberGuardians\reports" -ItemType Directory -Force
 code "$HOME\CyberGuardians\reports\career-roadmap.md"`,
       linux: `mkdir -p ~/CyberGuardians/reports
 # Create career-roadmap.md with the same template:
-code ~/CyberGuardians/reports/career-roadmap.md`
+code ~/CyberGuardians/reports/career-roadmap.md`,
+      expected: {
+        mac: `\`\`\`text
+$ cat > ~/CyberGuardians/reports/career-roadmap.md << 'PLAN'
+> ...
+> PLAN
+$ head -4 ~/CyberGuardians/reports/career-roadmap.md
+# My Cyber Career Roadmap
+
+## My chosen specialization and why
+Specialization: ...
+
+$ open https://github.com
+\`\`\`
+
+Everything here is silent by design — the heredoc writes the file without echoing it, \`code\` opens your editor, and \`open\` launches a browser tab. The \`head\` command above is the only real check: if it prints those lines, the file was written where you expected.
+
+The lab is not finished when the file exists; it is finished when no line still ends in \`...\`. Every placeholder you leave is a decision you have not made. Dates especially: "Target application date: ..." is a wish, "Target application date: 2026-11-30" is a plan you can miss and notice.
+
+Then do the browser half honestly. A GitHub profile with no bio, no pinned repositories, and a default avatar is what a hiring manager finds when they search your name, and it takes ten minutes to fix. Note your current TryHackMe/HackTheBox rank in the roadmap as your baseline so month 3 has something to compare against.`
+      }
     },
     caseStudy: {
       title: "From zero to senior security engineer — a realistic path",
@@ -9188,7 +10179,25 @@ git add . ; git commit -m "Begin capstone"`,
       linux: `mkdir -p ~/cyber-journal/final-capstone && cd $_
 git init
 echo "# My Cyber Guardians Capstone" > README.md
-git add . && git commit -m "Begin capstone"`
+git add . && git commit -m "Begin capstone"`,
+      expected: {
+        mac: `\`\`\`text
+$ git init
+hint: Using 'master' as the name for the initial branch.
+Initialized empty Git repository in /Users/you/cyber-journal/final-capstone/.git/
+
+$ git add . && git commit -m "Begin capstone"
+[master (root-commit) 4f2a1c9] Begin capstone
+ 1 file changed, 1 insertion(+)
+ create mode 100644 README.md
+\`\`\`
+
+\`(root-commit)\` confirms this is the first commit in a brand-new repository — you will only ever see it once per project.
+
+The \`hint:\` block about the branch name appears on Git 2.28+ until you set a default. Do it now, because GitHub will expect \`main\`: \`git config --global init.defaultBranch main\`, then \`git branch -m main\` in this repo.
+
+If the commit is rejected with \`Author identity unknown\`, Git has never been told who you are; set \`user.name\` and \`user.email\` globally and re-run the commit. And before you push: this repository is going to be public and it is the centrepiece of your portfolio, so check now that nothing you paste into it later carries a real API key, a client's hostname, or a screenshot with your home IP in the corner. That review habit is the capstone's actual first deliverable.`
+      }
     },
     challenges: [],
     quiz: [],
@@ -9892,7 +10901,11 @@ function OSTabs({
   }, o.label))), /*#__PURE__*/React.createElement(CodeBlock, {
     lang: os === "mac" ? "bash (macOS)" : os === "windows" ? "powershell" : "bash (linux)",
     content: lab[os] || ""
-  }));
+  }), lab.expected && lab.expected[os] ? /*#__PURE__*/React.createElement("details", {
+    className: "prose-details mt-3"
+  }, /*#__PURE__*/React.createElement("summary", null, "What you should see"), /*#__PURE__*/React.createElement(Prose, {
+    text: lab.expected[os]
+  })) : null);
 }
 
 /* =========================================================================
