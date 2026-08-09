@@ -5010,17 +5010,28 @@ http.createServer((req, res) => {
 }).listen(9200, "127.0.0.1", () => console.log("up on 9200"));
 \`\`\`
 \`\`\`bash
-# attack your own server
+# attack your own server — the reflected XSS pair
 curl -s '127.0.0.1:9200/search-vuln?q=<script>alert(1)<\/script>'
-#   <p>Results for: <script>alert(1)<\/script></p>      <- live markup, executes in a browser
 curl -s '127.0.0.1:9200/search-safe?q=<script>alert(1)<\/script>'
-#   <p>Results for: &lt;script&gt;alert(1)&lt;\/script&gt;</p>   <- inert text
-
-curl -s -H 'X-User: bob' 127.0.0.1:9200/note-vuln/1
-#   {"owner":"alice","text":"alice private note"}       <- bob reads alice's note
-curl -s -o /dev/null -w '%{http_code}\\n' -H 'X-User: bob'   127.0.0.1:9200/note-safe/1   # 404
-curl -s -H 'X-User: alice' 127.0.0.1:9200/note-safe/1        # {"owner":"alice",...}      still works
 \`\`\`
+\`\`\`
+<p>Results for: <script>alert(1)<\/script></p>
+<p>Results for: &lt;script&gt;alert(1)&lt;\/script&gt;</p>
+\`\`\`
+The first line came back as **live markup** — a browser rendering that response executes \`alert(1)\`. The second is the same bytes as **inert text**: \`&lt;\` is a character the browser draws, not a tag it parses.
+
+\`\`\`bash
+# same server — the IDOR pair
+curl -s -H 'X-User: bob' 127.0.0.1:9200/note-vuln/1
+curl -s -o /dev/null -w '%{http_code}\\n' -H 'X-User: bob' 127.0.0.1:9200/note-safe/1
+curl -s -H 'X-User: alice' 127.0.0.1:9200/note-safe/1
+\`\`\`
+\`\`\`
+{"owner":"alice","text":"alice private note"}
+404
+{"owner":"alice","text":"alice private note"}
+\`\`\`
+Bob read alice's note through the vulnerable route. The safe route hands him the **same 404** it would give for an id that never existed — and alice still gets her own note, so the fix cost no functionality.
 **Two different lessons hiding in one file.** The XSS fix is **output encoding, not input filtering** — the same string is perfectly safe in a database, in a log, or in JSON, and dangerous only when it lands in an HTML context. That's why you encode at the moment of output, and why the right encoder depends on *where* the value goes (HTML body, attribute, URL, and JavaScript context each need a different one — which is why a real template engine's auto-escaping beats a hand-rolled function like the one above). The IDOR fix is different in shape: nothing is being *injected*, the request is perfectly well-formed. The bug is that the server **answered a question it should have refused** — it checked that the note existed but never that the caller was entitled to it. No amount of input validation finds this class of bug, which is why it tops the OWASP list as Broken Access Control and why automated scanners miss it: only your application knows who should see note 1.
 
 **Why 404 and not 403.** A \`403 Forbidden\` confirms the record *exists*, so an attacker can enumerate valid ids by watching for 403-versus-404 — leaking the shape of your data even while blocking access. Returning an identical 404 for "doesn't exist" and "not yours" gives that away for free.
@@ -5542,10 +5553,18 @@ Fails because: (a) 80%+ of breaches start with compromised credentials, which th
 
 # 1. List all open network services on your machine:
 sudo lsof -iTCP -sTCP:LISTEN -n -P 2>/dev/null | grep -v "127.0.0.1"
+# -> you should see a header row plus one line per listener, e.g.
+#      COMMAND    PID      USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME
+#      ControlCe  686 yourname    9u  IPv4  0x...      0t0   TCP  *:7000 (LISTEN)
+# -> the NAME column is the whole lesson: "*:7000" means EVERY interface (your LAN),
+#    where "127.0.0.1:7000" would mean this machine only. A stock Mac listens on
+#    *:5000 and *:7000 (ControlCenter / AirPlay Receiver) with no action from you.
 # Question: which of these should be accessible only from localhost? Which are exposed to your LAN?
 
 # 2. Check what's currently authenticating via password vs key:
 cat ~/.ssh/config 2>/dev/null || echo "(no SSH config)"
+# -> prints your config, or the literal "(no SSH config)" if you have none —
+#    the || branch exists so silence can never be mistaken for success
 # Question: are any of your SSH connections using password auth? (They should use keys.)
 
 # 3. Test least-privilege: what commands can a new restricted user NOT run?
@@ -5560,14 +5579,28 @@ cat ~/.ssh/config 2>/dev/null || echo "(no SSH config)"
 # Cloud providers (AWS/GCP/Azure): is MFA enforced?
 # Write a list of accounts that still use only a password. Plan to fix each.
 
-# 5. Apply a least-privilege principle: lock down your SSH key permissions
-chmod 600 ~/.ssh/id_* 2>/dev/null && echo "SSH keys locked to owner-only"
-ls -la ~/.ssh/`,
+# 5. Apply a least-privilege principle: lock down your SSH key permissions.
+# NOT "chmod 600 ~/.ssh/id_*" — zsh (macOS's default shell) errors on an unmatched
+# glob, 2>/dev/null cannot suppress it (the SHELL failed, not chmod), and it misses
+# every key not named id_*. find matches by role instead of by filename:
+find ~/.ssh -maxdepth 1 -type f ! -name '*.pub' ! -name 'known_hosts*' ! -name 'config' \\
+  -exec chmod 600 {} + 2>/dev/null && echo "SSH private keys locked to owner-only"
+# -> prints "SSH private keys locked to owner-only" — and prints it even with zero
+#    keys, because find succeeds on an empty match. The message is not evidence.
+
+# 6. Verify instead of trusting that message:
+ls -la ~/.ssh/
+# -> you should see -rw------- on every private key. Anything wider (-rw-r--r--)
+#    is readable by other accounts on this Mac, and ssh itself will refuse it:
+#      "Permissions 0644 for '/Users/you/.ssh/id_ed25519' are too open."
+# -> .pub files staying -rw-r--r-- is correct — a public key is meant to be public.`,
       linux: `# Zero Trust audit — Linux
 sudo ss -tlnp | grep -v "127.0.0.1"   # open TCP listeners not bound to loopback
 cat ~/.ssh/config 2>/dev/null
+find ~/.ssh -maxdepth 1 -type f ! -name '*.pub' ! -name 'known_hosts*' ! -name 'config' \\
+  -exec chmod 600 {} + 2>/dev/null && echo "SSH private keys locked"
 ls -la ~/.ssh/
-chmod 600 ~/.ssh/id_* 2>/dev/null && echo "SSH keys locked"
+# -> every private key should read -rw-------; .pub files staying -rw-r--r-- is correct
 # Check MFA status on cloud CLI tools:
 aws sts get-caller-identity 2>/dev/null || echo "AWS CLI not configured"`
     },
@@ -5616,6 +5649,13 @@ dscl . -read /Groups/admin GroupMembership 2>/dev/null | grep -qw "$(whoami)" \\
 # 3. Long-lived tokens in dotfiles — the ones people forget
 grep -rlE '(API|SECRET|TOKEN|PASSWORD)[A-Z_]*=' "$HOME"/.zshrc "$HOME"/.bashrc "$HOME"/.netrc 2>/dev/null
 \`\`\`
+\`\`\`
+  id_ed25519: NO PASSPHRASE — a standing credential
+  yourname: IS an admin (standing privilege)
+/Users/yourname/.zshrc
+\`\`\`
+Three lines, three findings — and your machine will differ. **Read the shape rather than the exact text.** Section 1 prints one line *per private key*; a machine with no keys prints nothing at all, which is a pass. Section 2 always prints exactly one line, because \`||\` guarantees a branch — on a default single-user Mac it says \`IS an admin\`, since the account created at setup is an administrator. Section 3 prints **only paths that matched**, so a clean machine produces *silence* — the one place here where no output is the good outcome, and the one place a learner is likely to think the command failed. (If you want to prove it ran, append \`|| echo "no tokens in dotfiles"\`.)
+
 **Now answer the question honestly.** An unprotected SSH key means anything running as you — a malicious \`npm postinstall\`, a curl-pipe-bash you didn't read, a compromised VS Code extension — can copy that file and authenticate as you to every host that trusts it, **forever, with no prompt and no log entry that looks unusual**. Admin membership means the same code can escalate without a password prompt you'd notice. A token in \`.zshrc\` is exported into every process you launch. None of this requires an exploit; it's all just *reading files you can read*. That is what "standing access" costs, and notice how cheap the mitigations are: a passphrase on the key (plus \`ssh-add\` so you type it once per session), a separate admin account you \`su\` into deliberately, and secrets in the keychain or a manager instead of a dotfile.
 
 Common wrong attempts: treating file permissions as sufficient (\`0600\` stops *other users* — it does nothing against code running as **you**, which is the actual threat model here); assuming a passphrase-less key is fine "because it's only for GitHub" (that key is also your deploy access, and key reuse across hosts is near-universal); deleting keys in a panic before checking what depends on them — inventory, then plan; skipping the dotfile grep because "I use a .env file" (check that too, and check whether it's in a repo).
@@ -5668,13 +5708,13 @@ for (const [label, r] of [["compromised laptop ON THE VPN", onVpnButCompromised]
   console.log("  zerotrust :", z.allow ? "ALLOW" : "DENY -> " + z.reasons.join("; "));
 }
 \`\`\`
-\`\`\`bash
-# compromised laptop ON THE VPN
-#   perimeter : ALLOW
-#   zerotrust : DENY -> device patch age > 30d; MFA required...; re-authentication required (step-up); role not entitled
-# healthy device on CAFE WIFI
-#   perimeter : DENY
-#   zerotrust : ALLOW
+\`\`\`
+compromised laptop ON THE VPN
+  perimeter : ALLOW
+  zerotrust : DENY -> device patch age > 30d; MFA required for this resource; re-authentication required (step-up); role not entitled
+healthy device on CAFE WIFI
+  perimeter : DENY
+  zerotrust : ALLOW
 \`\`\`
 **Stare at the inversion — it is the entire argument.** The perimeter model gets *both* answers wrong, and it gets them wrong in the two ways that actually cost money: it **admits the attacker** (who phished a laptop and is now inside the trusted zone, where nothing is checked again) and **blocks the legitimate employee** (whose device is in better shape than the one it just let in). Network location turns out to be almost uncorrelated with trustworthiness — which is what remote work and cloud made undeniable, and what SolarWinds proved catastrophically. Note the specific properties your function has: it makes a decision **per request** rather than per session, it evaluates **device posture** as a first-class input rather than assuming a managed fleet, it **scales controls to sensitivity** rather than applying one bar to everything, and it treats an unknown resource as *most* sensitive — fail closed. The step-up rule is why "Zero Trust" doesn't mean "prompt constantly": reading docs needs nothing extra, moving money needs a fresh authentication.
 
