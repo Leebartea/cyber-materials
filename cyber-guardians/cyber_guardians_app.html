@@ -6755,13 +6755,18 @@ http.createServer((req, res) => {
 }).listen(9400, "127.0.0.1", () => console.log("checkout up"));
 \`\`\`
 \`\`\`bash
-curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"
-#   {"charged":"49.99","source":"client-supplied price"}
-curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=0.01"
-#   {"charged":"0.01","source":"client-supplied price"}     <- bought for a cent
-curl -s -X POST 127.0.0.1:9400/checkout-safe -d "sku=sku-1&qty=1&price=0.01"
-#   {"charged":"49.99","source":"server catalog"}           <- price ignored entirely
+# the trailing "; echo" is not decoration — res.end() sends no newline, so without
+# it all three responses arrive glued together on a single unreadable line
+curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"; echo
+curl -s -X POST 127.0.0.1:9400/checkout-vuln -d "sku=sku-1&qty=1&price=0.01"; echo
+curl -s -X POST 127.0.0.1:9400/checkout-safe -d "sku=sku-1&qty=1&price=0.01"; echo
 \`\`\`
+\`\`\`
+{"charged":"49.99","source":"client-supplied price"}
+{"charged":"0.01","source":"client-supplied price"}
+{"charged":"49.99","source":"server catalog"}
+\`\`\`
+Line 2 is the finding: the same $49.99 item, bought for **a cent**, by editing one field. Line 3 is the fix — the request is byte-for-byte identical to line 2, \`price=0.01\` and all, and the server charges $49.99 anyway because it never read the field.
 **This is the module's own challenge, and the answer is about where trust lives.** The hidden field wasn't a security control; it was a *convenience* that leaked an assumption — "the form will send what we put in it." The fix isn't to encrypt, sign, or obfuscate the price. It's to recognise that **the price is not the client's fact to state**, so the client shouldn't be sending it at all: the request should carry only what the user genuinely chose (SKU and quantity), and every derived value should come from the server. Generalise that test to every request you design — *for each field, ask whether the client is entitled to assert it.* User id, role, discount, account number, \`isAdmin\`, and total all fail that test.
 
 Common wrong attempts: "fixing" it by removing the field from the HTML while the endpoint still honours it if present (the endpoint is the boundary, not the page — and attackers send fields your form doesn't); validating that the price is *positive* rather than *correct*, which still permits a cent; signing the price with an HMAC so it can't be edited — this works but is strictly more complex than not sending it, and it fails as soon as a discount changes; and forgetting \`qty\` is also client-supplied, so a **negative quantity** produces a negative total — try \`qty=-1\` on your own endpoint and add the validation.
@@ -6802,14 +6807,26 @@ http.createServer((cReq, cRes) => {
 }).listen(9401, "127.0.0.1", () => console.log("proxy up on 9401 -> 9400"));
 \`\`\`
 \`\`\`bash
-curl -s -X POST 127.0.0.1:9401/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"
-#   [intercepted] POST /checkout-vuln  body=sku=sku-1&qty=1&price=49.99
-#   [modified]    body=sku=sku-1&qty=1&price=0.01
-#   [response]    {"charged":"0.01","source":"client-supplied price"}
-
-curl -s -X POST 127.0.0.1:9401/checkout-safe -d "sku=sku-1&qty=1&price=49.99"
-#   [response]    {"charged":"49.99","source":"server catalog"}     <- tampering is irrelevant
+# terminal A: node checkout.js   terminal B: node proxy.js   terminal C (below): the "browser"
+curl -s -X POST 127.0.0.1:9401/checkout-vuln -d "sku=sku-1&qty=1&price=49.99"; echo
+curl -s -X POST 127.0.0.1:9401/checkout-safe -d "sku=sku-1&qty=1&price=49.99"; echo
 \`\`\`
+In terminal C, the client sees only this — an honest request, and no sign anything touched it:
+\`\`\`
+{"charged":"0.01","source":"client-supplied price"}
+{"charged":"49.99","source":"server catalog"}
+\`\`\`
+The interception log is printed by the proxy, so it appears in **terminal B**, where the client will never look:
+\`\`\`
+proxy up on 9401 -> 9400
+  [intercepted] POST /checkout-vuln  body=sku=sku-1&qty=1&price=49.99
+  [modified]    body=sku=sku-1&qty=1&price=0.01
+  [response]    {"charged":"0.01","source":"client-supplied price"}
+  [intercepted] POST /checkout-safe  body=sku=sku-1&qty=1&price=49.99
+  [modified]    body=sku=sku-1&qty=1&price=0.01
+  [response]    {"charged":"49.99","source":"server catalog"}
+\`\`\`
+Read the last two pairs together: the safe endpoint was attacked **identically** — the proxy rewrote its body to \`price=0.01\` too — and still charged $49.99. Tampering isn't blocked there; it's irrelevant, because nothing downstream consumes the field.
 **What you've just built, and what it means.** Add a pause-and-edit step and you have Burp's **Proxy**; add "replay this request with one field changed" and you have **Repeater**; loop over a wordlist in that field and you have **Intruder**. The tool is a very good ergonomics layer over exactly this. Which is why the security conclusion is unavoidable: **the client is not a place where rules can be enforced** — not the JavaScript, not the hidden field, not the disabled button, not the mobile app, not the "encrypted" request whose key ships inside the app. Everything between the user and your server is the *user's* territory, and they can watch and rewrite all of it.
 
 Note what makes the safe endpoint immune: it isn't validating harder, it simply **doesn't consume the untrusted value**. That's a structural fix in the M14 sense — the same move as parameterizing a query rather than escaping it. Also note the one line that matters operationally: recomputing \`content-length\`. Real intercepting proxies do this for you, and forgetting it is the single most common reason a hand-rolled proxy mysteriously hangs.
@@ -9187,13 +9204,16 @@ for k, v in sorted(scores.items(), key=lambda x: x[1]):
     print(f"  [{'*'*v}{'.'*(2-v)}] {k:<14} {RUBRIC[k]}")
 print("fix first:", min(scores, key=scores.get))
 \`\`\`
-\`\`\`bash
-# self-score: 8/10
-#   [*.] reproducible    a stranger can rerun it ...
-#   [*.] shows_impact    impact stated as what an attacker gains ...
-#   [**] explains_why    ...
-# fix first: reproducible
 \`\`\`
+self-score: 8/10
+  [*.] reproducible   a stranger can rerun it from the README and get your result
+  [*.] shows_impact   impact stated as what an attacker gains / business loss
+  [**] explains_why   you explain WHY each finding matters, not just what it is
+  [**] uses_framework mapped to a standard (OWASP / ATT&CK / CVSS)
+  [**] ethical_scope  scope + authorization + ethics stated up front
+fix first: reproducible
+\`\`\`
+The sort is doing the work: the weakest criteria float to the **top**, so the first line under the score is the one to fix. \`min()\` breaks ties by insertion order, which is why it names \`reproducible\` and not the equally-weak \`shows_impact\` — with a real tie, fix both.
 **Why self-assessment is itself a graded skill.** By now you've scored other people's work (M17, M27) — turning that lens on your own is the harder, more valuable move, because the gap between how you *feel* about your capstone and how it scores against explicit criteria is exactly the gap a reviewer will see. The common weak spots are predictable and worth pre-empting: **impact** (the M19/M17 lesson — "SQL injection in login" is a fact; "unauthenticated attacker dumps the full user table including password hashes" is an impact), and **reproducibility**, which is so central it gets its own build below. Note what this rubric rewards: not the flashiest exploit, but the *communicable* one — because a capstone is a hiring artifact, and (M28's recruiter challenge) the candidate who gets the interview is the one whose GitHub *proves* skill a stranger can verify, not the one who merely claims it. Scoring yourself honestly now is how you close the gaps while you still can.
 
 Common wrong attempts: giving yourself 2s across the board (if nothing is weak, you're not looking hard enough — every real project has a soft criterion); scoring "explains why" high because *you* know why (the test is whether it's *written down* for a reader who doesn't); treating the rubric as bureaucracy rather than the actual axes a reviewer judges on; and scoring once and never re-scoring after you improve — this is a loop, like every other assessment in the course.
@@ -9240,11 +9260,15 @@ else
 fi
 \`\`\`
 \`\`\`bash
+chmod +x verify.sh
 ./verify.sh; echo "exit=$?"
-#   [*] Claim: /vuln trusts a client-supplied price ...
-#   [PASS] reproduced: vuln charged $0.01, fixed charged $49.99
-#   exit=0
 \`\`\`
+\`\`\`
+[*] Claim: /vuln trusts a client-supplied price; /safe ignores it (server-side catalog).
+[PASS] reproduced: vuln charged $0.01, fixed charged $49.99
+exit=0
+\`\`\`
+Three lines, and the third is the one that matters — \`exit=0\` is the machine-readable verdict a grader or CI job reads. Run it twice in a row to prove the cleanup: if the second run still passes, the server was killed and port 9800 released. If it hangs or fails, you left a process bound.
 **Why this one artifact separates a real capstone from a screenshot gallery.** Anyone can post a screenshot of a successful exploit; a screenshot proves nothing, because it can't be checked and it captures a claim, not a method. A harness that a reviewer runs and watches **pass** converts your claim into a *fact they verified themselves* — which is the entire currency of security work, from a pentest report a client's engineers must reproduce (M17) to a bug bounty triager who closes anything they can't replicate. It also proves things about *you* that the finding alone doesn't: that you understand the vulnerability well enough to reconstruct it deterministically, that you can write clean, self-contained tooling (M26), and that you respect the reviewer's time. The exit code is the professional contract — CI systems, graders, and other scripts consume it — and the self-contained setup (it starts its own targets, needs no prior install) is what makes "reproducible" true rather than aspirational. Pair it with a README that states the claim, the one command, and the expected output, and you have the difference between a project a recruiter skims and one they actually run.
 
 Common wrong attempts: a "harness" that requires ten manual setup steps first (if it's not one command, it's not reproducible — that's the bar); asserting nothing and just printing output for a human to eyeball (the script must *decide* pass/fail, or a regression sails through); leaving the server running or the port bound after exit (clean up — M15's parting lesson); hard-coding a sleep that's too short on a slow machine and getting flaky failures (poll for readiness in real tooling); and pointing the harness at a live or third-party system instead of standing up its own (self-contained *and* ethical — no external target).
