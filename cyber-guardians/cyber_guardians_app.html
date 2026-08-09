@@ -4199,6 +4199,10 @@ One listener: \`node -e 'require("net").createServer(s=>s.end()).listen(8080,"12
 # Terminal 1 — an open port to find
 node -e 'require("net").createServer(s=>s.end()).listen(8080,"127.0.0.1",()=>console.log("up"))'
 \`\`\`
+\`\`\`
+up
+\`\`\`
+Then it **hangs with no prompt back**. That is the success condition, not a stall — a listener's job is to sit there. Leave this terminal alone for the whole drill; \`Ctrl-C\` when you're done.
 
 \`\`\`python
 # Terminal 2 — probe and classify
@@ -4213,8 +4217,16 @@ for p in (8080, 9, 22, 443):
     print(p, probe("127.0.0.1", p))
 print("192.0.2.1:80 ->", probe("192.0.2.1", 80, 1.0))
 '
-# 8080 open | 9 closed | 22 closed | 443 closed | 192.0.2.1:80 -> filtered
 \`\`\`
+\`\`\`
+8080 open
+9 closed
+22 closed
+443 closed
+192.0.2.1:80 -> filtered
+\`\`\`
+**Watch the clock, not just the text.** The first four lines appear instantly; the last one arrives about a **second** later, because \`filtered\` is not something the network told you — it is the absence of anything, measured by your own timeout expiring. That is why scanning a filtered range is slow and scanning a closed one is fast: refusals come back at the speed of the network, and drops cost you the full timeout, every port. Nmap's speed knobs (\`-T4\`, \`--host-timeout\`) are all negotiations with exactly this cost, and it is also why "the scan is taking forever" is itself a finding — you are probably behind a drop-by-default firewall.
+
 **The three states are three different silences.** *Open* — a service answered SYN-ACK and your handshake completed. *Closed* — the host is alive and **politely refused**: the kernel sent a RST because nothing is bound to that port. That refusal is information: it proves the host exists. *Filtered* — nothing at all came back, so you cannot distinguish "host down," "firewall dropped it," or "packet lost"; you only learn that **something is silently discarding traffic**, which itself reveals a filtering device. Notice you did all of this with an ordinary TCP connect — that *is* nmap's \`-sT\`. The only thing \`-sS\` adds is sending a RST instead of completing the handshake, which needs root because it requires crafting raw packets.
 
 Common wrong attempts: expecting port 22 to be open on macOS (Remote Login is off by default — closed is the correct, healthy result); using a real third-party host to get a "filtered" result (don't — TEST-NET-1 exists precisely so you never have to point a probe at someone else's machine); treating a timeout as proof of a firewall (it's proof of *no reply*, which has several causes — nmap reports \`filtered\` for exactly that ambiguity); and forgetting the timeout entirely, so the script hangs and you conclude the port is "broken."
@@ -4244,6 +4256,10 @@ require("http").createServer((q,r) => {
 }).listen(8081, "127.0.0.1", () => console.log("up on 8081"));
 '
 \`\`\`
+\`\`\`
+up on 8081
+\`\`\`
+Leave Drill 1's listener on 8080 running too — you want both, and the difference between them is the point of the build.
 
 \`\`\`python
 # Terminal 2 — connect-scan plus a one-function version detector
@@ -4270,10 +4286,22 @@ def grab(host, port):
 for p in (8080, 8081, 22, 5432):
     print(p, probe("127.0.0.1", p))
 print("banner 8081 ->", grab("127.0.0.1", 8081))
+print("banner 8080 ->", grab("127.0.0.1", 8080))     # the strong, silent type
 '
-# 8081 open ... banner 8081 -> Server: DevServer/0.9.1 (node)
 \`\`\`
-**Sit with that last line.** You wrote nine lines of stdlib Python and the service told you its exact build. Nmap's \`-sV\` is the industrial version of this: a database of probes and response signatures across hundreds of protocols. So when \`-sV\` reports \`OpenSSH 6.6\` on someone's box, no clever exploit was involved — **the service volunteered it**, and the attacker's next move is to look that version up against a CVE list. That is why the challenge's SSH-version reasoning cuts both ways: run \`-sV\` against your own services and read the output as your attacker's to-do list.
+\`\`\`
+8080 open
+8081 open
+22 closed
+5432 closed
+banner 8081 -> Server: DevServer/0.9.1 (node)
+banner 8080 -> (silent)
+\`\`\`
+**Two ports are open and only one of them tells you anything.** 8081 is an HTTP server, so it answers a well-formed \`HEAD\` with a full response — status line, \`Server\`, \`Date\`, \`Connection\` — and your nine-line detector plucks out the build number. 8080 accepts the connection and closes without a word, so \`recv\` returns empty and you print \`(silent)\`. That is the honest result and it is worth seeing: **fingerprinting is protocol-specific**, and a scanner that speaks HTTP learns nothing from a service that doesn't. It is also why nmap's \`-sV\` carries a database of *thousands* of probes rather than one — it tries the right opening line for each protocol until something identifies itself.
+
+One line may differ on your machine: **\`5432\` reads \`open\` if you have PostgreSQL (or a Docker container) running**, which is the correct result and arguably the more instructive one — the first honest scan of your own laptop usually turns up a service you forgot you installed. That is not a footnote about this exercise; it is the exercise. Every port your machine answers on is a port someone else can reach the moment that machine is not behind NAT.
+
+**Sit with the 8081 banner.** You wrote nine lines of stdlib Python and the service told you its exact build. Nmap's \`-sV\` is the industrial version of this: a database of probes and response signatures across hundreds of protocols. So when \`-sV\` reports \`OpenSSH 6.6\` on someone's box, no clever exploit was involved — **the service volunteered it**, and the attacker's next move is to look that version up against a CVE list. That is why the challenge's SSH-version reasoning cuts both ways: run \`-sV\` against your own services and read the output as your attacker's to-do list.
 
 Common wrong attempts: sending \`"HEAD / HTTP/1.0\\n"\` with a single newline and no blank line, then blaming the server when \`recv\` blocks until the timeout (HTTP needs \`\\r\\n\\r\\n\`); calling \`recv\` without a timeout and hanging forever on a silent port (your 8080 listener from Drill 1 accepts and closes without speaking — that "(silent)" result is correct and worth seeing); decoding as strict UTF-8 and crashing on a binary banner (\`latin-1\` never raises); scanning all 65,535 ports serially and assuming it's broken when it takes minutes (nmap is fast because it probes in parallel — your loop is one at a time); and pointing this at any host but your own.
 </details>
@@ -4416,15 +4444,20 @@ net.createServer(client => {
   req.end("user=alice&password=hunter2");
 });
 \`\`\`
-\`\`\`bash
-# --- client->server ---
-# POST /login HTTP/1.1
-# Content-Type: application/x-www-form-urlencoded
-# Host: 127.0.0.1:9000
-# Content-Length: 27
-#
-# user=alice&password=hunter2          <-- the whole point
 \`\`\`
+--- client->server ---
+POST /login HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Host: 127.0.0.1:9000
+Connection: keep-alive
+Content-Length: 27
+
+user=alice&password=hunter2
+\`\`\`
+The process exits on its own once the response arrives — you get your prompt back, which is how you know the request completed rather than hung.
+
+**Read the headers you never wrote.** You set exactly one (\`Content-Type\`); Node added \`Host\`, \`Connection: keep-alive\`, and \`Content-Length\` for you. That is worth noticing before the security point: **every HTTP client volunteers more than the code in front of you says it does**, which is why a request captured on the wire routinely contains identifying detail — cookies, \`User-Agent\`, \`Referer\` — that the developer never consciously sent. Pipe this through \`cat -v\` and each header line ends \`^M\`: those are the CRLF line endings HTTP mandates, invisible on screen and the reason a bare \`\\n\` in a hand-rolled request makes a server hang waiting for the rest.
+
 **What you just proved.** Nothing was broken, decrypted, or exploited. HTTP is *text*, and any device on the path — your router, a café access point, an ISP, a compromised switch — occupies exactly the position your tap occupies. You wrote the attacker's tool in five lines because there is no attack to write: reading is the default. Note the \`Content-Length: 27\` too — even without the body, a tap learns *how much* you sent, which matters in the metadata discussion below.
 
 Common wrong attempts: forwarding without printing and wondering why nothing shows (the tap must be a tee, not a pipe); forgetting the \`error\` handlers and getting an \`ECONNRESET\` crash on the second run; \`console.log(d)\` printing a raw \`Buffer\` as hex (\`.toString("utf8")\` is what makes it readable — and the fact that it *is* readable is the lesson); pointing this at a real website instead of your own loopback pair.
@@ -4448,7 +4481,21 @@ Common wrong attempts: forwarding without printing and wondering why nothing sho
 \`\`\`bash
 cd /tmp && openssl req -x509 -newkey rsa:2048 -nodes \\
   -keyout key.pem -out cert.pem -days 1 -subj "/CN=localhost"
+ls -l /tmp/key.pem /tmp/cert.pem
 \`\`\`
+\`\`\`
+Generating a 2048 bit RSA private key
+.............+++++
+...................................+++++
+writing new private key to 'key.pem'
+-----
+-rw-r--r--  1 you  wheel   977 ... /tmp/cert.pem
+-rw-r--r--  1 you  wheel  1704 ... /tmp/key.pem
+\`\`\`
+The dots and \`+\`s are a progress meter for the prime search, so **your pattern will differ from this and from your own next run** — that randomness is the point of key generation, not noise to match against. The file sizes vary by a few dozen bytes for the same reason. macOS ships **LibreSSL** as \`/usr/bin/openssl\`, which is the output above; if Homebrew has put **OpenSSL 3.x** first on your \`PATH\` you get a denser \`.+.+...++++++\` line, no "Generating a 2048 bit" header, and a slightly larger certificate. Either is fine — the two files are what matter.
+
+**Now look at the mode column, because there is a real defect sitting in it.** Both files came out \`644\` — **world-readable, including the private key.** The certificate being public is correct and intended; it is handed to every client that connects. The key is the entire secret, and \`-nodes\` ("no DES") deliberately leaves it **unencrypted on disk** so a server can restart unattended — which makes file permissions the only thing protecting it. LibreSSL does not tighten the mode for you here (OpenSSL 3.x does, writing \`600\`), so on stock macOS you have just created a world-readable private key and would never have known without looking. Run \`chmod 600 /tmp/key.pem\`. This is not a lab-only nitpick: a key that ships at \`644\` inside a container image or a repo is one of the more common ways a TLS private key leaks, and the habit worth forming is \`ls -l\` after anything that writes a secret.
+
 \`\`\`javascript
 // tap-tls.js — the SAME tap, an HTTPS origin, and an SNI hostname
 const net = require("net"), https = require("https"), fs = require("fs");
@@ -4479,10 +4526,22 @@ net.createServer(client => {
 });
 \`\`\`
 \`\`\`bash
-# first 3 bytes: 0x16 0x3 0x1              <- TLS handshake record, not text
-# hostname in cleartext: ...secret-project.internal.example...
-# password readable? false                 <- TLS did its job
+node tap-tls.js
 \`\`\`
+\`\`\`
+first 3 bytes: 0x16 0x3 0x1
+hostname in cleartext: ...secret-project.internal.example...................................
+password readable? false
+password readable? false
+\`\`\`
+Three details in that output are not typos, and each one teaches something.
+
+**\`0x16 0x3 0x1\`, not \`0x16 0x3 0x3\`.** Byte one is the record type (\`0x16\` = handshake); the next two are a *record-layer* version of TLS 1.0, which every modern client still sends for compatibility with middleboxes that choke on anything newer. The real version is negotiated inside the ClientHello. So **you cannot read the TLS version off the first bytes** — a lesson that bites people writing detection rules.
+
+**The dots.** Your code replaced every non-printable byte with \`.\`, and the regex \`[a-z0-9.-]*\` then greedily swallowed the run of dots on both sides of the hostname. The trailing run is the rest of the ClientHello's extensions rendered as dots; its length depends on your Node build, so **that part of the line will differ for you while the hostname itself will not**. The hostname is what you came for — and notice you found it with a regex over raw bytes, no TLS library involved.
+
+**\`password readable? false\` twice.** Two \`data\` events crossed the tap: the ClientHello, then the client's encrypted records. Printing it per-event rather than once is deliberate — a single \`false\` on the first packet would prove nothing, because the password was never in the first packet even over plain HTTP.
+
 **Both results matter, and the second is the one people get wrong.** The password is genuinely gone — the tap now sees ciphertext, and that is the entire Firesheep fix. But the **ClientHello is sent before the encrypted channel exists**, and it carries **SNI** in the clear because the server needs to know which certificate to present *before* it can encrypt anything. So an on-path observer still learns every hostname you visit. Classic DNS leaks the same thing a moment earlier. This is the answer to the module's challenge, and you just watched it happen instead of taking it on faith: **TLS protects the content, not the fact of the conversation.** The fixes are newer and partial — encrypted DNS (DoH/DoT) closes the DNS leak, and **ECH (Encrypted Client Hello)** encrypts SNI itself, but only where both client and server support it.
 
 Common wrong attempts: expecting an error because the certificate is self-signed and untrusted (that's why the client sets \`rejectUnauthorized: false\` — never do that in production code; here it exists so you can test offline); searching for the hostname with a UTF-8 decode and getting nothing (binary bytes mangle the decode — use \`latin1\`); concluding "TLS is broken" (it isn't — SNI is *outside* the protected channel by design, which is a very different statement); checking only the first packet for the password and declaring victory (print it for every packet, as above, so you see it stays false).
