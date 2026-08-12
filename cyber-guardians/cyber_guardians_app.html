@@ -1968,30 +1968,43 @@ A **risk register** is the living document where each risk is logged with its ow
 
 You don't need to memorize all of 800-53. You need to know *which framework answers which question* so you can navigate a real security program — and pass the GRC section of every foundational cert.`,
     lab: {
-      mac: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
-# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
-# In a spreadsheet (Numbers/Excel/Sheets), list 5 risks you found in your own setup
-# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
-# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
-# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
-# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
-# This is exactly what a GRC analyst produces on day one.`,
-      windows: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
-# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
-# In a spreadsheet (Excel/Sheets), list 5 risks you found in your own setup
-# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
-# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
-# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
-# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
-# This is exactly what a GRC analyst produces on day one.`,
-      linux: `# LAB: Build a mini risk register (paper/spreadsheet — no tools to install)
-# ETHICS: use only YOUR OWN accounts/devices from the Module 8 personal security audit.
-# In a spreadsheet (LibreOffice Calc/Sheets), list 5 risks you found in your own setup
-# (e.g. "reused password on old account", "no MFA on email", "unpatched laptop OS").
-# For each: score Likelihood (1-5) x Impact (1-5), pick a treatment
-# (mitigate/transfer/avoid/accept), assign yourself as owner, and tag it to a
-# CSF function (Identify/Protect/Detect/Respond/Recover/Govern).
-# This is exactly what a GRC analyst produces on day one.`
+      kind: "paper",
+      mac: `**Build a mini risk register.** No tools to install — this one is a spreadsheet and your own judgement.
+
+**Ethics.** Use only *your own* accounts and devices, specifically the ones you inventoried in the Module 8 personal security audit.
+
+1. Open a spreadsheet (Numbers, Excel or Google Sheets) with seven columns: **Risk · Likelihood · Impact · Score · Treatment · Owner · CSF function**.
+2. Fill in **five real risks** from your own setup — for example "reused password on an old account", "no MFA on email", "laptop OS two versions behind".
+3. Score each one **Likelihood (1–5) × Impact (1–5)**, put the product in **Score**, and sort the sheet by it descending.
+4. Choose a **treatment** for every row: mitigate, transfer, avoid, or accept.
+5. Put a name in **Owner** — your own. Every risk needs one accountable human; "the team" is not an owner.
+6. Tag each row to a **CSF 2.0 function**: Identify, Protect, Detect, Respond, Recover, or Govern.
+
+**Done when** all five rows are sorted by score, each has a named owner and a chosen treatment, and you can say out loud which risk you are deliberately **accepting** and why. That last sentence is the one an auditor asks for, and this sheet is exactly the artifact a GRC analyst produces in their first week.`,
+      windows: `**Build a mini risk register.** No tools to install — this one is a spreadsheet and your own judgement.
+
+**Ethics.** Use only *your own* accounts and devices, specifically the ones you inventoried in the Module 8 personal security audit.
+
+1. Open a spreadsheet (Excel or Google Sheets) with seven columns: **Risk · Likelihood · Impact · Score · Treatment · Owner · CSF function**.
+2. Fill in **five real risks** from your own setup — for example "reused password on an old account", "no MFA on email", "Windows feature update deferred for months".
+3. Score each one **Likelihood (1–5) × Impact (1–5)**, put the product in **Score**, and sort the sheet by it descending.
+4. Choose a **treatment** for every row: mitigate, transfer, avoid, or accept.
+5. Put a name in **Owner** — your own. Every risk needs one accountable human; "the team" is not an owner.
+6. Tag each row to a **CSF 2.0 function**: Identify, Protect, Detect, Respond, Recover, or Govern.
+
+**Done when** all five rows are sorted by score, each has a named owner and a chosen treatment, and you can say out loud which risk you are deliberately **accepting** and why. That last sentence is the one an auditor asks for, and this sheet is exactly the artifact a GRC analyst produces in their first week.`,
+      linux: `**Build a mini risk register.** No tools to install — this one is a spreadsheet and your own judgement.
+
+**Ethics.** Use only *your own* accounts and devices, specifically the ones you inventoried in the Module 8 personal security audit.
+
+1. Open a spreadsheet (LibreOffice Calc or Google Sheets) with seven columns: **Risk · Likelihood · Impact · Score · Treatment · Owner · CSF function**.
+2. Fill in **five real risks** from your own setup — for example "reused password on an old account", "no MFA on email", "unattended-upgrades never enabled".
+3. Score each one **Likelihood (1–5) × Impact (1–5)**, put the product in **Score**, and sort the sheet by it descending.
+4. Choose a **treatment** for every row: mitigate, transfer, avoid, or accept.
+5. Put a name in **Owner** — your own. Every risk needs one accountable human; "the team" is not an owner.
+6. Tag each row to a **CSF 2.0 function**: Identify, Protect, Detect, Respond, Recover, or Govern.
+
+**Done when** all five rows are sorted by score, each has a named owner and a chosen treatment, and you can say out loud which risk you are deliberately **accepting** and why. That last sentence is the one an auditor asks for, and this sheet is exactly the artifact a GRC analyst produces in their first week.`
     },
     caseStudy: {
       title: "Equifax (2017) — a governance failure, not just a technical one",
@@ -7687,13 +7700,17 @@ def risk(f):
 for f in sorted(FINDINGS, key=lambda x: -x["cvss"]):  print(" CVSS", f["cvss"], f["desc"])
 for f in sorted(FINDINGS, key=lambda x: -risk(x)):    print(" RISK", risk(f), f["desc"])
 \`\`\`
-\`\`\`bash
-# by CVSS alone:                          by risk:
-#  9.8  RCE in internal batch job          56.2  Auth bypass, exploited in the wild
-#  9.1  DoS in an admin-only tool          19.7  Reflected XSS on public login page
-#  7.5  Auth bypass, exploited in wild      4.0  RCE in internal batch job     <- was #1
-#  6.1  Reflected XSS on public login       3.7  DoS in an admin-only tool
+\`\`\`text
+ CVSS 9.8 RCE in lib used by internal batch job
+ CVSS 9.1 DoS in an admin-only tool
+ CVSS 7.5 Auth bypass, exploited in the wild
+ CVSS 6.1 Reflected XSS on public login page
+ RISK 56.2 Auth bypass, exploited in the wild
+ RISK 19.7 Reflected XSS on public login page
+ RISK 4.0 RCE in lib used by internal batch job
+ RISK 3.7 DoS in an admin-only tool
 \`\`\`
+Read the two lists against each other: the CVSS list is the scanner's, the RISK list is yours. **The 9.8 that headed the first list is third in the second, and the 7.5 that was third is now first by an order of magnitude.**
 **This is the module's own challenge, answered by computation rather than opinion.** The CVSS 9.8 fell to third and the 6.1 rose to second, because **CVSS measures the severity of a vulnerability in the abstract, not the risk it poses in your environment** — it has no idea whether the component is internet-facing, whether anyone is actually exploiting it, or what data sits behind it. Those are precisely the facts that decide whether you get breached. The KEV entry wins outright and should: **CISA's Known Exploited Vulnerabilities catalogue is observed reality** — someone is using it right now — whereas a 9.8 with an EPSS of 0.02 is a prediction that almost nobody will. Note the honest caveat: these multipliers are a *judgment made explicit*, not physics. Their value is that a colleague can now argue with the number 1.6 instead of arguing with your intuition — and that's what makes a triage defensible to an auditor or a sceptical manager.
 
 Common wrong attempts: sorting by CVSS and calling it a priority list (that's the "email the PDF" failure the module opens with — it's the scanner's opinion, not yours); adding factors instead of multiplying, which lets a high base score swamp the fact that nothing can reach it; treating EPSS and KEV as the same signal (EPSS is a *probability*; KEV is a *fact*, and facts outrank forecasts); forgetting that "internal" is an assumption worth re-testing — M15's isolation check and M12's scan exist because "not internet-facing" is frequently wrong; and ignoring compensating controls entirely, when a WAF rule or a disabled feature can legitimately drop a finding's rank.
@@ -8390,6 +8407,9 @@ These commands need an actual sample: with no \`memory.raw\` in the directory Vo
 # forensics.py
 import hashlib, shutil, json, datetime
 
+# a throwaway "evidence" file with fixed bytes, so your hashes match the ones below
+open("evidence.bin", "wb").write(b"suspect-drive image (stand-in for the real thing)\\n")
+
 def sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -8419,11 +8439,18 @@ print("original unchanged after analysis:", sha256(original) == acq_hash)
 with open("evidence.copy", "r+b") as f: f.seek(0); f.write(b"X")
 print("copy still matches acquisition hash:", sha256("evidence.copy") == copy_hash)   # False
 \`\`\`
-\`\`\`bash
-#   "match_on_acquire": true
-#   original unchanged after analysis: True
-#   copy still matches acquisition hash: False        <- one byte flipped, integrity broken
+\`\`\`text
+{
+  "item": "evidence.bin",
+  "acquired_utc": "2026-03-14T09:12:44.681204+00:00",
+  "sha256_original": "73e11424114f581c7d542d613861ec8fdf6499eeba7a92a6e0d36b8fb62c68c0",
+  "sha256_working_copy": "73e11424114f581c7d542d613861ec8fdf6499eeba7a92a6e0d36b8fb62c68c0",
+  "match_on_acquire": true
+}
+original unchanged after analysis: True
+copy still matches acquisition hash: False
 \`\`\`
+Only \`acquired_utc\` is yours — the two hashes are the SHA-256 of those exact 50 bytes, so **if you copied the file-creation line verbatim, your digests will match these character for character.** The three findings are: the copy is identical at acquisition (\`match_on_acquire: true\`), analysing it left the original untouched (\`True\`), and one flipped byte broke the match (\`False\`).
 **Why this exact sequence, and why hashing is the whole game.** A cryptographic hash is a fixed-length fingerprint where changing a **single bit** of input changes roughly half the output bits (the avalanche property from M3), and finding two files with the same hash is computationally infeasible. That gives you something powerful in a legal setting: record the hash at acquisition, and you can prove at any later point that the evidence is bit-for-bit what you seized — because if even one byte had changed, the hash wouldn't match. This is the module's second challenge answered directly: you hash **before** analysis to establish the baseline and **after** to prove your tools didn't alter the original. Work on the copy so that even a mistake — a tool that writes back, an accidental save — damages a disposable duplicate, not the evidence. This is also why forensic acquisition uses a **write-blocker**: hardware that physically prevents writes to the source drive, the same idea enforced at the hardware layer.
 
 Note the developer version of this, which is the transferable point: your own **audit logs and incident artifacts** deserve the same treatment — append-only, hashed, ideally shipped off-box in real time (M16's structured logging), so that an attacker who lands on the machine can't quietly rewrite the record of what they did. Integrity of evidence and integrity of logs are the same problem.
@@ -8463,10 +8490,17 @@ doc = {"visible_text": "Anonymous letter.",
 print("reader sees   :", doc["visible_text"])
 print("forensics sees:", doc["_meta"])
 \`\`\`
-\`\`\`bash
-#   reader sees   : Anonymous letter.
-#   forensics sees: {'Author': 'Dennis', 'Company': 'Christ Lutheran Church', ...}
+\`\`\`text
+{
+  "size_bytes": 50,
+  "modified_utc": "2026-03-14T09:12:44.680817+00:00",
+  "owner": "alex",
+  "mode": "0o644"
+}
+reader sees   : Anonymous letter.
+forensics sees: {'Author': 'Dennis', 'LastModifiedBy': 'Dennis', 'Company': 'Christ Lutheran Church', 'Software': 'Microsoft Word'}
 \`\`\`
+The owner, timestamp and mode are yours (\`size_bytes\` is 50 if you used the evidence file from Drill 1). **The finding is the last two lines: same object, two different readers, two completely different stories.**
 **This is the BTK case, and the one-sentence lesson is: metadata is data *about* the data, so scrubbing the content is not scrubbing the file.** For 30 years a serial killer taunted police with letters and evaded identification; in 2005 he sent a **floppy disk** with a Word document, and the file's embedded metadata contained a deleted-text revision naming "Christ Lutheran Church" and a \`LastModifiedBy\` of "Dennis" — police searched the church, found Dennis Rader, and confirmed via DNA. He believed he'd sent a clean document because the *visible text* said nothing; the metadata the software wrote automatically said everything. The general principle for a developer: **every file your systems produce carries metadata you didn't consciously add** — EXIF GPS coordinates in user-uploaded photos (a classic deanonymisation and doxxing vector), author and path names in generated PDFs, internal hostnames in email headers, revision history in office documents. If your app lets users upload or share files, **stripping metadata is a privacy control you must implement**, not something the user can be expected to do — the same "don't trust the client to protect itself" stance as M20.
 
 Common wrong attempts: assuming deleting visible content removes embedded metadata (it's stored separately — the whole point); thinking a screenshot or a "flatten" always strips EXIF (sometimes yes, often no — verify, don't assume); forgetting that filesystem timestamps are themselves evidence an attacker manipulates ("timestomping," ATT&CK T1070.006 — which is why you correlate multiple timestamp sources rather than trusting one); and treating metadata as only a *forensics* topic when it's equally a *privacy* obligation in anything you ship.
@@ -8555,25 +8589,49 @@ def rotate_signing_key():
     ...  # publish a new key id, retire the old -> forces global re-auth (eradication)
 \`\`\``,
     lab: {
-      mac: `# Tabletop exercise — invite a friend. Present this scenario with a clock.
-#
-# SCENARIO:
-# Monday 8:47 AM. Helpdesk gets 3 calls — users can't open Excel files.
-# On their screens: a ransom note demanding $500,000 in Bitcoin within 72 hours.
-# Your phone rings. It's the CFO asking what to do.
-#
-# DECISIONS TO MAKE IN ORDER:
-# 1. First 5 minutes — what do you DO physically?
-# 2. First 30 minutes — who do you CALL?
-# 3. First 2 hours — what do you SHUT DOWN?
-# 4. Day 1 — do you PAY? Who talks to the press? Do you call the FBI/CERT?
-# 5. Week 1 — how do you RESTORE?
-# 6. Month 1 — what do you CHANGE permanently?
-#
-# Document your answers. Then look up what real IR teams do for each step.`,
-      windows: `# Same tabletop exercise. Also practice app-level containment in your project:
-# - confirm you can revoke a user's sessions and rotate a signing key on demand.`,
-      linux: `# Same tabletop exercise + app-level containment drill (revoke sessions, rotate key).`
+      kind: "paper",
+      mac: `**Ransomware tabletop.** Invite a friend to play the CFO. Put a clock where you can both see it and answer under time pressure — that pressure is the thing you are actually training for.
+
+**Scenario.** Monday, 08:47. The helpdesk takes three calls in a row: users can't open Excel files. On their screens is a ransom note demanding **$500,000 in Bitcoin within 72 hours**. Your phone rings. It's the CFO, asking what to do.
+
+**Decide in this order, saying each answer out loud before you move to the next:**
+
+1. **First 5 minutes** — what do you physically *do*?
+2. **First 30 minutes** — who do you *call*?
+3. **First 2 hours** — what do you *shut down*?
+4. **Day 1** — do you pay? Who talks to the press? Do you call the FBI or your national CERT?
+5. **Week 1** — how do you restore, and from what?
+6. **Month 1** — what do you change permanently?
+
+**Done when** you have all six answers written down and have checked them against what real IR teams do at each phase — the NIST phases in the Theory above are your marking scheme. **The gaps you find are the first draft of your runbook**, and finding them on a Monday morning that isn't real is the entire point.`,
+      windows: `**Ransomware tabletop.** Invite a friend to play the CFO. Put a clock where you can both see it and answer under time pressure — that pressure is the thing you are actually training for.
+
+**Scenario.** Monday, 08:47. The helpdesk takes three calls in a row: users can't open Excel files. On their screens is a ransom note demanding **$500,000 in Bitcoin within 72 hours**. Your phone rings. It's the CFO, asking what to do.
+
+**Decide in this order, saying each answer out loud before you move to the next:**
+
+1. **First 5 minutes** — what do you physically *do*?
+2. **First 30 minutes** — who do you *call*?
+3. **First 2 hours** — what do you *shut down*?
+4. **Day 1** — do you pay? Who talks to the press? Do you call the FBI or your national CERT?
+5. **Week 1** — how do you restore, and from what?
+6. **Month 1** — what do you change permanently?
+
+**Then run the app-level containment drill on your own project:** prove you can revoke a specific user's sessions and rotate a signing key on demand, right now, without a deploy. The Workbench builds both — if you can't do it in under a minute, that is finding number seven.`,
+      linux: `**Ransomware tabletop.** Invite a friend to play the CFO. Put a clock where you can both see it and answer under time pressure — that pressure is the thing you are actually training for.
+
+**Scenario.** Monday, 08:47. The helpdesk takes three calls in a row: users can't open Excel files. On their screens is a ransom note demanding **$500,000 in Bitcoin within 72 hours**. Your phone rings. It's the CFO, asking what to do.
+
+**Decide in this order, saying each answer out loud before you move to the next:**
+
+1. **First 5 minutes** — what do you physically *do*?
+2. **First 30 minutes** — who do you *call*?
+3. **First 2 hours** — what do you *shut down*?
+4. **Day 1** — do you pay? Who talks to the press? Do you call the FBI or your national CERT?
+5. **Week 1** — how do you restore, and from what?
+6. **Month 1** — what do you change permanently?
+
+**Then run the app-level containment drill on your own project:** prove you can revoke a specific user's sessions and rotate a signing key on demand, right now, without a deploy. The Workbench builds both — if you can't do it in under a minute, that is finding number seven.`
     },
     caseStudy: {
       title: "Maersk vs NotPetya (2017)",
@@ -8685,13 +8743,13 @@ def triage(signal):
 for i, s in enumerate(triage({"type": "ransomware", "host": "fs-01", "spreading": True}), 1):
     print(f'{i}. [{s["phase"]:<13}] {s["action"]}')
 \`\`\`
-\`\`\`bash
-# 1. [Detection    ] alert: ransomware on fs-01
-# 2. [Containment  ] network-isolate fs-01 (pull cable/VLAN, keep POWERED)
-# 3. [Analysis     ] capture memory image + hash BEFORE remediation
-# 4. [Eradication  ] remove persistence, patch the entry vector
-# 5. [Recovery     ] restore from known-good backup, rotate ALL exposed secrets
-# 6. [Post-Incident] blameless review; feed new detections back to the SIEM
+\`\`\`text
+1. [Detection    ] alert: ransomware on fs-01
+2. [Containment  ] network-isolate fs-01 (pull cable/VLAN, keep POWERED)
+3. [Analysis     ] capture memory image + hash BEFORE remediation
+4. [Eradication  ] remove persistence, patch the entry vector
+5. [Recovery     ] restore from known-good backup, rotate ALL exposed secrets
+6. [Post-Incident] blameless review; feed new detections back to the SIEM
 \`\`\`
 **The ordering is the entire point, and it encodes hard-won lessons.** *Containment before eradication:* stop the spread first — an attacker actively exfiltrating or ransomware encrypting doesn't pause while you investigate, so you isolate to freeze the blast radius, then analyse. *Isolate, don't power off* (the module's challenge and the M22 link): pulling the **network** halts spread and C2 while preserving the RAM that holds keys, live processes, and the only copy of fileless malware — pulling the **power** halts spread and destroys all of it, and may trip wipe-on-shutdown. *Capture before remediate:* the instant you start deleting persistence and patching, you overwrite the evidence of how they got in — so image and hash first (M22), or your post-incident review is guesswork. *Recovery rotates every exposed secret:* restoring the app without rotating credentials just hands the reoccupied house back with the same keys. *Post-incident feeds detection:* the incident's indicators become new SIEM rules (M16), closing the loop so the same intrusion is caught automatically next time.
 
@@ -9303,10 +9361,17 @@ for label, pat in IOCS:
     for m in re.findall(pat, text, re.I):
         print(f"   [{label}] {m}")
 \`\`\`
-\`\`\`bash
-#   [URL/C2] http://evil-c2.example/beacon
-#   [suspicious API] CreateRemoteThread
-#   [encoded command] powershell -enc SQBFAFgA
+\`\`\`text
+--- extracted strings ---
+    junk
+    http://evil-c2.example/beacon
+    cmd.exe /c powershell -enc SQBFAFgA
+    CreateRemoteThread
+    padding
+--- indicators of compromise ---
+   [URL/C2] http://evil-c2.example/beacon
+   [suspicious API] CreateRemoteThread
+   [encoded command] powershell -enc SQBFAFgA
 \`\`\`
 **Why this is both safe and useful.** Reading a file's bytes and running a file are completely different operations — \`strings\`, \`file\`, \`shasum\`, and a disassembler all *inspect* without ever handing control to the sample's code, which is why static analysis is the **first** step and can be done on live malware without a sandbox. And it's remarkably productive: real malware constantly leaks its intentions in cleartext strings — the domains and IPs it calls home to (**C2**), the Windows APIs it imports (\`CreateRemoteThread\`/\`VirtualAlloc\`/\`WriteProcessMemory\` scream **process injection**), file paths it drops, registry keys it sets for persistence, and base64/hex blobs that decode to commands. Each becomes an **IOC** you can hunt across your fleet (M18.5) and a hash you look up on VirusTotal. The limit, which sets up Build 1 and the challenge: **packed or obfuscated** malware has few useful strings until it unpacks itself *in memory at runtime* — which is why dynamic analysis exists, and why it needs the isolated VM.
 
@@ -9636,11 +9701,11 @@ console.log(vetAndRun({ action: "run_shell",    args: { cmd: "rm -rf /" } }));  
 console.log(vetAndRun({ action: "disable_user", args: { user: "alice; DROP TABLE users" } })); // refused
 console.log(vetAndRun({ action: "block_ip",     args: { ip: "not-an-ip" } }));            // refused
 \`\`\`
-\`\`\`bash
-#   { ran: true,  effect: 'block_ip({"ip":"192.0.2.9"})' }
-#   { ran: false, why: 'action not allow-listed: run_shell' }
-#   { ran: false, why: 'args failed validation' }
-#   { ran: false, why: 'args failed validation' }
+\`\`\`text
+{ ran: true, effect: 'block_ip({"ip":"192.0.2.9"})' }
+{ ran: false, why: 'action not allow-listed: run_shell' }
+{ ran: false, why: 'args failed validation' }
+{ ran: false, why: 'args failed validation' }
 \`\`\`
 **This is the control that actually contains prompt injection, and it works precisely because it doesn't depend on the model behaving.** You've accepted that the LLM can be manipulated — by a clever user, by injected content in a document it read, by its own hallucination — and you've arranged that a compromised model **cannot do anything you didn't pre-authorize**, because its output is a *proposal* that passes through validation you control, not a command that executes. The three refusals map to three real failure modes: \`run_shell\` is the agent trying to escape its sandbox (not on the menu); the SQL-laden username is **injection layered on injection** — the model's output feeding an unvalidated sink downstream, which your regex stops (M14 again); and the malformed IP is an ordinary hallucination. This is why the same principle governs **MCP and tool-using agents**: every tool an agent can call is a capability an injected instruction can invoke, so tools must be **least-privilege** (M6), their arguments validated, and destructive ones gated behind human confirmation. Autonomy scales the blast radius — an agent that can read your email *and* send email *and* browse the web can be induced by a malicious webpage to exfiltrate your inbox — so the design rule is: **an agent's effective permissions are whatever the most hostile text it will ever read can reach.** Constrain accordingly.
 
@@ -10661,14 +10726,15 @@ total = len(RED_ACTIONS)
 print(f"\\ncoverage: {caught}/{total} = {100 * caught // total}% of the kill chain detected")
 print("blind spots:", [t for t, _, _ in RED_ACTIONS if t not in BLUE_DETECTIONS])
 \`\`\`
-\`\`\`bash
-# T1046  network service scan ...            SEEN: IDS: burst of connections ...
-# T1190  exploited web app to get a shell    MISSED
-# T1059  ran discovery commands ...          SEEN: shell audit ...
-# T1543  installed a launch-agent ...        SEEN: file-integrity monitor ...
-# T1048  exfiltrated data ...                MISSED
-# coverage: 3/5 = 60% detected
-# blind spots: ['T1190', 'T1048']
+\`\`\`text
+T1046  network service scan of the target        SEEN: IDS: burst of connections to many ports
+T1190  exploited web app to get a shell          MISSED
+T1059  ran discovery commands via the shell      SEEN: shell audit: unusual command sequence
+T1543  installed a launch-agent for persistence  SEEN: file-integrity monitor: new LaunchAgent plist
+T1048  exfiltrated data over an alt channel      MISSED
+
+coverage: 3/5 = 60% of the kill chain detected
+blind spots: ['T1190', 'T1048']
 \`\`\`
 **Why this matrix is the real deliverable, more than "who won."** The instinct after a red/blue exercise is to score it as a contest, but the *contest* is just the mechanism — the **value is the map of what your defenses saw and missed**, expressed in a shared language (ATT&CK) both sides can act on. Look at what this specific result teaches: Blue caught the noisy middle of the chain (the scan, the on-host commands, the persistence) but **missed the two ends** — the *initial exploitation* (T1190) and the *exfiltration* (T1048), which are the highest-consequence stages, the actual breach and the actual loss. That's a common and sobering pattern: teams detect the activity that's easy to log and miss the moments that matter, because initial exploitation looks like a normal web request and exfil looks like normal outbound traffic. Each MISSED row becomes a **concrete work item** — a new detection rule (M16), a new log source that was never collected (the M17 data-source gap), or a control — and mapping to ATT&CK lets you track coverage over time and aim the next exercise at the gaps. This is also **purple teaming**: red and blue collaborating on the matrix rather than competing, because the goal was never to win, it was to *improve the system*, which is the exact lesson M17's capstone opened and this one closes.
 
@@ -11696,7 +11762,11 @@ function OSTabs({
     key: o.key,
     onClick: () => setOs(o.key),
     className: `px-3 py-1.5 text-sm rounded-md transition font-medium ${os === o.key ? "bg-[#1a2233] text-[#22d3ee]" : "text-[#9aa5b8] hover:text-[#e8ecf2]"}`
-  }, o.label))), /*#__PURE__*/React.createElement(CodeBlock, {
+  }, o.label))), lab.kind === "paper" ? /*#__PURE__*/React.createElement("div", {
+    className: "rounded-lg border border-[#273042] bg-[#121826] px-5 py-4"
+  }, /*#__PURE__*/React.createElement(Prose, {
+    text: lab[os] || ""
+  })) : /*#__PURE__*/React.createElement(CodeBlock, {
     lang: os === "mac" ? "bash (macOS)" : os === "windows" ? "powershell" : "bash (linux)",
     content: lab[os] || ""
   }), lab.expected && lab.expected[os] ? /*#__PURE__*/React.createElement("details", {
@@ -12343,7 +12413,7 @@ function App() {
     title: "Lab \u2014 Hands On"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-[#9aa5b8] text-sm mb-4"
-  }, "Commands for your platform. Switch OS to see your version."), /*#__PURE__*/React.createElement(OSTabs, {
+  }, activeModule.lab.kind === "paper" ? "No tools to install — this one you work through on paper. Switch OS for the platform-specific notes." : "Commands for your platform. Switch OS to see your version."), /*#__PURE__*/React.createElement(OSTabs, {
     lab: activeModule.lab
   })), activeModule.caseStudy && /*#__PURE__*/React.createElement("section", {
     className: "mb-10"

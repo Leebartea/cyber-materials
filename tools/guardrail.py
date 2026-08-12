@@ -126,7 +126,13 @@ def module_texts(name, cur):
             yield label + "/theory", m.get("theory") or ""
             yield label + "/workbench", m.get("workbench") or ""
             lab = m.get("lab") or {}
-            if isinstance(lab, dict) and lab.get("mac"):
+            if isinstance(lab, dict) and lab.get("kind") == "paper":
+                # A deliberately tool-free lab (risk register, ransomware tabletop):
+                # `lab.mac` is markdown prose the app renders with <Prose>, not a script.
+                # Wrapping it in a bash fence made it look like a terminal command and
+                # tripped the prose-in-runnable-fence check for exactly the right reason.
+                yield label + "/lab", lab.get("mac") or ""
+            elif isinstance(lab, dict) and lab.get("mac"):
                 # `lab.mac` stays one pristine copy-paste script; its expected result
                 # lives in the sibling `lab.expected.mac` markdown, appended here so
                 # an output fence there is credited to the lab's command block.
