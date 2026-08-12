@@ -765,8 +765,8 @@ const curriculum = {
     colorVar: "--l3",
     weeks: "Weeks 21–36",
     roadmap: {
-      promise: "Level 3 makes you a specialist: ethical-hacking methodology, threat hunting, forensics, incident response, malware analysis, and cloud/mobile/AI threats — all through a defender's lens.",
-      canDo: ["Run a full ethical-hacking methodology and map activity to MITRE ATT&CK", "Perform digital forensics and lead an incident response", "Safely analyze malware inside an isolated lab", "Reason about cloud, mobile, IoT, and AI-driven threats"],
+      promise: "Level 3 makes you a specialist: ethical-hacking methodology, threat hunting, forensics, incident response, business continuity and disaster recovery, malware analysis, and cloud/mobile/AI threats — all through a defender's lens.",
+      canDo: ["Run a full ethical-hacking methodology and map activity to MITRE ATT&CK", "Perform digital forensics, lead an incident response, and recover the business afterwards to a tested RTO/RPO", "Safely analyze malware inside an isolated lab", "Reason about cloud, mobile, IoT, and AI-driven threats"],
       build: "A final capstone, a defensible portfolio, and a mapped certification path (Modules 27–29).",
       prereq: "Levels 1–2."
     }
@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **39-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **40-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **39-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 39 modules at a glance
+### All 40 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -833,6 +833,7 @@ Cyber Guardians is a **39-module breadth-first course** that takes you from zero
 - M21: Intro to Exploitation (Conceptual + Safe Practice)
 - M22: Digital Forensics Fundamentals
 - M23: Incident Response
+- M23.5: Business Continuity & Disaster Recovery *(new in this edition)*
 - M24: Malware Analysis 101
 - M24.5: AI-Powered Attacks & Defenses *(new in this edition)*
 - M25: Cloud & Mobile Security
@@ -919,7 +920,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 39 modules, expect ~49–60 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 40 modules, expect ~50–62 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -930,7 +931,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 39 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 40 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -1933,7 +1934,7 @@ CSF 1.1 had five functions. **CSF 2.0 added GOVERN** — a signal that leadershi
 | PROTECT | How do we prevent harm? | M6 OS hardening, M16.5 Zero Trust, crypto (M10) |
 | DETECT | How do we notice an attack? | M16 blue team, M18.5 ATT&CK/threat hunting, SIEM |
 | RESPOND | What do we do during an incident? | M23 incident response |
-| RECOVER | How do we get back to normal? | Backups, BC/DR (see M23) |
+| RECOVER | How do we get back to normal? | M23.5 business continuity & disaster recovery |
 
 When someone describes their SOC as "we're strong on Detect and Respond but weak on Govern," they mean this. Memorize the six — it's the spine of Security+ Domain 5 and CISSP Domain 1.
 
@@ -8330,6 +8331,418 @@ Common wrong attempts: eradicating before capturing (destroys the "how"); treati
 **(3) The ransom decision.** Never a reflex; a strategic and legal decision, ideally pre-decided in policy (preparation again). Walk it: **first exhaust recovery** — is there a known-good, offline backup, and has a restore actually been *tested*? If yes, you don't pay; you restore (having captured evidence and rotated secrets first). **Weigh the downsides of paying**, which are severe and often underappreciated: you're funding a criminal enterprise and incentivising the next attack (on you — repeat-victimisation is common); **decryptors frequently fail or are slow**, so payment doesn't guarantee recovery and NotPetya-style wipers can't decrypt at all because the keys were never kept; the attackers **still have your exfiltrated data** (double-extortion means paying to decrypt doesn't stop them leaking it); and payment may be **illegal** — sanctions regimes (OFAC) prohibit paying certain groups, exposing you to legal liability on top of the breach. So payment is a last resort for an organisation with no viable backup facing existential data loss, made *with legal counsel, law enforcement, and specialist negotiators*, not by an engineer at 3am. **Outside the box:** every hard choice in this module — revoke or wait, isolate or power off, pay or restore — is easy or impossible depending on decisions made *before* the incident: whether the kill switch exists, whether backups are offline and tested, whether the network is segmented, whether there's a policy on payment. That's the real meaning of "preparation dominates": IR isn't what you do during the fire, it's what you built before it that determines whether the fire is survivable.
 </details>`,
     tracker: ["I can list the NIST IR phases and explain why preparation dominates", "I ran the ransomware tabletop and wrote a decision tree", "I can explain isolate-and-preserve vs power-off/wipe", "I understand why ransom payment is a legal/strategic decision, not a reflex", "My app (or a design sketch) has a session-revocation + key-rotation kill switch", "Workbench: proved a naive stateless JWT cannot be revoked, then built a per-user token-version kill switch that invalidates every outstanding token instantly", "Workbench: encoded the NIST IR lifecycle as gated ordered data — contain before eradicate, capture before remediate, isolate-not-power-off", "Workbench: explained the Maersk/NotPetya recovery lesson, listed what a reboot destroys, and reasoned through the ransom-payment decision"]
+  }, {
+    id: "m23_5",
+    level: 3,
+    num: "M23.5",
+    title: "Business Continuity & Disaster Recovery",
+    objective: "Module 23 stops the attacker. This module answers the question that comes next and decides whether the organization survives: how do we get back? You will learn the vocabulary the business actually negotiates in — BIA, MTD, RTO, RPO — build a 3-2-1 backup whose offsite copy ransomware provably cannot delete, and prove your recovery by timing a real restore. The through-line: a backup you have never restored is a hypothesis, not a backup.",
+    theory: `### Three plans, three different questions
+
+M23 gave you the incident response plan. It is not the only plan, and the three are routinely confused in interviews and in real outages.
+
+| Plan | The question it answers | Usually owned by | Triggered by | Success looks like |
+|---|---|---|---|---|
+| **IRP** — incident response | "Someone is in our network. How do we stop them?" | Security / SOC | An alert or a report | Threat contained, evidence preserved |
+| **DRP** — disaster recovery | "The system is gone. How do we rebuild the technology?" | IT / Infrastructure | Loss of a system, site, or dataset | Systems back inside RTO, data inside RPO |
+| **BCP** — business continuity | "The system is gone. How does the *business* keep running meanwhile?" | The business process owners | Any disruption, cyber or not | Critical processes continue — on paper if necessary |
+
+Two things follow from that table. First, **BC/DR is older than cybersecurity** and is not primarily about attackers: fire, flood, a backhoe through a fibre run, a cloud region outage, a failed migration, an engineer running \`DROP TABLE\` against the wrong connection. Ransomware only pulled it into the security syllabus — because ransomware is precisely an **availability** attack (M1's third leg), and the only countermeasure that actually works is a restore you can trust.
+
+Second, this module is the **RECOVER** function of NIST CSF 2.0 (M1.5). M23 is RESPOND. Where RESPOND ends — threat contained, evidence captured — RECOVER begins.
+
+### The BIA comes first, because you cannot pick these numbers by taste
+
+The **Business Impact Analysis (BIA)** is the exercise that produces the numbers everything else is engineered against. For each business process it asks: what stops if this is unavailable? How fast does the harm accrue — linearly, or as a cliff on payroll day? What does it depend on? And what is the loss per hour, counted in money, safety, legal exposure, and reputation?
+
+The BIA's output is a **ranking**, and the ranking is the entire point. *If everything is Tier 1, nothing is.* A recovery plan that tries to bring 400 systems back at once brings back none of them on time; a usable plan names the order and the dependencies (you cannot restore the app before the database, and you cannot restore either before identity).
+
+The number the business owns is **Maximum Tolerable Downtime (MTD)**, sometimes MTPD — the point past which the damage is unrecoverable: the customers do not come back, the patient is harmed, the regulator acts. MTD is *discovered* from the business. RTO and RPO are then *engineered to fit inside it*.
+
+### RTO and RPO — draw the timeline once and you will never mix them up
+
+\`\`\`text
+      last good backup              DISASTER                  service usable again
+  ──────────┬───────────────────────────┬──────────────────────────┬────────────►
+            │◄────────── RPO ──────────►│◄────────── RTO ─────────►│◄─── WRT ───►
+            │   data you agree to LOSE  │   time you are DOWN      │  catch-up
+            │                           │                                        │
+            │                           │◄──────────────── MTD ─────────────────►│
+\`\`\`
+
+- **RPO — Recovery Point Objective** looks **backwards**: how much *data* may we lose? It is measured in time and it is delivered by **backup frequency**. A nightly 02:00 job is an RPO of 24 hours no matter what the policy document claims.
+- **RTO — Recovery Time Objective** looks **forwards**: how long may the service be *down*? It is delivered by **architecture and rehearsal**, not by the backup schedule.
+- **WRT — Work Recovery Time** is the tail everyone forgets: after the system is technically up, the hours spent re-keying transactions taken on paper, reconciling, and validating. **RTO + WRT must still fit inside MTD**, which is why an RTO measured only to "the database is mounted" is a fiction.
+
+One sentence worth memorizing, because it explains every architecture decision later in this module: **RPO costs money continuously** (replication links, storage, bandwidth) **while RTO costs money to stand by** (a second site, warm hardware, spare licences). Both curves go vertical as the number approaches zero. RPO = 0 with RTO = 0 is entirely achievable and almost nobody can afford it everywhere — so the BIA decides where the money goes.
+
+### 3-2-1, and the ransomware-era version of it
+
+The classic **3-2-1 rule**: keep **3** copies of the data, on **2** different kinds of media, with **1** copy offsite.
+
+Ransomware broke it in practice, because "offsite" quietly came to mean "a cloud drive mounted on the machine that just got encrypted." An online, deletable backup reachable with production credentials is *inside the blast radius*. Hence the modern form, **3-2-1-1-0**:
+
+- **3** copies · **2** media types · **1** offsite
+- **+1 offline, air-gapped, or immutable** — one copy that credentials stolen from production **cannot delete**: object-lock/WORM storage, tape in a box, a separate account whose delete permission production does not hold.
+- **+0 errors** — every restore verified. Not "the backup job reported success": an actual restore, actually performed, actually checked.
+
+The last two are the ones the industry keeps re-learning at full price. In the lab you implement the "+1" as a file you literally cannot delete — even with \`rm -f\` — and the "0" as a checksum verified *before* you trust the archive.
+
+### Backup types, and why the real column is "how many things must survive"
+
+| Type | What it copies | Backup window | A restore needs | Storage |
+|---|---|---|---|---|
+| **Full** | Everything | Longest | The one full | Largest |
+| **Incremental** | Changes since the **last backup of any kind** | Shortest | The full **+ every incremental since** | Smallest |
+| **Differential** | Changes since the **last full** | Grows through the week | The full **+ the latest differential** | Middle |
+| **Synthetic full** | A server-side merge of full + incrementals | Off-host, no client impact | Behaves like a full | Middle |
+
+Read the "a restore needs" column as a **risk** column rather than a convenience one. A Sunday full plus six incrementals means Saturday's recovery depends on **seven** artifacts all being present and readable — one corrupt link and the chain stops dead. Differential trades storage for a two-artifact restore. The right question is never "which type is best?" but **"how many things must survive for me to hit my RTO?"**
+
+Three things people call backups that are not backups:
+
+- **A snapshot is not a backup.** A storage-array or VM snapshot normally lives on the same array as the data and dies with it. It is a fast rollback, not a copy.
+- **RAID is not a backup.** It survives a *disk*. It does not survive a delete, an encrypt, a bad migration, or a fire.
+- **Replication is not a backup.** It faithfully replicates the ransomware to the DR site in seconds. Anything that propagates the mistake is availability engineering, not recovery.
+
+The common thread: a backup must be able to **disagree with production**. If it always matches, it can only ever give you back the thing that just went wrong.
+
+### Recovery site tiers
+
+| Tier | What is standing there | Typical RTO | Relative cost |
+|---|---|---|---|
+| **Cold** | Space, power, cooling. Empty racks. | Weeks | Lowest |
+| **Warm** | Hardware and software staged; data stale | Hours to days | Medium |
+| **Hot** | Running, data current, staff or automation ready | Minutes | High |
+| **Active-active** | Both sites already serving live traffic | Near zero — withdraw a route | Highest |
+
+Also worth naming: a **reciprocal agreement** (two organizations agree to host each other — cheap, and it almost never survives contact with a real disaster because both parties sized for one tenant) and **DRaaS / cloud DR**, which is how most organizations buy warm and hot tiers today.
+
+Cloud changes the economics, not the concepts. A warm site is now an infrastructure-as-code plan plus nightly snapshots copied to a second region; active-active is a multi-region deployment. Two constraints do not change, and both are how real cloud DR plans fail: **your recovery region must not depend on the failed region's control plane**, and **your recovery credentials must not live only inside the identity system you are trying to recover.** Recovery that depends on the broken thing is not recovery — which is exactly how the company in this module's case study died.
+
+### High availability is not disaster recovery
+
+HA answers "a component failed" — a node, a disk, an availability zone — with redundancy and automatic failover, and it is measured in *nines*. DR answers "the data or the site is gone or wrong" and is measured in *RTO and RPO*. A cluster with five nines of uptime will serve corrupted or encrypted data with perfect availability. You need both, and you must not let a budget conversation substitute one for the other.
+
+### Testing: the ladder, and the sentence that matters
+
+From cheapest to most convincing:
+
+1. **Read-through / checklist** — owners read the plan and confirm their part. Finds stale phone numbers and departed staff.
+2. **Tabletop** — walk a scenario aloud (M23's ransomware tabletop was one). Finds decision and authority gaps.
+3. **Structured walkthrough** — role-play the roles with the actual runbooks open in front of you.
+4. **Simulation** — execute the plan for real against non-production systems.
+5. **Parallel test** — bring the DR environment up **alongside** production and compare the results. Nothing is cut over, so the risk is low and the evidence is strong.
+6. **Full interruption** — cut production over to DR for real. The only test that truly proves the RTO, and the only one that can cause the outage it exists to prevent. Scheduled, rehearsed, executive-approved.
+
+A large share of first restore attempts fail, and they fail for unglamorous reasons: expired credentials in the backup agent, an encryption key that only existed in the vault that is also down, a tape drive nobody has read from in three years, or an application-consistency assumption that yields a database which restores cleanly and then refuses to start. **You do not have a backup until you have completed a restore.**
+
+One more testing lesson that comes straight from M18.5 and M22: **retention beats frequency for detecting a slow attacker.** If the intruder has been resident longer than your retention window, every backup you hold already contains the implant. Retention that reaches back past the intrusion is what makes "restore from known-good" possible at all — and finding *which* point is known-good is a forensics question. That is why DR and IR are the same conversation, run by the same people, on the same night.
+
+### Where this sits in the frameworks
+
+- **NIST CSF 2.0 → RECOVER (RC)** — the RC.RP (recovery plan execution) and RC.CO (recovery communication) categories.
+- **NIST SP 800-34 Rev 1** — the contingency-planning guide where the BIA / RTO / RPO vocabulary is defined formally.
+- **ISO 22301:2019** — the international standard for a Business Continuity Management System (BCMS): the BC counterpart to ISO/IEC 27001's ISMS. In ISO/IEC 27001:2022 the matching Annex A controls are **A.5.29** (information security during disruption) and **A.5.30** (ICT readiness for business continuity).
+- **CIS Controls v8.1 → Control 11, "Data Recovery"** — the prescriptive short version of this entire module: automate backups, protect them, isolate at least one copy, and **test the restore**.
+
+Exam-wise this is Security+ Domain 3 (resilience and recovery) and CISSP Domain 7 — and in an interview it is the fastest way to show you think past the incident.`,
+    lab: {
+      mac: `# LAB: Prove a backup works — 3-2-1, RPO, RTO, and the restore test
+# ETHICS: everything below runs on throwaway files you create in your own home folder.
+mkdir -p ~/cyber-journal/m23-5-bcdr && cd ~/cyber-journal/m23-5-bcdr
+rm -rf work && mkdir work && cd work
+
+# 1. "Production" — the data the business would actually miss
+mkdir -p prod backup-local backup-offsite
+for i in 1 2 3 4 5; do echo "invoice-$i total=$((i * 100))" > prod/inv-$i.txt; done
+find prod -type f | wc -l          # -> 5 = your known-good state
+
+# 2. Copies 1 and 2 of the 3-2-1 rule, plus the integrity baseline that makes
+#    "+0 errors" checkable later. (Two directories stand in for two media here.)
+tar -czf backup-local/prod-snapshot.tar.gz prod
+(cd backup-local && shasum -a 256 prod-snapshot.tar.gz | tee manifest.sha256)
+
+# 3. Copy 3: offsite AND immutable. chflags uchg is your laptop-scale stand-in for
+#    object-lock / WORM tape / an account production cannot delete from.
+#    Note the manifest is copied and locked TOO — an integrity baseline the attacker
+#    can rewrite proves nothing (the M1 false-confidence trap, at backup scale).
+cp backup-local/prod-snapshot.tar.gz backup-local/manifest.sha256 backup-offsite/
+chmod 444 backup-offsite/*
+chflags uchg backup-offsite/*
+ls -lO backup-offsite/             # -> the uchg flag now shows in the listing
+
+# 4. RPO made concrete: work continues AFTER the backup ran. This is the data you
+#    have already agreed to lose.
+echo "invoice-6 total=600" > prod/inv-6.txt
+find prod -type f | wc -l          # -> 6 live files, while the backup still knows 5
+
+# 5. THE DISASTER — ransomware encrypts everything it can write to, which on a real
+#    network is production AND every backup reachable with production's credentials.
+for f in prod/*.txt backup-local/*; do
+  openssl enc -aes-256-cbc -pbkdf2 -pass pass:ransom -in "$f" -out "$f.locked" && rm "$f"
+done
+ls prod backup-local               # -> production and the local backup are both gone
+rm -f backup-offsite/prod-snapshot.tar.gz   # -> "Operation not permitted", even with -f
+
+# 6. VERIFY BEFORE YOU TRUST. A restore from a corrupted archive is not a recovery.
+(cd backup-offsite && shasum -a 256 -c manifest.sha256)   # -> prod-snapshot.tar.gz: OK
+
+# 7. RTO: time the restore. This is the only recovery number that is measured
+#    rather than promised.
+mkdir -p restore
+time tar -xzf backup-offsite/prod-snapshot.tar.gz -C restore
+find restore/prod -type f | wc -l  # -> 5, not 6: you recovered to your RPO, not to "now"
+cat restore/prod/inv-1.txt
+
+# 8. Release the immutable flag so you can clean the lab up afterwards.
+chflags nouchg backup-offsite/*`,
+      windows: `# LAB (PowerShell): Prove a backup works — 3-2-1, RPO, RTO, and the restore test
+# ETHICS: throwaway files in your own profile only.
+# Windows has no chflags/chattr, so the immutability stand-in here is an explicit
+# DENY ace for your own account: you keep read access and lose the right to delete.
+New-Item -ItemType Directory -Force "$HOME\\cyber-journal\\m23-5-bcdr\\work" | Out-Null
+Set-Location "$HOME\\cyber-journal\\m23-5-bcdr\\work"
+New-Item -ItemType Directory -Force prod, backup-local, backup-offsite | Out-Null
+
+1..5 | ForEach-Object { "invoice-$_ total=$($_ * 100)" | Out-File "prod\\inv-$_.txt" }
+(Get-ChildItem prod -File).Count            # -> 5 = your known-good state
+
+Compress-Archive prod backup-local\\prod-snapshot.zip -Force
+Get-FileHash backup-local\\prod-snapshot.zip -Algorithm SHA256 |
+  Tee-Object backup-local\\manifest.txt      # -> shows the SHA256 you will verify later
+
+Copy-Item backup-local\\* backup-offsite\\
+icacls backup-offsite\\prod-snapshot.zip /deny "$($env:USERNAME):(D,WD,WA)"
+
+"invoice-6 total=600" | Out-File prod\\inv-6.txt
+(Get-ChildItem prod -File).Count            # -> 6 live files; the backup still knows 5
+
+# The disaster: .locked stands in for encryption — either way the file you need is gone.
+Get-ChildItem prod\\*.txt, backup-local\\* | ForEach-Object { Rename-Item $_ "$($_.Name).locked" }
+Remove-Item backup-offsite\\prod-snapshot.zip -Force   # -> Access is denied: the DENY ace holds
+
+Get-FileHash backup-offsite\\prod-snapshot.zip -Algorithm SHA256   # -> compare to manifest.txt
+Measure-Command { Expand-Archive backup-offsite\\prod-snapshot.zip restore -Force }
+(Get-ChildItem restore\\prod -File).Count    # -> 5, not 6: recovered to your RPO, not to "now"
+
+icacls backup-offsite\\prod-snapshot.zip /remove:d "$env:USERNAME"   # release before cleanup`,
+      linux: `# LAB: Prove a backup works — 3-2-1, RPO, RTO, and the restore test
+# ETHICS: throwaway files in your own home folder only.
+# Same story as macOS, with GNU tools. The immutable bit here is chattr +i, which
+# needs root (unlike macOS chflags) and is NOT supported on tmpfs or overlayfs —
+# so run this on a normal ext4/xfs home directory, not inside a container.
+mkdir -p ~/cyber-journal/m23-5-bcdr && cd ~/cyber-journal/m23-5-bcdr
+rm -rf work && mkdir work && cd work
+
+mkdir -p prod backup-local backup-offsite
+for i in 1 2 3 4 5; do echo "invoice-$i total=$((i * 100))" > prod/inv-$i.txt; done
+find prod -type f | wc -l          # -> 5
+
+tar -czf backup-local/prod-snapshot.tar.gz prod
+(cd backup-local && sha256sum prod-snapshot.tar.gz | tee manifest.sha256)
+
+cp backup-local/prod-snapshot.tar.gz backup-local/manifest.sha256 backup-offsite/
+chmod 444 backup-offsite/*
+sudo chattr +i backup-offsite/*
+lsattr backup-offsite/             # -> the "i" attribute is now set on both files
+
+echo "invoice-6 total=600" > prod/inv-6.txt
+find prod -type f | wc -l          # -> 6 live files; the backup still knows 5
+
+for f in prod/*.txt backup-local/*; do
+  openssl enc -aes-256-cbc -pbkdf2 -pass pass:ransom -in "$f" -out "$f.locked" && rm "$f"
+done
+ls prod backup-local
+sudo rm -f backup-offsite/prod-snapshot.tar.gz   # -> "Operation not permitted", even as root
+
+(cd backup-offsite && sha256sum -c manifest.sha256)   # -> prod-snapshot.tar.gz: OK
+
+mkdir -p restore
+time tar -xzf backup-offsite/prod-snapshot.tar.gz -C restore
+find restore/prod -type f | wc -l  # -> 5, not 6: recovered to your RPO, not to "now"
+cat restore/prod/inv-1.txt
+
+sudo chattr -i backup-offsite/*    # release before cleaning up`,
+      expected: {
+        mac: `\`\`\`
+       5
+d9a17ba96fe51c0f03f16d1c42c81a4b13d6cd4d357718c50e1f62af6ec015f7  prod-snapshot.tar.gz
+total 16
+-r--r--r--@ 1 you  staff  uchg  87 Aug 12 12:20 manifest.sha256
+-r--r--r--@ 1 you  staff  uchg 698 Aug 12 12:20 prod-snapshot.tar.gz
+       6
+backup-local:
+manifest.sha256.locked
+prod-snapshot.tar.gz.locked
+
+prod:
+inv-1.txt.locked
+inv-2.txt.locked
+inv-3.txt.locked
+inv-4.txt.locked
+inv-5.txt.locked
+inv-6.txt.locked
+rm: backup-offsite/prod-snapshot.tar.gz: Operation not permitted
+prod-snapshot.tar.gz: OK
+tar -xzf backup-offsite/prod-snapshot.tar.gz -C restore  0.00s user 0.00s system 77% cpu 0.007 total
+       5
+invoice-1 total=100
+\`\`\`
+
+**Your SHA256 will differ from the one above and will differ between your own runs** — \`tar -czf\` writes the compression timestamp into the gzip header, so the archive bytes change even when the files inside do not. What must match is the *comparison*: the hash printed in step 2 and the \`OK\` in step 6 have to agree. Timestamps, owner, and the \`cpu\`/\`total\` figures will also be yours.
+
+Read the run as five findings.
+
+**\`5\` then \`6\`, with the backup stuck at 5.** That gap is your RPO, made of actual files. Nothing in the tooling is broken; you chose a backup frequency, and step 4's invoice landed in the window. Everything about RPO is this picture — the only lever that closes the gap is backing up more often, and that lever costs money continuously.
+
+**\`Operation not permitted\` — on \`rm -f\`.** This is the single most important line in the lab. The \`-f\` flag suppresses prompts and missing-file errors; it does not grant permissions the caller does not have. The \`uchg\` flag is checked by the kernel, so a script running as you cannot remove the file no matter how it asks. That is the "+1" of 3-2-1-1-0 in miniature, and it is why real backup design has moved to object-lock and WORM: the protection has to hold against *your own* credentials, because those are exactly the credentials the attacker will be using.
+
+**\`prod-snapshot.tar.gz: OK\` from a manifest that was also locked.** Notice which copy of the manifest answered. The one in \`backup-local\` was encrypted along with everything else — had you kept the only baseline there, you would now be restoring an archive you cannot verify, and a silently corrupt backup restores into a silently corrupt recovery. This is M1's false-confidence trap at backup scale: **an integrity baseline is only worth what it costs the attacker to rewrite it.**
+
+**\`5\`, not \`6\`, in the restored tree.** The restore is a success and the data loss is real, both at once. This is the sentence to take into any planning meeting: recovery returns you to your recovery *point*, not to the moment before the disaster. If losing invoice-6 is unacceptable, the answer is not a better restore — it is a smaller RPO.
+
+**The \`time\` line is your first honest RTO measurement, and it is honest about being incomplete.** Untarring five files takes milliseconds; declaring an RTO of "0.007 seconds" would be absurd, and seeing why is the point. Real RTO is everything around this command — noticing the outage, deciding to fail over, finding who is authorized to approve it, retrieving the offsite copy, standing up somewhere to restore *to*, verifying, repointing DNS, and then WRT to reconcile the work done on paper. The extraction is often the fastest step in the entire recovery. Measure the whole path, or you are quoting a number you have never tested.
+
+If \`chflags\` reports \`Operation not permitted\` in step 3 rather than step 5, the file is on a volume that does not support BSD flags (an SMB/NFS share or some external drives) — run the lab under your home directory. On Linux the same step needs \`sudo chattr +i\` and will not work at all on tmpfs or overlayfs.`
+      }
+    },
+    caseStudy: {
+      title: "Code Spaces (June 2014) — the backups were in the blast radius",
+      body: "Code Spaces was a code-hosting and project-management provider — a business whose entire product was other people's source code. In June 2014 an attacker got control of its Amazon Web Services control panel and demanded a ransom. When the company tried to take the account back by changing passwords, it discovered the attacker had already created additional accounts, and the response was to begin deleting: EBS snapshots, S3 buckets, machine images, and instances. Within hours most of the company's data and most of its backups were gone. Code Spaces told its customers it could not recover and ceased operating. Read it as a BC/DR story rather than an intrusion story: the failure was not that someone got in, it was that production, the snapshots, and the backups all lived inside one account, reachable by one set of credentials, so a single compromise had authority over every copy simultaneously. There was no immutable or offline copy that the production identity could not delete — the '+1' of 3-2-1-1-0 — and the recovery plan depended on the very account that had been taken. Two durable lessons: draw your blast radius around the credential rather than around the datacenter, and treat 'can this identity delete this backup?' as the question that decides whether you have a backup at all."
+    },
+    challenges: [{
+      q: "Your nightly backup completes successfully at 02:00 every day and the monitoring dashboard has been green for a year. Name three ways you could still be unable to recover tomorrow.",
+      a: "(1) Nobody has ever performed a restore, so an application-consistency or encryption-key problem is undiscovered — a job that reads files successfully proves nothing about whether they come back as a working system. (2) The backup is online and reachable with production credentials, so ransomware or a compromised admin account deletes or encrypts it along with everything else. (3) The retention window is shorter than the attacker's dwell time or than your detection time, so every copy you hold already contains the implant or the corruption and there is no known-good point to return to. Honourable mentions: the encryption key lives only in the system that is down; the restore takes longer than the RTO; the backup covers the database but not the configuration, secrets, or infrastructure definitions needed to stand the service up."
+    }, {
+      q: "A director says: 'We're fine — we have five nines of availability and we replicate to a second region in real time.' What has that bought, and what has it not?",
+      a: "It has bought high availability: resilience against component and site failure, with fast automatic failover. It has bought nothing against data being *wrong*. Replication has no opinion about whether a write is legitimate, so ransomware encryption, a bad migration, a malicious insider, or an accidental delete is reproduced in the second region within seconds — with perfect availability. HA is measured in nines and answers 'a component failed'; DR is measured in RTO/RPO and answers 'the data is gone or wrong'. You need both, and the giveaway that they are being confused is a plan that quotes uptime where it should quote a recovery point."
+    }, {
+      q: "Why is 'we back up every hour' not the same claim as 'our RPO is one hour'?",
+      a: "Frequency is the schedule; RPO is the promise about how much data you can lose, and the gap between them is filled with everything that can go wrong. An hourly job that silently fails for three days gives an RPO of three days. An hourly job whose output cannot be restored gives an RPO of infinity. An hourly job of an application-inconsistent snapshot gives you an hour-old database that will not start. RPO is a measured, verified property of a recovery you have actually performed — schedule, plus successful completion, plus a tested restore, plus retention long enough to reach a known-good point."
+    }],
+    quiz: ["Define RTO and RPO in one sentence each, and say which one is delivered by backup frequency and which by architecture.", "What is MTD, who decides it, and what relationship must RTO and WRT have to it?", "State the 3-2-1 rule, then state 3-2-1-1-0 and explain what the extra '1' and the '0' each defend against.", "You have a weekly full plus daily incrementals. It is Saturday. How many artifacts must be readable to restore, and how does the answer change with differentials?", "Give one reason a snapshot, a RAID array, and a replica each fail to be a backup.", "Name the four recovery site tiers in order of cost and give a typical RTO for each.", "List the DR testing ladder from cheapest to most convincing, and name the only test that truly proves an RTO.", "Which NIST CSF 2.0 function is this module, and which CIS Control v8.1 covers data recovery?"],
+    workbench: `> **What this trains.** The lab handed you a backup design and let you watch it survive. Here you *measure* your own recovery numbers from a blank prompt, then turn agreed RTO/RPO targets into an architecture with a gate that refuses to accept an untested claim — and finally take apart a company that had backups and died anyway. Everything runs on throwaway files in your own home folder.
+
+#### 🟢 Drill 1 — measure your real RPO instead of quoting the policy ~5 min
+
+**Goal.** Create a small "production" folder, take a backup of it, let work continue for a few seconds, and then compute — from timestamps, not from memory — exactly how much time separates the newest file in the backup from the newest file in production. That number is your measured RPO exposure at this instant.
+
+**Done when.** You print a single number in seconds, and you can say which file is responsible for it.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Every file carries a modification time. \`stat -f '%m %N' FILE\` prints it as a Unix epoch on macOS (\`stat -c '%Y %n'\` on Linux). Find the newest file in each directory by sorting those numbers, then subtract one from the other.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m23-5 && cd ~/cyber-journal/wb-m23-5
+rm -rf prod snap && mkdir -p prod snap
+echo one > prod/a.txt
+cp -p prod/a.txt snap/                 # the backup job runs (-p keeps the mtime)
+sleep 2
+echo two > prod/b.txt                  # work continues after the backup
+newest() { find "$1" -type f -exec stat -f '%m %N' {} + | sort -rn | head -1; }
+newest snap
+newest prod
+echo "measured RPO exposure: $(( $(newest prod | cut -d' ' -f1) - $(newest snap | cut -d' ' -f1) )) seconds"
+\`\`\`
+\`\`\`
+1786533530 snap/a.txt
+1786533532 prod/b.txt
+measured RPO exposure: 2 seconds of work not in the backup
+\`\`\`
+The epoch numbers are yours and will differ; the **difference** is the answer, and \`prod/b.txt\` is the file responsible for it. Scale the same arithmetic to a real system and it stops being trivia: with a 02:00 nightly job, a failure at 16:40 gives a measured exposure of 14 hours 40 minutes of transactions — and that is the *good* case, because it assumes last night's job actually succeeded.
+
+Two details that matter more than the arithmetic. \`cp -p\` preserves the modification time, which is what makes the comparison meaningful — without \`-p\` the copy looks like it was created *now*, and your backup would appear to be perfectly current while containing yesterday's data. Real backup catalogs have exactly this failure mode: the catalog timestamps when the *job* ran, not when the *data* was last consistent. And the measurement is only valid if the newest file is representative — one abandoned log file with an old mtime does not mean your data is old, which is why real RPO is measured per dataset, from the application's own last-committed transaction, not from a filesystem walk.
+
+Common wrong attempts: reporting the *scheduled* interval as the RPO (that is the policy, not the measurement — it assumes every job succeeded); using \`ls -l\` and reading dates by eye (works for two files, not for two million); and comparing *creation* time instead of modification time, which silently ignores every edit to an existing file.
+</details>
+
+#### 🟡 Build 1 — turn RTO/RPO into an architecture, with a gate for the untested claim ~12 min
+
+**Goal.** Write a small program that takes a service's agreed RTO and RPO and prints the data tier and site tier those numbers actually require — and, crucially, refuses to bless the design unless a real restore has been *timed*. Feed it three services with deliberately different profiles, including one whose measured restore blows through its RTO.
+
+**Done when.** Your output distinguishes three verdicts — met, failed, and never tested — and you can defend each threshold you chose.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+Two independent ladders. RPO drives the *data* tier: 0 means synchronous replication, minutes mean log shipping, an hour means incrementals, a day means a nightly full. RTO drives the *site* tier: minutes mean active-active or hot, hours mean warm, days-and-up mean cold. Then add the gate — compare a measured restore time against the RTO, and treat "no measurement" as its own, worse, verdict.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# recovery_tier.py — turn an agreed RTO/RPO into an architecture, not a vibe
+def design(service, rto_min, rpo_min, tested_restore_min=None):
+    if rpo_min == 0:    data = "synchronous replication — a write is not ack'd until 2 sites hold it"
+    elif rpo_min <= 15: data = "log shipping / CDP, replay every <=15 min"
+    elif rpo_min <= 60: data = "hourly incremental snapshots on top of a weekly full"
+    else:               data = "nightly full backup"
+
+    if rto_min <= 5:      site = "active-active — both sites already serving; failover = withdraw a route"
+    elif rto_min <= 60:   site = "hot site — running and current; failover in minutes"
+    elif rto_min <= 1440: site = "warm site — hardware and software staged; restore data on failover"
+    else:                 site = "cold site — space and power only; procure, build, then restore"
+
+    print(f"{service}: RTO {rto_min} min / RPO {rpo_min} min")
+    print(f"  data tier : {data}")
+    print(f"  site tier : {site}")
+    if tested_restore_min is None:
+        print("  VERDICT   : UNPROVEN — no restore has ever been timed. The RTO is a wish.")
+    elif tested_restore_min > rto_min:
+        print(f"  VERDICT   : FAILS — last measured restore {tested_restore_min} min > RTO {rto_min} min")
+    else:
+        print(f"  VERDICT   : MET — last measured restore {tested_restore_min} min <= RTO {rto_min} min")
+
+design("payments-db",   rto_min=15,   rpo_min=0,  tested_restore_min=9)
+design("customer-wiki", rto_min=1440, rpo_min=1440)
+design("order-api",     rto_min=60,   rpo_min=15, tested_restore_min=210)
+\`\`\`
+\`\`\`
+payments-db: RTO 15 min / RPO 0 min
+  data tier : synchronous replication — a write is not ack'd until 2 sites hold it
+  site tier : hot site — running and current; failover in minutes
+  VERDICT   : MET — last measured restore 9 min <= RTO 15 min
+customer-wiki: RTO 1440 min / RPO 1440 min
+  data tier : nightly full backup
+  site tier : warm site — hardware and software staged; restore data on failover
+  VERDICT   : UNPROVEN — no restore has ever been timed. The RTO is a wish.
+order-api: RTO 60 min / RPO 15 min
+  data tier : log shipping / CDP, replay every <=15 min
+  site tier : hot site — running and current; failover in minutes
+  VERDICT   : FAILS — last measured restore 210 min > RTO 60 min
+\`\`\`
+
+**The two ladders are independent, and that is the insight worth keeping.** \`payments-db\` demands RPO 0 — every write has to be acknowledged in two places, which is a permanent, continuous cost paid on the write path and shows up as latency. \`customer-wiki\` tolerates a day of loss and a day of downtime, so a nightly job onto staged hardware is not stinginess, it is the correct answer; spending hot-site money there is money not spent on payments. Mixing the ladders is the classic mistake — "we replicate synchronously, so we're covered" says nothing about how long it takes to *serve traffic* again, and a hot site with a nightly RPO will come up fast and a day stale.
+
+**The gate is the part that turns a document into engineering.** \`customer-wiki\` is \`UNPROVEN\`, and that is deliberately worse than a clean failure: a \`FAILS\` verdict is a known, budgetable gap, while \`UNPROVEN\` is a number the organization believes and has never checked, which is precisely the state most DR plans are in at the moment they are needed. \`order-api\` is the honest failure — measured at 210 minutes against a 60-minute RTO — and once it is on a page like this, it forces the only two real options: fund a faster recovery path, or change the promise. Quietly keeping the 60 is not one of them.
+
+Common wrong attempts: deriving the site tier from RPO (they are different questions — data currency versus service availability); treating a passing verdict as permanent, when a measurement decays the moment the dataset grows or the architecture changes, so it needs a date and an expiry; and defaulting \`tested_restore_min\` to something optimistic instead of \`None\`, which is how "we have never tried" gets laundered into "we're fine."
+</details>
+
+#### 🔴 Break & Defend — the company that had backups and died anyway ~15 min
+
+**Goal.** Journal three answers. (1) Code Spaces (below) had backups and lost everything in about twelve hours — name every property of those backups that failed, using the 3-2-1-1-0 vocabulary. (2) Your organization replicates the production database to a second region continuously, with a four-second lag. An engineer runs a bad migration at 09:00 that silently corrupts a column. What is your actual RPO for that event, and what would have had to exist for the answer to be different? (3) You are handed a DR plan claiming RTO 4 hours for a system whose recovery you have never run. List the specific things that could make the real number three times larger, in the order you would go check them.
+
+**Done when.** Answer (1) names at least three distinct failures rather than "they got hacked", answer (2) explains why continuous replication can make the RPO *worse*, and answer (3) is a checkable list rather than a feeling.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) What actually failed at Code Spaces.** Not "they had no backups" — they had plenty. They failed on the parts of 3-2-1-1-0 that people skip. *The offsite copy was not out of the attacker's reach:* backups, snapshots, and production all lived inside the **same cloud account**, so a single compromised control panel had authority over every copy at once. There was no \`1\` in the 3-2-1-1-0 sense — no offline, air-gapped, or immutable copy that the production identity could not delete, and therefore no copy that survived an attacker who was, as far as the API was concerned, the legitimate owner. *The recovery path depended on the thing that was broken:* the plan for "we lost the cloud account" required the cloud account. *The blast radius was defined by an identity, not by geography* — the mental model of "offsite" as a place is exactly what fails here, because the second region and the second bucket were one \`DeleteBucket\` call away from the first. And *the control plane itself was under-protected*: the account with god rights over every copy was reachable without the kind of MFA and separate-credential discipline you would demand of a domain admin. The generalisation for your own designs: **draw the blast radius around the credential, not around the datacenter**, and then ask which copies fall inside it.
+
+**(2) Replication and the bad migration.** Your RPO for that event is effectively **infinite — you have no recovery point at all** from the replica, because within four seconds the corruption is faithfully present in both regions. Replication protects against a *site* failing, not against the data being *wrong*; it has no opinion about whether a write is legitimate, and it never disagrees with production. This is the "replication is not a backup" line from the theory, and it is the same defect class as ransomware encrypting the mounted cloud drive. What would have had to exist: a **point-in-time recovery** capability — database PITR or continuous archiving that lets you replay to 08:59:59, or periodic snapshots with retention long enough to reach back past the migration, plus the ability to *detect* the corruption before the retention window rolls over it. That last clause is the one that bites: a corruption discovered on day 30 with 14 days of retention has no known-good point left, which is why retention is bounded by your *detection* time, not by your comfort. Note the asymmetry worth carrying: the same replication that gives you a superb RTO gives you no protection at all against logical corruption, and a plan that lists only one number cannot show the difference.
+
+**(3) Where a 4-hour RTO goes to die.** A checkable list, roughly in the order the clock actually burns: *detection and decision* — how long before anyone notices, and who is authorised to declare a disaster at 3am (this is often the largest single block, and it is pure preparation, exactly as in M23); *access* — can the responders reach the recovery console if the identity provider is down, and is the break-glass credential somewhere reachable and tested; *retrieval* — how long to get the offsite copy back, remembering that "immutable in cold storage" often means hours of restore-to-warm before the first byte is readable, and that bandwidth turns a 4TB restore into a scheduling problem; *somewhere to restore to* — does the target hardware or capacity exist right now, or is it a purchase order; *dependencies and order* — identity, DNS, and the database must come back before the app, and each has its own RTO that adds rather than overlaps; *verification* — the restore that completes and produces a database which will not start, or an application-inconsistent snapshot; *cutover* — DNS TTLs, certificates that expired while the system was down, firewall rules at the DR site nobody has touched in a year; and finally *WRT* — the reconciliation of everything the business did on paper while you worked, which is real time before anyone would call the service recovered. **Outside the box:** notice how few of those are technical problems with the backup itself. The restore is usually the fastest part; almost every hour is spent on decisions, access, and dependencies — all of which are cheap to fix *before* the disaster and nearly impossible to fix during one. That is the same conclusion M23 reached about preparation, arrived at from the other end.
+</details>`,
+    tracker: ["I can state the difference between an IRP, a DRP, and a BCP, and say who owns each", "I can draw the outage timeline and place RPO, RTO, WRT, and MTD on it correctly", "I can explain why RPO costs money continuously while RTO costs money to stand by", "I ran the lab and watched rm -f fail against an immutable offsite copy", "I restored from a verified archive and can explain why the restored tree had 5 files and not 6", "I can explain why a snapshot, a RAID array, and a replica are each not a backup", "I can name the four site tiers and the six rungs of the testing ladder", "Workbench: measured a real RPO exposure in seconds from file timestamps rather than quoting the schedule", "Workbench: built the RTO/RPO-to-architecture mapper with a gate that reports UNPROVEN when no restore has been timed", "Workbench: analysed Code Spaces with the 3-2-1-1-0 vocabulary, explained why replication gives no RPO against logical corruption, and listed where a 4-hour RTO really goes"]
   }, {
     id: "m24",
     level: 3,
