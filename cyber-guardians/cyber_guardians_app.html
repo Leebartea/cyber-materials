@@ -742,7 +742,7 @@ const curriculum = {
     weeks: "Weeks 1–8",
     roadmap: {
       promise: "Level 1 builds the mental models everything else hangs on — the CIA triad, how the internet really works, passwords and malware, and how to harden your own machine — so no later tool ever feels like magic.",
-      canDo: ["Map any tool, attack, or defense to the CIA property it protects or breaks", "Explain how the internet moves a request from your browser to a server and back", "Reason about why passwords fail and how hashing, salting, and MFA fix it", "Harden your own OS and work fluently at the command line"],
+      canDo: ["Map any tool, attack, or defense to the CIA property it protects or breaks", "Explain how the internet moves a request from your browser to a server and back", "Reason about why passwords fail and how hashing, salting, and MFA fix it", "Harden your own OS, secure the physical layer it runs on, and work fluently at the command line"],
       build: "A personal security audit of your own devices and accounts (Level 1 capstone, Module 8).",
       prereq: "Basic computer use — no security background needed."
     }
@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **40-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **41-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **40-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 40 modules at a glance
+### All 41 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -808,6 +808,7 @@ Cyber Guardians is a **40-module breadth-first course** that takes you from zero
 - M4: Malware & Social Engineering
 - M5: Privacy & Safe Browsing
 - M6: Operating System Hardening
+- M6.5: Physical & Environmental Security *(new in this edition)*
 - M7: Command Line Fundamentals
 - M8: Level 1 Capstone — Personal Security Audit
 
@@ -920,7 +921,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 40 modules, expect ~50–62 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 41 modules, expect ~51–64 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -931,7 +932,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 40 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 41 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -3193,6 +3194,390 @@ server.listen(80, () => {
 Only the brief *bind* of a port below 1024 needs privilege; after the drop, the entire lifetime of request-handling — where bugs and exploits live — runs unprivileged, so a code-execution bug is confined to what \`appuser\` can touch instead of owning the host. Order matters: drop the group *before* the user, because after \`setuid\` you've already lost the privilege needed to \`setgid\`. (Even better in practice: listen on :3000 and let nginx/systemd own the privileged port.) **Journal — FileVault's boundary:** it protects **data at rest** — a lost or powered-off device is unreadable without the key. It does **not** protect a running, unlocked machine (the disk is decrypted in use), nor against malware, phishing, network attacks, or someone who knows your login password. One layer in defense-in-depth, exactly like each cookie flag in M5 defends only its own attack. **Outside the box:** hardening is attack-surface *management*, and it always trades against convenience — Lockdown Mode deliberately *removes* features to shrink the surface for high-risk users. There's no universal "secure," only the right surface for a given threat model.
 </details>`,
     tracker: ["FileVault on, recovery key stored offline; verified with fdesetup status", "Firewall enabled; Gatekeeper and SIP confirmed enabled", "Automatic updates on", "Daily work happens in a standard (non-admin) account", "Reviewed installed apps and revoked unneeded permissions", "I can explain how dropping privileges after binding a port applies least privilege", "Workbench: verified FileVault/Gatekeeper/SIP from the CLI and wrote a hardening-check.sh that reports five macOS defenses' live state (capstone evidence-gatherer)", "Workbench: wrote the bind-then-drop-privileges service (setgid before setuid) and journalled exactly what FileVault does and does not protect"]
+  }, {
+    id: "m6_5",
+    level: 1,
+    num: "M6.5",
+    title: "Physical & Environmental Security",
+    objective: "Every control in Module 6 assumes the attacker is on the other side of a network. This module removes that assumption. You will learn why physical access defeats most software defences, how the four layers of physical control actually work, what environmental failure does to availability, and how media is really sanitized — then prove on your own machine that `rm` does not erase anything, and that full-disk encryption is the one control that turns a stolen laptop from a breach into a lost asset.",
+    theory: `### The law this module exists to teach
+
+Microsoft's old *Ten Immutable Laws of Security* put it as bluntly as anyone has: **if an attacker has unrestricted physical access to your computer, it is not your computer any more.** Everything in Module 6 — permissions, a firewall, a password — is enforced by software running on hardware the attacker is now holding. They can boot their own operating system from a USB stick and read your files as data. They can pull the drive and mount it elsewhere. They can attach a device to a high-speed port and read memory directly. They can install a keylogger between the keyboard and the machine and simply wait.
+
+That is why this module sits immediately after OS hardening rather than in an appendix. Physical security is not the boring part of the syllabus that comes before the real material; it is the layer that decides whether any of the real material is enforceable at all. It is also, for most people, the *most likely* thing to happen: the laptop left in a taxi is a vastly more common event than a targeted intrusion.
+
+The good news is that one control changes the outcome completely, and you will prove it in the lab.
+
+### The four layers — deter, deny, delay, detect (and then respond)
+
+Physical security is defence in depth expressed in concrete rather than code, and the layers have the same shape as everything else in this course:
+
+| Layer | Purpose | Examples | The question it answers |
+|---|---|---|---|
+| **Deter** | Make yours the harder target | Lighting, signage, visible cameras, a staffed desk | Will they try? |
+| **Deny** | Stop entry outright | Fences, locked doors, badge readers, **mantraps** / access-control vestibules, turnstiles, escorts | Can they get in? |
+| **Delay** | Buy time for the response | Cabinet and rack locks, cable locks, safes, bollards | How long do they have? |
+| **Detect** | Notice that it happened | Door sensors, motion sensors, cameras, visitor logs, tamper-evident seals | Will anyone know? |
+| **Respond** | Interrupt or reverse it | Guards, alarm response, remote wipe, revoking a badge | What happens next? |
+
+Two rules of thumb from this table. **Delay is only worth what your response time is** — a lock that holds for two minutes protects nothing if the guard is forty minutes away, which is why the physical trade is measured in "minutes of resistance" rather than in adjectives. And **detection without response is a recording of your own breach**, which is exactly the M16 lesson about alerts nobody reads, in a different medium.
+
+The discipline that designs the outer layers is **CPTED** — Crime Prevention Through Environmental Design: natural surveillance (sightlines, windows overlooking approaches), natural access control (one obvious way in), and territorial reinforcement (clear boundaries between public and private space). It is why a well-designed lobby funnels you past a person before you reach a lift.
+
+### How people actually get in
+
+Almost none of it looks like a heist film.
+
+- **Tailgating** — following an authorized person through a door that has just been opened. **Piggybacking** is the same entry *with* the employee's consent, usually because someone with full hands looked helpless and asking for a badge felt rude. This is the single most successful physical attack, and it defeats a perfect badge system completely, because the badge worked exactly as designed.
+- **Impersonation** — a hi-vis vest, a clipboard, a lanyard, and a plausible reason. Cleaners, couriers, fire inspectors, and "the lift engineer" all have socially licensed access to places employees never question.
+- **Badge cloning** — the low-frequency 125 kHz proximity cards still common on doors transmit a static ID with no cryptography, and a cheap long-range reader in a bag can copy one from a pocket at conversational distance. Even the 13.56 MHz MIFARE Classic generation has well-known cryptographic breaks. Modern deployments use cards with real mutual authentication; a great many buildings have not migrated.
+- **Shoulder surfing and open screens** — reading a password, an MFA code, or a customer record over a shoulder, on a train, or through a window. Privacy filters and screen-lock discipline are the countermeasures, which is why the lab checks your lock delay.
+- **Dumpster diving** — the org chart, the vendor invoice, the printed spreadsheet, the sticky note. Cheap, legal in many jurisdictions once it leaves the building, and a superb source of the details that make a later phone call convincing (M4).
+- **Lock bypass** — under-door tools that hook the inside handle, and shimming the motion sensor that unlocks the door from the secure side. The door was locked; the *request to exit* mechanism was the way in.
+
+The defences are unglamorous and they work: **escort policies**, **visitor logs and badges that look different**, mantraps that admit one person at a time, **anti-passback** (your badge cannot enter twice without exiting), a **clean desk policy**, cross-cut shredding, and a culture where challenging an unbadged stranger is expected rather than rude. That last one is the only defence against tailgating, and it is a *training* control, not a technical one.
+
+### How devices get attacked when the attacker can touch them
+
+- **Boot from external media** — the classic. Boot a live USB, mount the internal drive, read everything. Defeated by full-disk encryption and secure boot, not by your login password.
+- **Evil maid** — brief, repeated access to an unattended device (hotel room, desk overnight) used to tamper with the bootloader or firmware so that it captures your passphrase the next time you type it. Defeated by secure boot plus tamper evidence, and by never leaving the device unattended in a hostile setting.
+- **DMA attacks** — high-speed ports such as Thunderbolt historically allowed direct memory access, letting a purpose-built device read RAM without unlocking anything. Modern systems mitigate this with an IOMMU and by requiring the machine to be unlocked before an accessory is trusted.
+- **Cold boot** — RAM retains its contents briefly after power is removed, and chilling the chips extends that window enough to recover encryption keys from a machine that was suspended rather than shut down. The practical lesson: **a locked, suspended laptop is far weaker than a powered-off one.**
+- **Malicious USB** — the drop attack in this module's case study, plus **BadUSB** devices that present themselves as a keyboard and type commands faster than you can read, and cables with implants inside the moulding. **Juice jacking** is the same idea at a public charging port. The countermeasure is a data-blocking adapter or your own charger, and, organizationally, port control policy.
+- **Hardware keyloggers** — an inline dongle between keyboard and machine, or a modified keyboard. Invisible to every anti-malware product on the host, because there is no software on the host.
+
+Notice that full-disk encryption defeats several of these and is irrelevant to the others. It protects **data at rest**. It has no opinion about a payload running as you on an unlocked machine, which is precisely why the USB drop works on encrypted laptops.
+
+### Environmental security — the availability half
+
+The "environmental" in the module title is not filler; it is the third leg of the CIA triad wearing overalls. Data centres and offices fail from causes that have nothing to do with an adversary:
+
+- **Power** — the ranking to know is *surge, sag/brownout, blackout*. Controls layer: a **UPS** carries the load for minutes and rides out a sag; a **generator** carries it for days but needs those minutes to start and needs its fuel contract tested; **dual utility feeds** and dual power supplies remove the single path. The classic failure is a UPS whose batteries were never load-tested, discovered during the outage.
+- **HVAC** — heat is the quiet killer of hardware, and a cooling failure takes a room down faster than a power failure. Hot-aisle/cold-aisle containment, positive pressure to keep contaminants out, and humidity control: too dry invites **electrostatic discharge**, too damp invites condensation and corrosion.
+- **Fire** — know the classes (A ordinary combustibles, B flammable liquids, C electrical in the US scheme) and why water is the wrong answer in a server room. **Clean-agent** suppression (FM-200, Novec, inert gas) puts out the fire without destroying the equipment or the people; **pre-action** sprinkler systems require two triggers before water is released so a single faulty head cannot flood a floor. **VESDA**-style aspirating detection samples the air continuously and catches smoke long before a ceiling detector.
+- **Water and flooding** — which is why the server room is not in the basement, and why there are leak sensors under raised floors.
+- **EMI/RFI** — interference and, at the exotic end, emanation security (**TEMPEST**) and shielded enclosures.
+
+Every one of these is an availability control, and every one of them belongs in the BC/DR conversation of M23.5: an environmental failure is a disaster in exactly the sense that module means.
+
+### Media sanitization — why "delete" is not "erase"
+
+**NIST SP 800-88 Rev 1** is the reference, and it defines three levels:
+
+| Level | What it means | Typical technique | When it is enough |
+|---|---|---|---|
+| **Clear** | Defeat recovery with standard tools | Overwrite the addressable space, factory reset | The media stays inside the organization |
+| **Purge** | Defeat recovery with laboratory techniques | Cryptographic erase, ATA Secure Erase / block erase, degaussing (magnetic only) | The media leaves, but the organization keeps ownership |
+| **Destroy** | The media is no longer media | Shred, disintegrate, incinerate, pulverize | Highest sensitivity, or the device cannot be verified |
+
+Two things people get wrong. First, **deleting a file removes a directory entry, not the data** — the blocks stay on the disk until something else claims them, which you will demonstrate in the lab by recovering a "deleted" string straight out of a raw disk image. A quick format is the same trick at volume scale.
+
+Second, **overwriting is unreliable on flash.** SSDs and phones use wear levelling and over-provisioning, so the controller may write your "overwrite" to entirely different physical cells and leave the originals intact and unaddressable. For flash, the right answers are the drive's own **ATA Secure Erase / NVMe Format** or, best of all, **cryptographic erase**: if the whole drive was encrypted from the start, destroying the key destroys the data instantly and verifiably. Degaussing does nothing whatsoever to an SSD, because there is nothing magnetic to disturb. This is a second, less obvious reason to run full-disk encryption everywhere: it makes disposal a one-second operation instead of an eight-hour one.
+
+### Where this sits in the frameworks
+
+- **NIST CSF 2.0 → PROTECT**, and specifically the physical access-control and platform-integrity outcomes; environmental failures land under RECOVER (M23.5).
+- **ISO/IEC 27001:2022** gives physical security an entire Annex A theme — **A.7, "Physical controls"** (A.7.1–A.7.14: secure areas, physical entry, protecting against physical and environmental threats, working in secure areas, clear desk and clear screen, equipment siting, supporting utilities, cabling, maintenance, off-site assets, and secure disposal or re-use of equipment). If you want the checklist version of this module, that is it.
+- **CIS Controls v8.1 deliberately does not cover physical security** — its scope note says so explicitly. That is worth knowing precisely so you do not mistake "we implement CIS v8.1" for "physical is handled": the framework you chose defines what you are allowed to notice, which is the same lesson scanners taught in M19.
+- Exam-wise: Security+ covers physical controls in Domain 1 and 2, and CISSP gives it two homes — Domain 3 (site and facility design) and Domain 7 (physical security operations).`,
+    lab: {
+      mac: `# LAB: Physical security — audit what survives losing the laptop, then prove that
+#      "delete" does not erase and that encryption is the control that does.
+# ETHICS: your own machine, and throwaway disk images you create here.
+
+# ---- PART A: the controls that still hold when someone else is holding your Mac
+fdesetup status                        # -> "FileVault is On." Anything else IS the finding.
+sysadminctl -screenLock status 2>&1    # -> screenLock delay is immediate
+csrutil status                         # -> System Integrity Protection status: enabled.
+defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>&1
+# Secure boot level (Apple silicon). Full / Reduced / Permissive — Full is the goal:
+system_profiler SPiBridgeDataType | grep -A2 "Boot Policy"
+
+# The broken-probe trap. For years this was THE screen-lock check:
+defaults -currentHost read com.apple.screensaver askForPassword 2>&1
+# On current macOS the key is gone. Now see what hiding stderr would have done:
+defaults -currentHost read com.apple.screensaver askForPassword 2>/dev/null
+echo "exit=$?"                         # -> silence + exit=1: an audit report would read this as a pass
+
+# ---- PART B: rm is not erase
+mkdir -p ~/cyber-journal/m6-5-physical && cd ~/cyber-journal/m6-5-physical
+rm -f lab.dmg
+hdiutil create -size 20m -fs "HFS+" -volname LAB -quiet lab.dmg
+hdiutil attach lab.dmg -quiet
+echo "CANARY-PATIENT-RECORD-7781" > /Volumes/LAB/notes.txt
+sync && hdiutil detach /Volumes/LAB -quiet     # flush, so the bytes really land on the image
+hdiutil attach lab.dmg -quiet
+rm /Volumes/LAB/notes.txt                      # "deleted"
+ls -a /Volumes/LAB                             # gone from the directory listing
+sync && hdiutil detach /Volumes/LAB -quiet
+strings lab.dmg | grep CANARY                  # ...and still present in the raw blocks
+
+# ---- PART C: cryptographic erase — the same secret on an encrypted volume
+rm -f safe.dmg
+printf 'correct-horse-battery-staple' | hdiutil create -size 20m -fs "HFS+" -volname SAFE -encryption AES-256 -stdinpass -quiet safe.dmg
+printf 'correct-horse-battery-staple' | hdiutil attach safe.dmg -stdinpass -quiet
+echo "CANARY-PATIENT-RECORD-7781" > /Volumes/SAFE/notes.txt
+sync && hdiutil detach /Volumes/SAFE -quiet
+strings safe.dmg | grep -c CANARY              # -> 0, and the file was never even deleted
+printf 'wrong-passphrase' | hdiutil attach safe.dmg -stdinpass   # -> attach failed - Authentication error
+
+# Forget the passphrase and the data is gone: that is NIST 800-88 "Purge" in one step.
+# Clean up: rm -f lab.dmg safe.dmg`,
+      windows: `# LAB (PowerShell as Administrator): physical controls, then delete-is-not-erase.
+# ETHICS: your own machine, and a throwaway VHD you create here.
+
+# ---- PART A
+Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionMethod
+Confirm-SecureBootUEFI                       # -> True on a UEFI system with Secure Boot on
+(Get-Tpm).TpmPresent, (Get-Tpm).TpmReady     # -> True, True: the TPM is what seals the BitLocker key
+# Screen lock policy (blank = not configured, which is itself the finding):
+Get-ItemProperty "HKCU:\\Control Panel\\Desktop" -Name ScreenSaveTimeOut, ScreenSaverIsSecure -EA SilentlyContinue
+
+# ---- PART B: delete is not erase, on a throwaway VHD
+$lab = "$HOME\\cyber-journal\\m6-5-physical"
+New-Item -ItemType Directory -Force $lab | Out-Null
+$vhd = "$lab\\lab.vhdx"
+New-VHD -Path $vhd -SizeBytes 32MB -Fixed | Mount-VHD -Passthru |
+  Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize |
+  Format-Volume -FileSystem NTFS -NewFileSystemLabel LAB -Confirm:$false
+# Substitute the drive letter Windows assigned below:
+"CANARY-PATIENT-RECORD-7781" | Out-File E:\\notes.txt
+Remove-Item E:\\notes.txt
+Get-ChildItem E:\\ -Force                     # gone from the listing
+Dismount-VHD $vhd
+Select-String -Path $vhd -Pattern CANARY -Encoding unicode   # still present in the raw image
+
+# ---- PART C: cryptographic erase
+# BitLocker is the Windows equivalent of the macOS/LUKS demo: encrypt the volume,
+# then destroy the key. \`manage-bde -forcerecovery\` and deleting the recovery key
+# leaves the data mathematically unrecoverable without wiping a single block.`,
+      linux: `# LAB: Physical security — audit what survives losing the laptop, then prove that
+#      "delete" does not erase and that encryption is the control that does.
+# ETHICS: your own machine, and throwaway image files you create here.
+
+# ---- PART A: the controls that still hold when someone else holds the machine
+lsblk -o NAME,FSTYPE,MOUNTPOINT | grep -i crypt   # LUKS shows as crypto_LUKS / dm-crypt
+sudo cryptsetup status /dev/mapper/*              # cipher and key size, if LUKS is in use
+mokutil --sb-state 2>&1                           # -> SecureBoot enabled/disabled (UEFI systems)
+gsettings get org.gnome.desktop.screensaver lock-enabled 2>&1
+gsettings get org.gnome.desktop.screensaver lock-delay 2>&1
+# Write checks with 2>&1, never 2>/dev/null: a probe that silently fails on a
+# system without GNOME must announce itself rather than look like a pass.
+
+# ---- PART B: rm is not erase
+mkdir -p ~/cyber-journal/m6-5-physical && cd ~/cyber-journal/m6-5-physical
+rm -f lab.img && dd if=/dev/zero of=lab.img bs=1M count=20 status=none
+mkfs.ext4 -q lab.img
+mkdir -p mnt && sudo mount -o loop lab.img mnt
+echo "CANARY-PATIENT-RECORD-7781" | sudo tee mnt/notes.txt > /dev/null
+sync && sudo umount mnt
+sudo mount -o loop lab.img mnt && sudo rm mnt/notes.txt && ls -a mnt
+sync && sudo umount mnt
+strings lab.img | grep CANARY                     # still there after "deletion"
+
+# ---- PART C: cryptographic erase with LUKS
+rm -f safe.img && dd if=/dev/zero of=safe.img bs=1M count=32 status=none
+printf 'correct-horse-battery-staple' | sudo cryptsetup luksFormat safe.img -
+printf 'correct-horse-battery-staple' | sudo cryptsetup open safe.img m65safe -
+sudo mkfs.ext4 -q /dev/mapper/m65safe && sudo mount /dev/mapper/m65safe mnt
+echo "CANARY-PATIENT-RECORD-7781" | sudo tee mnt/notes.txt > /dev/null
+sync && sudo umount mnt && sudo cryptsetup close m65safe
+strings safe.img | grep -c CANARY                 # -> 0, and the file was never deleted
+sudo cryptsetup luksErase safe.img                # destroys every key slot: the data is unrecoverable`,
+      expected: {
+        mac: `\`\`\`
+FileVault is On.
+2026-08-12 12:32:14.790 sysadminctl[62778:2676891] screenLock delay is immediate
+System Integrity Protection status: enabled.
+2026-08-12 12:32:14.801 defaults[62787:2676927]
+The domain/default pair of (/Library/Preferences/com.apple.loginwindow, autoLoginUser) does not exist
+2026-08-12 12:32:14.801 defaults[62787:2676927]
+The domain/default pair of (com.apple.screensaver, askForPassword) does not exist
+exit=1
+.
+..
+.fseventsd
+CANARY-PATIENT-RECORD-7781
+0
+hdiutil: attach failed - Authentication error
+\`\`\`
+
+Timestamps and process IDs are yours. Everything else should match, because every value here is either a policy you control or a fact about how filesystems work.
+
+**Part A, and the trap in the middle of it.** \`FileVault is On.\`, \`screenLock delay is immediate\`, and \`System Integrity Protection status: enabled.\` are the three answers you want. \`autoLoginUser\` reporting **"does not exist" is also a pass** — the key is absent because no account auto-logs in, which is exactly right.
+
+Now compare that with the *next* "does not exist", for \`com.apple.screensaver askForPassword\`. Identical wording, opposite meaning: that key was the standard screen-lock check for years and current macOS no longer stores it there. The probe is broken, not passing. **Two checks printed the same sentence and one of them told you nothing** — which is why the last pair of commands matters more than anything else in Part A. Redirect that same broken probe to \`2>/dev/null\` and it emits *silence* and exit status 1; drop it into an audit script that only looks at stdout and your report has an empty, reassuring row where a control used to be. Write security checks with \`2>&1\`, and prefer the vendor's supported CLI (\`sysadminctl -screenLock status\`) over reading a plist that can move without notice.
+
+The secure-boot line is not in the fence because its value is specific to your machine. Expect \`Secure Boot: Full Security\`, \`Reduced Security\`, or \`Permissive Security\`. Full is the goal; anything lower usually means someone lowered it deliberately to load a third-party kernel extension or an alternate OS, and that decision should be one you remember making.
+
+**Part B is the point of the module.** The directory listing after \`rm\` shows only \`.\`, \`..\`, and \`.fseventsd\` — the file is unambiguously gone as far as the filesystem is concerned. Then \`strings\` reads the *raw image* and \`CANARY-PATIENT-RECORD-7781\` comes straight back out. Nothing exotic happened: \`rm\` unlinked a directory entry and marked blocks free, and freeing a block does not touch its contents. This is simultaneously the foundation of file carving in M22's forensics, the reason a "quick format" before selling a laptop is not a wipe, and the reason NIST 800-88 has three distinct levels instead of one.
+
+Two details worth keeping. The \`sync && hdiutil detach\` between writing and deleting is load-bearing: without it the file can live entirely in cache and never reach the image, so the demo "fails" by finding nothing — and you would draw exactly the wrong conclusion. And \`strings\` only finds this because the text is plain; the same blocks are just as present for a binary, which is what forensic carvers reconstruct by header signature rather than by grep.
+
+**Part C is the fix, and it is the same file.** On the encrypted image \`grep -c\` returns \`0\` — with no deletion at all. The plaintext never touched the medium, so there is nothing to carve. Then the wrong passphrase produces \`attach failed - Authentication error\`: the volume is not merely hidden, it will not open. Now imagine destroying the passphrase instead of typing the wrong one. The data is unrecoverable in about a second, with no overwriting, no shredder, and no eight-hour wipe queue. That is NIST 800-88's **Purge** by **cryptographic erase**, and it is the real reason to run FileVault, BitLocker, or LUKS on every device: it decides whether "the laptop was stolen" is an asset loss or a data breach, and it turns disposal from a project into a keystroke.
+
+If \`hdiutil create\` fails with a resource error, an old \`/Volumes/LAB\` or \`/Volumes/SAFE\` may still be attached from a previous run — \`hdiutil detach /Volumes/LAB -force\` and try again.`
+      }
+    },
+    caseStudy: {
+      title: "Users really do plug in the drives they find (2016)",
+      body: "Researchers at the University of Illinois Urbana-Champaign ran the experiment the industry had only ever assumed the answer to: they dropped 297 USB flash drives around a large university campus and instrumented them to phone home when opened. Almost all of the drives were picked up, and files were opened on a large share of them — the paper puts the attack's estimated success rate at roughly 45% to 98%, with the first drive connected within about six minutes of the drop. The detail that matters most for defenders is the motive: many of the people who plugged one in reported that they were trying to find the owner and return it, and drives labelled to suggest an owner did better than unlabelled ones. The attack does not exploit carelessness, it exploits helpfulness — which is why 'be suspicious' is such a weak control and why the effective answers are technical (device and HID control, autorun disabled, standard-user accounts, application allow-listing) and procedural (an easy, blameless way to hand a found drive to IT). The same vector has real operational history: Stuxnet crossed an air gap on removable media, and the 2008 agent.btz infection of US Department of Defense networks — traced to a flash drive — triggered Operation Buckshot Yankee and contributed directly to the creation of US Cyber Command."
+    },
+    challenges: [{
+      q: "Your laptop has a strong login password, a firewall, and up-to-date patches, but no disk encryption. A thief takes it while it is powered off. Which of those three controls slows them down, and why?",
+      a: "None of them. All three are enforced by the operating system on your disk, and the thief never has to run your operating system. They boot their own OS from a USB stick, or move the drive to another machine, and read your files as ordinary data — your account password is irrelevant because no login ever happens, the firewall is irrelevant because no network is involved, and patches protect against exploiting software you are not running. Full-disk encryption is the only one of the four that changes the outcome, because it makes the bytes unreadable without a key the thief does not hold. Note the corollary: encryption also has to be paired with the machine being powered off rather than suspended, since a suspended machine keeps its keys in RAM."
+    }, {
+      q: "A colleague reports that a stranger followed them through the badge-controlled door because their hands were full. What failed, and why is 'we have badge readers' not an answer?",
+      a: "The badge system did not fail — it did exactly what it was built to do, which is authenticate one person and then unlock a door that stays open for anyone standing there. Tailgating attacks the gap between authenticating a *credential* and admitting a *person*, so no amount of badge-reader quality fixes it. The structural fix is an access-control vestibule (mantrap) or turnstile that physically admits one body at a time, with anti-passback so a badge cannot enter twice without exiting. The cultural fix, which is cheaper and usually more effective in an office, is a management-backed norm that challenging an unbadged person is expected rather than rude, plus visitor badges that look obviously different so the challenge has a trigger. Note that piggybacking — the same entry with the employee's consent — is a training problem by definition and has no technical solution at all."
+    }, {
+      q: "You quick-format a USB stick before giving it to a friend, and later you overwrite an SSD with random data before selling the laptop. Why is neither of those a sound sanitization decision?",
+      a: "A quick format rewrites the filesystem's index, not the data blocks — the files are still on the medium and recoverable with a carving tool, exactly as the lab demonstrated by pulling a deleted string out of a raw image. Overwriting is the right idea for magnetic media but is unreliable on flash: SSDs use wear levelling and over-provisioning, so the controller may place your overwrite in different physical cells and leave the original data intact but no longer addressable by the host. In NIST SP 800-88 terms, a quick format is not even Clear, and an overwrite of an SSD is an unverifiable attempt at Purge. The sound answers are the drive's own ATA Secure Erase / NVMe Format, or cryptographic erase if the drive was encrypted from the start — and Destroy if you cannot verify that the command did what it claims."
+    }],
+    quiz: ["State the immutable law about physical access, and give two concrete attacks that follow from it.", "Name the physical control layers in order and give one example of each.", "What is the difference between tailgating and piggybacking, and which one has a technical fix?", "Why is a suspended, encrypted laptop weaker than a powered-off, encrypted one?", "Name three attacks that require only that the attacker can touch a port on your machine.", "Give the three NIST SP 800-88 sanitization levels and the right technique for an SSD under each.", "Why does overwriting fail on flash media, and what does that imply for disposal policy?", "Which ISO/IEC 27001:2022 Annex A theme covers physical controls, and why is it notable that CIS Controls v8.1 does not?", "Name two environmental controls that exist purely to protect availability, and the failure each prevents."],
+    workbench: `> **What this trains.** The lab audited your machine and proved that deletion leaves the data behind. Here you build the audit into a script that cannot lie to you, model an intruder walking down the physical stack until something holds, and then reason about the three physical attacks you are most likely to actually meet. Everything runs on your own machine and throwaway images.
+
+#### 🟢 Drill 1 — a physical-posture audit that announces its own failures ~6 min
+
+**Goal.** From a blank prompt, write a script that prints one line per physical control on your Mac — disk encryption, screen lock, SIP, auto-login, guest account — plus, deliberately, one probe you know is obsolete. The requirement that makes this a security script rather than a status script: **a probe that breaks must be visibly different from a probe that passes**, so no check may hide stderr.
+
+**Done when.** Your output is one aligned row per control, an obsolete probe is visible as broken rather than absent, and you can point at two rows that print the same words and mean opposite things.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+Write one helper that takes a label and a command string, runs it with \`2>&1\`, and prints them aligned with \`printf '%-16s | %s\\n'\`. macOS log-style output prefixes a timestamp and \`process[pid]\`, so take the last line and strip that prefix with \`sed -E\`. Then call the helper once per control.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run yours</summary>
+
+\`\`\`bash
+mkdir -p ~/cyber-journal/wb-m6-5 && cd ~/cyber-journal/wb-m6-5
+cat > physaudit.zsh <<'EOF'
+#!/bin/zsh
+# Never 2>/dev/null in a security check: a broken probe must announce itself.
+row() { printf '%-16s | %s\\n' "$1" "$(eval "$2" 2>&1 | tail -1 | sed -E 's/^[0-9-]+ [0-9:.]+ [a-z]+\\[[0-9:]+\\] *//')"; }
+row "disk encryption" 'fdesetup status'
+row "screen lock"     'sysadminctl -screenLock status'
+row "SIP"             'csrutil status'
+row "auto-login"      'defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser'
+row "guest account"   'defaults read /Library/Preferences/com.apple.loginwindow GuestEnabled'
+row "OLD screen lock" 'defaults -currentHost read com.apple.screensaver askForPassword'
+EOF
+zsh physaudit.zsh
+\`\`\`
+\`\`\`
+disk encryption  | FileVault is On.
+screen lock      | screenLock delay is immediate
+SIP              | System Integrity Protection status: enabled.
+auto-login       | The domain/default pair of (/Library/Preferences/com.apple.loginwindow, autoLoginUser) does not exist
+guest account    | 0
+OLD screen lock  | The domain/default pair of (com.apple.screensaver, askForPassword) does not exist
+\`\`\`
+
+**Rows four and six are the drill.** They print the same sentence. For \`autoLoginUser\`, absence means no account auto-logs in — a pass. For \`askForPassword\`, absence means the key moved in a macOS release and your probe now measures nothing. An automated audit cannot tell them apart from the text, which is why **every check needs a known-good positive result you have seen at least once**: if you have never watched a control report *enabled*, you cannot claim its silence means anything. Toggle the setting, watch the row change, then trust it.
+
+\`guest account | 0\` is the same lesson in a friendlier form — a bare \`0\` that you have to know means "disabled". A check whose output needs a human to interpret it will eventually be interpreted wrongly at 3am, so a real script should map each raw value to \`PASS\`/\`FAIL\`/\`UNKNOWN\` and treat \`UNKNOWN\` as a failure to be investigated rather than a blank.
+
+Common wrong attempts: \`2>/dev/null\` on the \`defaults\` calls, which turns both "does not exist" rows into empty strings and produces a report that is *cleaner and completely wrong*; using \`grep -q\` and reporting only a boolean, which discards the distinction between "off" and "could not tell"; and hard-coding the current macOS plist paths without a comment recording when you last verified them — the obsolete probe in row six was somebody's verified check once.
+</details>
+
+#### 🟡 Build 1 — walk an intruder down the stack until something holds ~12 min
+
+**Goal.** Model the physical layers as ordered data — deter, deny, delay, detect, respond, and finally the data layer — and write a function that takes a scenario plus the set of layers that scenario defeats, then prints where the attack stops and *why that layer wins*. Run it over at least three scenarios that end differently, including two that are physically identical and diverge only at the data layer.
+
+**Done when.** One scenario stops early, one reaches the data layer and is stopped by encryption, and one runs out of layers entirely — and you can explain what a fourth, "carried across the perimeter", case does to the whole model.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+A list of \`(layer, examples, what winning looks like)\` tuples in order, and a loop that walks it: if the scenario defeats this layer, print it as defeated and continue; otherwise print it as holding and stop. Falling out of the loop means nothing held.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`python
+# physical_layers.py — walk one attack down the physical stack and find what holds
+LAYERS = [
+    ("deter",   "lighting, signage, visible cameras",            "attacker picks a softer target"),
+    ("deny",    "locked door, badge reader, mantrap, escort",    "attacker never gets inside"),
+    ("delay",   "cabinet and rack locks, cable lock, safe",      "attacker runs out of time"),
+    ("detect",  "door sensors, cameras, visitor log, alarm",     "someone finds out it happened"),
+    ("respond", "guard, alarm response, remote wipe",            "the event is interrupted or reversed"),
+    ("data",    "full-disk encryption + screen lock + secure boot", "possession is not disclosure"),
+]
+
+def walk(scenario, defeated, bypassed=False):
+    print(f"\\n{scenario}")
+    if bypassed:
+        print("  every perimeter layer BYPASSED — the payload was carried across by an insider")
+    for layer, examples, win in LAYERS:
+        if layer in defeated:
+            print(f"  {layer:<8} defeated  ({examples})")
+        else:
+            print(f"  {layer:<8} HOLDS     -> {win}")
+            return
+    print("  >> nothing left. The attacker has the data. <<")
+
+walk("Tailgater follows a badged employee in at 20:00",
+     defeated={"deter", "deny"})
+walk("Impersonated cleaner reaches a desk; laptop left unlocked",
+     defeated={"deter", "deny", "delay", "detect", "respond", "data"})
+walk("Laptop stolen from a parked car; powered off, FileVault on",
+     defeated={"deter", "deny", "delay", "detect", "respond"})
+walk("USB drive left in the car park and plugged in by an employee",
+     defeated={"deter", "deny", "delay", "detect", "respond", "data"}, bypassed=True)
+\`\`\`
+\`\`\`
+Tailgater follows a badged employee in at 20:00
+  deter    defeated  (lighting, signage, visible cameras)
+  deny     defeated  (locked door, badge reader, mantrap, escort)
+  delay    HOLDS     -> attacker runs out of time
+
+Impersonated cleaner reaches a desk; laptop left unlocked
+  deter    defeated  (lighting, signage, visible cameras)
+  deny     defeated  (locked door, badge reader, mantrap, escort)
+  delay    defeated  (cabinet and rack locks, cable lock, safe)
+  detect   defeated  (door sensors, cameras, visitor log, alarm)
+  respond  defeated  (guard, alarm response, remote wipe)
+  data     defeated  (full-disk encryption + screen lock + secure boot)
+  >> nothing left. The attacker has the data. <<
+
+Laptop stolen from a parked car; powered off, FileVault on
+  deter    defeated  (lighting, signage, visible cameras)
+  deny     defeated  (locked door, badge reader, mantrap, escort)
+  delay    defeated  (cabinet and rack locks, cable lock, safe)
+  detect   defeated  (door sensors, cameras, visitor log, alarm)
+  respond  defeated  (guard, alarm response, remote wipe)
+  data     defeated  (full-disk encryption + screen lock + secure boot)
+  >> nothing left. The attacker has the data. <<
+\`\`\`
+*(the fourth scenario is discussed below; the third is the one to look at first)*
+
+**Compare scenarios two and three, because that comparison is the whole module.** Physically they are the same outcome — an unauthorized person is in sole possession of a company laptop, and every perimeter layer has failed. The only difference is one setting. With the machine powered off and FileVault on, the data layer holds and the incident is an *asset loss*: file an insurance claim, reissue hardware, revoke the certificates. With the machine sitting unlocked on a desk, the same intrusion is a *data breach*, with notification obligations, regulators, and customers. **One control changes the category of the event** — and it is the only layer on the list that keeps working after every human and architectural control has already failed. That is why the lab makes you check it first.
+
+Two subtleties the model surfaces if you push it. *Powered-off matters as much as encrypted:* a suspended laptop keeps its keys in RAM, which is what the cold-boot attack in the theory reaches for, so "FileVault is on" and "the lid is closed" are not the same claim. And *the fourth scenario breaks the ordering deliberately* — the USB drop never touches the perimeter at all, because an employee carried the payload across it, and the data layer does not save you either: full-disk encryption protects data **at rest**, while the payload runs as a logged-in user against data **in use**. A model that only walks inward from the fence cannot represent that attack, which is exactly why physical security ends up being a training problem as much as a construction problem.
+
+Common wrong attempts: putting "data" first because it feels strongest — the ordering encodes the attacker's path, and the value of the model is showing how many layers can fail before the last one is asked to do anything; treating every defeated layer as a wasted investment, when delay is what makes response possible and detection is what tells you to look at all; and modelling "detect" as a win on its own, when detection with no response is just a recording of your own breach.
+</details>
+
+#### 🔴 Break & Defend — the car park, the polite door, and 200 old laptops ~15 min
+
+**Goal.** Journal three answers. (1) The case study below found that dropped USB drives work. Explain why an awareness poster is a weak defence here, and name the technical and procedural controls that actually reduce the risk. (2) Walk a tailgating entry through your own building or office in detail: which of deter/deny/delay/detect/respond failed, in what order, and which single change would have the biggest effect? (3) Your company is disposing of 200 laptops — 60 with spinning disks, 120 with SSDs, and 20 that were encrypted from day one. Write the sanitization decision for each group in NIST 800-88 terms, with your reasoning.
+
+**Done when.** Answer (1) names at least one control that works even when the human fails, answer (2) is specific to a building you have actually stood in, and answer (3) treats the three groups differently and explains why.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Why "don't plug in strange USB drives" is a weak control.** Because it asks a human to be correct every single time, against an attack designed to give them a *reason* to comply. The drives in the study were not anonymous; drives labelled to look like they belonged to someone were picked up and opened, and roughly half the people who plugged one in said they intended to find the owner and return it. The attack recruits helpfulness, not carelessness, and awareness training aimed at "be suspicious" is aimed at the wrong instinct. Controls that keep working after the human fails: **device control / USB port policy** that blocks or read-only-mounts unknown mass storage and, importantly, blocks unknown **HID** devices too (BadUSB presents as a keyboard, so a mass-storage policy alone misses it); **disabling autorun/autoplay**; **application allow-listing**, so a payload that reaches the disk still cannot execute; running as a **standard user** rather than an administrator; **endpoint detection** on the resulting process behaviour; and — the procedural half — a genuinely easy, blameless way to hand a found drive to IT, plus a lost-property process that removes the excuse to plug it in. Also worth stating plainly: **an air gap is not a control against this attack** — Stuxnet and the 2008 US Department of Defense incident that led to the creation of USCYBERCOM both crossed air gaps on removable media carried by a person.
+
+**(2) The tailgate.** The shape of a good answer, which you should replace with your own building: *deter* fails first and silently — nothing about the entrance suggests anyone is watching after hours, and the camera is visible but obviously unmonitored. *Deny* fails at the moment of politeness: the badge reader worked perfectly and admitted an authorized person; the second body through the door was never a technical event at all, which is why "we have badge readers" is not an answer to tailgating. *Delay* often does not exist internally, because once past the lobby the building is flat — no locked floors, no locked wing, exactly the physical version of the flat network that made NotPetya so effective in M23. *Detect* fails because a visitor log only records people who identify themselves, and anti-passback would have flagged a badge entering twice without exiting but is not configured. *Respond* fails because there is nobody to respond and no expectation that an employee would challenge a stranger. The highest-leverage single change is usually **social, not physical**: an explicit, management-backed norm that challenging an unbadged person is expected and never rude, backed by badges that are visibly different for visitors, so that "who are you?" has an easy trigger. If a physical change is wanted instead, an **access-control vestibule (mantrap) or turnstile at the single entrance** is the one that makes tailgating structurally impossible rather than socially awkward — which is why it is standard at data centres and rare in offices.
+
+**(3) 200 laptops, three answers.** *The 20 encrypted-from-day-one machines are the easy ones:* **Purge by cryptographic erase** — destroy the key material and the data is gone, verifiably and immediately, whatever the underlying medium is. This is the argument for encrypting everything on day one that has nothing to do with theft: it makes disposal a one-minute operation. *The 60 spinning disks:* overwriting genuinely works on magnetic media, so a single-pass full overwrite is **Clear**, and that is sufficient if the drives stay in the organization. Because these are leaving, go to **Purge** — ATA Secure Erase issued by the drive's own firmware, or degaussing, remembering that degaussing destroys the drive's servo tracks and therefore its resale value. *The 120 SSDs are the trap:* an overwrite is **not** reliable, because wear levelling and over-provisioning mean the controller can write your pattern to different physical cells and leave the originals intact but unaddressable, and degaussing does nothing at all to flash. Use the drive's own **ATA Secure Erase / NVMe Format** with cryptographic erase where the drive is self-encrypting — and if you cannot verify that the command completed and did what it claims, escalate to **Destroy** (shred or disintegrate). **Outside the box:** notice that the correct sanitization method depends on the *physical medium*, that the fastest and most certain method was decided years earlier by whether encryption was enabled at deployment, and that the whole decision must be documented per device with a certificate of sanitization — because for a regulator "we wiped them" is a claim, and an auditable per-asset record is evidence. This is the same distinction as M23.5's backup verification: the job reporting success is not the same as the outcome being proven.
+</details>`,
+    tracker: ["I can explain why physical access defeats OS-level controls, with two concrete attacks", "I can name the physical layers — deter, deny, delay, detect, respond — and place a control in each", "I can explain tailgating vs piggybacking and why badge readers do not solve either", "I audited my own machine's disk encryption, screen lock, SIP, and auto-login settings", "I recovered a 'deleted' string from a raw disk image and can explain why rm leaves it there", "I proved that the same data on an encrypted volume leaves nothing to carve", "I can state the three NIST 800-88 levels and pick the right one for an HDD, an SSD, and an encrypted drive", "I can name the environmental controls for power, cooling, and fire, and what each protects", "Workbench: wrote a posture-audit script that shows a broken probe as broken rather than hiding it with 2>/dev/null", "Workbench: modelled an intruder walking the physical stack and can explain why one setting decides between an asset loss and a data breach", "Workbench: reasoned about the USB drop, a real tailgate in a building I know, and the sanitization plan for 200 mixed laptops"]
   }, {
     id: "m7",
     level: 1,
