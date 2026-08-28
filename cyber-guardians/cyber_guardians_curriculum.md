@@ -2726,20 +2726,22 @@ Most real-world attacks target web applications, and as a full-stack developer t
 - **SSRF (Server-Side Request Forgery)** — the server is tricked into making a request to an attacker-chosen URL, often an internal one.
 - **Parameterized query / prepared statement** — sending the SQL *structure* and the *data* separately so the database never parses user input as SQL. The correct SQLi defense.
 
-#### OWASP Top 10 (2021 edition — still the industry reference): description → example → defense
+#### OWASP Top 10 (2025 edition — the current release): description → example → defense
+
+> **If you learned the 2021 list, re-anchor now.** Supply-chain attacks got their own category (**A03**), replacing the old "Vulnerable and Outdated Components" entry. A brand-new **A10** covers code that fails *open* when something goes wrong. **SSRF is no longer its own number** — it moved under A01 as an access-control failure. Four categories kept their meaning but changed number: Misconfiguration 05→02, Cryptographic Failures 02→04, Injection 03→05, Insecure Design 04→06.
 
 | ID | Risk | Example | Core defense |
 |---|---|---|---|
-| A01 | Broken Access Control | IDOR: `/account/124` shows another user | Server-side authZ on every request; deny by default |
-| A02 | Cryptographic Failures | Passwords in MD5; login over HTTP | TLS everywhere (Module 13); Argon2/bcrypt (Module 3); AES-GCM (Module 10) |
-| A03 | Injection (SQL/cmd/etc.) | `admin' OR '1'='1` in a login field | Parameterized queries; argument-array exec; output encoding |
-| A04 | Insecure Design | Reset token that never expires | Threat modeling in design; secure-by-design patterns |
-| A05 | Security Misconfiguration | Default passwords, verbose errors, debug on | Hardening, minimal config, automated checks |
-| A06 | Vulnerable/Outdated Components | jQuery 1.x in 2026; unpatched Struts | SCA tools, patch fast (Equifax, below) |
-| A07 | Auth Failures | No lockout, weak/guessable sessions | MFA, rate limiting, strong session tokens (Module 3) |
-| A08 | Software/Data Integrity Failures | Unsigned updates; CI trusts unverified packages | Signed artifacts, SBOM, supply-chain security |
-| A09 | Logging/Monitoring Failures | Attacker dwells 200 days unseen | Centralized logging, alerting, SIEM |
-| A10 | SSRF | App fetches user URL → `http://169.254.169.254/` → cloud creds | Allow-list outbound; block internal IPs/metadata |
+| A01 | Broken Access Control (now includes SSRF) | IDOR: `/account/124` shows another user; app fetches `http://169.254.169.254/` → cloud creds | Server-side authZ on every request; deny by default; allow-list outbound requests |
+| A02 | Security Misconfiguration | Default passwords, verbose errors, debug on | Hardening, minimal config, automated checks |
+| A03 | Software Supply Chain Failures | Unpatched Struts (Equifax, below); malicious npm package pulled in at build time | SCA tools, patch fast, SBOM, pin and verify dependencies |
+| A04 | Cryptographic Failures | Passwords in MD5; login over HTTP | TLS everywhere (Module 13); Argon2/bcrypt (Module 3); AES-GCM (Module 10) |
+| A05 | Injection | `admin' OR '1'='1` in a login field | Parameterized queries; argument-array exec; output encoding |
+| A06 | Insecure Design | Reset token that never expires | Threat modeling in design; secure-by-design patterns |
+| A07 | Authentication Failures | No lockout, weak/guessable sessions | MFA, rate limiting, strong session tokens (Module 3) |
+| A08 | Software or Data Integrity Failures | Unsigned updates; CI trusts unverified artifacts | Signed artifacts, verified provenance |
+| A09 | Security Logging & Alerting Failures | Attacker dwells 200 days unseen; alert fires but pages no one | Centralized logging, alerting, SIEM |
+| A10 | Mishandling of Exceptional Conditions | A `catch` block that grants access when the permission check throws | Fail **closed** on every security-relevant exception |
 
 #### Why the naive defenses fail (the through-line)
 
@@ -3463,7 +3465,7 @@ This is PTES phase 4 (Module 18). A vulnerability assessment is *not* "run a sca
 > Fails because CVSS measures *intrinsic* severity in the abstract, not *your* risk. A CVSS 9.8 in a component you don't expose, behind authentication, on an internal host may matter far less than a CVSS 6.5 on your public login page. Real prioritization combines **severity (CVSS) × exploit likelihood (EPSS/known-exploited) × exposure (is it reachable?) × asset value**.
 
 > **Naive #3: "We scanned the servers, so we're covered."**
-> Fails because most of your attack surface is *your dependencies* (Module 14's Equifax/A06). A modern app pulls in hundreds of third-party packages, any of which can carry a known CVE. Scanning the running host misses the vulnerable library compiled into your app — you must scan the software bill of materials too.
+> Fails because most of your attack surface is *your dependencies* (Module 14's Equifax/A03). A modern app pulls in hundreds of third-party packages, any of which can carry a known CVE. Scanning the running host misses the vulnerable library compiled into your app — you must scan the software bill of materials too.
 
 > **The correct posture:** scan broadly (hosts *and* dependencies), then *triage*: validate findings, prioritize by combined risk (severity × exploitability × exposure × value), and feed the top items into remediation with owners and deadlines.
 
@@ -4385,7 +4387,7 @@ Almost everything you build now runs in the cloud, where the threat model shifts
 - **Shared Responsibility Model** — the provider secures the cloud *infrastructure* (hardware, hypervisor, physical network); **you** secure what's *in* it (IAM, data, app code, configuration). Most breaches are on the customer's side of that line.
 - **IAM (Identity and Access Management)** — who (users, roles, services) can do what to which resources. The central control plane of cloud security.
 - **IMDS (Instance Metadata Service)** — a special internal endpoint (`http://169.254.169.254/`) that gives a cloud VM its configuration *and temporary IAM credentials*. **IMDSv1** answers any local request; **IMDSv2** requires a session-token handshake (a `PUT` then a header), which an SSRF can't perform.
-- **SSRF (Server-Side Request Forgery)** — tricking the server into making a request to an attacker-chosen URL (Module 14, A10); in the cloud, the prize target is the metadata service.
+- **SSRF (Server-Side Request Forgery)** — tricking the server into making a request to an attacker-chosen URL (Module 14; folded into A01 in the 2025 Top 10); in the cloud, the prize target is the metadata service.
 - **Least privilege (cloud)** — scope every role/policy to the *specific* actions and resources it needs (a named bucket ARN), never `*:*`.
 
 #### The five misconfigurations behind most cloud breaches
@@ -5280,9 +5282,9 @@ Copy this into your Cyber Journal and update weekly:
 
 These are the canonical, regularly-updated references that every security professional cites. Free, vendor-neutral, community-maintained.
 
-- **OWASP Top 10 (Web Application)** — `https://owasp.org/Top10/` — current edition is 2021; the 2025 update is in candidate phase as of writing. The starting point for every web security conversation.
+- **OWASP Top 10 (Web Application)** — `https://owasp.org/Top10/` — current edition is **2025** (it supersedes 2021; SSRF folded into A01, supply chain promoted to A03, new A10 for mishandled exceptions). The starting point for every web security conversation.
 - **OWASP API Security Top 10 (2023)** — `https://owasp.org/API-Security/` — separates API-specific risks (BOLA, BFLA, unrestricted resource consumption) from generic web risks.
-- **OWASP Top 10 for LLM Applications (2025)** — `https://owasp.org/www-project-top-10-for-large-language-model-applications/` — the AI/LLM equivalent. Covered in Module 25.7.
+- **OWASP Top 10 for LLM Applications** — `https://genai.owasp.org/llm-top-10/` — the AI/LLM equivalent, now maintained under the OWASP GenAI Security Project (the old `owasp.org/www-project-top-10-for-large-language-model-applications/` page keeps only historical releases). The risk pages still number entries `LLMxx:2025`, which is what the table above uses; a refreshed 2026 edition of the guide was published in August 2026, so check the numbering there before citing it in an audit. Covered in Module 25.7.
 - **OWASP Mobile Top 10 (2024)** — `https://owasp.org/www-project-mobile-top-10/` — covered in Module 25.5.
 - **OWASP CI/CD Top 10** — `https://owasp.org/www-project-top-10-ci-cd-security-risks/` — supply-chain risks in your build pipeline.
 - **OWASP Cheat Sheet Series** — `https://cheatsheetseries.owasp.org/` — concise, language-specific implementation guides for every Top 10 entry.

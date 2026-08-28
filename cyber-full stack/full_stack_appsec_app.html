@@ -11117,7 +11117,7 @@ def fetch_secure():
 
 ### 🛡️ Defense: lab-proven controls, recapped
 
-- **SSRF (A10):** never fetch raw user URLs; **allow-list** destination hosts, enforce \`https\`-only, **block private/internal IP ranges** (including \`169.254.169.254\`), resolve-then-check to defeat DNS rebinding, and disable dangerous URL schemes (\`file:\`, \`gopher:\`).
+- **SSRF (A01 in the 2025 list — it lost its own number):** never fetch raw user URLs; **allow-list** destination hosts, enforce \`https\`-only, **block private/internal IP ranges** (including \`169.254.169.254\`), resolve-then-check to defeat DNS rebinding, and disable dangerous URL schemes (\`file:\`, \`gopher:\`).
 - **Access control (A01):** authorize the *object* on every fetch (the Juice Shop IDOR is the same \`WHERE id=$1 AND owner_id=$2\` fix from Phase 3).
 - **General lab discipline:** for every flag, identify the first-principles root cause, write the developer fix, and predict what would stop it — that's how labs become durable skill.
 
@@ -11328,15 +11328,15 @@ A security finding isn't "I found a bug" — it's a document a developer can act
 1. HTTP basics and request-smuggling *intro readings* (orientation — you have the HTTP foundation from Phase 1).
 2. **Authentication** (carries directly into Phase 6).
 3. **Access control** (A01 — the #1 risk; do all the IDOR/BOLA/BFLA labs).
-4. **SQL injection** (A03 — confirm your Phase 3 understanding against varied contexts).
+4. **SQL injection** (A05 — confirm your Phase 3 understanding against varied contexts).
 5. **Cross-site scripting** (every context: HTML, attribute, JS, etc. — Phase 2 depth).
 6. **CSRF** (Phase 2).
 7. **CORS** (Phase 2).
-8. **SSRF** (A10 — Phase 4).
+8. **SSRF** (folded into A01 in the 2025 list — Phase 4).
 9. **File upload vulnerabilities** (Phase 3).
 10. **JWT attacks** (sets up Phase 6.3).
 11. **OAuth authentication** (sets up Phase 6.4).
-12. **Business logic vulnerabilities** (A04 — the bugs no scanner finds).
+12. **Business logic vulnerabilities** (A06 Insecure Design — the bugs no scanner finds).
 
 **For every lab, write a short Markdown report** in \`~/appsec-journal/reports/\` using the structure above:
 
@@ -19837,7 +19837,7 @@ The two parts people short-change are **Impact** (name the credible business con
 <summary>Walkthrough — open after you've written yours</summary>
 
 \`\`\`text
-LAB: Auth bypass via SQL injection in login   (A03:2021 Injection — PortSwigger: Apprentice)
+LAB: Auth bypass via SQL injection in login   (A05:2025 Injection — PortSwigger: Apprentice)
 
 SUMMARY   The login form concatenates the username into the SQL query, so a crafted username
           comments out the password check and logs in as the first user.

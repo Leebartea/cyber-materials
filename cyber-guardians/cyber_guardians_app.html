@@ -9521,7 +9521,7 @@ Fails because: (a) AI detection models are trained on known attack patterns — 
 
 #### Beyond chatbots: autonomous agents and MCP
 
-Everything above treats AI as something that *answers*. The next wave is AI that *acts* — an **agent** wired up to tools that can read files, call APIs, run code, or spend money. That's a new risk axis: an attack against a chatbot produces a bad answer; an attack against an agent produces a bad **action**. OWASP released a dedicated **Top 10 for Agentic Applications** and an **MCP (Model Context Protocol) Top 10** in December 2025, distinct from the LLM Top 10 above, because of failure modes like:
+Everything above treats AI as something that *answers*. The next wave is AI that *acts* — an **agent** wired up to tools that can read files, call APIs, run code, or spend money. That's a new risk axis: an attack against a chatbot produces a bad answer; an attack against an agent produces a bad **action**. OWASP's GenAI Security Project released a dedicated **Top 10 for Agentic Applications** in December 2025 (published as the *2026* edition, risks numbered ASI01–ASI10), and a separate OWASP project maintains an **MCP (Model Context Protocol) Top 10** (numbered MCP01:2025 and up). Both are distinct from the LLM Top 10 above, because of failure modes like:
 
 - **Excessive agency** — an agent granted more tool access than its task needs, so a single successful manipulation has an outsized blast radius.
 - **Tool / MCP poisoning** — a malicious or compromised tool server embeds hidden instructions in its own description, which the model reads as guidance (a "confused deputy": the agent has legitimate access, but is tricked into misusing it).
@@ -9545,7 +9545,7 @@ EOF
 # Cross-reference with: https://mxtoolbox.com/EmailHeaders.aspx
 
 # 2. CHECK YOUR AI tool's data policy
-open https://openai.com/policies/privacy/
+open https://openai.com/policies/
 open https://www.anthropic.com/privacy
 # Answer: does the free tier use your inputs for training?
 # What tier/agreement would you need for enterprise security use?

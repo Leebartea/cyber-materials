@@ -622,9 +622,20 @@ SSRF_PAYLOAD = re.compile(r"^https?://(0x[0-9a-f]+|\d{6,}|\[[0-9a-f:]*\]|0\d+)/?
 # These are supposed not to resolve — that is the point of using them in examples.
 FICTIONAL = re.compile(r"\.(example|invalid|test|local)(\b|/)|apple-verification|evil-c2", re.I)
 
+# badssl.com subdomains exist to present *deliberately invalid* TLS (expired certs,
+# hostname mismatch). urllib rejects them at the handshake, which is the whole point of
+# the lab that sends learners there — so the failure says nothing about whether the host
+# is up. Probing them only produced a permanent "check by hand" warning nobody could clear.
+BROKEN_TLS_DEMO = re.compile(r"\.badssl\.com", re.I)
+
 
 def is_probeable(u: str) -> bool:
-    if SKIP_URL.search(u) or SSRF_PAYLOAD.match(u) or FICTIONAL.search(u):
+    if (
+        SKIP_URL.search(u)
+        or SSRF_PAYLOAD.match(u)
+        or FICTIONAL.search(u)
+        or BROKEN_TLS_DEMO.search(u)
+    ):
         return False
     host = u.split("//", 1)[-1].split("/", 1)[0]
     return "." in host and len(host) > 3  # needs a real dotted hostname
