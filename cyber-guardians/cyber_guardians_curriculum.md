@@ -4693,20 +4693,22 @@ Module 25.7 — **AI / LLM Security**. Mobile and cloud secured the classic surf
 
 If your app calls an LLM, lets users run an LLM, or fine-tunes a model, you have new threats: prompt injection, output mishandling, model supply chain, and cost-based denial of service. The OWASP Top 10 for LLMs is the canonical reference.
 
-### 📘 Theory — OWASP Top 10 for LLM Applications (2025)
+### 📘 Theory — OWASP Top 10 for LLM Applications (2026)
 
 | ID | Risk | Plain meaning |
 |---|---|---|
-| LLM01 | Prompt Injection | User text overrides the system prompt and makes the model do something bad. |
-| LLM02 | Sensitive Information Disclosure | Model leaks training data or context-window data. |
-| LLM03 | Supply Chain | Compromised model weights, fine-tunes, plugins, vector DBs. |
-| LLM04 | Data and Model Poisoning | Bad data in training/RAG biases future answers. |
-| LLM05 | Improper Output Handling | App treats LLM output as trusted code/SQL/HTML. |
-| LLM06 | Excessive Agency | An agent has more tools/permissions than the user. |
-| LLM07 | System Prompt Leakage | The "secret" prompt isn't actually secret. |
-| LLM08 | Vector / Embedding Weaknesses | Adversarial documents in your RAG store steer answers. |
-| LLM09 | Misinformation | Hallucinations cause real-world harm. |
-| LLM10 | Unbounded Consumption | DoS via expensive prompts, infinite token loops, cost exhaustion. |
+| LLM01:2026 | Prompt Injection | User text overrides the system prompt and makes the model do something bad. |
+| LLM02:2026 | Sensitive Information Disclosure | Model leaks training data or context-window data. |
+| LLM03:2026 | Excessive Agency | An agent has more tools/permissions than the user. |
+| LLM04:2026 | Supply Chain | Compromised model weights, fine-tunes, plugins, vector DBs. |
+| LLM05:2026 | Data and Model Poisoning | Bad data in training/RAG biases future answers. |
+| LLM06:2026 | Unbounded Consumption | DoS via expensive prompts, infinite token loops, cost exhaustion. |
+| LLM07:2026 | Misinformation | Hallucinations cause real-world harm. |
+| LLM08:2026 | Hidden Context Exposure | The "secret" prompt — and anything else in the context window — isn't actually secret. |
+| LLM09:2026 | Vector / Embedding Weaknesses | Adversarial documents in your RAG store steer answers. |
+| LLM10:2026 | Improper Output Handling | App treats LLM output as trusted code/SQL/HTML. |
+
+> **The numbers changed in August 2026, and most writing online still uses the old ones.** Only LLM01 and LLM02 kept their slots — Excessive Agency moved 6 → 3, Improper Output Handling 5 → 10, and **System Prompt Leakage became LLM08 Hidden Context Exposure**. Always write the year suffix when you cite one, or a reader can't tell which list you mean.
 
 ### 🛠️ Lab
 
@@ -4751,7 +4753,7 @@ Bonus: validate the `customerId` belongs to the *authenticated* user, not whatev
 #### Why the naive defense fails
 
 > **Naive: "I'll just write a stronger system prompt telling it to refuse bad instructions."**
-> Fails because prompt injection is an *input-trust* problem, not a wording problem. The model fundamentally cannot reliably distinguish your instructions from attacker text in the same context window — frontier models resist obvious overrides but still slip, and indirect injection (hidden text in a fetched page/document) bypasses the user entirely. **The defense is architecture, not prompt engineering:** treat model output as untrusted (LLM05), give tools/agents least privilege (LLM06), keep humans in the loop for consequential actions, and put policy/authorization *outside* the LLM.
+> Fails because prompt injection is an *input-trust* problem, not a wording problem. The model fundamentally cannot reliably distinguish your instructions from attacker text in the same context window — frontier models resist obvious overrides but still slip, and indirect injection (hidden text in a fetched page/document) bypasses the user entirely. **The defense is architecture, not prompt engineering:** treat model output as untrusted (LLM10), give tools/agents least privilege (LLM03), keep humans in the loop for consequential actions, and put policy/authorization *outside* the LLM.
 
 #### 💻 Vulnerable vs. Secure Code — handling untrusted LLM output
 
@@ -4759,7 +4761,7 @@ Bonus: validate the `customerId` belongs to the *authenticated* user, not whatev
 // ❌ VULNERABLE — Node: trust the LLM's output as code/authorization
 const sql = await llm(`Write SQL to answer: ${userQuestion}`);
 db.query(sql);                                   // WHY WRONG: model output is untrusted (it can be
-                                                 // injected or hallucinate DROP TABLE) -> injection (M14, LLM05).
+                                                 // injected or hallucinate DROP TABLE) -> injection (M14, LLM10).
 if ((await llm("Is this user an admin?")) === "yes") grantAdmin();  // WHY WRONG: LLM is not an authz source.
 
 // ✅ SECURE — Node: model picks an INTENT; YOU run vetted, parameterized code; authz outside the LLM
@@ -4786,15 +4788,15 @@ else: action(customer_id=authenticated_user.id)  # in CODE; the LLM is never the
 
 ### 🌍 Case Study — Bing Chat "Sydney" prompt leak (2023)
 
-Within hours of Bing's public AI chat launch, users coaxed it into revealing its system prompt and internal codename "Sydney." Microsoft treated it as a *security* incident (not PR): adding topic constraints, conversation-length caps, mid-conversation prompt refresh, and better leakage telemetry. **Lesson:** assume your system prompt is **public** the moment you ship — never put real secrets, API keys, or credible production hints in it (LLM07). The "secret prompt" is not a secret.
+Within hours of Bing's public AI chat launch, users coaxed it into revealing its system prompt and internal codename "Sydney." Microsoft treated it as a *security* incident (not PR): adding topic constraints, conversation-length caps, mid-conversation prompt refresh, and better leakage telemetry. **Lesson:** assume your system prompt is **public** the moment you ship — never put real secrets, API keys, or credible production hints in it (LLM08). The "secret prompt" is not a secret.
 
 ### 🛡️ Pitfalls & False-Confidence Traps
 - **"A better system prompt will stop injection."** It's an input-trust problem; architecture (untrusted output, least-privilege tools, human-in-loop) is the fix.
-- **Executing/rendering LLM output directly.** Treat it like user input — never run it as SQL/HTML/shell (LLM05; re-apply Module 14).
+- **Executing/rendering LLM output directly.** Treat it like user input — never run it as SQL/HTML/shell (LLM10; re-apply Module 14).
 - **LLM as an authorization source.** Authorization comes from your verified session and code policy, never from what the model says.
-- **Over-privileged agents.** An agent with tools/permissions beyond the user (LLM06) turns one injection into real damage. Scope tools tightly.
-- **Secrets in the system prompt.** Assume it leaks (LLM07). Keep secrets out of the context window entirely.
-- **No cost/token bounds.** Unbounded consumption (LLM10) is a cheap DoS and a surprise bill; cap tokens, requests, and tool calls.
+- **Over-privileged agents.** An agent with tools/permissions beyond the user (LLM03) turns one injection into real damage. Scope tools tightly.
+- **Secrets in the system prompt.** Assume it leaks (LLM08). Keep secrets out of the context window entirely.
+- **No cost/token bounds.** Unbounded consumption (LLM06) is a cheap DoS and a surprise bill; cap tokens, requests, and tool calls.
 
 ### ❓ Quiz
 1. Why can't a cleverer system prompt reliably stop prompt injection?
@@ -4816,7 +4818,7 @@ Within hours of Bing's public AI chat launch, users coaxed it into revealing its
 
 ### ✅ Progress Tracker
 
-- [ ] Read the OWASP LLM Top 10 v2025 once front to back
+- [ ] Read the OWASP LLM Top 10 (2026 edition) once front to back
 - [ ] Reproduced a partial direct prompt injection on a model you own
 - [ ] Built (or sketched) intent→vetted-action handling so LLM output is never executed
 - [ ] Put refund caps / approval / rate limits as code policy outside the LLM
@@ -5280,7 +5282,7 @@ These are the canonical, regularly-updated references that every security profes
 
 - **OWASP Top 10 (Web Application)** — `https://owasp.org/Top10/` — current edition is **2025** (it supersedes 2021; SSRF folded into A01, supply chain promoted to A03, new A10 for mishandled exceptions). The starting point for every web security conversation.
 - **OWASP API Security Top 10 (2023)** — `https://owasp.org/API-Security/` — separates API-specific risks (BOLA, BFLA, unrestricted resource consumption) from generic web risks.
-- **OWASP Top 10 for LLM Applications** — `https://genai.owasp.org/llm-top-10/` — the AI/LLM equivalent, now maintained under the OWASP GenAI Security Project (the old `owasp.org/www-project-top-10-for-large-language-model-applications/` page keeps only historical releases). The risk pages still number entries `LLMxx:2025`, which is what the table above uses; a refreshed 2026 edition of the guide was published in August 2026, so check the numbering there before citing it in an audit. Covered in Module 25.7.
+- **OWASP Top 10 for LLM Applications** — `https://genai.owasp.org/llm-top-10/` — the AI/LLM equivalent, now maintained under the OWASP GenAI Security Project (the old `owasp.org/www-project-top-10-for-large-language-model-applications/` page keeps only historical releases). The current edition is **2026**, published August 2026 — get it from `https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/`. **Watch out:** as of this writing the project's own `/llm-top-10/` landing page still lists the ten risk cards under the old `LLMxx:2025` numbering, so the first page you land on may not be the current list. The table above uses the 2026 numbering. Covered in Module 25.7.
 - **OWASP Mobile Top 10 (2024)** — `https://owasp.org/www-project-mobile-top-10/` — covered in Module 25.5.
 - **OWASP CI/CD Top 10** — `https://owasp.org/www-project-top-10-ci-cd-security-risks/` — supply-chain risks in your build pipeline.
 - **OWASP Cheat Sheet Series** — `https://cheatsheetseries.owasp.org/` — concise, language-specific implementation guides for every Top 10 entry.

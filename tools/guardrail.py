@@ -421,6 +421,26 @@ def check_coverage(name, cur):
 # ── 4. known-bad content (regression guards for fixed defects) ────────────────
 BANNED = [
     # (pattern, why it is banned, which finding it guards)
+    # --- OWASP LLM Top 10: 2025 numbering superseded by the 2026 edition (Aug 2026).
+    # Only LLM01/LLM02 kept their slots, so a pasted-back 2025 table row is silently
+    # wrong rather than merely dated. Prose that cites the OLD id *with its year suffix*
+    # (e.g. "System Prompt Leakage (LLM07:2025)") is deliberate and must not match.
+    (r"\|\s*LLM03\s*\|\s*Supply Chain",
+     "2025 numbering: Supply Chain is LLM04 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM04\s*\|\s*Data and Model Poisoning",
+     "2025 numbering: Data and Model Poisoning is LLM05 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM05\s*\|\s*Improper Output Handling",
+     "2025 numbering: Improper Output Handling is LLM10 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM06\s*\|\s*Excessive Agency",
+     "2025 numbering: Excessive Agency is LLM03 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM07\s*\|\s*System Prompt Leakage",
+     "2025 numbering + retired name: now LLM08 Hidden Context Exposure", "LLM-2026"),
+    (r"\|\s*LLM08\s*\|\s*Vector",
+     "2025 numbering: Vector/Embedding Weaknesses is LLM09 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM09\s*\|\s*Misinformation",
+     "2025 numbering: Misinformation is LLM07 in the 2026 edition", "LLM-2026"),
+    (r"\|\s*LLM10\s*\|\s*Unbounded Consumption",
+     "2025 numbering: Unbounded Consumption is LLM06 in the 2026 edition", "LLM-2026"),
     (r"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\s+data\.txt",
      "sha256 of 'test' presented as the hash of 'important data'", "A2"),
     (r"10-million-password-list-top-100000\.txt",
