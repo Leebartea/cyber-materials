@@ -38,8 +38,6 @@
 | **Outcome** | Foundational skills equivalent to CompTIA Security+ / ISC² CC readiness, ethical hacking fundamentals, digital forensics awareness, and a defensible portfolio. |
 | **Age Target** | 10–20 (explanations scale up in sophistication as modules progress) |
 
-> `[Image Placeholder: Course banner — stylized shield merging a circuit board, a padlock, and a compass, over a dark navy background with the words "CYBER GUARDIANS"]`
-
 ---
 
 <a id="beginner-orientation"></a>
@@ -270,8 +268,6 @@ winget install --id Git.Git -e
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
-
-> `[Image Placeholder: Screenshot of macOS Terminal showing a successful Homebrew install with the shell prompt ready]`
 
 ### Step 2: Install the Core Toolkit
 
