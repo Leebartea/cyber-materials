@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **41-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **42-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **41-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 41 modules at a glance
+### All 42 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -817,6 +817,7 @@ Cyber Guardians is a **41-module breadth-first course** that takes you from zero
 - M10: Cryptography Essentials
 - M11: Linux Power User
 - M11.5: Advanced Shell Scripting, Text Processing & SSH Tunneling *(new in this edition)*
+- M11.7: Passive Reconnaissance — OSINT Before You Touch Anything *(new in this edition)*
 - M12: Nmap — Network Scanning
 - M13: Wireshark — Packet Analysis
 - M13.5: Wireless & Radio Security *(new in this edition)*
@@ -921,7 +922,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 41 modules, expect ~51–64 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 42 modules, expect ~53–63 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -932,7 +933,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 41 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 42 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -4948,12 +4949,475 @@ Common wrong attempts: forgetting \`|| true\` on the grep and watching \`set -e\
 </details>`,
     tracker: ["Wrote and ran a bash script with a function, a loop, and set -euo pipefail", "Used sed -i with a backup and xargs to bulk-process files", "Forwarded a local port to a lab service with ssh -L and verified it with curl", "Can explain why $var must be quoted and what word-splitting does without quotes", "Can explain the Shellshock bug in one sentence", "Workbench: reproduced word-splitting and glob expansion on an unquoted variable, and saw one filename become two arguments", "Workbench: wrote a hardened scan.sh from scratch with set -euo pipefail, stderr usage guard, distinct exit codes, mktemp + trap, and space-safe quoting", "Workbench: explained ssh -L / -R / -D directions and their abuse, Shellshock in one sentence, and the temp-file TOCTOU race"]
   }, {
+    id: "m11_7",
+    level: 2,
+    num: "M11.7",
+    title: "Passive Reconnaissance — OSINT Before You Touch Anything",
+    objective: "Module 12 teaches you to scan: to send packets at a target and read what comes back. Every one of those packets lands in somebody's log. This module is the half of reconnaissance that comes first and leaves no trace on the target at all — what four public record systems will tell you about an organisation before you touch it, what that costs the organisation, and what a defender can and cannot take back once it is published. MITRE ATT&CK treats this as a tactic in its own right: Reconnaissance, TA0043.",
+    theory: `#### Define the words first
+
+- **Reconnaissance** — gathering information to support targeting. ATT&CK gives it its own tactic, **TA0043**, sitting *before* Initial Access: the work an adversary does while there is still nothing to detect.
+- **Passive** — you read what *third parties* publish about the target. The target's own machines never see you. A domain registry lookup, a certificate transparency search, a cached search result: all passive.
+- **Active** — you send something to infrastructure the target owns and read the reply. A port scan, an HTTP request, a query to *their* authoritative nameserver. It lands in their logs. That is M12.
+- **The test is "whose log does this land in?"** — not "is it loud?" and not "am I using a hacking tool or a browser." Opening the target's homepage in Safari is active reconnaissance. Pulling ten thousand of their hostnames out of a public log is not.
+- **OSINT** — open-source intelligence: intelligence produced from publicly available sources. "Open source" here means *publicly available*; it has nothing to do with open-source software.
+- **Footprint vs attack surface** — the **footprint** is everything discoverable about an organisation: brands, staff, suppliers, email format, hostnames. The **attack surface** is the subset that accepts input from the internet. Passive recon maps the footprint. M12 measures the attack surface.
+- **RDAP** — Registration Data Access Protocol: the structured JSON successor to WHOIS. Same registry data, machine-readable, no scraping of free-text WHOIS output.
+- **Certificate Transparency (CT)** — public, **append-only** logs of publicly-trusted TLS certificates. Chrome has required CT for certificates issued since 30 April 2018, so in practice every cert a browser will accept is published, permanently, together with every hostname on it.
+- **SAN** — Subject Alternative Name: the list of hostnames a single certificate covers. One certificate can name a dozen sites, and CT publishes all of them together, which is how one lookup maps an organisation's whole estate.
+
+#### Why passive comes first
+
+> **Naive: "reconnaissance is the part where you run Nmap."** Fails twice over. First, **you cannot scan what you have not found** — an organisation is rarely one domain, and the hosts that matter are usually the ones nobody linked to. Second, scanning is the first thing that puts you in somebody's log. PTES (M18) splits Intelligence Gathering into a passive and an active half for exactly this reason: the passive half is silent, it is cheap, and it is what tells you *what to scan*. A real engagement exhausts it before sending a single packet.
+
+#### The four public record systems
+
+Everything in this module's lab comes out of these. None of them is owned by the target.
+
+| Layer | Who publishes it | What it gives you | Can the target remove it? |
+|---|---|---|---|
+| **Registry** (RDAP/WHOIS) | domain registries + registrars | registrar, creation date, nameservers, sometimes the registrant org | Partly — registrant details are redacted by default now |
+| **DNS** | the target, via public resolvers | mail provider, SPF/DMARC posture, origin IPs leaked by SPF, verification tokens naming their SaaS | Yes, by publishing less |
+| **Certificate Transparency** | certificate authorities, by rule | every hostname ever put on a public certificate | **No. Ever.** |
+| **The archive** (web.archive.org, search caches) | third-party crawlers | pages, files and staff directories the target has since deleted | No — only the live copy is theirs |
+
+#### Where this sits in ATT&CK
+
+TA0043 is the recon tactic. These are the techniques this module covers, and the one it deliberately does not:
+
+| ID | Technique | What it looks like here |
+|---|---|---|
+| T1589 | Gather Victim Identity Information | staff names, the email-address format, credentials in old breach dumps |
+| T1590 | Gather Victim Network Information | domains, DNS records, IP ranges, the hosting provider |
+| T1591 | Gather Victim Org Information | org chart, suppliers, sites, who signs off on payments |
+| T1592 | Gather Victim Host Information | software and versions, from headers, job ads and error pages |
+| T1593 | Search Open Websites/Domains | search engines, social media, code-hosting sites |
+| T1594 | Search Victim-Owned Websites | their own site: staff directory, job ads, PDFs with metadata |
+| T1596 | Search Open Technical Databases | RDAP, DNS, **certificate transparency**, Shodan and Censys |
+| T1597 | Search Closed Sources | paid intel feeds and criminal markets — money, not skill |
+| T1598 | Phishing for Information | asking a human under a pretext. **This one touches the target.** |
+| T1595 | *Active Scanning* | **not this module.** This is M12, and it is where your packets start landing in their logs |
+
+#### Passive does not mean legal, and it does not mean harmless
+
+- **Reading a public record is lawful. Access without authorisation is not.** That is the line the US **CFAA** and the UK **Computer Misuse Act 1990 (s.1)** actually draw. Nothing in this module's lab requests anything from the target, so nothing in it is unauthorised access — but the moment you follow a hostname you found and log in with credentials from a breach dump, you have crossed into a criminal offence, and "the data was public" is not a defence.
+- **Terms of service are a contract, not criminal law.** Breaking a site's ToS by scraping is not in itself a crime, but it can be a civil matter, it will get your account closed, and on an engagement it can breach the rules of engagement you signed (M18). Do not confuse "not a crime" with "allowed."
+- **The moment you collect names, photos and emails of real people you are processing personal data**, under UK/EU GDPR, *even though every item was public*. On an engagement your lawful basis comes from the contract. On a curiosity project you do not have one. Collect the minimum that answers the question, and delete the rest.
+- **T1598 is where passive ends.** Ringing the help desk to "confirm the VPN portal address" is reconnaissance too, but it is a conversation with a human being at the target, it is logged, it is remembered, and it needs explicit authorisation. M18–M20 handle that side.
+
+#### What a defender can and cannot take back
+
+This is the part that makes M11.7 a blue-team module and not a tourist trip.
+
+- **You cannot unpublish a certificate.** CT logs are append-only and mirrored. If someone once requested a publicly-trusted certificate for \`staging-admin.internal-project.example\`, that hostname is public for good — revoking the certificate does not remove the log entry. The control is therefore **upstream**: keep internal names off publicly-trusted certificates, use a wildcard where a per-host name would leak a project, and run internal-only names off an internal CA.
+- **You can fix what DNS volunteers.** An \`ip4:\` mechanism in an SPF record publishes an origin IP — which quietly undoes a CDN whose entire job is to hide it. A missing DMARC record tells an attacker that a convincing forgery of your domain will be *delivered*, not quarantined. Both are one DNS change.
+- **You can audit what your own site gives away.** Job adverts naming exact product versions, a staff directory with the email format, PDFs carrying author names and internal paths in their metadata (M22), a \`/healthz\` endpoint printing the database hostname. Every one of them is T1592 or T1594 evidence that you published yourself.
+- **You cannot detect any of it.** There is no log line anywhere in your estate for somebody reading a CT log or a cached copy of your old careers page. Your detection story starts at M12's active stage, where there is finally a packet to see. That asymmetry is the whole point: **for passive reconnaissance the only available control is publishing less.**
+
+#### Before you trust anyone's tool list
+
+Every "Top OSINT Tools" article recycles the same names for years after the projects stop moving. Check the repository, not the listicle — the last push date is one request away:
+
+\`\`\`bash
+for r in laramies/theHarvester projectdiscovery/subfinder lanmaster53/recon-ng; do
+  printf '%-28s %s\\n' "$r" "$(curl -s https://api.github.com/repos/$r | jq -r .pushed_at)"
+done
+\`\`\`
+\`\`\`text
+laramies/theHarvester        2026-09-10T01:43:51Z
+projectdiscovery/subfinder   2026-09-11T11:47:13Z
+lanmaster53/recon-ng         2024-11-01T20:11:51Z
+\`\`\`
+
+Your dates will be later than these; the *gap* is the finding. An unmaintained collector is not merely stale — its API integrations rot silently and it returns **empty results that look like a clean target**, which is the worst possible failure mode for a recon tool. That is the same trap as M16's silent log pipeline: no output is not the same as no findings.
+
+#### Vulnerable vs secure code — the endpoint that maps your own estate
+
+\`\`\`javascript
+// Node/Express - VULNERABLE: an unauthenticated health endpoint that publishes the estate
+app.get("/healthz", (req, res) => res.json({
+  status: "ok",
+  version: process.env.APP_VERSION,   // WHY WRONG: tells an attacker exactly which CVEs apply (T1592)
+  db: process.env.DB_HOST,            // WHY WRONG: publishes an internal hostname (T1590)
+  region: process.env.AWS_REGION      // WHY WRONG: narrows where the rest of the estate lives
+}));
+// Crawlers index it, the archive keeps a copy, and you never see the request that read it.
+
+// Node/Express - SECURE: liveness is public, detail is authenticated
+app.get("/healthz", (req, res) => res.json({ status: "ok" }));      // all a load balancer needs
+app.get("/healthz/detail", requireInternalAuth, (req, res) => res.json({
+  version: process.env.APP_VERSION, db: process.env.DB_HOST
+}));
+// WHY IT WORKS: the public answer carries no facts about the estate, and the detailed
+// one is now an ACTIVE request against an authenticated route - it lands in your logs.
+\`\`\`
+
+\`\`\`python
+# Python/Flask - VULNERABLE: same shape
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok", "version": os.environ["APP_VERSION"],
+            "db": os.environ["DB_HOST"]}     # WHY WRONG: one GET returns your internal topology
+
+# Python/Flask - SECURE: split liveness from diagnostics
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+@app.get("/healthz/detail")
+@require_internal_auth
+def healthz_detail():
+    return {"version": os.environ["APP_VERSION"], "db": os.environ["DB_HOST"]}
+# WHY IT WORKS: identical reasoning - the unauthenticated answer is deliberately boring.
+\`\`\``,
+    lab: {
+      mac: `# LAB: four public record systems, zero packets to the target (Apple Silicon)
+# ETHICS: every command below queries a THIRD PARTY - a registry, a public resolver, a
+# CT log API. None of them contacts nmap.org. That is what makes this lawful anywhere,
+# and it is why this lab may use a real organisation where M12 may not.
+# TARGET: nmap.org, the Nmap project's own domain (the same project that publishes
+# scanme.nmap.org for M12). Swap in a domain you own to profile yourself.
+brew install jq          # if you don't have it already
+mkdir -p ~/cyber-journal/m11_7 && cd ~/cyber-journal/m11_7
+
+# --- 1) REGISTRY: RDAP, the structured successor to whois
+curl -sL "https://rdap.org/domain/nmap.org" -o rdap.json
+jq -r '.ldhName + "  [" + (.status | join(", ")) + "]"' rdap.json
+jq -r '.events[] | select(.eventAction | test("registration|expiration|last changed")) | .eventAction + ": " + .eventDate' rdap.json
+jq -r '.entities[] | select(.roles[]? == "registrar") | .vcardArray[1][] | select(.[0] == "fn") | "registrar: " + .[3]' rdap.json
+jq -r '.nameservers[].ldhName' rdap.json | sed 's/^/ns: /'
+
+# --- 2) DNS: ask a RECURSIVE RESOLVER. It answers from cache; the target is not queried.
+dig +short MX  nmap.org | sort -n
+dig +short TXT nmap.org
+
+# --- 3) CERTIFICATE TRANSPARENCY: every publicly-trusted cert, logged forever
+curl -s "https://api.certspotter.com/v1/issuances?domain=nmap.org&include_subdomains=true&expand=dns_names" -o ct.json
+jq -r '.[].dns_names[]' ct.json | sort -u | tee names.txt
+
+# --- 4) CORRELATE: resolve the names you found. Connect to NOTHING.
+grep 'nmap.org$' names.txt | while read -r h; do
+  printf '%-22s %s\\n' "$h" "$(dig +short "$h" | tr '\\n' ' ')"
+done`,
+      windows: `# PowerShell 7 - the same four layers with native cmdlets.
+New-Item -ItemType Directory -Force "$HOME\\cyber-journal\\m11_7" | Out-Null
+Set-Location "$HOME\\cyber-journal\\m11_7"
+
+# 1) REGISTRY (RDAP returns JSON, so PowerShell parses it directly)
+$r = Invoke-RestMethod "https://rdap.org/domain/nmap.org"
+$r.ldhName; $r.status; $r.events | Select-Object eventAction, eventDate
+$r.nameservers.ldhName
+
+# 2) DNS
+Resolve-DnsName nmap.org -Type MX  | Select-Object NameExchange, Preference
+Resolve-DnsName nmap.org -Type TXT | Select-Object -ExpandProperty Strings
+
+# 3) CERTIFICATE TRANSPARENCY
+$ct = Invoke-RestMethod "https://api.certspotter.com/v1/issuances?domain=nmap.org&include_subdomains=true&expand=dns_names"
+$ct.dns_names | Sort-Object -Unique
+
+# 4) CORRELATE
+$ct.dns_names | Sort-Object -Unique | Where-Object { $_ -like "*nmap.org" } | ForEach-Object {
+  "{0,-22} {1}" -f $_, ((Resolve-DnsName $_ -Type A -ErrorAction SilentlyContinue).IPAddress -join ' ')
+}
+# If you prefer the macOS/Linux commands verbatim, run them inside WSL2 instead.`,
+      linux: `# Identical to macOS. Install the two dependencies first:
+sudo apt install -y jq dnsutils curl
+mkdir -p ~/cyber-journal/m11_7 && cd ~/cyber-journal/m11_7
+
+curl -sL "https://rdap.org/domain/nmap.org" -o rdap.json
+jq -r '.entities[] | select(.roles[]? == "registrar") | .vcardArray[1][] | select(.[0] == "fn") | "registrar: " + .[3]' rdap.json
+dig +short TXT nmap.org
+curl -s "https://api.certspotter.com/v1/issuances?domain=nmap.org&include_subdomains=true&expand=dns_names" -o ct.json
+jq -r '.[].dns_names[]' ct.json | sort -u`,
+      expected: {
+        mac: `\`\`\`text
+$ jq -r '.ldhName + "  [" + (.status | join(", ")) + "]"' rdap.json
+nmap.org  [client transfer prohibited]
+
+$ jq -r '.events[] | ...' rdap.json
+expiration: 2029-01-18T05:00:00Z
+registration: 1999-01-18T05:00:00.745Z
+last changed: 2026-08-12T02:58:53.911Z
+
+$ jq -r '.entities[] | ... "registrar: " + .[3]' rdap.json
+registrar: Dynadot Inc
+
+$ jq -r '.nameservers[].ldhName' rdap.json | sed 's/^/ns: /'
+ns: ns1.linode.com
+ns: ns2.linode.com
+ns: ns3.linode.com
+ns: ns4.linode.com
+ns: ns5.linode.com
+
+$ dig +short MX nmap.org | sort -n
+1 ASPMX.L.GOOGLE.COM.
+5 ALT1.ASPMX.L.GOOGLE.COM.
+5 ALT2.ASPMX.L.GOOGLE.COM.
+10 ASPMX2.GOOGLEMAIL.COM.
+10 ASPMX3.GOOGLEMAIL.COM.
+
+$ dig +short TXT nmap.org
+"google-site-verification=SrtYpJGxZzMTcczZG44XtLVK-sEPit9bputDjWc0lF4"
+"v=spf1 a mx ptr ip4:50.116.1.184 ip6:2600:3c01::f03c:91ff:fe98:ff4e ip6:2600:3c01:e000:3e6::6d4e:7061 include:_spf.google.com ~all"
+
+$ jq -r '.[].dns_names[]' ct.json | sort -u | tee names.txt
+insecure.com
+insecure.org
+issues.nmap.com
+issues.nmap.org
+issues.npcap.com
+issues.npcap.org
+nmap.com
+nmap.net
+nmap.org
+npcap.com
+npcap.org
+seclists.com
+seclists.net
+seclists.org
+sectools.com
+sectools.net
+sectools.org
+secwiki.com
+secwiki.net
+secwiki.org
+svn.nmap.org
+www.nmap.org
+
+$ grep 'nmap.org$' names.txt | while read -r h; do ... done
+issues.nmap.org        50.116.1.184
+nmap.org               50.116.1.184
+svn.nmap.org           50.116.1.184
+www.nmap.org           50.116.1.184
+\`\`\`
+
+**Expect different values, not a different shape.** Dates, IP addresses, verification tokens and the certificate's exact name list all drift — this run is from September 2026. What should match is the *structure*: a registrar and a registration date from step 1, a mail provider and an SPF record from step 2, a name list from step 3, and several of those names landing on the same address in step 4.
+
+**Read what each step actually told you.** Step 1: the domain has existed since **1999**, it is parked at Dynadot, and its nameservers are \`*.linode.com\` — so the DNS, and probably the hosting, is Linode rather than anything self-run. Step 2: mail is **Google Workspace** (an attacker now knows exactly which login page a phishing page must imitate, which is T1589 feeding a later T1598), and the SPF record contains \`ip4:50.116.1.184\` — the origin address, volunteered in a DNS record, with a **soft** \`~all\` policy that asks receivers to *deliver* forgeries with a mark rather than reject them. Step 3 is the one that earns the module: a single certificate's SAN list names **four brands in three TLDs each** — insecure.org, seclists.org, sectools.org, secwiki.org — plus \`issues.\` and \`svn.\` hostnames that nothing on the homepage links to. Step 4 corroborates: those hostnames resolve to the *same* address the SPF record already leaked, so two independent public sources agree on one origin.
+
+**Nothing here touched nmap.org.** rdap.org answered from registry data, your resolver answered from cache, and the certificate API answered from a log maintained by certificate authorities. If the Nmap project went looking, there would be no request from you in any log they own — which is the fact the whole module exists to make concrete, and the reason detection cannot be your first control against reconnaissance.
+
+**If the CT step returns nothing:** the unauthenticated API is rate-limited per IP, so a second run within a few minutes can come back empty. Wait, or open **crt.sh** in a browser and search \`%.nmap.org\` for the same data. (crt.sh is the better-known interface and returns far more history, but it answers with 502s under load often enough that a scripted lab should not depend on it.)`
+      }
+    },
+    caseStudy: {
+      title: "Ubiquiti Networks (2015) — $46.7M, and not one packet at the network",
+      body: "In May 2015 an employee in Ubiquiti Networks' finance department received an email that appeared to come from a company executive: Ubiquiti was making an acquisition, and an outside lawyer would follow up with payment instructions. Over the next seventeen days the employee made fourteen wire transfers from a Hong Kong subsidiary to accounts overseas, totalling $46.7 million. The company learned of it on 5 June 2015, when the FBI contacted its CEO, and disclosed it to the SEC that August, recording a $39.1 million charge; only a fraction was ever recovered. The detail that belongs in this module is what the subsequent investigation found: no intrusion had taken place at all. No malware, no exploited service, nothing scanned. Every fact the attacker needed — which subsidiary held money, who authorised payments, who that person reported to, how the company's email addresses were formatted, and that an acquisition was a plausible story — came from public sources: filings, the corporate site, press coverage and staff profiles. Passive reconnaissance was not the prelude to the attack. It was the entire attack, and the only control that would have helped was one that assumed the attacker already knew all of it: a payment process requiring out-of-band confirmation, which is a business control rather than a technical one."
+    },
+    challenges: [{
+      q: "You look up a company's SPF record and find it contains ip4:203.0.113.10, even though every hostname you resolve returns a CDN address. What have you just learned, and what should the company do about it?",
+      a: "You have learned the origin server's real IP address. The CDN exists partly so that attackers can only reach the edge — DDoS protection, WAF rules and rate limits all live there — but SPF must list every IP allowed to send mail on the domain's behalf, and if outbound mail leaves from the origin, publishing it in SPF hands out the address the CDN was hiding. An attacker can then request the site directly from the origin and skip the edge entirely. The fix is to stop sending mail from the origin: route it through the mail provider and reference it with an include: mechanism, which names the provider instead of your own address."
+    }, {
+      q: "Your organisation accidentally requested a publicly-trusted certificate for internal-billing-uat.example.com six months ago. It was revoked the next day. Is the hostname still exposed, and what is the actual remediation?",
+      a: "Yes, permanently. Certificate transparency logs are append-only and mirrored by multiple independent operators — revoking a certificate changes its validity, not the log entry, and there is no mechanism to delete a name once it is published. There is nothing to remediate at the log. The real remediation is upstream and preventive: keep internal hostnames off publicly-trusted certificates (use an internal CA for them), use a wildcard where a per-host public certificate would leak a project name, and monitor CT for your own domains so you find out the same day rather than from a pentest report. Treat the name as known and defend the host as if the address is public — because it is."
+    }, {
+      q: "A colleague argues that pulling every employee's name, role and email address off LinkedIn is fine because 'it is all public anyway'. Give the two separate reasons that is wrong.",
+      a: "First, legally: public availability is not a lawful basis. Collecting names, roles and contact details is processing personal data under UK/EU GDPR regardless of where you found it — on an authorised engagement your basis comes from the contract and the scope, and off one you have none. Second, operationally: the argument confuses 'lawful to read' with 'harmless to aggregate'. Each profile in isolation is trivia; the compiled list is a targeting package — it gives an attacker the email format, the reporting lines and the names to impersonate, which is exactly what turned Ubiquiti's public filings into a $46.7M wire fraud. Aggregation is the harm, which is why the professional standard is to collect the minimum the question needs and delete the rest."
+    }],
+    quiz: ["What is the actual test that separates passive from active reconnaissance, and why is 'it uses a browser' not the test?", "Name the four public record systems from this module and say who publishes each one.", "Why can an organisation never remove a hostname from certificate transparency, and what is the control that works instead?", "What does ip4: in an SPF record give away, and why does that matter to a site behind a CDN?", "Which ATT&CK technique is the boundary where reconnaissance stops being passive, and why?", "Why is 'we saw no reconnaissance in our logs' a meaningless statement?", "Ubiquiti lost $46.7M with no intrusion at all. What does that tell you about which controls stop OSINT-driven attacks?"],
+    workbench: `> **What this trains.** The lab handed you one profile of one domain. Here you read two domains' mail posture against each other until the difference is obvious, then write the collector yourself — with a guard that makes it *structurally incapable* of going active — and finish by turning your findings into the defender's list. Everything queries third parties; nothing in this workbench sends a packet at anybody's target.
+
+#### 🟢 Drill 1 — read two domains' mail posture and say who can be spoofed ~8 min
+
+**Goal.** Pull the SPF record and the DMARC record for \`example.com\` and for \`nmap.org\` (DMARC lives at the \`_dmarc.\` subdomain, not the domain itself). For each, decide three things: would a forged message from this domain be **rejected, delivered-but-marked, or delivered normally**; does the record leak an IP address; and what does the *other* TXT record on the domain tell you about which SaaS products they use.
+
+**Done when.** You can say which of the two domains is safe to spoof, name the single character that decides it, and explain why one of them publishes a null MX.
+
+<details>
+<summary>Nudge — open if you've been stuck more than two minutes</summary>
+
+\`dig +short TXT example.com\` gives the domain's TXT records; \`dig +short TXT _dmarc.example.com\` gives the DMARC policy. In SPF, the qualifier on the final \`all\` mechanism is the whole verdict: \`-all\` is a hard fail, \`~all\` is a soft fail, \`?all\` is neutral. In DMARC, look for \`p=\`.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've run it</summary>
+
+\`\`\`bash
+dig +short TXT example.com
+dig +short TXT _dmarc.example.com
+dig +short TXT nmap.org
+dig +short TXT _dmarc.nmap.org
+\`\`\`
+\`\`\`text
+"_k2n1y4vw3qtb4skdx9e7dxt97qrmmq9"
+"v=spf1 -all"
+
+"v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s"
+
+"google-site-verification=SrtYpJGxZzMTcczZG44XtLVK-sEPit9bputDjWc0lF4"
+"v=spf1 a mx ptr ip4:50.116.1.184 ip6:2600:3c01::f03c:91ff:fe98:ff4e ip6:2600:3c01:e000:3e6::6d4e:7061 include:_spf.google.com ~all"
+
+\`\`\`
+The last command returns **nothing at all**, and that is the finding.
+
+**example.com is the reference implementation.** \`v=spf1 -all\` authorises *no sender whatsoever*, and DMARC says \`p=reject\` with \`sp=reject\` for subdomains and strict alignment on both DKIM and SPF. Its MX record is \`0 .\` — a **null MX** (RFC 7505), the formal way to publish "this domain neither sends nor receives mail." A forged message claiming to come from example.com is rejected by any receiver that checks, which is exactly the posture every domain you own but never send mail from should have. Most organisations own dozens of such domains — defensive registrations, old brands, typo-squat blocks — and leave every one of them wide open.
+
+**nmap.org is the ordinary case.** The SPF record ends in \`~all\`: a **soft** fail, which asks receivers to accept the forgery and mark it rather than reject it, so a spoofed message still has a real chance of landing in an inbox. There is **no DMARC record at all**, so nothing tells receivers what to do about a mismatch and nobody gets a report when one happens. And the record volunteers \`ip4:50.116.1.184\` — the origin address, which step 4 of the lab then saw again under four different hostnames. The single character that decides the verdict is the qualifier on \`all\`: \`-\` or \`~\`.
+
+**The other TXT records are intelligence too.** \`google-site-verification=\` says the organisation uses Google's tooling and that someone there has proved domain ownership to Google; the bare token on example.com is the same kind of artifact. These strings are harmless in themselves and quietly answer the question "which vendor's login page should my phishing site imitate," which is T1589 collected today and used by T1598 next month.
+
+Common wrong attempts: querying \`dig TXT dmarc.example.com\` without the leading underscore and concluding there is no policy (the record is at \`_dmarc.\`); reading \`~all\` as "blocked" because there is *an* \`all\` mechanism present; assuming an empty answer means the query failed rather than that the record genuinely does not exist — re-run it against example.com, which does have one, to prove your command was right.
+</details>
+
+#### 🟡 Build 1 — write a collector that cannot go active ~18 min
+
+**Goal.** From an empty file, write \`footprint.sh\` that takes **one domain** and prints a one-screen passive profile: registrar and registration date from RDAP, the primary MX, the SPF record with an explicit verdict on its policy, any \`ip4:\` it leaks, the DMARC record or its absence, and the certificate-transparency name list. It must use \`set -euo pipefail\`, reject the wrong argument count with usage on **stderr** and exit 2, reject anything that is not a domain with exit 3, clean up its temp directory with a \`trap\`, and survive an API returning nothing without dying. Every command in it must query a third party — no request may go to the domain being profiled.
+
+**Done when.** \`./footprint.sh nmap.org\` and \`./footprint.sh example.com\` both produce a full profile, the two SPF verdicts differ, wrong usage exits 2, \`./footprint.sh "not a domain"\` exits 3, and you can point at each line of your script and name which third party answers it.
+
+<details>
+<summary>Nudge — open if you've been stuck more than three minutes</summary>
+
+\`curl -sfL\` makes curl fail on an HTTP error instead of writing the error page into your file, which is what lets you branch on it. \`grep\` exits 1 when it matches nothing, and under \`set -e\` that kills the script — append \`|| true\` where "no match" is a legitimate answer. A \`case\` statement over the SPF string is the cleanest way to turn \`-all\` / \`~all\` into a verdict. For the domain check, a \`[[ "$d" =~ ... ]]\` regex is enough; you are guarding against typos, not attackers.
+</details>
+
+<details>
+<summary>Walkthrough — open after you've built it</summary>
+
+\`\`\`bash
+cat > footprint.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 1 ]] || { echo "Usage: $0 <domain>" >&2; exit 2; }
+domain="$1"
+[[ "$domain" =~ ^[a-z0-9.-]+\\.[a-z]{2,}$ ]] || { echo "not a domain: $domain" >&2; exit 3; }
+
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+echo "== $domain =="
+
+if curl -sfL --max-time 20 "https://rdap.org/domain/$domain" -o "$tmp/rdap.json"; then
+  jq -r '"registrar:  " + ([.entities[] | select(.roles[]? == "registrar") | .vcardArray[1][] | select(.[0] == "fn") | .[3]] | first // "redacted")' "$tmp/rdap.json"
+  jq -r '"registered: " + ([.events[] | select(.eventAction == "registration") | .eventDate] | first // "unknown")' "$tmp/rdap.json"
+else
+  echo "registrar:  no RDAP answer" >&2
+fi
+
+mx="$(dig +short MX "$domain" | sort -n | head -1)"
+[[ -n "$mx" ]] || mx="none published"
+echo "mail:       $mx"
+
+spf="$(dig +short TXT "$domain" | tr -d '"' | grep '^v=spf1' || true)"
+[[ -n "$spf" ]] || spf="NONE - anyone may spoof this domain"
+echo "spf:        $spf"
+case "$spf" in
+  *" -all"*) echo "spf policy: hard fail (-all) - forged mail is rejected" ;;
+  *"~all"*)  echo "spf policy: SOFT fail (~all) - forged mail is delivered, just marked" ;;
+  *)         echo "spf policy: no terminating all - weakest possible" ;;
+esac
+echo "$spf" | grep -oE 'ip4:[0-9.]+' | sed 's/^/spf leaks:  /' || true
+
+dmarc="$(dig +short TXT "_dmarc.$domain" | tr -d '"' | grep '^v=DMARC1' || true)"
+[[ -n "$dmarc" ]] || dmarc="NONE - SPF alone does not stop display-name spoofing"
+echo "dmarc:      $dmarc"
+
+if curl -sfL --max-time 20 "https://api.certspotter.com/v1/issuances?domain=$domain&include_subdomains=true&expand=dns_names" -o "$tmp/ct.json"; then
+  echo "ct names:"
+  jq -r '.[].dns_names[]' "$tmp/ct.json" | sort -u | sed 's/^/  /'
+else
+  echo "ct names:   no answer from the CT API" >&2
+fi
+EOF
+chmod +x footprint.sh
+
+./footprint.sh nmap.org
+./footprint.sh example.com
+./footprint.sh;                  echo "exit=$?"
+./footprint.sh "not a domain";   echo "exit=$?"
+\`\`\`
+\`\`\`text
+== nmap.org ==
+registrar:  Dynadot Inc
+registered: 1999-01-18T05:00:00.745Z
+mail:       1 ASPMX.L.GOOGLE.COM.
+spf:        v=spf1 a mx ptr ip4:50.116.1.184 ip6:2600:3c01::f03c:91ff:fe98:ff4e ip6:2600:3c01:e000:3e6::6d4e:7061 include:_spf.google.com ~all
+spf policy: SOFT fail (~all) - forged mail is delivered, just marked
+spf leaks:  ip4:50.116.1.184
+dmarc:      NONE - SPF alone does not stop display-name spoofing
+ct names:
+  insecure.com
+  insecure.org
+  issues.nmap.com
+  issues.nmap.org
+  issues.npcap.com
+  issues.npcap.org
+  nmap.com
+  nmap.net
+  nmap.org
+  npcap.com
+  npcap.org
+  seclists.com
+  seclists.net
+  seclists.org
+  sectools.com
+  sectools.net
+  sectools.org
+  secwiki.com
+  secwiki.net
+  secwiki.org
+  svn.nmap.org
+  www.nmap.org
+
+== example.com ==
+registrar:  RESERVED-Internet Assigned Numbers Authority
+registered: 1995-08-14T04:00:00Z
+mail:       0 .
+spf:        v=spf1 -all
+spf policy: hard fail (-all) - forged mail is rejected
+dmarc:      v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s
+ct names:
+  *.example.com
+  example.com
+  example.edu
+  example.net
+  example.org
+  www.example.com
+  www.example.edu
+  www.example.net
+  www.example.org
+
+Usage: ./footprint.sh <domain>
+exit=2
+not a domain: not a domain
+exit=3
+\`\`\`
+Dates, addresses and name lists drift; the two verdict lines and the two exit codes should not.
+
+**The two profiles are a controlled experiment.** Same script, same four record systems, opposite results. example.com publishes a null MX, an SPF record authorising nobody, and a DMARC policy of \`p=reject\` with strict alignment — IANA runs it as a demonstration of what correct looks like, and the profile comes back boring on purpose. nmap.org is what a real working domain looks like: mail on Google Workspace, a soft-fail SPF, no DMARC, an origin IP in the record, and a certificate that quietly names four sibling brands. Neither domain has been attacked, and neither has done anything wrong; the point is that the *difference between them is visible from outside, to anyone, for free*.
+
+**Why \`curl -sfL\` and not \`curl -s\`.** Without \`-f\`, curl writes the server's error page into \`ct.json\` and exits 0 — so your script proceeds happily and \`jq\` chokes on HTML, or worse, prints nothing and you record "no certificates found" for a domain that has hundreds. That is the silent-failure shape from M16 wearing a different hat, and it is why the branch is on curl's exit status rather than on the file being non-empty. The \`|| true\` on the two \`grep\`s is the mirror image: there, a non-zero exit is a legitimate answer ("no SPF record") and must not kill the script.
+
+**The structural guarantee is the real deliverable.** Read the finished script and check every line: \`rdap.org\`, a recursive resolver, \`api.certspotter.com\`. The profiled domain appears only as *data inside a query to somebody else*. That property is what lets you run this against an organisation you have no relationship with — and the moment you add one convenient line (\`curl -I "https://$domain"\` to grab the server header, say), the script becomes active reconnaissance, the requests appear in the target's logs, and it is no longer something you may run without authorisation. **Keep the collector passive and put anything active behind M12's authorisation rules, in a different script with a different name.**
+
+Common wrong attempts: forgetting that DMARC lives at \`_dmarc.$domain\` and reporting every domain as having no policy; using \`grep -c\` and reporting a count where the record's *text* is the finding; letting \`set -e\` kill the run on the first grep that matches nothing; leaving the temp directory behind because cleanup was the last line instead of a \`trap\` (an early \`exit 3\` skips it); and adding a "quick" \`curl\` or \`ping\` against the target for completeness, which silently converts a lawful passive tool into one that needs written permission.
+</details>
+
+#### 🔴 Break & Defend — turn the profile into the defender's list ~14 min
+
+**Goal.** Journal three answers. **(1)** Take five distinct findings from your two profiles. For each: name the ATT&CK technique it falls under, name the specific control that would have prevented or reduced it, and say honestly whether that control is available at all. **(2)** Your organisation asks you to "make sure nobody can enumerate our subdomains from certificate transparency." Write the reply you would actually send. **(3)** Explain why a SOC that reports "no reconnaissance activity detected this quarter" has said nothing, and what it should be measuring instead.
+
+**Done when.** At least one of your five findings has *no* available control and you can say why, your CT reply proposes something other than removal, and your answer to (3) names a measurement rather than a detection.
+
+<details>
+<summary>Walkthrough — open after you've written your answers</summary>
+
+**(1) Five findings, five controls.** *SPF leaking \`ip4:50.116.1.184\`* — T1590, and it is fully fixable: send mail through the provider and reference it with \`include:\`, so no address of yours appears in DNS. *No DMARC record* — T1589/T1598 enablement, fixable in one DNS change: publish \`p=none\` with a reporting address first to see who is already sending as you, then move to \`p=quarantine\` and \`p=reject\` once the legitimate senders are accounted for. *Mail provider identified from MX* — T1591, and this one is **not fixable**: you must publish MX records to receive mail, and they necessarily name your provider. The control moves to the consequence instead — phishing-resistant authentication, so knowing which login page to imitate stops being worth much. *\`issues.\` and \`svn.\` hostnames in CT* — T1596, not removable, so the control is to treat every name in your own CT feed as internet-facing and defend it accordingly. *Registration date and registrar from RDAP* — T1590, inherent to owning a domain; nothing to do, and nothing much gained by an attacker either. **The pattern to take away: roughly half the findings from a passive profile have no removal control at all, and the honest response is to change what an attacker can do with them rather than to pretend they can be taken back.**
+
+**(2) The reply about certificate transparency.** It cannot be done, and the request is aimed at the wrong layer. CT logs are append-only, operated independently and mirrored, Chrome requires certificates to appear in them, and revocation does not remove a log entry. Anything promising to "remove your domains from CT" is either selling nothing or proposing to give up publicly-trusted certificates altogether. What you can offer instead is worth more: **monitor** CT for your own domains so that an unexpected certificate is an alert on the day it is issued (which also catches a mis-issued or fraudulent certificate for your brand, and a shadow-IT team standing up a host you did not know about); **stop putting internal names on public certificates**, running internal-only hosts from an internal CA; use a **wildcard** where per-host names would leak project or customer names; and accept that every public hostname is known, which is an argument for authentication and monitoring at those hosts rather than for hoping nobody finds them. **Obscurity was never the control — but it was quietly load-bearing in a lot of estates, and CT is what took it away.**
+
+**(3) Why "no reconnaissance detected" is empty.** There is nothing to detect. Reading a CT log, an RDAP record, a cached page or a LinkedIn profile produces no event in any system the organisation owns — the queries go to third parties, and the first stage that generates a log line at the target is M12's active scanning, by which point recon is long finished. A SOC reporting zero recon is reporting the absence of a signal it never had. What it can measure is its own **exposure**: how many hostnames appear in CT for our domains, and how many of those did we know about; how many of our domains lack DMARC at \`p=reject\`; how many owned-but-unused domains have a null MX and \`-all\`; how many public endpoints return version or topology detail; how much of our estate appears in breach-credential corpora. Those are countable, they trend over time, and they are things you can actually reduce. **Outside the box:** this is the same inversion as M22's forensics work — when you cannot observe the adversary's action, you measure the state they would be acting on. Recon defence is inventory work, not detection work, and it is why the passive half of PTES (M18) has a defensive twin: profile yourself first, on a schedule, and fix whatever the profile finds before somebody else runs it.
+</details>`,
+    tracker: ["Can state the passive/active test as 'whose log does this land in?' and classify a browser visit correctly", "Pulled a domain's registrar, registration date and nameservers from RDAP", "Read a domain's MX, SPF and DMARC records and stated who could spoof it", "Enumerated an organisation's estate from a certificate transparency log and found hostnames nothing links to", "Correlated a CT name list against DNS and saw two independent sources agree on one origin IP", "Can name the ATT&CK techniques T1589-T1598 and say which one stops being passive", "Can explain why a certificate transparency entry cannot be removed, and name the control that works instead", "Workbench: compared two domains' mail posture and identified the single character that decides the verdict", "Workbench: wrote footprint.sh with usage and domain guards, distinct exit codes, trap cleanup, and no request to the profiled domain", "Workbench: mapped five findings to ATT&CK techniques and identified which ones have no available control"]
+  }, {
     id: "m12",
     level: 2,
     num: "M12",
     title: "Nmap — Network Scanning",
     objective: "Before you attack or defend, you MAP. Learn how port scanning works at the TCP level, how to read results, and — as a developer — write a tiny scanner yourself so you understand what a scan IS. This same recon is what attackers run against your services first.",
     theory: `> ⚖️ **Ethics:** scan ONLY machines you own or have written permission to test. This module uses two safe targets: scanme.nmap.org (Nmap authorizes it) and your own localhost / lab VM. Nothing else.
+
+> **This is the active half.** M11.7 mapped an organisation's footprint out of public records without the target ever seeing a request, which is why it needed no permission. Everything from here on sends packets at somebody's machine and lands in somebody's log — that single difference is what turns the ethics note above from advice into law.
 
 > **Heads-up on "your lab VM."** This module (and Modules 13–14) mention *"your lab VM,"* but you don't build it until **Module 15** — so treat every "lab VM" line as *optional until then*. Nothing here is blocked by that: every step uses an authorized public target (\`scanme.nmap.org\`) or your own \`127.0.0.1\`. If you'd rather have the VM now, you can do Module 15 early — it also gives Windows learners one environment where every later lab runs unchanged.
 
@@ -7013,7 +7477,7 @@ Common wrong attempts: counting failures for all time instead of within a slidin
 #### PTES — the 7 phases
 
 1. **Pre-engagement** — scope, RoE, **written authorization** (legally the most important).
-2. **Intelligence Gathering** — OSINT/recon (M12).
+2. **Intelligence Gathering** — two halves. **Passive** (OSINT) touches nothing the target owns: public records, DNS and certificate transparency, leaked credentials, staff on social media — that is M11.7. **Active** recon does touch it — that is M12. Exhaust the passive half first: it is silent, and it tells you what to scan.
 3. **Threat Modeling** — what's valuable, to whom, how attacked.
 4. **Vulnerability Analysis** — what's weak (M19).
 5. **Exploitation** — prove the risk.

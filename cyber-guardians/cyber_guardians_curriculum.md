@@ -3304,7 +3304,7 @@ In Level 2 you *did* the moves; now you learn the *framework* that turns ad-hoc 
 #### PTES — the 7 phases
 
 1. **Pre-engagement** — scope, **rules of engagement, written authorization**. (Legally the most important phase.)
-2. **Intelligence Gathering** — OSINT and recon (Module 12).
+2. **Intelligence Gathering** — split in two. **Passive** collection (OSINT) touches nothing the target owns: public records, DNS and certificate transparency, leaked credentials, staff on social media. **Active** recon does touch it, and is what Module 12 teaches. A real engagement exhausts the passive half first, because it is silent and because it tells you what to scan.
 3. **Threat Modeling** — what's valuable, to whom, and how it might be attacked.
 4. **Vulnerability Analysis** — what's weak (Module 19).
 5. **Exploitation** — prove the risk is real.

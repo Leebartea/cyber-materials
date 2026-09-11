@@ -618,13 +618,175 @@ def check_counts(name, src, cur):
         real = len([m for m in mods if (m.get("body") or "").strip() and m.get("id") != "m_intro"])
     else:
         real = len([m for m in mods if not str(m.get("id", "")).endswith("roadmap")])
+    # Caught (2026-09): the count was stated four ways and only ONE of them matched a
+    # pattern here, so three claims sat unchecked for the whole production sign-off.
+    # A guard pinned to one phrasing of a claim is a guard pinned to an example.
     claimed = [int(x) for x in re.findall(r"\*\*(\d+) modules\b", src)] + \
-              [int(x) for x in re.findall(r"All (\d+) modules\b", src)]
+              [int(x) for x in re.findall(r"All (\d+) modules\b", src)] + \
+              [int(x) for x in re.findall(r"\*\*(\d+)-module\b", src)] + \
+              [int(x) for x in re.findall(r"across (\d+) modules\b", src)] + \
+              [int(x) for x in re.findall(r"for (\d+) modules\b", src)]
     wrong = [c for c in claimed if c != real]
     if wrong:
         fail(f"{name}: module-count", f"page claims {wrong}, actual is {real}")
     else:
         ok(f"{name}: module-count", f"{real} modules, claims consistent")
+
+
+# ── 5b. cross-references resolve, and point at a module that covers the topic ─
+#
+# Caught: "Intelligence Gathering — OSINT and recon (Module 12)". Module 12 is Nmap:
+# active scanning. It taught no OSINT at all, and the course had no OSINT module to
+# point at. Every check above this one is closed over the repo's own text, so the
+# sentence was self-consistent and the gate stayed green through a production sign-off.
+#
+# Part A (resolution) is mechanical: a pointer must name a module that exists.
+# Part B (topic) cannot be: no regex over the corpus knows that Nmap is not OSINT.
+# So the claim is AUTHORED here — an anchor says "this term belongs to these modules",
+# and any sentence that names the term and also points at a module must point at one of
+# them. That is a human assertion about ownership, which is exactly the thing a
+# text-derived check can never supply. Part C keeps the anchors themselves honest.
+#
+# Adding an anchor is one line. Add one whenever a topic gets its own module, because
+# that is precisely when older cross-references start pointing at the wrong place.
+# Guardians writes both "M12" and "Module 12"; AppSec numbers its modules 7.2 / 7.5.4
+# and never uses the bare-M shorthand — where a bare "M2" is the Apple silicon chip, not
+# a cross-reference. One pattern for both would read the hardware as a dangling pointer.
+MODULE_REF = {
+    "guardians": re.compile(r"\b(?:M|Modules?\s+)(\d+(?:\.\d+)*)\b"),
+    "appsec": re.compile(r"\bModules?\s+(\d+(?:\.\d+)*)\b"),
+}
+
+TOPIC_ANCHORS = {
+    "guardians": {
+        "osint": ["M11.7"],
+        "passive reconnaissance": ["M11.7"],
+        "certificate transparency": ["M11.7"],
+        "rdap": ["M11.7"],
+        "nmap": ["M12", "M11.7"],          # M11.7 names it only as the active counterpart
+        "wireshark": ["M13"],
+        "burp": ["M20"],
+        "att&ck": ["M18.5"],
+        "zero trust": ["M16.5"],
+        "chain of custody": ["M22"],
+    },
+    "appsec": {
+        # 0.5 introduces it hands-on from first principles; 3.2 is the deep dive.
+        # Shared ownership is normal — an anchor that names only one is a false gate.
+        "sql injection": ["3.2", "0.5"],
+        "csrf": ["2.3"],
+        "oauth": ["6.4"],
+        "secrets management": ["8.1"],
+    },
+}
+
+# Sentence-ish. Split only on terminal punctuation FOLLOWED BY SPACE, so that the "."
+# inside a module number ("Module 0.5", "M11.7") never ends a sentence.
+SENTENCE = re.compile(r"(?<=[.!?:])\s+|\n")
+
+# Rows of an inventory — a table row, or a roadmap bullet naming a module — list many
+# topics beside one module number without claiming any of them belongs to it.
+# "- M13: Wireshark" is a title, not a cross-reference, and a tool list separated by
+# middots is not a claim about anything. Anchors do not apply inside these.
+INVENTORY = re.compile(r"^\s*(?:\||[-*]\s*M(?:odule)?s?\.?\s*\d)")
+
+# How close a topic term must sit before the pointer to count as a claim ABOUT it. Two
+# unrelated facts can share a long sentence; a claim and its pointer do not drift apart.
+ANCHOR_WINDOW = 70
+
+# The claim shape this check is a ratchet on: a topic, then a pointer offered as where
+# that topic lives — "OSINT and recon (Module 12)", "certificate transparency — that is
+# M11.7". A pointer in any other position ("you build the VM in Module 15; use
+# scanme.nmap.org") is about sequencing, not coverage, and is deliberately not judged.
+CLAIM_CUE = re.compile(r"(?:\(|\bthat is |\bsee |\bcovered in |\bcomes from |\bis in |\btaught in )$", re.I)
+
+
+def module_numbers(cur):
+    """Every module number a cross-reference may legitimately name, without its M.
+
+    Guardians numbers as M12 / M11.5, AppSec as 7.2 — normalising to the bare number
+    keeps one check honest about both, and picks up m0, whose `num` is "Intro".
+    """
+    nums = set()
+    for m in cur.get("modules", []):
+        n = (m.get("num") or "").lstrip("Mm")
+        if re.fullmatch(r"\d+(\.\d+)*", n):
+            nums.add(n)
+        i = str(m.get("id", ""))
+        if re.fullmatch(r"m\d+([_-]\d+)?", i):
+            nums.add(re.sub(r"[_-]", ".", i[1:]))
+    return nums
+
+
+def check_crossrefs(name, cur):
+    valid = module_numbers(cur)
+    anchors = {t: [o.lstrip("Mm") for o in owners] for t, owners in TOPIC_ANCHORS.get(name, {}).items()}
+    bag = {}
+    for m in cur.get("modules", []):
+        num = (m.get("num") or "").lstrip("Mm")
+        lab = m.get("lab") or {}
+        bag[num] = (" ".join(
+            str(m.get(k) or "") for k in ("title", "objective", "theory", "workbench")
+        ) + " " + " ".join(
+            str(v) for v in (lab.values() if isinstance(lab, dict) else []) if isinstance(v, str)
+        )).lower()
+
+    def resolves(n):
+        # 7.5.4 is a module; 7.5 is the group it belongs to; 3.3.1 is a numbered section
+        # inside module 3.3. All three are real destinations a reader can reach.
+        return (n in valid
+                or any(x.startswith(n + ".") for x in valid)
+                or any(n.startswith(x + ".") for x in valid))
+
+    ref = MODULE_REF[name]
+    dangling, mispointed = [], []
+    for label, md in module_texts(name, cur):
+        for sent in SENTENCE.split(md):
+            hits = list(ref.finditer(sent))
+            if not hits:
+                continue
+            for m in hits:
+                if not resolves(m.group(1)):
+                    dangling.append(f"{label}: {m.group(0)} — {sent.strip()[:70]}")
+            if INVENTORY.match(sent):
+                continue
+            low = sent.lower()
+            for m in hits:
+                if not CLAIM_CUE.search(sent[: m.start()]):
+                    continue
+                # A pointer claims the LAST topic before it. "SQL injection (Module 3.2)
+                # → A05; IDOR/BOLA (Module 3.3)" must not read 3.3 as a claim about SQLi:
+                # 3.2 already answered for it. So the window stops at the previous pointer.
+                prev = max([h.end() for h in hits if h.end() <= m.start()] or [0])
+                before = low[max(prev, m.start() - ANCHOR_WINDOW) : m.start()]
+                for term, owners in anchors.items():
+                    # A term inside a dotted or slashed token (scanme.nmap.org) is a
+                    # hostname, not the subject of a claim.
+                    if not re.search(r"(?<![\w.\-/])" + re.escape(term) + r"(?![\w.\-/])", before):
+                        continue
+                    if m.group(1) not in owners:
+                        mispointed.append(
+                            f"{label}: '{term}' -> {m.group(0)} (owned by {owners}) "
+                            f"— {sent.strip()[:70]}"
+                        )
+
+    # Part C: an anchor is only worth having if its owning module really covers the term.
+    rotted = [
+        f"{term} -> M{o}" for term, owners in anchors.items() for o in owners
+        if o not in bag or term not in bag[o]
+    ]
+
+    problems = []
+    if dangling:
+        problems.append(f"{len(dangling)} pointer(s) to a module that does not exist: {dangling[:3]}")
+    if mispointed:
+        problems.append(f"{len(mispointed)} topic claim(s) pointing at a module that does not teach it: {mispointed[:3]}")
+    if rotted:
+        problems.append(f"{len(rotted)} stale anchor(s) — the owning module no longer contains the term: {rotted[:3]}")
+    if problems:
+        fail(f"{name}: cross-references", "; ".join(problems))
+    else:
+        ok(f"{name}: cross-references", f"all (Module N) pointers resolve; {len(anchors)} topic anchors hold")
 
 
 # ── 6. external URLs still resolve ────────────────────────────────────────────
@@ -804,6 +966,7 @@ def main():
         cur = load_curriculum(name, src)
         if cur:
             check_counts(name, src, cur)
+            check_crossrefs(name, cur)
             check_fences_and_escapes(name, cur)
             check_renders(name, src, cur)
             check_coverage(name, cur)
