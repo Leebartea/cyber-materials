@@ -10782,13 +10782,13 @@ You've been threat-modeling with four questions (what are we building / what can
 
 STRIDE gives you a *systematic* way to not miss a category — it maps almost one-to-one onto the OWASP Top 10 you just learned.
 
-**Then: how do you know you're *done*?** That's **OWASP ASVS 5.0** (Application Security Verification Standard, released May 2025). ASVS is a list of ~350 concrete, testable requirements organized into 14 chapters (auth, session, access control, validation, crypto, etc.) at three levels:
+**Then: how do you know you're *done*?** That's **OWASP ASVS 5.0** (Application Security Verification Standard, released May 2025). ASVS is a list of ~350 concrete, testable requirements organized into 17 chapters (auth, session, access control, validation, crypto, etc.) at three levels:
 
 - **L1** — the baseline every app should meet; testable from outside (black-box).
 - **L2** — the standard target for most apps handling meaningful data (**aim here**).
 - **L3** — high-assurance (payments, health, critical infrastructure).
 
-**How to use it as a developer:** pick a chapter (say, ASVS V6 Session Management), read its L2 requirements, and turn each into a test. "V6.2.1 — session tokens are generated with a CSPRNG" is something you can *verify*, not just hope for. When someone asks "how secure is this app?", "it meets ASVS L2, here's the checklist" is a far stronger answer than "we followed best practices."
+**How to use it as a developer:** pick a chapter (say, ASVS V7 Session Management), read its requirements at your target level, and turn each into a test. "V7.2.3 — reference session tokens are unique and generated with a CSPRNG" is something you can *verify*, not just hope for. (Chapter numbers moved in 5.0 — V7 was V3 in 4.0.3 — so always cite the edition with the number.) When someone asks "how secure is this app?", "it meets ASVS L2, here's the checklist" is a far stronger answer than "we followed best practices."
 
 > **Career note:** "We target ASVS L2 and threat-model with STRIDE" is a sentence that signals maturity in an AppSec interview anywhere in the world. Both are vendor-neutral, globally recognized, and free.
 
@@ -10829,7 +10829,7 @@ The **CWE Top 25 (2025)** is the industry's "most dangerous weaknesses" list. It
 4. Two categories are genuinely new: **A03:2025 Software Supply Chain Failures** (promoted and expanded from the narrower 2021 "vulnerable components") and **A10:2025 Mishandling of Exceptional Conditions** — error/exception paths that fail *open* (grant/allow) instead of *closed* (deny/reject) when something goes wrong, turning a reliability bug into a security bypass.
 5. Examples (2025 numbering): SQL injection (Module 3.2) → **A05** Injection; IDOR/BOLA (Module 3.3) → **A01** Broken Access Control; plaintext-password storage (Module 0.5/Phase 6) → **A04** Cryptographic Failures; reflected XSS (Module 2.2) → **A05** Injection (overlaps A02 Misconfiguration if CSP is missing); CORS misconfig (Module 2.4) → **A02** Security Misconfiguration.
 6. STRIDE = **S**poofing, **T**ampering, **R**epudiation, **I**nformation disclosure, **D**enial of service, **E**levation of privilege. **Elevation of Privilege** maps most directly onto **A01 Broken Access Control** (BFLA, a path to admin, a container escape).
-7. ASVS (Application Security Verification Standard) is ~350 concrete, testable security requirements across 14 chapters. **L1** is the baseline every app should meet, testable from outside (black-box); **L2** is the standard target for most apps handling meaningful data; **L3** is high-assurance (payments, health, critical infrastructure). Most apps handling meaningful data should target **L2**.
+7. ASVS (Application Security Verification Standard) is ~350 concrete, testable security requirements across 17 chapters (5.0 reorganized the 14 chapters of 4.0.3, so requirement numbers are not portable between editions). **L1** is the baseline every app should meet, testable from outside (black-box); **L2** is the standard target for most apps handling meaningful data; **L3** is high-assurance (payments, health, critical infrastructure). Most apps handling meaningful data should target **L2**.
 8. The OWASP Top 10 gives broad **risk categories** for awareness (A01–A10); **CWE** is a precise catalog of *specific* software weaknesses, each with its own ID. Scanners, CVEs, and triagers reference the CWE because it pinpoints the exact flaw pattern found (e.g. "CWE-89 SQL Injection"), whereas an OWASP category like "A05 Injection" is too broad to act on precisely.
 9. Raw CVSS measures severity *in the abstract*, not your actual exposure — a 9.8 in an internal, unreachable component matters less than a 6.5 on your public login page. **EPSS** (Exploit Prediction Scoring System) estimates the probability a CVE will actually be exploited in the next 30 days; **CISA's KEV** catalog lists CVEs with *confirmed* real-world exploitation, which get patched first regardless of CVSS. (Larger teams formalize this further with **SSVC**, a decision tree instead of a single score.)
 </details>
@@ -16966,13 +16966,15 @@ In your journal:
 
 ### 🎯 Concept: agency is the new risk axis
 
-**The shift:** "LLM answers a question" has a bounded blast radius — worst case, it says something wrong or leaks context. **"Agent takes actions"** has an unbounded blast radius bounded only by what its tools can do. The OWASP Agentic Top 10 names the failure modes:
+**The shift:** "LLM answers a question" has a bounded blast radius — worst case, it says something wrong or leaks context. **"Agent takes actions"** has an unbounded blast radius bounded only by what its tools can do. OWASP's **Top 10 for Agentic Applications** (published Dec 2025 by the GenAI Security Project; entries are numbered **ASI01–ASI10**, for *Agentic Security Initiative*) names the failure modes. The ones you meet in this module:
 
-- **Excessive agency** — the agent has more tool access or autonomy than the task requires (a support-ticket bot with \`runShell\` access "just in case").
-- **Tool misuse / tool poisoning** — an attacker manipulates *which* tool gets called, or manipulates a tool's own description/metadata so the agent is tricked into using it wrong (a "confused deputy": the agent has legitimate access, but is fooled into using it on the attacker's behalf).
-- **Memory / state poisoning** — a long-running agent's persistent memory (notes, prior conversation, a vector store) is corrupted with attacker-controlled content that influences *future* decisions, not just the current turn.
-- **Identity & impersonation across agents** — in multi-agent systems, one compromised or malicious agent impersonates another to escalate trust.
-- **Cascading multi-agent failures** — agents that call other agents propagate a single injection through a chain, each hop adding trust it shouldn't.
+- **Excessive agency** — the agent has more tool access or autonomy than the task requires (a support-ticket bot with \`runShell\` access "just in case"). Note this name comes from the *LLM* Top 10 (**LLM03:2026**); the agentic list splits the same concern across **ASI03 Identity & Privilege Abuse** and **ASI10 Rogue Agents**.
+- **Tool misuse / tool poisoning** (**ASI02 Tool Misuse**) — an attacker manipulates *which* tool gets called, or manipulates a tool's own description/metadata so the agent is tricked into using it wrong (a "confused deputy": the agent has legitimate access, but is fooled into using it on the attacker's behalf).
+- **Memory / state poisoning** (**ASI06 Memory & Context Poisoning**) — a long-running agent's persistent memory (notes, prior conversation, a vector store) is corrupted with attacker-controlled content that influences *future* decisions, not just the current turn.
+- **Identity & impersonation across agents** (**ASI03 Identity & Privilege Abuse**, with **ASI07 Insecure Inter-Agent Communication**) — in multi-agent systems, one compromised or malicious agent impersonates another to escalate trust.
+- **Cascading multi-agent failures** (**ASI08 Cascading Failures**) — agents that call other agents propagate a single injection through a chain, each hop adding trust it shouldn't.
+
+The remaining four are **ASI01 Agent Goal Hijack**, **ASI04 Agentic Supply Chain Vulnerabilities**, **ASI05 Unexpected Code Execution**, and **ASI09 Human-Agent Trust Exploitation**. Use the ASI ids when you write a finding: "the OWASP agentic list" is ambiguous, since the same project also publishes a broader T01–T17 threat taxonomy.
 
 **MCP (Model Context Protocol)** is how many agents connect to tools in practice — you met the basics of evaluating third-party MCP servers in Module 7.5.7. Building or wiring up your *own* agent adds sharper risks:
 
@@ -17212,7 +17214,7 @@ Create \`~/appsec-journal/notes/phase-7-5-llm-security.md\` and answer, in your 
 - **The over-scoped \`runShell\` tool, and pasting customer data into an AI tool:** granting a read-only task a \`runShell\` tool means an injected instruction (from a document the agent reads, an untrusted tool description, anything the model treats as context) can escalate straight to arbitrary command execution — the fix is least privilege: don't grant the tool at all if the task never needs it, and gate any genuinely high-impact tool behind human approval rather than trusting the model's judgment. Separately, pasting real customer data into an AI coding assistant is a problem even with a "we don't train on your data" promise because: retention policies still mean the data is *stored* somewhere outside your control and could be exposed in a breach of the AI vendor; your company's data-processing agreements or regulations (GDPR/CCPA/HIPAA) may flatly prohibit sending that data to a third party regardless of training use; and even a single transmission is a data-exfiltration event you can't undo. Use synthetic or anonymized data instead.
 
 </details>`,
-    tracker: ["Can explain why agency (not just generation) is the new risk axis for LLM applications", "Can name at least three OWASP Agentic Top 10 failure modes (excessive agency, tool/description poisoning, memory poisoning, cross-agent impersonation, cascading failures)", "Built the local readFile/runShell agent lab and watched an injected document trigger the dangerous tool call", "Fixed it with a narrower tool set, an allow-list, and a human-approval gate — not a better prompt", "Can name ISO/IEC 42001 and the EU AI Act at breadth level", "Wrote the Phase 7.5 deliverable journal entry", "Answered the knowledge check", "Workbench: exploited an agent's over-privileged read_file tool as a confused deputy (alice's agent read bob's secret), then scoped the tool to the caller so the injection can't exceed the user's reach", "Workbench: journalled why model-refusal isn't a control, tool-description injection, and the assume-the-model-is-compromised agentic doctrine"]
+    tracker: ["Can explain why agency (not just generation) is the new risk axis for LLM applications", "Can name at least three entries from the OWASP Top 10 for Agentic Applications by their ASI id (ASI02 tool misuse, ASI03 identity and privilege abuse, ASI06 memory and context poisoning, ASI07 insecure inter-agent communication, ASI08 cascading failures)", "Built the local readFile/runShell agent lab and watched an injected document trigger the dangerous tool call", "Fixed it with a narrower tool set, an allow-list, and a human-approval gate — not a better prompt", "Can name ISO/IEC 42001 and the EU AI Act at breadth level", "Wrote the Phase 7.5 deliverable journal entry", "Answered the knowledge check", "Workbench: exploited an agent's over-privileged read_file tool as a confused deputy (alice's agent read bob's secret), then scoped the tool to the caller so the injection can't exceed the user's reach", "Workbench: journalled why model-refusal isn't a control, tool-description injection, and the assume-the-model-is-compromised agentic doctrine"]
   },
   {
     id: "p8_roadmap",
@@ -18404,7 +18406,7 @@ OCI runtime exec failed: exec failed: unable to start container process:
 exec: "whoami": executable file not found in $PATH
 
 appsec-lab:hardened (debian 12.13)
-Total: 6 (HIGH: 5, CRITICAL: 1)
+Total: 6 (HIGH: 6)
 \`\`\`
 
 **Read both of those surprises carefully — neither is a mistake in your build.**
@@ -18431,9 +18433,11 @@ The bad image prints an **empty** line — no \`USER\` declared means root. The 
 **2. It is 6, not 0.** CVEs dropped from **342 to 6** — a 98% reduction — but "distroless" does not mean "empty": it still contains a minimal Debian userland, and all six findings here are in a single package, \`libssl3\` (OpenSSL), every one of them with a fixed version already published:
 
 \`\`\`
-│ libssl3 │ CVE-2026-31789 │ CRITICAL │ fixed │ 3.0.18-1~deb12u2 │ 3.0.19-1~deb12u2 │
+│ libssl3 │ CVE-2026-31789 │ HIGH     │ fixed │ 3.0.18-1~deb12u2 │ 3.0.19-1~deb12u2 │
 │         │ CVE-2026-28387 │ HIGH     │       │                  │                  │
 \`\`\`
+
+Both were fixed in Debian by the same advisory, DSA-6201-1. Note the severity is a *scanner's* opinion, not a fact about the bug: OpenSSL upstream rates both of these **Low** (CVE-2026-28387 needs a DANE-validating client and an unusual TLSA RRset), while NVD scores CVE-2026-28387 at 8.1 HIGH. That gap is the same lesson as the three npm/trivy/osv totals earlier — when a scanner and a vendor disagree, read the preconditions before you page anyone.
 
 That \`Fixed Version\` column is the actionable part: the remedy is to rebuild on a current base tag, not to abandon distroless. **Treat "hardened" as a floor that must be re-scanned, not a state you reach once** — a base image is a dependency like any other (Module 7.2), and it decays on exactly the same schedule. Your own numbers will differ from these and will drift upward between rebuilds; that drift is the signal to rebuild.
 
@@ -19686,7 +19690,7 @@ Steal the structure from the finding format in this module: one line per field. 
 \`\`\`text
 TITLE:        Broken object-level authorization on GET /api/invoices/:id (IDOR/BOLA)
 SEVERITY:     High  (authenticated cross-tenant read of financial data)
-OWASP:        API1:2023 Broken Object Level Authorization / A01:2021 Broken Access Control
+OWASP:        API1:2023 Broken Object Level Authorization / A01:2025 Broken Access Control
 EVIDENCE:     Logged in as user 7 (org A). GET /api/invoices/1042 -> 200 + org B's invoice.
               Changing only the id 1042->1043 returns a different org's invoice.
 IMPACT:       Any authenticated user can read every invoice in the system by enumerating the

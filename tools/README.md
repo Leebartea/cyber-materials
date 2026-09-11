@@ -120,11 +120,23 @@ quantities, legal deadlines, "by default", "according to". It decides **nothing*
 it just cuts the review from 13k lines to a few hundred sentences, tagged by class
 so they can be adjudicated in batches.
 
-The `attack-ids` gate check is the enforcement half: `tools/attack_ids_verified.json`
-records every technique id checked against MITRE's STIX bundle and when, so a newly
-added id fails the gate until a human verifies it too. Regenerate that table from
-`mitre-attack/attack-stix-data` — not from `attack.mitre.org`, which is GitHub Pages
-and unreachable from some networks.
+Two gate checks are the enforcement half, both built on the same idea: the gate
+cannot judge truth, so it enforces that a lookup was *written down*.
+
+- **`attack-ids`** — `tools/attack_ids_verified.json` records every technique id
+  checked against MITRE's STIX bundle and when, so a newly added id fails the gate
+  until a human verifies it too. Regenerate that table from
+  `mitre-attack/attack-stix-data` — not from `attack.mitre.org`, which is GitHub
+  Pages and unreachable from some networks.
+- **`claims-ledger`** — every `CVE-…` a course teaches must appear in that course's
+  `CLAIMS.md`, and the ledger must declare a `**Last pass:**` date. CVEs get this
+  treatment because each one is a bundle of external facts (real? revoked? that
+  severity? that fixed version?) sitting inside copy-pasteable scanner output a
+  learner will trust — and both Batch 1 passes found a defect of exactly that
+  shape. Adding a CVE to a course now fails the gate until you adjudicate it.
+
+Neither check can tell you a row is *correct*. They tell you a row **exists**. The
+truth still comes from the source named in it.
 
 ### Deliberate non-failures
 

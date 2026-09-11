@@ -34,6 +34,11 @@ COURSES = {
     "appsec": os.path.join(REPO, "cyber-full stack", "full_stack_appsec_app.html"),
     "guardians": os.path.join(REPO, "cyber-guardians", "cyber_guardians_app.html"),
 }
+# One claim ledger per course — what a source lookup settled, and when.
+CLAIMS = {
+    "appsec": os.path.join(REPO, "cyber-full stack", "CLAIMS.md"),
+    "guardians": os.path.join(REPO, "cyber-guardians", "CLAIMS.md"),
+}
 
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
@@ -570,6 +575,33 @@ BANNED = [
      "hashcat v7 mode 34000 parses argon params as m,t,p but the node argon2 lib "
      "emits m,p,t — feeding the raw ~/argonhash.txt reports 0 cracked (not a crack); "
      "reorder to ~/argonhash.hc first", "A20"),
+    # A37-A41 are the AppSec CLAIMS.md Batch 1 fixes. Every one of them was a
+    # well-formed sentence naming a real standard, which is why nothing else in
+    # this gate could see it; only a source lookup could. See
+    # `cyber-full stack/CLAIMS.md` rows 4, 6, 7, 24, 31.
+    (r"\bA\d{2}:2021\b",
+     "superseded OWASP Top 10 edition numbering — the 2021 list was replaced by "
+     "Top 10:2025 (purged at 173a31d; one survivor found in M10.1's capstone "
+     "walkthrough at the Batch 1 claims pass). Cite A__:2025", "A37"),
+    (r"\b14 chapters\b",
+     "ASVS 5.0 has 17 chapters (V1 Encoding and Sanitization .. V17 WebRTC); 14 is "
+     "the 4.0.3 count. Verified against the v5.0.0 flat JSON in OWASP/ASVS", "A38",
+     # Acquit on the full phrase, not on a bare "4.0.3" — the edition number also
+     # appears in neighbouring prose, and inside the 900-char window that was
+     # enough to excuse a genuinely wrong "ASVS 5.0 has 14 chapters" sentence.
+     "chapters of 4.0.3"),
+    (r"\bV6 Session Management\b|\bV6\.2\.1\b",
+     "ASVS V6 is Authentication in 5.0 and Stored Cryptography in 4.0.3 — Session "
+     "Management is V7 (5.0) or V3 (4.0.3), and V6.2.1 exists in no edition. The "
+     "CSPRNG session-token requirement is V7.2.3, and it is L1, not L2", "A39"),
+    (r"Agentic Top 10",
+     "no OWASP publication has that name. It is the `OWASP Top 10 for Agentic "
+     "Applications` (GenAI Security Project, Dec 2025), numbered ASI01-ASI10 — and "
+     "`excessive agency` belongs to the LLM list (LLM03:2026), not to it", "A40"),
+    (r"CVE-2026-31789[^\n]*CRITICAL",
+     "no vendor rates CVE-2026-31789 Critical — OpenSSL upstream and Red Hat rate it "
+     "Low, SUSE `important`. A trivy fixture that inflates a real CVE's severity is "
+     "the same defect class as inventing one", "A41"),
 ]
 
 
@@ -645,6 +677,46 @@ def check_attack_ids(name, src):
         return
     ok(f"{name}: attack-ids",
        f"{len(used)} technique ids, all verified {table.get('_verified', '?')}")
+
+
+def check_claims_ledger(name, src):
+    """Every CVE the course teaches must be adjudicated in that course's CLAIMS.md.
+
+    Same contract as check_attack_ids, one class along: no regex can tell whether
+    CVE-2026-31789 is really CRITICAL, or whether CVE-2026-69246 exists at all.
+    Only a lookup can, and the ledger is where a lookup is recorded. So the gate
+    enforces the one thing it *can* see — that a lookup was written down — and a
+    newly-taught CVE fails until someone adds its row.
+
+    CVEs are the strictest identifier class the courses carry: each one is a
+    single external fact (real / not revoked / that severity / that fixed
+    version) sitting inside copy-pasteable scanner output a learner will trust.
+    Both Batch 1 passes found a defect of exactly that shape.
+    """
+    ledger = CLAIMS.get(name)
+    if not ledger or not os.path.exists(ledger):
+        fail(f"{name}: claims-ledger", f"missing {ledger}")
+        return
+    with open(ledger, encoding="utf-8") as fh:
+        text = fh.read()
+    m = re.search(r"\*\*Last pass:\*\*\s*(\d{4}-\d{2}-\d{2})", text)
+    if not m:
+        fail(f"{name}: claims-ledger", f"{ledger} declares no `**Last pass:**` date")
+        return
+    used = sorted(set(re.findall(r"\bCVE-\d{4}-\d{4,7}\b", src)))
+    missing = [c for c in used if c not in text]
+    if missing:
+        fail(f"{name}: claims-ledger",
+             f"{len(missing)} CVE(s) taught but not adjudicated in {os.path.basename(ledger)} "
+             f"({', '.join(missing)}) — verify each against NVD/GHSA and add a row "
+             f"before teaching it")
+        return
+    # Count only the adjudicated rows, not the batch-plan table that precedes
+    # them — both are numbered markdown tables, so anchor on the Batch heading.
+    body = text.split("\n## Batch 1", 1)[-1].split("\n## ", 1)[0]
+    rows = len(re.findall(r"^\| \d+ \| ", body, re.M))
+    ok(f"{name}: claims-ledger",
+       f"{rows} adjudicated rows, last pass {m.group(1)}; all {len(used)} taught CVEs covered")
 
 
 def check_attack_table_rot(sources):
@@ -1039,6 +1111,7 @@ def main():
         check_banned(name, src)
         check_rg_equivalence(name, src)
         check_attack_ids(name, src)
+        check_claims_ledger(name, src)
         cur = load_curriculum(name, src)
         if cur:
             check_counts(name, src, cur)
