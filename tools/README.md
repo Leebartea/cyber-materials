@@ -29,6 +29,8 @@ each function in the script names the defect it guards.
 | `rg-vs-grep` | The course called `rg` and `grep -r` identical. They are not — `rg` skips hidden files and `.gitignore`'d paths, silently missing `.env` |
 | `expected-output coverage` | The headline finding: most runnable command blocks showed the learner no expected result, so they had nothing to compare their terminal against |
 | `urls: reachability` | Two 404s had silently broken labs (the M6.1 wordlist, the M7.1 osv-scanner installer) |
+| `attack-ids` | A MITRE ATT&CK technique id the course teaches that no claims pass ever verified — a mistyped or retired id looks exactly like a correct one |
+| `attack-ids: table rot` | A verified id no course mentions any more, so the table cannot decay into decoration |
 
 ### How expected-output coverage is measured
 
@@ -97,6 +99,32 @@ after touching any classification logic**. It has already caught two real bugs i
 classifier itself: an ordering mistake that filed a result-showing script as an exempt
 listing, and a `cat > file <<'EOF'` heredoc being graded as a gap when it is silent by
 nature.
+
+## `claims_extract.py` — candidate claims for the ledger
+
+The gate proves the courses are *structurally* sound. It cannot prove a sentence is
+**true**, and a well-formed sentence citing a real standard is exactly what a stale
+fact looks like. `CLAIMS.md` (one per course) is where truth is tracked; this script
+is step 1 of building it.
+
+```bash
+python3 tools/claims_extract.py guardians --list          # module inventory
+python3 tools/claims_extract.py guardians                 # all candidates, grouped
+python3 tools/claims_extract.py guardians m18_5 m11_7     # only these modules
+python3 tools/claims_extract.py appsec --json out.json    # machine-readable
+```
+
+It finds sentences that assert something a source or a command could settle —
+CVE/CWE/ATT&CK/OWASP/RFC/NIST/ISO/PCI identifiers, versions, dates, ranks, ports,
+quantities, legal deadlines, "by default", "according to". It decides **nothing**;
+it just cuts the review from 13k lines to a few hundred sentences, tagged by class
+so they can be adjudicated in batches.
+
+The `attack-ids` gate check is the enforcement half: `tools/attack_ids_verified.json`
+records every technique id checked against MITRE's STIX bundle and when, so a newly
+added id fails the gate until a human verifies it too. Regenerate that table from
+`mitre-attack/attack-stix-data` — not from `attack.mitre.org`, which is GitHub Pages
+and unreachable from some networks.
 
 ### Deliberate non-failures
 

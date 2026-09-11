@@ -23,6 +23,7 @@ import os
 import re
 import shutil
 import subprocess
+import socket
 import sys
 import tempfile
 import urllib.error
@@ -611,6 +612,58 @@ def check_rg_equivalence(name, src):
 
 
 # ── 5. counts stay honest ─────────────────────────────────────────────────────
+ATTACK_TABLE = os.path.join(REPO, "tools", "attack_ids_verified.json")
+
+
+def check_attack_ids(name, src):
+    """Every MITRE ATT&CK id taught must be one a claims pass actually verified.
+
+    Like TOPIC_ANCHORS, the table is an authored assertion, not a derivation: no
+    regex can know whether T1543 is a real technique or a typo for T1534. The
+    table records what was checked against MITRE's STIX bundle and when, so a
+    newly-added id fails the gate until someone verifies it too.
+
+    Part B is the anti-rot half — an id in the table that no course mentions any
+    more is dead weight and says so, exactly as the cross-reference anchors do.
+    """
+    if not os.path.exists(ATTACK_TABLE):
+        fail(f"{name}: attack-ids", f"missing {ATTACK_TABLE}")
+        return
+    with open(ATTACK_TABLE, encoding="utf-8") as fh:
+        table = json.load(fh)
+    known = table.get("techniques", {})
+    used = set(re.findall(r"\bT\d{4}(?:\.\d{3})?\b", src))
+    if not used:
+        ok(f"{name}: attack-ids", "course teaches no ATT&CK technique ids")
+        return
+    unverified = sorted(used - set(known))
+    if unverified:
+        fail(f"{name}: attack-ids",
+             f"{len(unverified)} technique id(s) not in the verified table "
+             f"({', '.join(unverified)}) — check them against MITRE's STIX bundle "
+             f"and record the result in CLAIMS.md before teaching them")
+        return
+    ok(f"{name}: attack-ids",
+       f"{len(used)} technique ids, all verified {table.get('_verified', '?')}")
+
+
+def check_attack_table_rot(sources):
+    """An entry no course uses any more is decoration; say so rather than carry it."""
+    if not os.path.exists(ATTACK_TABLE):
+        return
+    with open(ATTACK_TABLE, encoding="utf-8") as fh:
+        known = json.load(fh).get("techniques", {})
+    seen = set()
+    for src in sources:
+        seen |= set(re.findall(r"\bT\d{4}(?:\.\d{3})?\b", src))
+    stale = sorted(set(known) - seen)
+    if stale:
+        warn("attack-ids: table rot",
+             f"{len(stale)} verified id(s) no longer taught anywhere ({', '.join(stale)}) — drop them")
+    else:
+        ok("attack-ids: table rot", f"all {len(known)} verified ids still in use")
+
+
 def check_counts(name, src, cur):
     """Caught: 'ps60 modules' after the real count had drifted to 64."""
     mods = cur.get("modules", [])
@@ -823,6 +876,19 @@ def is_probeable(u: str) -> bool:
     return "." in host and len(host) > 3  # needs a real dotted hostname
 
 
+GITHUB_PAGES_IPS = ("185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153")
+
+
+def _is_github_pages(url):
+    """True if the host resolves to GitHub Pages (by address or CNAME)."""
+    host = url.split("//", 1)[-1].split("/", 1)[0]
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    return any(i[4][0] in GITHUB_PAGES_IPS for i in infos)
+
+
 def check_urls(sources):
     """Caught: two 404s that silently broke labs (A1, A9). Anything a learner is
     told to download or visit must still exist."""
@@ -865,9 +931,18 @@ def check_urls(sources):
     if dead:
         fail("urls: reachability", f"{len(dead)} DEAD of {len(urls)}: {dead[:4]}")
     elif soft:
+        # Diagnosed 2026-09-11: a connection-level error on a GitHub Pages host is
+        # almost always the *network path*, not a dead site — attack.mitre.org and
+        # dfir.science both CNAME to Pages and both fail here, while non-Pages hosts
+        # answer normally and pages.github.com itself is unreachable. Saying so stops
+        # the next pass from re-running the same investigation.
+        pages = [s for s in soft if s.startswith("ERR") and _is_github_pages(s.split(" ", 1)[-1])]
+        hint = (f"; {len(pages)} of them are GitHub Pages hosts, which this network cannot "
+                f"reach at all (verify from elsewhere, or use raw.githubusercontent.com)"
+                if pages else "")
         warn("urls: reachability",
-             f"{len(urls) - len(soft)}/{len(urls)} verified; {len(soft)} bot-blocked or "
-             f"throttled (check by hand): {soft[:3]}")
+             f"{len(urls) - len(soft)}/{len(urls)} verified; {len(soft)} bot-blocked, "
+             f"throttled or unroutable (check by hand){hint}: {soft[:3]}")
     else:
         ok("urls: reachability", f"all {len(urls)} external URLs resolve")
 
@@ -963,6 +1038,7 @@ def main():
         check_offline(name, src)
         check_banned(name, src)
         check_rg_equivalence(name, src)
+        check_attack_ids(name, src)
         cur = load_curriculum(name, src)
         if cur:
             check_counts(name, src, cur)
@@ -970,6 +1046,8 @@ def main():
             check_fences_and_escapes(name, cur)
             check_renders(name, src, cur)
             check_coverage(name, cur)
+
+    check_attack_table_rot(sources)
 
     if not args.no_net:
         check_urls(sources)

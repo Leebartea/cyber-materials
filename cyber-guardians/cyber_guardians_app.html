@@ -3276,7 +3276,7 @@ Every one of these is an availability control, and every one of them belongs in 
 
 ### Media sanitization — why "delete" is not "erase"
 
-**NIST SP 800-88 Rev 1** is the reference, and it defines three levels:
+**NIST SP 800-88 Rev 2** (September 2025) is the reference, and it defines three levels. Rev 1 is the version most vendor pages and disposal contracts still cite — NIST withdrew it the day Rev 2 published, so a policy naming Rev 1 is pointing at a withdrawn document. The three levels below are unchanged; what Rev 2 adds is the demand that you *validate* the sanitization rather than trust that the command worked:
 
 | Level | What it means | Typical technique | When it is enough |
 |---|---|---|---|
@@ -3292,7 +3292,7 @@ Second, **overwriting is unreliable on flash.** SSDs and phones use wear levelli
 
 - **NIST CSF 2.0 → PROTECT**, and specifically the physical access-control and platform-integrity outcomes; environmental failures land under RECOVER (M23.5).
 - **ISO/IEC 27001:2022** gives physical security an entire Annex A theme — **A.7, "Physical controls"** (A.7.1–A.7.14: secure areas, physical entry, protecting against physical and environmental threats, working in secure areas, clear desk and clear screen, equipment siting, supporting utilities, cabling, maintenance, off-site assets, and secure disposal or re-use of equipment). If you want the checklist version of this module, that is it.
-- **CIS Controls v8.1 deliberately does not cover physical security** — its scope note says so explicitly. That is worth knowing precisely so you do not mistake "we implement CIS v8.1" for "physical is handled": the framework you chose defines what you are allowed to notice, which is the same lesson scanners taught in M19.
+- **CIS Controls v8.1 has no physical-security control** — its 18 Controls are activity-based and digital; facility access, visitor handling and physical access logs simply have no Safeguard to land on, which is why CIS-to-CMMC mappings show physical as an uncovered gap. That is worth knowing precisely so you do not mistake "we implement CIS v8.1" for "physical is handled": the framework you chose defines what you are allowed to notice, which is the same lesson scanners taught in M19.
 - Exam-wise: Security+ covers physical controls in Domain 1 and 2, and CISSP gives it two homes — Domain 3 (site and facility design) and Domain 7 (physical security operations).`,
     lab: {
       mac: `# LAB: Physical security — audit what survives losing the laptop, then prove that
@@ -4305,7 +4305,7 @@ def encrypt_secure(plain: bytes) -> bytes:
 
 The encryption protecting the internet (RSA, ECDH key exchange, ECDSA signatures) relies on math a large **quantum computer** could break. It doesn't exist at scale yet, but **"harvest now, decrypt later"** means adversaries record encrypted data today to crack later — so long-lived secrets are already at risk.
 
-The response is real and standardized. In **August 2024** NIST finalized the first post-quantum algorithms: **FIPS 203 (ML-KEM)** for key exchange, **FIPS 204 (ML-DSA)** and **FIPS 205 (SLH-DSA)** for signatures (**HQC** was added as a backup in March 2025). Governments have set deadlines to retire classical algorithms (US: deprecate by **2030**, disallow by **2035**), and modern TLS 1.3 already negotiates **hybrid** key exchange (classical + ML-KEM together).
+The response is real and standardized. In **August 2024** NIST finalized the first post-quantum algorithms: **FIPS 203 (ML-KEM)** for key exchange, **FIPS 204 (ML-DSA)** and **FIPS 205 (SLH-DSA)** for signatures. A fifth algorithm, **HQC**, was *selected* in March 2025 as a code-based backup to ML-KEM — selected is not the same as standardized: its FIPS is still unpublished, so the three above are what you can actually deploy today. Governments have set deadlines to retire classical algorithms (US: deprecate by **2030**, disallow by **2035**), and modern TLS 1.3 already negotiates **hybrid** key exchange (classical + ML-KEM together).
 
 **What a defender needs to know:** you won't implement these, but you should (1) recognize the terms ML-KEM / post-quantum / crypto-agility, (2) understand that keeping crypto libraries current is a security control because it's how the hybrid algorithms reach you, and (3) know the migration is a live project, not science fiction.`,
     lab: {
@@ -11293,7 +11293,7 @@ There is no wrong answer. Every path is well-compensated, in-demand, and respect
 
 ### Mapping yourself to real job roles — the NICE Framework
 
-Certifications prove skills; the **NIST NICE Workforce Framework** (Components v2.0.0, March 2025) names the **jobs** those skills add up to. Employers worldwide describe openings in NICE terms, so knowing your target **work role** turns "I know security stuff" into "I'm targeting the Cyber Defense Analyst role." A few roles this course prepares you for:
+Certifications prove skills; the **NIST NICE Workforce Framework** (Components v2.2.0, April 2026) names the **jobs** those skills add up to. Employers worldwide describe openings in NICE terms, so knowing your target **work role** turns "I know security stuff" into "I'm targeting the Cyber Defense Analyst role." A few roles this course prepares you for:
 
 | NICE work role | What they do | Course modules that build it | Certs that signal it |
 |---|---|---|---|
