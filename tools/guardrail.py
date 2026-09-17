@@ -602,6 +602,35 @@ BANNED = [
      "no vendor rates CVE-2026-31789 Critical — OpenSSL upstream and Red Hat rate it "
      "Low, SUSE `important`. A trivy fixture that inflates a real CVE's severity is "
      "the same defect class as inventing one", "A41"),
+    # --- Batch 2 of the claim ledgers (rank claims). Unlike the Batch 1 defects,
+    # every one of these is a fixed string, so a guard can hold it down.
+    (r"most common full-stack language",
+     "Node is a runtime, not a language, and the Intro says `pairing`. Stack "
+     "Overflow 2025 ranks Node.js first among web technologies (48.7%) — the rank "
+     "is fine, the noun was not (AppSec ledger row 34)", "A42"),
+    (r"fastest-growing attack class",
+     "A03:2025 Software Supply Chain Failures has the FEWEST occurrences in OWASP's "
+     "collected data and placed on survey strength; the sourceable superlative is "
+     "`highest debut in the list's history` (AppSec ledger row 35)", "A43"),
+    (r"single most common cyberattack",
+     "the rank inverted: DBIR 2026 puts vulnerability exploitation first at 31%, "
+     "ahead of credential abuse and phishing. Teach the human-element share (62%), "
+     "which does not depend on a ranking (Guardians ledger row 36)", "A44"),
+    (r"TryHackMe\s+['\"]?Pro Hacker",
+     "Pro Hacker is a HackTheBox rank (>45% of active content owned). TryHackMe "
+     "uses 21 numbered levels, 0x1 Neophyte upward, and has no such rank "
+     "(Guardians ledger row 37)", "A45"),
+    (r"most common bug in real bug-bounty",
+     "no published source ranks IDOR first; HackerOne's platform data puts XSS top. "
+     "Hedged phrasing is fine — the unhedged #1 is the defect (Guardians row 38)", "A46"),
+    (r"one of the largest DDoS attacks ever seen",
+     "Dyn (2016) was the largest measured AT THE TIME; the record is now 31.4 Tbps "
+     "(Q4 2025) and 1 Tbps+ attacks are routine. Bind a time-bound superlative in "
+     "the sentence (Guardians ledger row 42)", "A47"),
+    (r"launched a 1\.2 Tbps",
+     "Dyn never confirmed a figure, reporting only `up to 50x normal` packet flow. "
+     "1.2 Tbps is a third-party estimate and must be attributed as one "
+     "(Guardians ledger row 42)", "A48"),
 ]
 
 
@@ -711,12 +740,40 @@ def check_claims_ledger(name, src):
              f"({', '.join(missing)}) — verify each against NVD/GHSA and add a row "
              f"before teaching it")
         return
-    # Count only the adjudicated rows, not the batch-plan table that precedes
-    # them — both are numbered markdown tables, so anchor on the Batch heading.
-    body = text.split("\n## Batch 1", 1)[-1].split("\n## ", 1)[0]
-    rows = len(re.findall(r"^\| \d+ \| ", body, re.M))
+    # Count only the adjudicated rows, not the batch-plan table in Coverage that
+    # precedes them — both are numbered markdown tables, so anchor on the Batch
+    # headings. Every `## Batch N` section counts, or the total silently freezes
+    # at Batch 1 while the ledger grows underneath it.
+    batches = re.split(r"^## Batch \d+", text, flags=re.M)[1:]
+    rows = sum(len(re.findall(r"^\| \d+ \| ", b.split("\n## ", 1)[0], re.M))
+               for b in batches)
+    # The row numbers are a single sequence across batches; a duplicate means a
+    # batch was numbered from 1 again and two different claims share an id.
+    nums = [int(n) for b in batches
+            for n in re.findall(r"^\| (\d+) \| ", b.split("\n## ", 1)[0], re.M)]
+    dupes = sorted({n for n in nums if nums.count(n) > 1})
+    if dupes:
+        fail(f"{name}: claims-ledger",
+             f"duplicate row number(s) {dupes} in {ledger} — row ids must be a "
+             f"single sequence across batches so a row can be cited unambiguously")
+        return
+    # `PENDING` is a legitimate state *during* a pass and a lie after it: a row
+    # that says "not searched this pass" is an unverified claim still being
+    # taught. Batch 2 closed with three of them and the gate stayed green, so
+    # count them out loud — the ledger's own promise is that nothing ships
+    # unadjudicated.
+    pending = [n for b in batches
+               for n in re.findall(r"^\| (\d+) \| .*?\| `PENDING` \|",
+                                   b.split("\n## ", 1)[0], re.M)]
+    if pending:
+        warn(f"{name}: claims-ledger",
+             f"row(s) {', '.join(pending)} in {os.path.basename(ledger)} are "
+             f"`PENDING` — each is a claim the course still teaches and no one "
+             f"has checked; close them or restate the claim so it needs no check")
+        return
     ok(f"{name}: claims-ledger",
-       f"{rows} adjudicated rows, last pass {m.group(1)}; all {len(used)} taught CVEs covered")
+       f"{rows} adjudicated rows across {len(batches)} batches, 0 pending, last "
+       f"pass {m.group(1)}; all {len(used)} taught CVEs covered")
 
 
 def check_attack_table_rot(sources):

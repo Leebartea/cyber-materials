@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-11 (Batch 1 — standards and identifiers)
+- **Last pass:** 2026-09-16 (Batch 2 — rank and superlative claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 2 | `rank` — "most common", "the first", "industry standard" | 275 | superlatives are the easiest thing to assert and the hardest to source |
 | 3 | `default` — "by default", "defaults to" | 65 | vendor defaults change silently between versions; this course's are mostly Express/Node/Docker behaviours a test can settle |
 | 4 | `quantity` — record counts, percentages, key sizes, costs | 39 | breach figures drift between retellings |
 | 5 | `law` — GDPR/CRA/DORA/NIS2 obligations and deadlines | 29 | wrong legal deadlines are the costliest error class here |
@@ -100,6 +99,21 @@ Not yet adjudicated — the next batches, in priority order:
 | 32 | M7.2 | Equifax's root cause was an unpatched Apache Struts2 RCE, CVE-2017-5638, whose patch had been available two months | `CORPUS` | NVD; the two-month patch gap is the FTC's own pleaded allegation. Closed as row 29 of the Guardians ledger from the same sources — this course repeats the claim in M7.2's supply-chain narrative but makes no victim-count claim alongside it | 2028-01 |
 | 33 | M0.4 | Node older than v20.19 / v22.7 rejects `import` in a plain `.js` file | `SOURCED` | automatic module-syntax detection (`detect-module`, nodejs/node#53619) was unflagged in **v22.7.0** and backported to **v20.19.0** alongside the `require(esm)` unflagging (nodejs/node#56927). Both boundary versions in the course are the exact release that changed the behaviour | 2028-01 |
 
+## Batch 2 — rank and superlative claims
+
+284 `rank` candidates (the extractor's original estimate of 275 was low by 9),
+triaged the same way as the Guardians pass: group by which trigger fired, clear
+the narrative `the first` / `the only` / `top 10`-as-a-title pile, and the 41
+survivors carrying a real superlative collapse to the 5 rules below.
+
+| # | Module | Claim as taught | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 34 | ★, M3.5 | Node/Express is "the most common full-stack **language**" | `FIXED` | Two faults in one sentence. **Node is a runtime, not a language** — and the course's own Intro says "the most common full-stack *pairing*", so the two passages contradicted each other. The underlying rank is fine: Stack Overflow's 2025 survey (n=23,678 on this question, fielded 29 May–23 Jun 2025) puts **Node.js first among web technologies at 48.7%**, ahead of React at 44.7%; Express is a separate, smaller entry. Harmonised to the Intro's wording. | 2027-07 |
+| 35 | M4.1 | Software Supply Chain Failures is "the fastest-growing attack class" | `FIXED` | **OWASP's own data points the other way.** A03:2025 maps only 5 CWEs and has the *fewest* occurrences in the collected data — its #3 placement came from the community survey, not from CVE volume. The sourceable superlative is that **#3 is the highest debut in the list's history**, and the text now says that instead, with the basis named. | 2027-11 |
+| 36 | M0.4, M3.3, M6.5 | Broken access control / BOLA / IDOR are "the most common" API and application vulnerabilities | `SOURCED` | Defensible **as written, because every instance is hedged** — "one of the most common serious bugs", "the most common API vulnerabilities are…". Broken Access Control is A01:2025, and improper access control ranked 2nd in HackerOne's 2020 Top 10. Contrast Guardians row 38, where the same idea was asserted as an unhedged #1 and was wrong: the defect there was the certainty, not the topic. | 2027-11 |
+| 37 | M4.1 | OWASP Top 10:2025 — A03 Software Supply Chain Failures promoted from the old components entry; new A10 Mishandling of Exceptional Conditions; SSRF no longer its own entry | `SOURCED` | All three confirmed this pass. The 2025 edition was announced November 2025 at OWASP Global AppSec in Washington DC and finalised January 2026, built from 175,000+ CVEs with 248 CWEs mapped; A10 carries 24 CWEs; SSRF was absorbed into Broken Access Control after earning its own 2021 slot on survey strength alone. | 2027-11 |
+| 38 | M0.1, M0.7, M1.3, M1.7, M8.1, M10.3 | The "single most common &lt;mistake&gt;" teaching idiom — misreading silent success, the dropped `sort` before `uniq`, an unescaped `.` in a regex, the committed `.env`, the stale process on the port | `CONVENTION` | Same ruling as Guardians row 44: no telemetry ranks the mistakes learners make, so no lookup can settle these even in principle. Keep the idiom, never attach a number or a named source to it. | — |
+
 ## Deliberately not rows
 
 - **Tool version banners** (`git version 2.55.0`, `Docker version 28.3.3`, `Nmap 7.99`, `vite v8.2.1`, `kind v0.32.0`, `k8s v1.36.1`, `Node v24.17.0`) are `EXECUTED` transcripts from the authoring machine, not currency claims. The course never calls them "latest", and M0.0 makes the inconsistency of version banners its actual teaching point. Same treatment as row 34 of the Guardians ledger.
@@ -107,7 +121,17 @@ Not yet adjudicated — the next batches, in priority order:
 
 ## Fixes applied in this pass
 
-Four defects. Three are the same family as the Guardians pass — a claim that was
+**Batch 2 (2026-09-12) — two defects.**
+
+1. **M3.5** — "the most common full-stack *language*" for a runtime, contradicting the course's own Intro two thousand lines earlier. A ledger pass catches this class precisely because it reads the same claim in every place it is made; neither passage looks wrong alone.
+2. **M4.1** — "the fastest-growing attack class" for the category that has the *fewest* data occurrences in the edition being described. The claim was not just unsourced, it ran against the source it was summarising.
+
+Both are fixed strings, so both now carry a regression guard in
+`tools/guardrail.py` — `A42` and `A43` — each verified by running it against the
+pre-fix file, where it fires, as well as against the fixed one, where it is
+clear. See the Guardians ledger for the five guards this batch added there.
+
+**Batch 1 (2026-09-11) — four defects.** Three are the same family as the Guardians pass — a claim that was
 true when written, or stated more strongly than any source supports — and one is
 a citation to a document that does not exist:
 
