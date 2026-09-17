@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-16 (Batch 2 — rank and superlative claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 3 — default-behaviour claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 3 | `default` — "by default", "defaults to" | 65 | vendor defaults change silently between versions; this course's are mostly Express/Node/Docker behaviours a test can settle |
 | 4 | `quantity` — record counts, percentages, key sizes, costs | 39 | breach figures drift between retellings |
 | 5 | `law` — GDPR/CRA/DORA/NIS2 obligations and deadlines | 29 | wrong legal deadlines are the costliest error class here |
 | 6 | `port` — port and protocol assignments | 23 | mostly IANA-settleable, low risk, high volume |
@@ -114,12 +113,72 @@ survivors carrying a real superlative collapse to the 5 rules below.
 | 37 | M4.1 | OWASP Top 10:2025 — A03 Software Supply Chain Failures promoted from the old components entry; new A10 Mishandling of Exceptional Conditions; SSRF no longer its own entry | `SOURCED` | All three confirmed this pass. The 2025 edition was announced November 2025 at OWASP Global AppSec in Washington DC and finalised January 2026, built from 175,000+ CVEs with 248 CWEs mapped; A10 carries 24 CWEs; SSRF was absorbed into Broken Access Control after earning its own 2021 slot on survey strength alone. | 2027-11 |
 | 38 | M0.1, M0.7, M1.3, M1.7, M8.1, M10.3 | The "single most common &lt;mistake&gt;" teaching idiom — misreading silent success, the dropped `sort` before `uniq`, an unescaped `.` in a regex, the committed `.env`, the stale process on the port | `CONVENTION` | Same ruling as Guardians row 44: no telemetry ranks the mistakes learners make, so no lookup can settle these even in principle. Keep the idiom, never attach a number or a named source to it. | — |
 
+## Batch 3 — default-behaviour claims
+
+65 `default` candidates. The split mirrors the Guardians `quantity` pass: roughly
+half are **advice in the imperative** — "deny by default", "default to host-only
+cookies", "default to no `sudo`" — which are pedagogy, not assertions about the
+world, and no lookup applies. The rest assert **what some third party's software
+does when you do not configure it**, and those are among the most perishable
+claims a security course can make: a default is a decision a maintainer can
+reverse in a point release, and when they reverse it for *security* reasons the
+course's lesson can invert overnight. That is exactly what row 40 is.
+
+| # | Module | Claim as taught | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 39 | M2.4 | "flask-cors does exact-origin matching by default" — only a *regex* `origins` value needs anchoring | `FIXED` | **The most serious defect found in any batch so far: the course promised a safety property the library does not have, in the exact place a reader would rely on it.** flask-cors matches with `re.match(pattern, origin)`, and `re.match` anchors only at the **start** of the string — it never requires the pattern to consume the whole thing. So a plain allow-list string `"https://app.example.com"` **also matches** `https://app.example.com.evil.com` and `https://app.example.com:8080`, and the matched origin is reflected straight back in `Access-Control-Allow-Origin`. The warning was aimed only at the regex case while the default case had the identical hole. This is the same root cause as the 2024 flask-cors CVE cluster on path matching (CVE-2024-6839 regex-specificity ordering, CVE-2024-6866 case-insensitive paths, CVE-2024-6844 `unquote_plus`), all of which come from `try_match` being reused where exactness was assumed. Rewritten to say it plainly and to anchor every pattern, regex or not. | 2027-03 |
+| 40 | M7.5.4, M3.9 | "`torch.load` uses pickle by default", so loading an untrusted `.pt` is arbitrary code execution | `FIXED` | **A security default that flipped under the course — in the safe direction, which is why nothing complained.** **PyTorch 2.6, 29 January 2025**, made `weights_only=True` the default (deprecation warnings ran from 2.4; PR #137602). With it, `torch.load` uses a restricted unpickler that can only rebuild tensors and basic types, so a malicious `.pt` raises `UnpicklingError` instead of executing. Three passages asserted the old default and one code sample demonstrated it. Rewritten as **mitigation, not repair**, and the nuance is now the better lesson: the expressive path is one keyword argument away, old checkpoints fail loudly under the new default so `weights_only=False` is among the most-pasted workarounds on the internet, `add_safe_globals` widens the allowlist back, pre-2.6 PyTorch is still widely deployed, and a `weights_only=True` RCE bypass was itself reported and fixed in 2.6. The lab is unaffected — it uses `pickle` directly, which is unchanged. | 2027-01 |
+| 41 | M7.5.3 | "most Markdown renderers pass raw HTML through by default" | `FIXED` | **Defensible as a majority claim and useless as advice, because the renderers disagree and the reader has exactly one.** `marked` passes raw HTML through and has not sanitized since v5 — a deliberate separation-of-concerns stance, with `DOMPurify.sanitize(marked.parse(...))` as the documented pipeline. Python-Markdown likewise does not sanitize and says so explicitly (the old `safe_mode` is deprecated). But `markdown-it` — the most widely embedded of the three — ships **`html: false`** and advertises "safe by default". Replaced the generalisation with the three named behaviours, which is what a reader can act on. | 2027-06 |
+| 42 | M8.4 | "Every Pod runs with a service account that can, by default, call the Kubernetes API" | `FIXED` | true but **overstated in the direction that matters**, and the overstatement is the common one. The token is mounted by the ServiceAccount admission controller at `/var/run/secrets/kubernetes.io/serviceaccount` unless `automountServiceAccountToken: false` (a projected, auto-rotating TokenRequest token since v1.22), and it does authenticate to the API server — but under stock RBAC the namespace's `default` account has **no permissions beyond the API-discovery endpoints granted to every authenticated principal**. So "can call the API" is true of authentication and nearly false of authorization. Rewritten to name the two real risks instead: an unnecessary **cluster identity** in every container, and the fact that binding one convenient Role to `default` silently promotes every Pod in the namespace. | 2027-06 |
+| 43 | M3.5 | "dependency-check 13 aborts with no NVD API key" — the transcript and the stack trace | `SOURCED` `EXECUTED` | the transcript is accurate and reproduces, but the *reason* was missing and it changes what the reader should expect. An NVD API key has been **strongly recommended and never required** since 9.0.0 moved from the data feed to the NVD API; older versions warned and then crawled (~1.5 req/s without a key vs 5–10+ with one). The hard abort is a **13.0.0 regression** — [dependency-check#8715](https://github.com/dependency-check/DependencyCheck/issues/8715): the key now defaults to an empty string rather than null, and the client rejects a zero-length key (`Invalid API Key, length of 0 too short to provided a masked partial key`, exactly as the transcript shows). Annotated as a regression so the module does not read as wrong when a patched 13.x restores the warning. Note the repo moved: `jeremylong/DependencyCheck` was archived 2025-09-27. | 2027-03 |
+| 44 | M2.2, M3.5 | Jinja2 auto-escapes by default | `SOURCED` | **checked because it is the classic trap and the course is on the right side of it.** Jinja2's own `Environment` defaults to `autoescape=False`; it is **Flask** that turns it on, for `.html`/`.htm`/`.xml`/`.xhtml` templates rendered through `render_template`. Every instance in the course either says "in Flask" or is inside a Flask example, and M3.5 states the mechanism explicitly (`autoescape=True` or `render_template`). No change. Keep the Flask qualifier attached if this text is ever edited — unqualified, it is false. | 2028-01 |
+| 45 | M0.6, M0.7, M1.3, M1.7, M3.2, M6.1, M7.2, M9.1 | Tool and library defaults: macOS `zsh` / Linux `bash`; `rg` and `fd` skipping hidden and `.gitignore`d files; `awk` splitting on whitespace; a pipeline's exit code being the last command's; BRE vs ERE metacharacters; zsh not word-splitting unquoted parameters; containers running as root; Express `X-Powered-By`; ORMs parameterizing; `argon2-cffi` defaulting to Argon2id; `ignore-scripts`; Python `logging` emitting free text | `SOURCED` `EXECUTED` | ~20 claims, all confirmed and all **demonstrated on screen in the module that makes them** — the course shows `rg` skipping `.env`, shows the root shell in the container, shows the `X-Powered-By` header in the response. They are grouped rather than split into rows because each is settled by running the lab, they are stable across versions, and individually they would trade the ledger's signal for length. The one to re-check first if any is ever disputed is "containers run as root by default", since M8.4's entire hardening section is built on it. | 2028-01 |
+
 ## Deliberately not rows
 
 - **Tool version banners** (`git version 2.55.0`, `Docker version 28.3.3`, `Nmap 7.99`, `vite v8.2.1`, `kind v0.32.0`, `k8s v1.36.1`, `Node v24.17.0`) are `EXECUTED` transcripts from the authoring machine, not currency claims. The course never calls them "latest", and M0.0 makes the inconsistency of version banners its actual teaching point. Same treatment as row 34 of the Guardians ledger.
 - **`4.17.4`, `flask 2.0.0`, `rack 2.2.3`** are the *deliberately vulnerable* fixture versions. They are inputs to a demo, not assertions that anyone should run them.
 
 ## Fixes applied in this pass
+
+**Batch 3 (2026-09-17) — four defects, and this is the batch that justifies the ledger.**
+
+1. **M2.4** — "flask-cors does exact-origin matching by default." **It does not.** It
+   matches with `re.match`, which anchors only at the start, so a plain allow-list
+   string `https://app.example.com` also matches `https://app.example.com.evil.com`
+   — and the course's only warning was aimed at the *regex* case, while the default
+   case had the identical hole. The single most serious defect found in any batch:
+   not a stale number but **a promised safety property the library never had**,
+   stated in the exact place a reader would lean on it.
+2. **M7.5.4 / M3.9** — "`torch.load` uses pickle by default." **PyTorch 2.6
+   (29 Jan 2025)** flipped the default to `weights_only=True`. Rewritten as
+   mitigation-not-repair.
+3. **M7.5.3** — "most Markdown renderers pass raw HTML through by default."
+   True of `marked` and Python-Markdown, false of `markdown-it` (`html: false`).
+   Replaced with the three named behaviours, which is what a reader can act on.
+4. **M8.4** — "every Pod runs with a service account that **can call the Kubernetes
+   API**." True of authentication, nearly false of authorization: the `default`
+   account has no permissions beyond API discovery. Rewritten to the two real
+   risks — an unnecessary cluster identity in every container, and `default`
+   silently promoting every Pod the moment someone binds a Role to it.
+
+**A default is the most perishable claim a security course can make.** It is a
+decision a maintainer can reverse in a point release, and row 40 is the sharp
+case: PyTorch changed its default *for security*, so the course's warning became
+overstated — the failure was silent precisely because the world got safer. A
+rotted warning is as much a defect as a rotted reassurance, and it is far harder
+to notice, because nothing breaks and no learner complains.
+
+**A guard is only worth what its negative test proves.** `A53` was first written
+with bare backticks, so one of its two branches silently matched nothing —
+the course escapes its backticks (`` \` ``). Testing each branch separately
+exposed it, and the repaired guard immediately found **a fourth `torch.load`
+passage the manual pass had missed.** Test every alternation branch on its own;
+an `|` is a place for a guard to half-die without saying so.
+
+All four defects are fixed strings, so all four carry guards — `A52`, `A53`,
+`A54` here, with the Kubernetes rewrite covered by the surrounding prose rather
+than a pattern, since its defect was an overstatement rather than a fixed phrase.
 
 **Batch 2 (2026-09-12) — two defects.**
 

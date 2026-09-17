@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-16 (Batch 2 — rank and superlative claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 3 — quantity claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 3 | `quantity` — record counts, percentages, key sizes, costs | 54 | breach figures drift between retellings |
 | 4 | `port` — port and protocol assignments | 51 | mostly IANA-settleable, low risk, high volume |
 | 5 | `date` — "as of", "since", release years | 33 | rots by definition |
 | 6 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions |
@@ -62,7 +61,8 @@ Not yet adjudicated — the next batches, in priority order:
 | 8 | `attribution` — "according to", "researchers found" | 5 | each needs the **primary** document, not the report quoting it |
 
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
-`rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.)
+`rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.
+`quantity` — 55 candidates — is **closed** in Batch 3, rows 45–58.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -130,7 +130,69 @@ as a statistic (row 44).
 | 43 | M21 | Missing bounds checks "have caused the largest incidents in computing history" | `CONVENTION` | no register ranks incidents by root cause, so no source can settle it even in principle. Left standing: it is hedged, it is the consensus reading of Morris/Heartbleed/EternalBlue, and the sentence's actual load-bearing claim (that this is why the industry is moving to memory-safe languages) is separately supported. | — |
 | 44 | ★, M2, M9, M15, M20, M26 | The "single most common &lt;mistake&gt;" teaching idiom — the Homebrew PATH slip, the expired cert, binding to `0.0.0.0`, the loopback false pass, the hand-rolled proxy hang, secret-scanner noise | `CONVENTION` | **Six instances, all deliberately kept.** No telemetry exists that ranks the mistakes learners make, so no lookup can settle any of them. They are defensible *because* they are framed as classroom experience rather than as findings. The rule this batch sets: **keep the idiom, never attach a number or a named source to it** — the moment one carries a statistic it becomes a row like 36. | — |
 
+## Batch 3 — quantity claims
+
+55 `quantity` candidates. The triage splits cleanly in two, and the split is
+the batch's main finding. **Most of the class is not a claim at all:** 30 of the
+55 are byte counts, buffer sizes and digests inside the course's own labs — `15
+bytes, not 14`, `at most 63 bytes + NUL`, `64 bytes from 192.168.56.20`. Those
+are `EXECUTED` arithmetic about code printed on the same screen; no external
+lookup can confirm or refute them and none is owed. The remaining **14 rules
+below all share one property: each names a third party** — a breach victim, a
+regulator, a vendor's price list. That is the same line Batch 2 drew for
+superlatives (row 44), arrived at independently from a different tag, which is
+some evidence it is the right line.
+
+| # | Module | Claim as taught | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 45 | M16.5 | SolarWinds Orion was "a product trusted by 18,000+ organizations" | `FIXED` | **A ceiling quoted as a count, with the bound inverted.** SolarWinds' own security advisory says "we've currently identified **less than 18,000** customers **potentially affected**" — so the `+` points the wrong way, and the figure counts *downloads of a trojanized build*, not victims. The company puts the number **actually compromised at fewer than 100**: SUNBURST slept up to two weeks, fingerprinted for sandboxes, and was activated selectively, so most recipients were never entered. Orion's total customer base is ~33,000, which is the number "trusted by" actually wanted. Rewritten to name the ceiling as a ceiling and state the <100 figure, because the 18,000-victim retelling overstates the breach by more than two orders of magnitude. | 2028-01 |
+| 46 | M14 | The Equifax "settlement reached ~$700M" | `FIXED` | **The ceiling reported as the amount.** The FTC's own press release is titled *"Equifax to Pay $575 Million"*: the global FTC/CFPB/50-state settlement was **at least $575M**, of which $300M is the consumer fund, $175M to 48 states + DC + PR, and $100M a CFPB civil penalty. The **$700M is a conditional maximum** — Equifax adds up to $125M more only if the initial consumer fund proves insufficient. Same defect shape as row 45, found in the same pass: a range's upper end, stated as a fact. | 2028-01 |
+| 47 | M28 | Cert roadmap prices: eJPT ~$200, PNPT ~$400, OSCP+ ~$1,649 | `FIXED` | **All three stale, all three low** — verified 2026-09-17: PNPT is **$499** direct from `certifications.tcm-sec.com/pnpt/` (voucher + free retake + 12 months of training); eJPT is **$249** standalone (INE's certification page no longer prints a price, so this rests on converging 2026-dated secondary sources, not the vendor — recorded as the weaker citation it is); OSCP+ standalone is **$1,699** (bundle $1,749, Learn One $2,749/yr, retake $249). Fix follows the row 42 pattern: the figures are kept but **date-bound in the sentence**, the vendor's checkout is named as the only authority, and the durable teaching point — a few hundred dollars vs a few thousand — is stated separately so the lesson survives the next price rise. | 2027-09 |
+| 48 | M25.5 | Oldsmar: lye setpoint moved ~100 ppm → 11,100 ppm on 5 Feb 2021, via internet-reachable TeamViewer with a shared password | `SOURCED` | **Checked because it is the single most retold OT "attack" in any curriculum, and the course already handles it correctly** — in all three places it teaches both halves: the reported intrusion *and* that a four-month FBI investigation could not confirm one, that no perpetrator was identified, and that in 2023 former city manager Al Braithwaite said publicly there was no evidence of outside access and the change was most likely an employee mis-clicking. One wording note for the next pass, not worth a change now: the FBI's actual statement is narrower than the course's "could not confirm any intrusion" — Tampa Field Office said it "was not able to confirm that this incident was initiated by a **targeted cyber intrusion**". Two loose ends also stay open: Pinellas County Sheriff's Office still calls its case active, and Dragos reported a watering-hole site targeting Florida water utilities that was accessed from an Oldsmar browser the same day, never definitively linked. | 2028-01 |
+| 49 | M11.7 | Ubiquiti BEC: 14 wire transfers over 17 days from a Hong Kong subsidiary totalling $46.7M; FBI told the CEO on 5 June 2015; $39.1M charge | `SOURCED` | every figure exact against the company's own SEC filings. 10-K FY2015: **$46.7M** transferred from the Hong Kong subsidiary; the initial spoofed email reached finance **19 May 2015**; **14 transfers over the next 17 days** to Russia, China, Hungary and Poland; **5 June 2015** the FBI's San Francisco office emailed CEO Robert Pera. **$8.1M recovered** by 30 June 2015 → a **$39.1M charge** in Q4 FY2015, with $6.8M under injunction and $31.8M still pursued. The course's "only a fraction was ever recovered" is exactly right at 17%. | 2028-01 |
+| 50 | M23 | Maersk/NotPetya destroyed ~49,000 laptops and 4,000 servers, June 2017 | `SOURCED` | true, but the sentence **splices two different Maersk accounts** and it is worth knowing which is which. Chairman Jim Hagemann Snabe at Davos (Jan 2018): "4,000 new servers, **45,000** new PCs, 2,500 applications… over 10 days". CTIO Adam Banks (Gartner Risk Summit 2019): "all end-user devices, including **49,000 laptops**… were destroyed", all rebuilt by week four. So 49,000 (Banks, destroyed) and 4,000 (Snabe, reinstalled) are each sourced and not contradictory — they are simply from different tellings, which is why the two laptop figures differ by 4,000. Left as written, with the `~` doing the work. Damages $250–300M per Snabe. | 2028-01 |
+| 51 | M25 | Capital One: SSRF → EC2 metadata → IAM role → ~100 million customer records from S3 | `SOURCED` | ~**100M in the US plus ~6M in Canada**, ~106M application records total; the course says "~100 million customer records", which is the US figure and the one usually quoted. Chain confirmed: SSRF in a ModSecurity WAF → IMDS → over-permissioned WAF role → S3. Access occurred 22–23 March 2019, undetected until a GitHub Gist tip on 19 July. AWS's answer was **IMDSv2** (session token via `PUT` + custom header), which is why most SSRF cannot reach metadata today — worth a sentence if M25 is ever expanded. | 2028-01 |
+| 52 | M16 | Target: HVAC vendor Fazio Mechanical phished → vendor network → POS malware → 40 million payment cards | `SOURCED` | **40M** card accounts (27 Nov – 15 Dec 2013), plus **70M** customers' names/addresses — the course cites only the 40M card figure, which is the one its sentence is about. Fazio Mechanical (Sharpsburg, PA) credentials, stolen by phishing, first used **15 Nov 2013**. The course avoids the usual error here and should keep avoiding it: **the HVAC system itself was not hacked** — Fazio's access was for electronic billing, contract submission and project management, not remote climate control. | 2028-01 |
+| 53 | M3 | LinkedIn 2012: ~6.5M unsalted SHA-1 hashes, ~90% cracked within days; a 2016 follow-up revealed the real scope was 117 million accounts | `SOURCED` | 6 June 2012, ~**6.5M** hashes posted; unsalted SHA-1 confirmed by LeakedSource's later analysis of the full set. **May 2016**: 117M account records surfaced for sale (the "Peace" dumps, alongside Myspace 360M and Tumblr 65M) and **LinkedIn confirmed** the expanded scope, forcing a second reset. The ~90% figure is the contemporaneous press consensus for the 6.5M subset rather than a single audited count — it is hedged with `~` and stays that way. | 2028-01 |
+| 54 | M5 | Cambridge Analytica: data on 87 million users from ~270,000 quiz takers; FTC settlement $5 billion, then a record | `SOURCED` | **87M** is Facebook's own upper estimate; **~270,000** installed Kogan's *This Is Your Digital Life* (a few sources say ~305,000 — the course's `~` covers the spread). FTC penalty **$5B**, July 2019, a 3-2 vote, plus a 20-year order and an independent privacy committee. UK ICO fined **£500,000**, its statutory maximum — and specifically under the **Data Protection Act 1998**, because the conduct predated GDPR. The course already says exactly that, which is the part most retellings get wrong. | 2028-01 |
+| 55 | M25.5 | Stuxnet physically destroyed ~1,000 centrifuges | `SOURCED` | the figure traces to one place: Albright, Brannan & Walrond, *Did Stuxnet Take Out 1,000 Centrifuges at the Natanz Enrichment Plant?* (ISIS, 22 Dec 2010), which **infers** ~1,000 IR-1s removed from IAEA data against ~10,000 installed. It is an estimate, not a confirmed count — Iran never published one — and later analysts have said ~2,000. The `~` is therefore load-bearing; keep it, and never write this number without it. | 2028-01 |
+| 56 | M25.5 | Ukraine grid 2015/2016: blackouts affecting 230,000 customers, BlackEnergy and Industroyer | `SOURCED` | **23 Dec 2015**, three regional oblenergos, outages of 1–6 hours. Two figures circulate and both are defensible: **230,000** (the common count, and what the course uses) and **~225,000** (DHS/CISA alert IR-ALERT-H-16-056-01). Primary analysis is the E-ISAC/SANS report of 18 March 2016 (Lee, Assante, Conway): BlackEnergy 3 for access, operators' HMIs driven by hand, KillDisk to destroy evidence, and a telephone denial-of-service against the call centre. Industroyer belongs to **2016**, not 2015, and the course's next sentence already separates them correctly. | 2028-01 |
+| 57 | M4 | Twitter 2020: vishing of employees, accounts of Obama/Biden/Musk/Apple/Uber hijacked, ~$118,000 stolen in minutes | `SOURCED` | Hillsborough County State Attorney Andrew Warren: **12.86 BTC from ~360 people, $117,440** at the time — "~$118,000" is that figure rounded and is how the state's own office stated it. 15 July 2020, 45 accounts posted. Graham Ivan Clark was **17 when charged**, arrested 31 July 2020, pleaded guilty to 30 felonies and took **3 years in a juvenile facility plus 3 years' probation** under Florida's Youthful Offender Act — so the course's "arrested within weeks and received real prison time" holds. | 2028-01 |
+| 58 | M0.5, M1, M10, M12, M13, M15, M21, M22 | ~30 byte counts, buffer sizes, key lengths and digests inside the labs — `15 bytes, not 14`, `32 bytes from env`, `at most 63 bytes + NUL`, `buf is 16 bytes`, `the SHA-256 of those exact 50 bytes` | `EXECUTED` | **Deliberately not individual rows.** Each is arithmetic about code printed on the same screen, verifiable by running the lab and by no other means; there is no authority to cite and nothing to re-check. Recording them separately would pad the ledger while lowering its signal. The rule: a `quantity` is a claim only when it describes **something outside the course**. | — |
+
 ## Fixes applied in this pass
+
+**Batch 3 (2026-09-17) — three defects, and two of them are the same bug.**
+
+1. **M16.5** — SolarWinds "trusted by **18,000+** organizations". The vendor's own
+   number is *fewer than* 18,000 **potentially affected**, and it counts downloads
+   of a trojanized build; **fewer than 100** customers were actually compromised.
+2. **M14** — the Equifax "settlement **reached** ~$700M". It was **at least $575M**;
+   $700M is a conditional ceiling that applies only if the consumer fund runs short.
+3. **M28** — three vendor exam prices, every one stale and every one low: eJPT
+   $200→**$249**, PNPT $400→**$499**, OSCP+ $1,649→**$1,699**. Fixed the row 42 way:
+   figures kept but **date-bound in the sentence**, the vendor's checkout named as
+   the only authority, and the durable point (hundreds vs thousands) stated
+   separately so it survives the next rise.
+
+**The shape worth carrying forward: a ceiling quoted as a count.** Rows 45 and 46
+are the same defect on unrelated subjects, found in the same pass — a published
+range's *upper* bound repeated as though it were the measured value, in one case
+with a `+` appended that reverses the bound's direction. A number that arrives
+with "up to", "fewer than", or "as many as" attached is not the same number once
+those words are dropped, and the drop is invisible at the sentence level. When a
+`quantity` row cites a bound, **the row must record which end of the range it is.**
+
+The second finding is a triage rule rather than a defect: **most `quantity`
+candidates are not claims.** 30 of 55 were byte counts inside the course's own
+labs — `EXECUTED` arithmetic with no authority to cite. A quantity is only
+checkable when it describes something **outside** the course (row 58). That is
+the same boundary Batch 2 found for superlatives (row 44), reached from a
+different tag, which is mild evidence it generalises.
+
+All three defects are fixed strings, so all three carry guards — `A49`, `A50`,
+`A51` — each verified firing against the pre-fix file and clear against the fixed
+one.
 
 **Batch 2 (2026-09-12, closed 2026-09-16) — four defects, all rank claims about a third party.**
 

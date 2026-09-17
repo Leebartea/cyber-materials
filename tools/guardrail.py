@@ -631,6 +631,36 @@ BANNED = [
      "Dyn never confirmed a figure, reporting only `up to 50x normal` packet flow. "
      "1.2 Tbps is a third-party estimate and must be attributed as one "
      "(Guardians ledger row 42)", "A48"),
+    # --- Batch 3 of the claim ledgers (quantity claims). Same property as Batch 2:
+    # every defect is a fixed string, so a guard can hold it down.
+    (r"trusted by 18,000\+ organi",
+     "SolarWinds' own figure is FEWER than 18,000 customers *potentially affected* — "
+     "the `+` inverts the bound — and it counts downloads of a trojanized build, not "
+     "victims. SolarWinds puts the number actually compromised at fewer than 100 "
+     "(Guardians ledger row 45)", "A49"),
+    (r"settlement reached ~\$700M",
+     "the FTC/CFPB/state settlement was *at least $575M*, rising to $700M only if the "
+     "consumer fund ran short. $700M is the ceiling, not the amount paid "
+     "(Guardians ledger row 46)", "A50"),
+    (r"~\$1,649|the rebranded eLearnSecurity, ~\$200",
+     "vendor exam prices rot: eJPT is $249 (not ~$200), PNPT $499 (not ~$400), OSCP+ "
+     "$1,699 standalone (not ~$1,649), checked 2026-09-17. Date-bind the figures and "
+     "say only the vendor's checkout is authoritative (Guardians ledger row 47)", "A51"),
+    (r"flask-cors does exact-origin matching",
+     "flask-cors matches with `re.match`, which anchors only at the START — a plain "
+     "string origin also matches `https://app.example.com.evil.com`. It has no "
+     "exact-match default; anchor the pattern yourself (AppSec ledger row 39)", "A52"),
+    # Both branches negative-tested against the pre-fix file. The second needs the
+    # `.{0,2}` because the course escapes its backticks (\`torch.load\`), so a
+    # pattern written with bare backticks silently never matches.
+    (r"torch\.load, which uses pickle|torch\.load.{0,2} uses pickle by default",
+     "PyTorch 2.6 (Jan 2025) flipped `torch.load` to `weights_only=True`, a restricted "
+     "unpickler that refuses the malicious file. Teach it as `weights_only=False` "
+     "reaches pickle — mitigation, not repair (AppSec ledger row 40)", "A53"),
+    (r"most Markdown renderers pass raw HTML through by default",
+     "the renderers disagree and that is the lesson: `marked` and Python-Markdown pass "
+     "raw HTML through, `markdown-it` ships `html: false`. Name them instead of "
+     "generalising (AppSec ledger row 41)", "A54"),
 ]
 
 
