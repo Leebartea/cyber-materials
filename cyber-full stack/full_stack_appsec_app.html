@@ -10561,7 +10561,7 @@ const raw =
   "Host: shop.example\\r\\n" +
   "\\r\\n";
 
-// Front-end honors Content-Length: body is exactly 6 bytes ("0\\r\\n\\r\\n").
+// Front-end honors Content-Length: 6 body bytes = "0\\r\\n\\r\\n" (5) + the "G" (1).
 function frontEnd_usesCL(bytes) {
   const head = bytes.split("\\r\\n\\r\\n")[0];
   const cl = Number(/Content-Length: (\\d+)/.exec(head)[1]);
@@ -10595,7 +10595,7 @@ back-end  (TE) ends request 1 at byte 97
 SMUGGLED prefix the back-end will treat as the next request:
 "GPOST /admin HTTP/1.1\\r\\nHost: shop.example\\r\\n\\r\\n"
 \`\`\`
-The two functions parsed the **identical bytes** and disagreed about where request 1 ends — because they trusted different length headers. The front-end, honoring \`Content-Length: 6\`, treated \`0\\r\\n\\r\\n\` as the entire body and forwarded everything as one \`POST /search\`. The back-end, honoring \`Transfer-Encoding: chunked\`, saw the \`0\`-size chunk terminate the body one byte earlier and left \`GPOST /admin...\` sitting in the buffer as the start of the **next** request. (The stray \`G\` is deliberate: it's how the classic PortSwigger CL.TE lab keeps the smuggled line well-formed after the offset shift.) That leftover is the smuggle: the front-end's "\`/admin\` needs auth" rule never fired because it never saw an \`/admin\` *request*, and the back-end runs \`/admin\` trusting the front-end already did access control. No request *content* was malicious — the exploit is entirely in the **boundary disagreement**, which is why a body-inspecting WAF sails right past it.
+The two functions parsed the **identical bytes** and disagreed about where request 1 ends — because they trusted different length headers. The front-end, honoring \`Content-Length: 6\`, counted six body bytes — \`0\\r\\n\\r\\nG\`, the \`G\` included — and forwarded everything as one \`POST /search\`. The back-end, honoring \`Transfer-Encoding: chunked\`, saw the \`0\`-size chunk terminate the body one byte earlier and left \`GPOST /admin...\` sitting in the buffer as the start of the **next** request. (The stray \`G\` is deliberate: it's how the classic PortSwigger CL.TE lab keeps the smuggled line well-formed after the offset shift.) That leftover is the smuggle: the front-end's "\`/admin\` needs auth" rule never fired because it never saw an \`/admin\` *request*, and the back-end runs \`/admin\` trusting the front-end already did access control. No request *content* was malicious — the exploit is entirely in the **boundary disagreement**, which is why a body-inspecting WAF sails right past it.
 </details>
 
 #### 🔴 Break & Defend — refuse the ambiguity ~7 min
@@ -12752,7 +12752,7 @@ Identical unsalted hashes are **Reason B** from the module: an attacker instantl
 
 **Goal.** Write a small benchmark: for ~1 second each, count how many **SHA-256** hashes vs how many **scrypt** hashes (a purpose-built slow hash) your machine computes per second. Then compute the ratio.
 
-Use scrypt params in the OWASP ballpark: \`crypto.scryptSync(pw, salt, 32, { N: 16384, r: 8, p: 1 })\`.
+Use \`crypto.scryptSync(pw, salt, 32, { N: 16384, r: 8, p: 1 })\` — and be honest about what that is. It is a **deliberately reduced benchmark setting, not a production one.** OWASP's scrypt minimum is \`N=2^17 (128 MiB), r=8, p=1\`, and its weakest listed fallback is \`N=2^14, r=8, p=5\` — note the \`p=5\`, which this benchmark drops. Two reasons: Node's \`scryptSync\` defaults \`maxmem\` to 32 MiB, so \`N=2^17\` throws \`memory limit exceeded\` unless you pass \`maxmem\`; and \`p=5\` is slow enough (~6 hashes/sec on an M2 Pro) that the run stops being a one-second benchmark. The point here is to *measure the gap*, not to ship these numbers. If you copy this line into a real app, use \`N: 131072, r: 8, p: 1, maxmem: 268435456\`.
 
 **Done when.** SHA-256 reports on the order of *hundreds of thousands to millions* per second, scrypt reports *tens to low hundreds* per second, and your ratio shows the slow hash cuts an attacker's guessing rate by **thousands of times** (expect ~10,000–50,000×).
 

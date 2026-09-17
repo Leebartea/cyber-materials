@@ -661,6 +661,29 @@ BANNED = [
      "the renderers disagree and that is the lesson: `marked` and Python-Markdown pass "
      "raw HTML through, `markdown-it` ships `html: false`. Name them instead of "
      "generalising (AppSec ledger row 41)", "A54"),
+    # --- Batch 4 of the claim ledgers (port claims in Guardians, quantity in
+    # AppSec). Same property as Batches 2 and 3: every defect is a fixed string.
+    # The `\*?` is load-bearing: the course writes `*named*` so the closing
+    # asterisk abuts the word, and `.{0,3}` absorbs the escaped backtick (\`).
+    # A first draft without both silently never matched — a dead guard scores
+    # green forever, which is the exact failure this table exists to prevent.
+    (r'named\*?\s+"?Elite"?\s+in\s+.{0,3}/etc/services',
+     "`Elite` is nmap's own nmap-services name, not /etc/services. macOS "
+     "/etc/services has no 31337 entry at all, and IANA assigns 31337/tcp to "
+     "`eldim`. Three tables, three answers — that disagreement IS the lesson "
+     "(Guardians ledger row 59)", "A55"),
+    (r"60 known default username/password pairs",
+     "Mirai's hardcoded table held 62 pairs, ten tried per host. It also scanned "
+     "telnet on 2323 as well as 23, so a defence that names only 23 is incomplete "
+     "(Guardians ledger row 62)", "A56"),
+    (r"scrypt params in the OWASP ballpark",
+     "OWASP lists no scrypt row with N=2^14 AND p=1 — its weakest fallback is "
+     "N=2^14, r=8, p=5 and its minimum is N=2^17, r=8, p=1. A reduced benchmark "
+     "setting must not be labelled as the standard's (AppSec ledger row 46)", "A57"),
+    (r'body is exactly 6 bytes \(.{0,2}0\\+r\\+n\\+r\\+n',
+     "`0\\r\\n\\r\\n` is FIVE bytes. The sixth byte counted by Content-Length: 6 is "
+     "the `G`, and that byte is the entire CL.TE mechanism — dropping it makes the "
+     "arithmetic unverifiable (AppSec ledger row 47)", "A58"),
 ]
 
 

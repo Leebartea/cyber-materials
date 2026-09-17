@@ -5514,7 +5514,7 @@ PORT      STATE SERVICE    VERSION
 31337/tcp open  tcpwrapped
 \`\`\`
 
-Compare the two SERVICE columns. The first is a lookup table — port 31337 is *named* "Elite" in \`/etc/services\` and that tells you nothing. The second actually talked to the service and came back with a version string, which is what turns a scan into a vulnerability assessment (Module 19): OpenSSH 6.6.1 and Apache 2.4.7 are years out of date, and now you have something to search a CVE database for.
+Compare the two SERVICE columns. The first is a lookup table, and not even a table anyone agreed on: "Elite" comes from nmap's **own** \`nmap-services\` file, not from \`/etc/services\`. Your Mac's \`/etc/services\` has no entry for 31337 at all, and IANA — the registry \`/etc/services\` is generated from — assigns 31337 to \`eldim\`, a file-upload proxy. Three tables, three answers, zero packets exchanged with the thing actually listening. That is the point: a name in the SERVICE column tells you nothing. Prove it yourself in two commands — \`grep 31337 /etc/services\` prints nothing, while \`grep -w 31337/tcp /opt/homebrew/share/nmap/nmap-services\` prints \`Elite\`. The second scan actually talked to the service and came back with a version string, which is what turns a scan into a vulnerability assessment (Module 19): OpenSSH 6.6.1 and Apache 2.4.7 are years out of date, and now you have something to search a CVE database for.
 
 \`sudo nmap -sS -p- 127.0.0.1\` prints the same shape against your own machine but finishes in seconds and shows whatever you have running locally. \`-sS\` needs sudo because it forges half-open TCP handshakes; without sudo, nmap silently downgrades to \`-sT\`. A "Host seems down" or 0-ports result against scanme.nmap.org usually means your network blocks outbound scanning, not that the host is gone.`
       }
@@ -10479,9 +10479,9 @@ IoT devices have a specific failure profile that distinguishes them from convent
 
 ### The Mirai botnet — IoT as weapon (2016)
 
-**Mirai** (2016) is the canonical IoT attack. The malware scanned the internet for devices with default credentials (Telnet on port 23, default passwords like "admin", "123456", "pass") and recruited them into a botnet. At peak, Mirai controlled 600,000+ devices: cameras, DVRs, routers, printers. The botnet launched a DDoS attack against Dyn (a major DNS provider), taking down Twitter, Netflix, Reddit, and GitHub for most of a day. You will see that attack quoted at 1.2 Tbps — treat it as a third-party estimate: Dyn never published a figure, saying only that packet flow ran as much as 50x normal volume.
+**Mirai** (2016) is the canonical IoT attack. The malware scanned the internet for devices with default credentials (Telnet on ports 23 **and 2323** — the second is the one people forget to firewall — with default passwords like "admin", "123456", "pass") and recruited them into a botnet. At peak, Mirai controlled 600,000+ devices: cameras, DVRs, routers, printers. The botnet launched a DDoS attack against Dyn (a major DNS provider), taking down Twitter, Netflix, Reddit, and GitHub for most of a day. You will see that attack quoted at 1.2 Tbps — treat it as a third-party estimate: Dyn never published a figure, saying only that packet flow ran as much as 50x normal volume.
 
-The attack required zero exploitation — just credential stuffing with 60 known default username/password pairs. The defence was also simple: change default credentials, disable Telnet, firewall management ports. That most devices weren't hardened even after Mirai went public is a statement about the state of IoT security.
+The attack required zero exploitation — just credential stuffing with a hardcoded table of **62** default username/password pairs, ten of which were tried per host. The defence was also simple: change default credentials, disable Telnet, firewall management ports — **23 and 2323 both**. That most devices weren't hardened even after Mirai went public is a statement about the state of IoT security.
 
 ### OT/ICS/SCADA — operational technology
 
@@ -10574,7 +10574,7 @@ sudo nmap -sU -p 1900 192.168.1.0/24 2>/dev/null | grep "1900"
 # Open UPnP port (1900/UDP) = potential vulnerability for devices that auto-open ports
 
 # 3. Scan for Telnet (insecure protocol, used by Mirai):
-sudo nmap -p 23 192.168.1.0/24 2>/dev/null | grep "23/tcp open"
+sudo nmap -p 23,2323 192.168.1.0/24 2>/dev/null | grep -E "23(23)?/tcp open"
 # Any open Telnet on your LAN? Disable it on the device or block it at the router.
 
 # 4. Check your public IP on Shodan (passive):

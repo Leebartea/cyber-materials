@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-17 (Batch 3 — default-behaviour claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 4 — quantity claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 4 | `quantity` — record counts, percentages, key sizes, costs | 39 | breach figures drift between retellings |
 | 5 | `law` — GDPR/CRA/DORA/NIS2 obligations and deadlines | 29 | wrong legal deadlines are the costliest error class here |
 | 6 | `port` — port and protocol assignments | 23 | mostly IANA-settleable, low risk, high volume |
 | 7 | `date` — "as of", "since", release years | 15 | rots by definition |
@@ -139,7 +138,62 @@ course's lesson can invert overnight. That is exactly what row 40 is.
 - **Tool version banners** (`git version 2.55.0`, `Docker version 28.3.3`, `Nmap 7.99`, `vite v8.2.1`, `kind v0.32.0`, `k8s v1.36.1`, `Node v24.17.0`) are `EXECUTED` transcripts from the authoring machine, not currency claims. The course never calls them "latest", and M0.0 makes the inconsistency of version banners its actual teaching point. Same treatment as row 34 of the Guardians ledger.
 - **`4.17.4`, `flask 2.0.0`, `rack 2.2.3`** are the *deliberately vulnerable* fixture versions. They are inputs to a demo, not assertions that anyone should run them.
 
+## Batch 4 — quantity claims
+
+39 `quantity` candidates. The Guardians `quantity` pass (its Batch 3) found that
+most of the class was `EXECUTED` lab arithmetic and that only claims naming a
+**third party** were checkable. That rule held here too — but it let through the
+two defects below, and understanding why is the point of this batch.
+
+**A quantity can be false without naming anyone.** Both defects are numbers about
+the course's *own* material: the byte count of a request body it prints on the
+same screen, and the parameters of a hash it tells you to run. Neither names an
+outside party, so the Batch 3 triage rule would have filed both as `EXECUTED` and
+moved on. They are still wrong, and they are worse than an outdated statistic,
+because the reader is invited to reproduce them.
+
+**Refined rule: `EXECUTED` is a status you earn by running it, not a status you
+assign by looking at it.** 24 of the 39 candidates really are self-evident
+arithmetic. The other 15 assert something a command would settle — and a claim
+nobody actually ran is `PENDING` wearing an `EXECUTED` label. Every row below was
+run on this machine (Node v22.12.0, M2 Pro) before it was written.
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 46 | M6.1 | The scrypt benchmark uses "params in the OWASP ballpark": `{ N: 16384, r: 8, p: 1 }` | `FIXED` | **OWASP lists no such row.** The Password Storage Cheat Sheet gives scrypt as `N=2^17 (128 MiB), r=8, p=1` (minimum) with fallbacks `2^16/r8/p2`, `2^15/r8/p3`, `2^14/r8/p5`, `2^13/r8/p10`. Every listed config with `N=2^14` carries **`p=5`**; with `p=1` the setting sits below the weakest row OWASP publishes, so "the OWASP ballpark" claimed an endorsement that does not exist. The reduction is nonetheless *correct for a benchmark*, for two executed reasons: Node's `scryptSync` defaults `maxmem` to 32 MiB, so `N=2^17` raises `error:030000AC … memory limit exceeded` unless `maxmem` is passed (verified: it succeeds in 258 ms at `maxmem: 268435456`); and `p=5` measures **6 hashes/sec** here, below the "tens to low hundreds" band the lab's own *Done when* requires. Rewritten to say plainly that it is a reduced benchmark setting, name both real OWASP rows, and give the production line | 2027-09 |
+| 47 | M3.10 | "the body is exactly 6 bytes (`0\r\n\r\n`)" — the CL.TE request-smuggling lab | `FIXED` | **off by one, on the byte that is the entire exploit.** `0\r\n\r\n` is five bytes. The sixth byte counted by `Content-Length: 6` is the `G` of `GPOST` — which is *why* the `G` is there, and why the back-end's leftover begins `POST /admin`. Verified by running the lab's own code: front-end ends request 1 at byte **98**, back-end at **97**, leftover `"GPOST /admin HTTP/1.1\r\nHost: shop.example\r\n\r\n"`, and the six CL-counted bytes print as `"0\r\n\r\nG"`. The code and its documented output were always right; two prose restatements of it were wrong, in the one place a reader checks the arithmetic by hand | 2028-09 |
+| 48 | M6.1 | bcrypt silently ignores input past **72 bytes**, historically truncating at a NUL; the safe pepper is `bcrypt(base64(HMAC-SHA256(pepper, password)))` | `SOURCED` | holds. OWASP Password Storage Cheat Sheet: "bcrypt has a maximum length input length of 72 bytes", with null bytes truncating at the first occurrence. The recommended construction is sound — a SHA-256 HMAC is 32 bytes, base64 of which is 44 characters, comfortably under 72. One wording note carried, not a defect: the course says the *digest* "fits under 72 bytes" when it is the base64 *encoding* that is fed to bcrypt; both are under 72, so the advice is unaffected | 2027-09 |
+| 49 | M6.1 | SHA-256 runs at ~2.5M guesses/sec vs a slow hash's few hundred; the gap is ~10,000–50,000× | `EXECUTED` | re-measured on this machine rather than trusted: SHA-256 **1,444,466/sec**, scrypt `N=2^14,r=8,p=1` **35/sec**, ratio **~41,270×** — inside the course's stated band, and the walkthrough's illustrative `~1,000,000/sec ÷ ~22/sec → ~45,000×` is arithmetically sound. The band, not the point estimate, is what the course teaches, and the band survives on 2026 hardware | 2027-09 |
+| 50 | M7.1, M7.2, M7.5.x | "1,000+ transitive packages", "1,400 npm packages", the `$99,999.99` refund, "62 percent margin", the "50,000-word essay" | `CONVENTION` | terminal — no source settles these and none should be sought. The dependency counts are order-of-magnitude illustrations the reader verifies locally (`npm ls --all`), and the rest are **fixtures inside the course's own scenarios**: an invented refund amount, an invented margin in a prompt-injection document, an invented abusive request. A fixture is not a claim about the world, and dressing one in a citation would be worse than leaving it plain | — |
+| 51 | M7.2 | Equifax (2017) disclosed a breach of **147 million** records | `CORPUS` | 147 million is the FTC's figure for the 2017 Equifax breach and is the one the course already uses. The adjacent *settlement* figure was the Guardians ledger's Batch 3 defect (its row 46, `$700M` ceiling quoted as the amount paid) — that is a different number in a different course, and this one is unaffected | 2028-09 |
+
 ## Fixes applied in this pass
+
+**Batch 4 (2026-09-17) — two defects, both about the course's own arithmetic.**
+
+1. **M6.1** — `{ N: 16384, r: 8, p: 1 }` labelled "params in the OWASP ballpark".
+   OWASP publishes no scrypt row with `N=2^14` and `p=1`; its weakest fallback is
+   `p=5` and its minimum is `N=2^17, r=8, p=1`. The parameters stay (Node's 32 MiB
+   `maxmem` default and the lab's own timing band both require the reduction) but
+   the label goes: the lab now states it is a deliberately reduced benchmark
+   setting, names both real OWASP rows, and gives the production line to copy.
+2. **M3.10** — "the body is exactly 6 bytes (`0\r\n\r\n`)". That string is five
+   bytes; the sixth is the `G`, which is the whole CL.TE mechanism. Fixed in the
+   JS comment and the walkthrough. The lab code and its printed offsets (98 / 97)
+   were correct throughout and were re-run to confirm it.
+
+**The shape worth carrying forward: `EXECUTED` claimed, not earned.** Both
+defects sat in material the previous pass would have classed as self-evident lab
+arithmetic — no third party named, therefore nothing to look up. But a number
+about code the reader is *told to run* is the most falsifiable kind there is, and
+the most damaging to get wrong, because verification is the assignment. Batch 3's
+triage rule ("a quantity is checkable only when it describes something outside
+the course") is **too coarse** and is superseded here: a quantity is checkable
+whenever a command settles it, inside or out. The cheap discipline that follows —
+run it, paste the output, then write the row — is what caught both.
+
+Both defects are fixed strings, so both carry guards — `A57` and `A58` — each
+negative-tested against the pre-fix text and clear against the fixed file.
 
 **Batch 3 (2026-09-17) — four defects, and this is the batch that justifies the ledger.**
 

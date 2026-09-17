@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-17 (Batch 3 — quantity claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 4 — port and protocol claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 4 | `port` — port and protocol assignments | 51 | mostly IANA-settleable, low risk, high volume |
 | 5 | `date` — "as of", "since", release years | 33 | rots by definition |
 | 6 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions |
 | 7 | `law` — GDPR/HIPAA/CFAA obligations and deadlines | 13 | wrong legal deadlines are the costliest error class here |
@@ -62,7 +61,8 @@ Not yet adjudicated — the next batches, in priority order:
 
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
 `rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.
-`quantity` — 55 candidates — is **closed** in Batch 3, rows 45–58.)
+`quantity` — 55 candidates — is **closed** in Batch 3, rows 45–58.
+`port` — 51 candidates, 48 distinct — is **closed** in Batch 4, rows 59–63.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -160,7 +160,72 @@ some evidence it is the right line.
 | 57 | M4 | Twitter 2020: vishing of employees, accounts of Obama/Biden/Musk/Apple/Uber hijacked, ~$118,000 stolen in minutes | `SOURCED` | Hillsborough County State Attorney Andrew Warren: **12.86 BTC from ~360 people, $117,440** at the time — "~$118,000" is that figure rounded and is how the state's own office stated it. 15 July 2020, 45 accounts posted. Graham Ivan Clark was **17 when charged**, arrested 31 July 2020, pleaded guilty to 30 felonies and took **3 years in a juvenile facility plus 3 years' probation** under Florida's Youthful Offender Act — so the course's "arrested within weeks and received real prison time" holds. | 2028-01 |
 | 58 | M0.5, M1, M10, M12, M13, M15, M21, M22 | ~30 byte counts, buffer sizes, key lengths and digests inside the labs — `15 bytes, not 14`, `32 bytes from env`, `at most 63 bytes + NUL`, `buf is 16 bytes`, `the SHA-256 of those exact 50 bytes` | `EXECUTED` | **Deliberately not individual rows.** Each is arithmetic about code printed on the same screen, verifiable by running the lab and by no other means; there is no authority to cite and nothing to re-check. Recording them separately would pad the ledger while lowering its signal. The rule: a `quantity` is a claim only when it describes **something outside the course**. | — |
 
+## Batch 4 — port and protocol assignments
+
+51 `port` candidates, 48 distinct. The batch was expected to be the dull one —
+"mostly IANA-settleable, low risk, high volume" is what the Batch 1 table
+predicted — and the prediction was wrong in an instructive way.
+
+**41 of the 48 are not assignments at all.** They are scan output, `tcpdump`
+filters, ephemeral source ports in synthetic log lines, and tunnel examples:
+`22/tcp open ssh`, `sudo tcpdump -i lo0 -A 'tcp port 8080'`, `from 203.0.113.44
+port 51222`. Those are `EXECUTED` — the port number is an input to a command
+printed on the same screen, and no registry can confirm or refute it. The 7 rules
+below are the ones that assert something about the **world**: what a number is
+named, who named it, and whether a name means anything.
+
+**The finding: a port name is three different facts wearing one label.** IANA's
+registry, the OS's `/etc/services`, and nmap's `nmap-services` are three separate
+tables maintained by three separate parties, and they disagree — routinely, not
+exceptionally. The course had already reached the right *conclusion* ("that tells
+you nothing") while citing the wrong *table*, which is the most dangerous shape a
+claim can have: correct advice resting on a checkable falsehood, so the reader
+who verifies it loses trust in the advice.
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 59 | M12 | Port 31337 is named "Elite" in `/etc/services` | `FIXED` | **wrong table, and the right answer is better teaching.** `Elite` is nmap's name, from `nmap-services` (verified by execution: `grep -w 31337/tcp /opt/homebrew/share/nmap/nmap-services` → `Elite 31337/tcp 0.000163`, nmap 7.99). macOS `/etc/services` has **no 31337 entry** (`grep 31337 /etc/services` → rc=1, 13,926 lines). IANA's registry assigns 31337/tcp+udp to **`eldim`** ("a secure file upload proxy") — confirmed in the 15,404-line CSV at `iana.org/assignments/service-names-port-numbers/service-names-port-numbers.csv`. nmap's own comment on the line *names eldim*, so nmap knows it is overriding IANA. Rewritten so the three-way disagreement is the lesson, with both verification commands printed for the reader | 2027-09 |
+| 60 | M9, M12, M15, M17 | Scan-output service names: `3000/tcp ppp`, `9929/tcp nping-echo`, `8080/tcp http`, `5432/tcp postgresql`, `3306/tcp mysql`, `22/tcp ssh`, `80/tcp http` | `EXECUTED` | all match `nmap-services` as shipped in nmap 7.99, which is what produces these columns. Two diverge from IANA and **that divergence is correct output, not a defect**: 3000/tcp is `ppp` to nmap but `hbci`/`remoteware-cl` to IANA; 8080/tcp is `http-proxy` to nmap but `http-alt` to IANA. M17's `8080/tcp open http Jetty` is `-sV` output, where probe-derived service identity overrides the table — also correct | 2027-09 |
+| 61 | M0.5, M2, M13, M25.5 | Well-known assignments the course teaches as fact: 80 HTTP, 443 HTTPS/TLS, 22 SSH, 23 Telnet, 445 SMB, 1900 SSDP/UPnP, 3306 MySQL, 5432 PostgreSQL | `SOURCED` | all confirmed against the IANA CSV above: `http,80,tcp`; `https,443,tcp,http protocol over TLS/SSL`; `ssh,22,tcp` [RFC4251]; `telnet,23,tcp` [RFC854]; `microsoft-ds,445,tcp`; `ssdp,1900,udp`; `mysql,3306,tcp`; `postgresql,5432,tcp`. The course calls 1900 "UPnP", IANA calls it SSDP — SSDP is the discovery protocol UPnP uses on that port, so the course's usage is the common one and is not a defect | 2027-09 |
+| 62 | M25.5 | Mirai scanned "Telnet on port 23" using "60 known default username/password pairs" | `FIXED` | two drifts in one sentence. The credential table held **62** pairs, with **ten** tried per host — the figure consistently reported from the released source and the USENIX Security '17 analysis *Understanding the Mirai Botnet* (Antonakakis et al., pp. 1093–1110). And Mirai scanned telnet on **23 and 2323**; a defence paragraph that says "firewall management ports" while naming only 23 leaves the port people actually forget. Both corrected, and the module's own scan lab updated to `-p 23,2323` so the lab and the prose agree | 2027-09 |
+| 63 | M6, M12 | Binding a port below 1024 requires privilege; there are only 65,535 ports, so a "secret" high port is not a secret | `CORPUS` | both hold as taught. The privileged-port boundary is real on macOS and Linux (the course already names the standard escapes — bind-then-drop, or let nginx/systemd hold the port), and 65,535 is simply the 16-bit range. The M12 example port **47821 is genuinely unassigned** — absent from the IANA CSV and `unknown` in `nmap-services` — so the "nobody will guess it" scenario is not accidentally naming a registered service | 2029-09 |
+
 ## Fixes applied in this pass
+
+**Batch 4 (2026-09-17) — two defects, both "right conclusion, wrong authority".**
+
+1. **M12** — "port 31337 is *named* `Elite` in `/etc/services`". It is named that
+   in **nmap's** table; `/etc/services` has no such entry and IANA assigns the port
+   to `eldim`. The conclusion the sentence was supporting ("that tells you
+   nothing") was already correct — so the fix strengthens it: the course now
+   names all three tables, shows they disagree, and prints the two commands that
+   prove it.
+2. **M25.5** — Mirai's credential table given as **60** pairs (it is **62**, ten
+   tried per host) and its telnet scanning given as port **23** alone (it also
+   scanned **2323**). The second half mattered more than the first: the module's
+   defence advice said "firewall management ports" while naming only one of them,
+   and the module's own lab scanned only `-p 23`. Prose and lab now both say
+   `23,2323`.
+
+**The shape worth carrying forward: correct advice resting on a false citation.**
+Neither defect changed what the reader should *do*. Both would have been caught
+by the first reader who ran the check the sentence invited — and that reader
+would then have had good reason to doubt the surrounding, correct, material. A
+claim in a teaching text is load-bearing even when the conclusion above it is
+sound; **verifiability is the product, not just accuracy.** When a row asserts
+that a name lives in a named file, the row must record *which* file was read.
+
+The second finding is a triage rule, matching Batch 3's: **most `port` candidates
+are not claims.** 41 of 48 were command inputs and scan output — `EXECUTED`, with
+no registry to cite (row 60). A port number is only checkable when the sentence
+asserts what it is *called* or what it is *for*, not when it is an argument.
+
+Both defects are fixed strings, so both carry guards — `A55` and `A56` — each
+negative-tested in both directions. `A55` needed two repairs before it fired:
+the course writes `*named*`, so the closing asterisk abuts the word, and the
+escaped backtick (`\``) sits between "in" and the path. The first draft matched
+nothing and would have scored green forever, which is precisely the dead-guard
+failure this table exists to prevent.
 
 **Batch 3 (2026-09-17) — three defects, and two of them are the same bug.**
 
