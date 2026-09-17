@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-17 (Batch 4 — port and protocol claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 5 — date claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 5 | `date` — "as of", "since", release years | 33 | rots by definition |
 | 6 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions |
 | 7 | `law` — GDPR/HIPAA/CFAA obligations and deadlines | 13 | wrong legal deadlines are the costliest error class here |
 | 8 | `attribution` — "according to", "researchers found" | 5 | each needs the **primary** document, not the report quoting it |
@@ -62,7 +61,8 @@ Not yet adjudicated — the next batches, in priority order:
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
 `rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.
 `quantity` — 55 candidates — is **closed** in Batch 3, rows 45–58.
-`port` — 51 candidates, 48 distinct — is **closed** in Batch 4, rows 59–63.)
+`port` — 51 candidates, 48 distinct — is **closed** in Batch 4, rows 59–63.
+`date` — 34 candidates — is **closed** in Batch 5, rows 64–71.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -190,7 +190,77 @@ who verifies it loses trust in the advice.
 | 62 | M25.5 | Mirai scanned "Telnet on port 23" using "60 known default username/password pairs" | `FIXED` | two drifts in one sentence. The credential table held **62** pairs, with **ten** tried per host — the figure consistently reported from the released source and the USENIX Security '17 analysis *Understanding the Mirai Botnet* (Antonakakis et al., pp. 1093–1110). And Mirai scanned telnet on **23 and 2323**; a defence paragraph that says "firewall management ports" while naming only 23 leaves the port people actually forget. Both corrected, and the module's own scan lab updated to `-p 23,2323` so the lab and the prose agree | 2027-09 |
 | 63 | M6, M12 | Binding a port below 1024 requires privilege; there are only 65,535 ports, so a "secret" high port is not a secret | `CORPUS` | both hold as taught. The privileged-port boundary is real on macOS and Linux (the course already names the standard escapes — bind-then-drop, or let nginx/systemd hold the port), and 65,535 is simply the 16-bit range. The M12 example port **47821 is genuinely unassigned** — absent from the IANA CSV and `unknown` in `nmap-services` — so the "nobody will guess it" scenario is not accidentally naming a registered service | 2029-09 |
 
+## Batch 5 — date claims
+
+34 `date` candidates. The tag was predicted to "rot by definition" and it does,
+but not in the way the prediction implied. **A stale date is rarely the defect.**
+Almost every year in this course is a *historical anchor* — Morris in 1988, WEP
+broken in 2001, Stuxnet found in 2010, Maersk in June 2017 — and a historical
+anchor cannot rot; it is either right or it was always wrong, and all of them are
+right (row 69).
+
+The five defects are all the other shape: **a date attached to a moving
+measurement.** A dwell-time median, a phishing click rate, a software licence, a
+loss figure quoted in the wrong currency. The `date` regex found them because
+the sentence said "in 2024" — but what had gone stale was never the year, it was
+the number sitting next to it, and in two cases the underlying *trend had
+reversed* while the course stood still. That is the same defect Batch 2 found in
+the `rank` class (row 36), which suggests the two tags are pointing at one
+failure mode from different angles: **a claim that names a year is usually a
+claim about a series, and a series has a direction.**
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 64 | M25.5 | Mirai tried "~60 default username/password pairs" — **a third instance Batch 4 missed** | `FIXED` | **The batch's most uncomfortable finding: the previous pass's own guard was written too narrow to catch its own defect.** Batch 4 (row 62) corrected Mirai's credential table from 60 to **62** pairs in two places and wrote guard `A56` as the literal string `60 known default username/password pairs` — the exact wording of the sentence it had just fixed. A **third** instance in the same module, worded `~60 **default username/password pairs**`, was never touched, and the gate scored green over it for a full pass. Fixed here to 62 pairs / ten per host, and the same sentence also gained the `23 and 2323` correction it had missed. `A56` is **widened** to `~?60[^\n]{0,24}default username/password pairs`, which fires on both wordings | 2027-09 |
+| 65 | M18.5 | "In 2023-2024 data, the median global dwell time was 10 days, down from 16 the previous year, but for internally detected breaches it stretched much longer" | `FIXED` | **Two errors in one sentence, and the second is the worse one.** (1) *Stale, and the trend has since reversed.* 10 days is Mandiant's **2023** figure (M-Trends 2024), correctly paired with 16 for 2022 — but the series continued **11 days (2024)** and **14 days (2025)**, published in M-Trends 2026 from 500,000+ hours of investigations. The decade-long decline the sentence was teaching **ended and turned**, driven by long-running espionage and DPRK IT-worker intrusions at a 122-day median. (2) *Inverted.* Internally detected breaches have the **shortest** dwell time — **9 days** — and externally notified ones the longest at **25**; the whole 2025 rise came from the external bucket. The course had the split exactly backwards while using it to make a point about detection maturity. Rewritten with the full series, each figure year-bound, and the split stated in the right direction | 2027-04 |
+| 66 | M24.5 | "In 2024, Wombat/Proofpoint reported that AI-generated phishing had a click rate 70%+ higher than manually written campaigns" | `FIXED` | **A statistic attributed to a report that does not exist, stating a result the 2024 evidence contradicted.** Wombat Security was absorbed into Proofpoint in 2018 and the brand retired; Proofpoint's *State of the Phish* carries no AI-vs-human click-rate comparison, and no "70%" figure traces anywhere. Worse, through 2024 the measurements ran the **other way**: IBM X-Force Red (2023) got **14%** for a human phish against **11%** for AI, and Hoxhunt's running comparison had AI still **10% behind** elite red teams in November 2024, only crossing over to **+24%** in March 2025. The sourceable modern figure is **Microsoft's Digital Defense Report 2025 — 54% click rate on AI-crafted lures vs 12% manually written**. Rewritten to give the crossover as a dated sequence, name both real sources, and state the durable point separately: the grammar-and-greeting tells have stopped being evidence, whatever the percentage | 2027-10 |
+| 67 | M24.5 | The Arup deepfake fraud "cost £25M" (case-study title, workbench goal, workbench answer) | `FIXED` | **A currency conversion that never happened.** The loss was **HK$200 million ≈ US$25.6M** — 15 transfers across five Hong Kong accounts, January 2024, reported by Hong Kong police in February and tied to Arup by CNN in May. Three of the four passages wrote the US-dollar magnitude with a **pound** sign, which re-labels the figure and overstates it by about a quarter (HK$200M is roughly £20M). The one passage that was right — the case-study `body` — already said `HK$200M (approximately US$25.6M)`, so the course **contradicted itself across four passages about the same incident**. All now give HK$200M with the USD equivalent, and the answer carries a note to write the figure in the currency it was reported in. Guard `A62` bans a bare `£25M` outright | 2028-01 |
+| 68 | ★ Intro | VM setup table: VMware Fusion/Workstation are "free — personal use" (3 rows) | `FIXED` | **A licence claim that expanded under the course.** Broadcom made Workstation Pro and Fusion Pro free for *personal* use in May 2024 — which is what the table recorded — and then on **11 November 2024** removed the restriction entirely: commercial, educational and personal use are all free, and the paid Pro editions **are no longer sold at all**. The stale version is not merely out of date, it tells a learner planning to use the course at work that they need a purchase they cannot make. Corrected in all three rows, with the version floor that actually gates it (**Workstation 17.5.2 / Fusion 13.5.2**), and a note on why the wording matters. Same family as row 47's exam prices: a vendor fact the course cannot control, so it is now **date-bound in the sentence** | 2027-11 |
+| 69 | M13.5, M18.5, M21, M22, M23.5, M24, M16.5 | Historical anchors: WEP broken **2001**; ATT&CK begun by MITRE in **2013**; Morris worm **Nov 1988** and the `gets()`/`fingerd` overflow; "true in **1996**" (Aleph One, *Smashing the Stack*, Phrack 49); BTK taunting police "for 30 years"; Code Spaces' AWS console ransom **June 2014**; Stuxnet discovered **2010**; Zero Trust "died at SolarWinds… since 2020" | `SOURCED` | all confirmed, none can rot. WEP's break is the Fluhrer–Mantin–Shamir attack of 2001; ATT&CK started in 2013 as the FMX project and went public in 2015, so "built… starting in 2013" is right; Morris was released 2 Nov 1988 by a Cornell graduate student and `fingerd`'s `gets()` was one of its vectors; Aleph One's paper is Phrack 49 (Nov 1996), which is the naïve-overwrite era the module contrasts with PAC/ASLR/DEP. BTK: first murders Jan 1974, arrested 25 Feb 2005 on floppy-disk metadata — 31 years, so "30 years" is the correct round number and the `for` is doing the hedging. **The rule this row sets: a date that fixes an event in the past is not a rot risk and does not need a re-check column.** Only dates attached to a measurement do | — |
+| 70 | M28, M25.5, M24.5 | Relative-present dates: "a path that actually works **in 2025**"; "a router bought in 2015 still listening in **2025**"; "which in **2024** most organisations had not yet implemented" | `CONVENTION` | terminal, and the finding is that **these are the only `date` claims with no correct form.** Each names the year the sentence was *written* as though it were the year it is *read*; none is checkable, because no authority publishes "what works for a career-changer this year". They are kept because the alternative — deleting the year — makes them vaguer, not truer. The rule: a relative-present date is a **timestamp on the author, not a claim about the world**, and must never be given a statistic to carry. The moment one does, it becomes row 66 | — |
+| 71 | — | The 14 `date` candidates already adjudicated in Batches 1–4 | `CORPUS` | **Do not re-derive these.** CSF 2.0 released Feb 2024 (row 1); SP 800-63B-4 July 2025 (5); HQC selected March 2025 (19); SP 800-207 published 2020 (20); NICE Components v2.2.0 April 2026 (25); LinkedIn 2012 (53); Ubiquiti May 2015 (49); SolarWinds 2020 (45); Maersk June 2017 (50); Oldsmar Feb 2021 and the 2023 retraction (48); Twitter July 2020 (57); Mirai 2016 and the 30 Tbps floor (42, 62); the OWASP 2025 refresh (14–17); the Agentic Top 10 of Dec 2025 (AppSec ledger row 24). Listed here only so a later pass grepping for `date` can see they are closed rather than untouched | — |
+
 ## Fixes applied in this pass
+
+**Batch 5 (2026-09-17) — five defects, and one of them is a hole in the previous pass's gate.**
+
+1. **M25.5** — a **third** "~60 default username/password pairs" that Batch 4 never
+   saw, because Batch 4 wrote its regression guard from the exact wording of the
+   sentence it had just fixed. The guard was green, the defect was live, and the
+   two facts were consistent with each other for a full pass.
+2. **M18.5** — Mandiant dwell time given as 10 days "down from 16", two editions
+   stale and describing a decline that has since **reversed** (11 in 2024, 14 in
+   2025) — plus the internal/external detection split stated **backwards**.
+3. **M24.5** — an AI-phishing click rate attributed to a **report that does not
+   exist** (`Wombat/Proofpoint`), asserting for 2024 a result that 2024's actual
+   measurements contradicted.
+4. **M24.5** — the Arup loss written as **£25M** in three passages while a fourth
+   passage in the same module correctly said HK$200M ≈ US$25.6M.
+5. **★ Intro** — VMware "free for personal use", a restriction Broadcom deleted on
+   11 Nov 2024, in a setup table a learner acts on before anything else.
+
+**The shape worth carrying forward: a guard written from the fix is not a guard
+against the defect.** Row 64 is the first time this ledger's own machinery failed
+rather than the course. `A56` was negative-tested in Batch 4 and it *did* fire —
+on the one sentence it was copied from. Testing a guard against the file you just
+edited proves only that the guard matches your edit. **The test that matters is
+whether the pattern describes the error or the instance**, and the cheap way to
+force that question is to write the pattern before looking at how the sentence
+happens to be worded, then grep the whole course for near-misses. Every Batch 5
+guard was written that way, and `A56` is widened accordingly.
+
+The second finding is a triage rule, and it is the inverse of the ones Batches 3
+and 4 produced. Those found that most candidates in their class were not claims
+at all. Here, most candidates *are* claims — but **the claim is almost never the
+date** (rows 69, 70). A year pinned to a past event is inert. A year pinned to a
+measurement is a claim about a **series**, and a series has a direction that can
+reverse without any of its published numbers becoming wrong. Rows 65 and 66 are
+both that: no figure in either sentence was ever false, and both sentences taught
+the opposite of what is now true.
+
+All five defects are fixed strings, so all five carry guards — `A59`–`A63`, plus
+the widened `A56`. Each was verified firing against the pre-fix file and clear on
+the fixed one.
 
 **Batch 4 (2026-09-17) — two defects, both "right conclusion, wrong authority".**
 

@@ -672,10 +672,16 @@ BANNED = [
      "/etc/services has no 31337 entry at all, and IANA assigns 31337/tcp to "
      "`eldim`. Three tables, three answers — that disagreement IS the lesson "
      "(Guardians ledger row 59)", "A55"),
-    (r"60 known default username/password pairs",
+    # WIDENED in Batch 5. The first version of this guard was the literal string
+    # `60 known default username/password pairs`, copied from the one sentence
+    # Batch 4 fixed — and a THIRD instance in the same module, worded `~60
+    # **default username/password pairs**`, sat untouched and scored green for a
+    # whole pass. A guard written from the wording of the instance you fixed only
+    # ever proves that instance stayed fixed (Guardians ledger row 64).
+    (r"\b~?60\b[^\n]{0,24}default username/password pairs",
      "Mirai's hardcoded table held 62 pairs, ten tried per host. It also scanned "
      "telnet on 2323 as well as 23, so a defence that names only 23 is incomplete "
-     "(Guardians ledger row 62)", "A56"),
+     "(Guardians ledger rows 62, 64)", "A56"),
     (r"scrypt params in the OWASP ballpark",
      "OWASP lists no scrypt row with N=2^14 AND p=1 — its weakest fallback is "
      "N=2^14, r=8, p=5 and its minimum is N=2^17, r=8, p=1. A reduced benchmark "
@@ -684,6 +690,62 @@ BANNED = [
      "`0\\r\\n\\r\\n` is FIVE bytes. The sixth byte counted by Content-Length: 6 is "
      "the `G`, and that byte is the entire CL.TE mechanism — dropping it makes the "
      "arithmetic unverifiable (AppSec ledger row 47)", "A58"),
+
+    # --- Batch 5 of the claim ledgers (date claims in Guardians, law claims in
+    # AppSec). The legal guards below are the highest-value entries in this table:
+    # a wrong statutory deadline is the one class of error a learner can carry
+    # into a real incident and cause harm with, and none of them is reachable by
+    # any structural check.
+    (r"median global dwell time[^\n]{0,60}was 10 days",
+     "10 days is Mandiant's 2023 figure. The series went 16 (2022) -> 10 (2023) "
+     "-> 11 (2024) -> 14 (2025, M-Trends 2026): the decade-long decline REVERSED. "
+     "Never state a dwell-time number without its year (Guardians ledger row 65)",
+     "A59"),
+    (r"internally detected breaches it stretched much longer",
+     "Inverted. Internal detection is the FAST path (9-day median); external "
+     "notification is the slow one (25 days). The sentence taught the split "
+     "backwards (Guardians ledger row 65)", "A60"),
+    (r"Wombat/Proofpoint",
+     "No such report exists: Wombat was absorbed into Proofpoint in 2018 and the "
+     "State of the Phish report carries no AI-vs-human click-rate comparison. The "
+     "2024 evidence pointed the OTHER way (Hoxhunt: AI still 10% behind human red "
+     "teams in Nov 2024). The sourceable figure is Microsoft DDR 2025, 54% vs 12% "
+     "(Guardians ledger row 66)", "A61"),
+    (r"£\s?25M",
+     "The Arup deepfake loss was HK$200M, about US$25.6M. Writing it as GBP "
+     "converts the dollar figure into pounds and overstates it by ~25%; the "
+     "reported number is HK$200M (Guardians ledger row 67)", "A62"),
+    (r"personal use free",
+     "Broadcom removed the personal-use restriction on 2024-11-11: Workstation "
+     "and Fusion are free for commercial, educational AND personal use, and the "
+     "paid Pro editions are no longer sold (Guardians ledger row 68)", "A63"),
+
+    (r"HIPAA[^\n]{0,40}\b72[- ]hour",
+     "HIPAA's Breach Notification Rule is 60 CALENDAR DAYS from discovery (45 CFR "
+     "164.404-410), and a business associate has 60 days to tell the covered "
+     "entity. The 72 hours is GDPR Art. 33, to a supervisory authority. Welding "
+     "the two together is the most common compliance error in this course's "
+     "subject area (AppSec ledger row 52)", "A64", "60 calendar days"),
+    (r"[Ee]ncryption at rest and in transit \(both required",
+     "Encryption is ADDRESSABLE under 45 CFR 164.312(a)(2)(iv) and (e)(2)(ii) - "
+     "implement it or document an equivalent safeguard. The Jan 2025 NPRM would "
+     "make it required but is still not final (OMB target 2027). Say `addressable, "
+     "so encrypt anyway`, never `required` (AppSec ledger row 53)", "A65"),
+    (r"six GDPR data subject rights",
+     "GDPR Chapter III grants EIGHT rights (Arts. 15-22). `Six` is the number of "
+     "LAWFUL BASES in Art. 6, which sits three paragraphs up the same page - and "
+     "the table this tracker checks listed only five (AppSec ledger row 54)",
+     "A66"),
+    (r"personal data of EU residents, regardless of where",
+     "Art. 3(2) keys on data subjects `who are in the Union` - a location test, "
+     "not residency or citizenship - and reaches a non-EU company only where it "
+     "OFFERS goods/services to them or MONITORS their behaviour. Mere "
+     "reachability from the EU is not enough (AppSec ledger row 55)", "A67"),
+    (r"PHI access[^\n]{0,40}retained for 6 years",
+     "45 CFR 164.312(b) requires audit controls and sets NO retention period. The "
+     "6 years is 164.316(b)(2), which covers DOCUMENTATION - your logging policy. "
+     "Applying it to the log data is the conservative reading, not the text "
+     "(AppSec ledger row 56)", "A68"),
 ]
 
 

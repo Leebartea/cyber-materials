@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-17 (Batch 4 — quantity claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-17 (Batch 5 — law claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,10 +54,11 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 5 | `law` — GDPR/CRA/DORA/NIS2 obligations and deadlines | 29 | wrong legal deadlines are the costliest error class here |
-| 6 | `port` — port and protocol assignments | 23 | mostly IANA-settleable, low risk, high volume |
-| 7 | `date` — "as of", "since", release years | 15 | rots by definition |
+| 6 | `port` — port and protocol assignments | 23 | mostly IANA-settleable, low risk, high volume — but read the Guardians ledger's Batch 4 first: 41 of its 48 were not assignments at all |
+| 7 | `date` — "as of", "since", release years | 15 | rots by definition — and per the Guardians Batch 5, the date is rarely what rotted |
 | 8 | `attribution` — "according to", "researchers found" | 1 | needs the **primary** document, not the report quoting it |
+
+(`law` — 29 candidates — is **closed** in Batch 5, rows 52–57.)
 
 ## Batch 1 — standards and identifiers
 
@@ -167,7 +168,75 @@ run on this machine (Node v22.12.0, M2 Pro) before it was written.
 | 50 | M7.1, M7.2, M7.5.x | "1,000+ transitive packages", "1,400 npm packages", the `$99,999.99` refund, "62 percent margin", the "50,000-word essay" | `CONVENTION` | terminal — no source settles these and none should be sought. The dependency counts are order-of-magnitude illustrations the reader verifies locally (`npm ls --all`), and the rest are **fixtures inside the course's own scenarios**: an invented refund amount, an invented margin in a prompt-injection document, an invented abusive request. A fixture is not a claim about the world, and dressing one in a citation would be worse than leaving it plain | — |
 | 51 | M7.2 | Equifax (2017) disclosed a breach of **147 million** records | `CORPUS` | 147 million is the FTC's figure for the 2017 Equifax breach and is the one the course already uses. The adjacent *settlement* figure was the Guardians ledger's Batch 3 defect (its row 46, `$700M` ceiling quoted as the amount paid) — that is a different number in a different course, and this one is unaffected | 2028-09 |
 
+## Batch 5 — law and regulatory-deadline claims
+
+29 `law` candidates, and this batch earns the priority the Batch 1 table gave it:
+**four of the five defects are in one module (M7.3), and two of them are wrong
+statutory deadlines.** Every other class in these ledgers fails safe — a stale
+port name or an over-strong superlative makes the course *look* wrong to a reader
+who checks. A wrong breach-notification deadline is different in kind: it is the
+one error a learner can carry out of the course and cause real harm with, in a
+room where nobody has time to check.
+
+The candidate distribution is unusual too. Unlike `quantity` or `port`, where
+most hits were the course's own fixtures, **essentially all 29 are real claims** —
+you cannot mention GDPR incidentally. What made the triage finite was that 19 of
+the 29 land in M7.3, the compliance module, so the batch is one careful reading of
+one module plus a sweep of the incidental mentions elsewhere (row 57).
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 52 | M7.3 | Tracker: "Knows the **HIPAA 72-hour breach notification rule** (it applies to GDPR too) and what triggers it" | `FIXED` | **The worst defect found in any batch of either ledger: a fabricated statutory deadline, in the line the learner uses to certify themselves competent.** There is no 72-hour rule in HIPAA. The Breach Notification Rule (45 CFR 164.404–410) gives **60 calendar days from discovery** to notify individuals; HHS is notified contemporaneously at 500+ individuals and annually (within 60 days of year-end) below that; and a **business associate — which is what a developer building on PHI *is* — has 60 days to notify the covered entity**. The 72 hours is **GDPR Article 33**, to a data-protection supervisory authority, and the parenthetical "(it applies to GDPR too)" has the direction of the borrowing exactly backwards. The module's own theory states GDPR's 72 hours correctly two screens earlier, so the tracker **contradicted the text it was checking**. Fixed by adding the real rule to the HIPAA section — with the three traps that make 60 days tighter than it sounds (the clock starts at constructive *discovery*, not at the end of forensics; the BA's 60 and the covered entity's 60 can stack, which is why a sane BAA negotiates 5–15 days; many US state statutes are shorter and are not preempted) — and rewriting the tracker to ask the learner to keep **three** clocks apart, HIPAA 60 days / GDPR 72 hours / CRA 24 hours, with what triggers each. Guard `A64` bans the two being welded together | 2028-01 |
+| 53 | M7.3 | HIPAA technical safeguards: "Encryption at rest and in transit (**both required**, unlike GDPR where it's 'appropriate measures')" | `FIXED` | **False, and the contrast it draws is backwards.** Encryption is an **addressable** implementation specification under **45 CFR 164.312(a)(2)(iv)** (at rest) and **164.312(e)(2)(ii)** (in transit) — you implement it, or you document why it is not reasonable and what equivalent safeguard you used. Addressable is *not* optional, but it is a risk-based standard, which makes it much closer to GDPR Art. 32's "appropriate measures" than the sentence's "unlike GDPR" allows. The January 2025 NPRM would delete the required/addressable distinction and make encryption and MFA flatly mandatory — but it is **still not final**: comments closed 7 Mar 2025, the May 2026 target slipped, and OMB now targets **2027**, with compliance 180 days after an effective date 60 days after publication. Rewritten to give the real status, keep the practical advice (encrypt — almost no alternative is defensible), and add the reason the distinction is worth knowing: telling an auditor the regulation *requires* it advertises that you have not read it. **Watch this row** — it is the one in this ledger most likely to flip to `required` | 2027-07 |
+| 54 | M7.3 | Tracker: "Can name the **six** GDPR data subject rights"; the table it checks lists **five** | `FIXED` | **Three numbers, no two of which agree.** GDPR Chapter III grants **eight** rights, Articles 15–22: access, rectification, erasure, restriction of processing, portability, objection, the right not to be subject to solely automated decisions, and (Arts. 13–14) the right to be informed. The table listed five. The tracker asked for six. **Six is the number of lawful bases in Article 6** — which the module states correctly in a bold heading *three paragraphs above*, so the wrong number was almost certainly captured from the nearest bold number on the same page. This is the guard-on-an-example failure in reverse: the tracker is the artefact a learner self-certifies against, and it asked for a count that matched neither the law nor the course. Fixed by naming all eight, splitting them into the five that become API endpoints and the three that do not (Art. 18 restriction — in practice a `processing_restricted` flag the jobs honour; Art. 22 automated decisions; Arts. 13–14 the privacy notice), and warning about the Article 6 confusion by name. Guard `A66` | 2028-01 |
+| 55 | M7.3 | "GDPR applies to any system that processes personal data of **EU residents**, regardless of where your company is located" | `FIXED` | **Two imprecisions, and the second one tells a reader they are in scope when they may not be.** (1) Article 3(2) keys on data subjects "**who are in the Union**" — a *location* test. Residency and citizenship are irrelevant: it reaches an American tourist in Rome and does not reach an EU citizen living in Toronto. (2) "regardless of where your company is located" is true only *conditionally*: for a controller with no EU establishment, Art. 3(2) applies where the processing relates to **offering goods or services to** people in the Union, or **monitoring their behaviour** there. Mere reachability of a website from the EU is expressly not enough — the EDPB's Guidelines 3/2018 targeting criterion looks for evidence the controller **envisaged** EU users (EU-language checkout, euro pricing, EU delivery, EU-targeted advertising), and it is assessed **per processing activity, not per company**, so one business can be partly in scope. Rewritten to the location test plus the targeting criterion with the concrete signals. Guard `A67` | 2028-01 |
+| 56 | M7.3 | HIPAA: "Audit logs of all PHI access (who, what, when) — **retained for 6 years**" | `FIXED` | true as practice, mis-cited as text — the milder sibling of the Guardians Batch 4 finding (right advice, wrong authority). **45 CFR 164.312(b)** requires audit controls and specifies **no retention period at all** — no format, no fields, no duration. The familiar six years is **164.316(b)(2)**, which covers *documentation*: policies, procedures, assessments, retained six years from creation or last effective date. Your *logging policy* is unambiguously in scope; applying the same six years to the log **data** is the conservative industry reading, not the regulation, and most compliance vendors flatten the distinction without saying so. Left at six years — it is the right operational answer, and state law or a litigation hold can push it further — but the sentence now says which provision each half comes from. A developer who cites 164.312(b) for a six-year retention requirement will be corrected by the first auditor who reads it | 2028-01 |
+| 57 | M7.3, M7.5.5, M7.5.7, M7.5.8, M9.1, M9.3, M4.1 | The remaining 24 `law` mentions: CRA 24h / NIS2 / DORA / PCI; GDPR erasure applied to vector stores and embeddings; "GDPR 72h" in the incident-response phases; GDPR/CCPA data minimisation in logging | `SOURCED` `CORPUS` | **all correct as written, and four were already closed in Batch 1** — CRA in force 10 Dec 2024 with reporting from 11 Sep 2026 and full application 11 Dec 2027, 24h early warning to ENISA/CSIRT (row 20); DORA since 17 Jan 2025, five pillars (21); NIS2 transposition deadline Oct 2024, already correctly hedged as "since national transposition" (22); PCI DSS 4.0.1 with the 31 Mar 2025 future-dated requirements (17). Checked fresh this pass: every standalone "GDPR 72 hours" in M9.1/M9.3 names the supervisory authority and the personal-data-breach trigger, so none of them has the row 52 defect. The **M7.5.5 embeddings point is the strongest legal reasoning in the course and needed no change** — that deleting a source row does not delete its embedding is a live erasure problem, and that embeddings are not reliable anonymisation because inversion can partially reconstruct the source is the correct and non-obvious reading. M7.5.7/M7.5.8 on pasting customer data into AI assistants correctly separate "not trained on" from "not stored". The one incompleteness carried forward, not a defect: the CRA's 24h is only the **early warning** — a full notification is due at 72 hours and a final report at 14 days, which the module still does not mention (noted in row 20, unchanged) | 2027-12 |
+
 ## Fixes applied in this pass
+
+**Batch 5 (2026-09-17) — five defects, four of them in one module, two of them wrong deadlines.**
+
+1. **M7.3 tracker** — a **"HIPAA 72-hour breach notification rule" that does not
+   exist**. HIPAA is 60 calendar days from discovery; 72 hours is GDPR's, and the
+   parenthetical "(it applies to GDPR too)" reversed the borrowing. The module's
+   own theory said GDPR's 72 hours correctly two screens earlier.
+2. **M7.3** — HIPAA encryption at rest and in transit called "**both required**".
+   It is **addressable** (164.312(a)(2)(iv), (e)(2)(ii)); the rule that would make
+   it required is a January 2025 NPRM still not final, now targeted at 2027.
+3. **M7.3 tracker** — "the **six** GDPR data subject rights", checking a table that
+   listed **five**, for a law that grants **eight**. Six is the number of *lawful
+   bases* in Article 6, three paragraphs up the same page.
+4. **M7.3** — GDPR scope given as "**EU residents**, regardless of where your company
+   is located". Art. 3(2) is a location test, and reaches a non-EU company only
+   through the targeting or monitoring criterion.
+5. **M7.3** — PHI audit logs "retained for 6 years" cited to the audit-controls
+   rule, which sets no retention period; the six years is the *documentation* rule.
+
+**The shape worth carrying forward: the tracker is not documentation, it is the
+claim the learner will repeat.** Two of these five (rows 52, 54) are in `tracker`
+strings, and both **contradicted the module's own theory text** — the correct
+GDPR deadline and the correct rights table were on screen, unchanged, while the
+self-assessment line asked for something else. A defect in prose misleads a reader
+once; a defect in a tracker is the sentence they rehearse until they believe it,
+and it is the last thing they read before marking the module complete. **Audit
+`tracker`, `quiz` and `challenges` strings on their own pass**, against the theory
+rather than against the world — an internal contradiction is the cheapest defect
+in these courses to find and, per the standing note that a green gate proves
+structure and never truth, one of the few that a purely internal check *can*
+catch.
+
+The second finding is about the class itself. Legal claims have no `EXECUTED`
+escape hatch and no fixture exemption — the triage rules that let Batches 3 and 4
+dismiss most of their candidates (a byte count is arithmetic; a port number is an
+argument) have **no analogue here**. You cannot mention GDPR illustratively. That
+makes `law` the most expensive tag per candidate and the one where "we'll get to
+it" is least defensible, which is why the Guardians ledger's own 13 remaining
+`law` candidates (its Batch 7) should be pulled forward.
+
+All five defects are fixed strings, so all five carry guards — `A64`–`A68`. `A64`
+carries an acquittal on `60 calendar days`, because the corrected text
+deliberately names both deadlines in one sentence in order to keep them apart.
 
 **Batch 4 (2026-09-17) — two defects, both about the course's own arithmetic.**
 
