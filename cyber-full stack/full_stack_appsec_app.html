@@ -3115,8 +3115,8 @@ lsof -iTCP -sTCP:LISTEN -n -P    # macOS / Linux: TCP sockets in LISTEN state, n
 ss -tlnp                          # Linux only: same idea (t=tcp l=listening n=numeric p=process)
 \`\`\`
 \`\`\`
-COMMAND   PID   USER   FD   TYPE  DEVICE  NODE NAME
-node    54321   you   20u  IPv4  0x...   TCP  127.0.0.1:3000 (LISTEN)
+COMMAND     PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node      54321    you   20u  IPv4        0x...      0t0  TCP 127.0.0.1:3000 (LISTEN)
 \`\`\`
 
 > **Cross-platform note.** \`ss\` is **Linux-only**. \`lsof\` works on **macOS and Linux**. On **native Windows (PowerShell)** the equivalent is \`Get-NetTCPConnection -State Listen\` (or \`netstat -ano\`), or just use \`lsof\`/\`ss\` inside **WSL2**. Reading \`127.0.0.1:3000\` (loopback = local only) vs \`0.0.0.0:3000\` (all interfaces = reachable from the network) is a security skill you'll use in Phase 8.
@@ -3670,9 +3670,11 @@ hi
 docker ps
 \`\`\`
 \`\`\`
-CONTAINER ID   IMAGE      COMMAND                  STATUS         PORTS                    NAMES
-7f3c9a1e2b4d   hello:v1   "node server.js"         Up 20 seconds  0.0.0.0:8080->3000/tcp   hello
+CONTAINER ID   IMAGE      COMMAND                  CREATED          STATUS          PORTS                                         NAMES
+7f3c9a1e2b4d   hello:v1   "docker-entrypoint.s…"   22 seconds ago   Up 20 seconds   0.0.0.0:8080->3000/tcp, [::]:8080->3000/tcp   hello
 \`\`\`
+
+> **Two columns worth pausing on.** \`COMMAND\` reads \`"docker-entrypoint.s…"\`, **not** the \`CMD ["node", "server.js"]\` you wrote — because \`node:22-slim\` sets \`ENTRYPOINT ["docker-entrypoint.sh"]\`, and \`docker ps\` shows entrypoint-plus-command, truncated. Your \`CMD\` is still running; it's the *argument*. Use \`docker inspect --format '{{.Path}} {{.Args}}' hello\` to see it untruncated. And \`PORTS\` lists the mapping **twice**, once for \`0.0.0.0\` (IPv4) and once for \`[::]\` (IPv6): publishing a port opens it on both families, which is one more surface than most people picture when they type \`-p\`.
 
 - \`docker logs hello\` — the container's stdout/stderr (where your app's \`console.log\` and, later, your security logs land):
 
@@ -5622,7 +5624,7 @@ lsof -iTCP -sTCP:LISTEN -n -P | grep 3000     # macOS / Linux: TCP sockets in LI
 ss -tlnp | grep 3000                           # Linux only: same question, different tool
 \`\`\`
 \`\`\`
-node    54321  you  20u  IPv4  0x...  TCP  127.0.0.1:3000 (LISTEN)
+node      54321    you   20u  IPv4        0x...      0t0  TCP 127.0.0.1:3000 (LISTEN)
 \`\`\`
 
 The key column is the address: **\`127.0.0.1:3000\`** means loopback only — reachable just from this machine. If it read **\`0.0.0.0:3000\`** or **\`*:3000\`**, the server would be accepting connections from the *whole network*, which for a dev/debug server (especially one with a \`/debug\` endpoint) is a serious exposure. Prove the difference to yourself: change the Node \`app.listen(3000, "127.0.0.1", ...)\` to \`app.listen(3000, "0.0.0.0", ...)\`, restart, re-run the command, and watch the bind address change.
@@ -6380,7 +6382,17 @@ Given the base origin \`https://app.example.com\` (default port 443):
 - **Different port:** \`https://app.example.com:8080\` — \`:8080\` ≠ the default \`:443\`, cross-origin.
 - **Same-origin despite looking different:** \`https://app.example.com/admin?x=1#frag\` — path, query, and fragment are **not** part of the origin, so this is the *same* origin as the base.
 
-The trap most people fall into is thinking "same domain = same origin." It isn't: the origin is the **(scheme, host, port)** triple, and subdomains are different hosts. Every browser security rule you meet for the rest of this phase — SOP, CORS, cookie scope, CSP — is phrased against this triple, so getting it reflexive now makes the rest deduction instead of memorization.
+The trap most people fall into is thinking "same domain = same origin." It isn't: the origin is the **(scheme, host, port)** triple, and subdomains are different hosts. **SOP, CORS and CSP** are all phrased against that triple, so getting it reflexive now makes those three deduction instead of memorization.
+
+**But cookies are not, and that exception is the one that bites.** Cookies predate the origin concept and were never retrofitted onto it: they are scoped by **domain and path**, and the spec is blunt that "Cookies do not provide isolation by port" — a cookie readable on one port of a host is readable on every other port of that host (draft-ietf-httpbis-rfc6265bis-22 §8.5). The \`SameSite\` attribute uses a third, looser unit again — a **site**, which the HTML standard defines as a *(scheme, registrable domain)* pair with **no port at all**. So for one URL pair you can get three different answers:
+
+| \`http://localhost:3000\` vs \`http://localhost:8000\` | Same? | Because |
+|---|---|---|
+| **origin** (SOP, CORS, CSP) | ❌ cross-origin | ports differ, and port is in the triple |
+| **cookie scope** (which cookies are sent) | ✅ shared | cookies ignore port entirely |
+| **site** (\`SameSite\`, CSRF) | ✅ same-site | a site is (scheme, host); port is not in it |
+
+Hold onto that middle and right column — Module 2.3 builds a CSRF lab on exactly this URL pair, and the whole lab turns on the fact that two different ports are *cross-origin but same-site*.
 </details>
 
 #### 🟢 Drill 2 — run the theft an XSS would run ~5 min
@@ -6815,11 +6827,11 @@ The victim did nothing but visit a page. They never saw a form. **The server can
 
 **Why cookies are auto-sent (and the consequence):** cookies were designed to make sessions seamless — you don't want to re-attach your identity on every request manually. The browser handles it. That convenience is the curse: it attaches identity to requests the user didn't intend.
 
-**The defenses, each tied to "prove same-site origin":**
+**The defenses, each tied to "prove the request came from our own page":** — and note that they do *not* all measure that at the same granularity, which is the trap the lab below is built around.
 
 - **\`SameSite\` cookie attribute** — the modern first line. It controls whether the cookie is attached on *cross-site* requests:
   - \`SameSite=Strict\` — never sent cross-site. Strongest, but breaks "click a link in an email and arrive logged in."
-  - \`SameSite=Lax\` (today's browser default) — sent on top-level *navigations* (clicking a link) but **not** on cross-site \`POST\`s, \`fetch\`, or iframe loads. This kills classic form-POST CSRF while keeping normal link-following working. For most apps, \`Lax\` is the sane default.
+  - \`SameSite=Lax\` — sent on top-level *navigations* (clicking a link) but **not** on cross-site \`POST\`s, \`fetch\`, or iframe loads. This kills classic form-POST CSRF while keeping normal link-following working. For most apps, \`Lax\` is the sane default. **Chrome and Edge apply \`Lax\` to any cookie that omits the attribute** (Chrome 80, Feb 2020) — but **Firefox never shipped that default on release** (the \`network.cookie.sameSite.laxByDefault\` pref is off outside Nightly/early Beta; Mozilla's tracking bug 1617609 was resolved without it), and Safari reaches a similar end state by blocking third-party cookies outright rather than by defaulting the attribute. So "the browser will default it for me" is true of one engine and false of another: **set \`SameSite\` explicitly on every cookie** and never let a lab result stand in for a spec guarantee.
   - \`SameSite=None\` — sent on all cross-site requests; **requires \`Secure\`**. Only for genuinely cross-site needs (embedded widgets, some SSO) — and then you *must* add CSRF tokens.
 - **CSRF tokens (synchronizer token pattern)** — the server embeds a random, per-session (or per-request) token in its own forms/pages; legitimate requests echo it back (in a hidden field or header); the server rejects requests without the matching token. \`evil.com\` *can't read* the token (SOP stops it reading your page), so it can't forge a valid request. This is the classic, robust defense and the one to use when \`SameSite\` alone isn't enough.
 - **Origin / Referer validation** — for state-changing requests, check the \`Origin\` (or \`Referer\`) header matches your site. Browsers set these and a cross-site request reveals the foreign origin. Useful as a defense-in-depth check.
@@ -6841,7 +6853,13 @@ app.use(express.urlencoded({ extended: false }));   // accepts HTML form posts
 
 // Pretend the user logged in earlier and got this session cookie:
 app.get("/login", (req, res) => {
-  res.cookie("session", "valid-session-for-victim", { httpOnly: true }); // note: no SameSite yet
+  // SameSite is set EXPLICITLY, not left to the browser: Chrome would default this to
+  // Lax and Firefox would not, so an unset attribute makes the lab's result depend on
+  // which browser you opened. "None" is the pre-2020 behaviour we're here to attack.
+  // Secure is required with None — and it is accepted over http://localhost, because
+  // localhost is a "potentially trustworthy origin". On a LAN IP or a .local name it
+  // would be rejected; that is why this lab stays on loopback.
+  res.cookie("session", "valid-session-for-victim", { httpOnly: true, sameSite: "none", secure: true });
   res.send("logged in");
 });
 
@@ -6856,7 +6874,11 @@ app.get("/account", (req, res) => res.send("current email: " + email));
 app.listen(3000, () => console.log("victim on http://localhost:3000"));
 \`\`\`
 
-**Attacker page** — \`attacker.html\`, served from a *different* origin (use a second port):
+**Attacker page** — \`attacker.html\`, served from a *different site*. Read that carefully, because the obvious choice is wrong:
+
+> **⚠️ A second port is not a second site.** The instinct from Module 2.1 — "different port, different origin" — is correct about *origins* and useless here. \`SameSite\` is not measured in origins. A **site** is *(scheme, registrable domain)*, and the port is not in it, so \`http://localhost:8000\` and \`http://localhost:3000\` are **cross-origin but same-site**. Build the attacker page on a second port and the browser calls the POST same-site, sends the cookie under *any* \`SameSite\` value including \`Strict\`, and your Layer-1 defence appears to do nothing. To get a genuinely cross-site request on loopback, change the **host**: \`127.0.0.1\` and \`localhost\` are different hosts, neither has a registrable domain, so they are different sites — and both are still trustworthy origins, so \`Secure\` cookies keep working.
+
+So: victim on \`localhost:3000\`, attacker on \`127.0.0.1:8000\`.
 
 \`\`\`html
 <!doctype html>
@@ -6876,21 +6898,30 @@ Run the attack:
 \`\`\`bash
 node csrf-victim.js                         # victim on :3000
 # 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
+# Use Chrome for this lab: Safari and Firefox block third-party cookies by default, which
+# would stop the attack for a reason that has nothing to do with the bug you're studying.
 open "http://localhost:3000/login"          # become the logged-in victim (sets cookie)
-# serve the attacker page on a DIFFERENT origin (port 8000) and open it:
+# serve the attacker page on a different SITE — note 127.0.0.1, not localhost:
 ( cd "\$(dirname attacker.html)"; python3 -m http.server 8000 >/dev/null 2>&1 & )
-open "http://localhost:8000/attacker.html"  # the malicious page auto-submits
+open "http://127.0.0.1:8000/attacker.html"  # the malicious page auto-submits
 open "http://localhost:3000/account"        # observe: email is now attacker@evil.example
 \`\`\`
 
 **Expected observation:** visiting the attacker page silently changed the victim's email, because the browser attached the victim's session cookie to the cross-site POST. You never filled in a form. **That is CSRF.**
 
+**Now run the control, because it teaches more than the attack does.** Re-serve the same \`attacker.html\` from \`http://localhost:8000/attacker.html\` and repeat. It still works — and it will keep working through every defence in the next section, because from the browser's point of view that request never left the site. Same bytes, same ports, same cookie; the only thing that changed is four characters of hostname, and that is the entire difference between a request \`SameSite\` can see and one it cannot.
+
 **Defend it — two layers.** First, set \`SameSite=Lax\` on the session cookie (kills the cross-site POST):
 
 \`\`\`js
-res.cookie("session", "valid-session-for-victim", { httpOnly: true, sameSite: "lax", secure: false });
-// With SameSite=Lax, the browser will NOT attach this cookie to evil.com's cross-site POST,
-// so the victim route now sees no session and returns 401. Re-run the attack to confirm.
+res.cookie("session", "valid-session-for-victim", { httpOnly: true, sameSite: "lax", secure: true });
+// With SameSite=Lax the browser will NOT attach this cookie to a cross-site POST, so the
+// victim route sees no session and returns 401. Re-run BOTH pages to confirm — and note
+// which one is still unprotected:
+//   http://127.0.0.1:8000/attacker.html  -> cross-site -> cookie withheld -> 401. Blocked.
+//   http://localhost:8000/attacker.html  -> same-site  -> cookie sent     -> email changed.
+// That second line is not a bug in SameSite. It is SameSite working exactly as specified,
+// on a request that never left the site — which is why Layer 2 is not optional.
 \`\`\`
 
 Then add a **CSRF token** for defense-in-depth (and for \`SameSite=None\` cases):
@@ -6915,7 +6946,7 @@ app.post("/account/email", (req, res) => {
 });
 \`\`\`
 
-Re-run the attacker page: with \`SameSite=Lax\` the cookie isn't attached (401), and even without it, the missing/incorrect \`_csrf\` token yields 403. The attack is dead.
+Re-run **both** attacker pages. The \`127.0.0.1\` one is stopped twice over — \`SameSite=Lax\` withholds the cookie (401), and even if it hadn't, the missing \`_csrf\` token yields 403. The \`localhost:8000\` one is stopped **only** by the token: its cookie arrives normally, it clears the 401, and it dies at the 403. That is the whole argument for the synchronizer token in one observation — \`SameSite\` is a *site*-granularity control, so it is blind to any attacker who can get code running anywhere on your site, which in the real world means a stray subdomain, a marketing CMS, or a neighbouring app on a port you forgot. The token doesn't care where the request came from; it cares whether the sender could read your page, and only your own origin can.
 
 ### 🛡️ Defense: prove the request came from your own site
 
@@ -6929,7 +6960,7 @@ Re-run the attacker page: with \`SameSite=Lax\` the cookie isn't attached (401),
 
 ### 💻 The same CSRF and two-layer fix in Python (Flask + Flask-WTF)
 
-The attacker page from the lab above is origin-agnostic — it doesn't care whether the victim app is Express or Flask, because the bug is the *server trusting a cookie without proving same-site origin*. Here is the vulnerable Flask victim and both defense layers.
+The attacker page from the lab above is server-agnostic — it doesn't care whether the victim app is Express or Flask, because the bug is the *server trusting a cookie without proving the request came from its own site*. Serve it from \`127.0.0.1:8000\` here for the same reason as above: a second port would leave the request same-site and nothing you do to \`SameSite\` would change the outcome. Here is the vulnerable Flask victim and both defense layers.
 
 \`\`\`python
 # csrf_victim.py
@@ -6940,7 +6971,10 @@ email = "victim@example.com"
 @app.get("/login")
 def login():
     resp = make_response("logged in")
-    resp.set_cookie("session", "valid-session-for-victim", httponly=True)  # note: no SameSite yet
+    # Explicit, not browser-default: Chrome would treat an unset attribute as Lax and
+    # Firefox would not. "None" (+ secure, accepted on loopback) is the behaviour we attack.
+    resp.set_cookie("session", "valid-session-for-victim",
+                    httponly=True, samesite="None", secure=True)
     return resp
 
 # ❌ VULNERABLE: trusts the cookie, but does NOT prove the request came from our site.
@@ -6959,12 +6993,14 @@ def account():
 app.run(port=3000)
 \`\`\`
 
-The same \`attacker.html\` auto-submitting form (served on :8000) silently changes the email — the browser attaches the victim's session cookie to the cross-site POST. **Layer 1: set \`SameSite=Lax\`, which stops the cookie from riding cross-site POSTs:**
+The same \`attacker.html\` auto-submitting form (served from \`127.0.0.1:8000\`) silently changes the email — the browser attaches the victim's session cookie to the cross-site POST. **Layer 1: set \`SameSite=Lax\`, which stops the cookie from riding cross-site POSTs:**
 
 \`\`\`python
 # ✅ Layer 1 — SameSite kills the classic cross-site form POST.
 resp.set_cookie("session", "valid-session-for-victim",
-                httponly=True, samesite="Lax", secure=False)  # secure=True in production
+                httponly=True, samesite="Lax", secure=True)   # secure is fine on loopback
+# Verify the same two-page way as the Node version: 127.0.0.1:8000 -> 401 (blocked),
+# localhost:8000 -> still changes the email, because that request is same-site.
 \`\`\`
 
 **Layer 2: the synchronizer-token pattern.** You *can* hand-roll it (\`secrets.token_hex(32)\` stored per session, compared with \`hmac.compare_digest\`), but in real Flask apps you use **Flask-WTF**, which wires CSRF protection into every form and \`POST\` automatically:
@@ -7003,7 +7039,7 @@ For a JSON/SPA API, Flask-WTF reads the token from the \`X-CSRFToken\` header in
 1. SOP stops cross-origin *reading* of responses but does **not** stop the browser from *sending* cross-origin requests — and cookies are auto-attached based on the destination, so a malicious site can trigger authenticated requests to your app.
 2. Because the cookie genuinely belongs to the victim and is valid; the request is authenticated. The server must instead verify the request *originated from its own site* (token/\`SameSite\`/Origin), which cookie validity alone can't establish.
 3. SOP prevents \`evil.com\`'s scripts from reading the contents of your pages, so the attacker can't obtain the random token your server embedded; without it, the forged request is rejected.
-4. \`SameSite=Lax\` stops the cookie from being attached on cross-site \`POST\`/\`fetch\`/iframe requests (classic CSRF). It does **not** protect state-changing *GET* navigations, doesn't apply to \`SameSite=None\` cookies, and isn't reliable on very old browsers — so tokens remain useful.
+4. \`SameSite=Lax\` stops the cookie from being attached on cross-site \`POST\`/\`fetch\`/iframe requests (classic CSRF). It does **not** protect state-changing *GET* navigations, doesn't apply to \`SameSite=None\` cookies, isn't reliable on very old browsers, and — the one the lab makes you watch happen — **does nothing against a same-*site* attacker**, because a site is (scheme, registrable domain) and so any subdomain or any other port of your host is inside the boundary. Tokens remain useful.
 5. JSON reduces the *simplest* form-based CSRF but isn't immunity: misconfigured CORS, endpoints that also accept form-encoded bodies, or GET-based state changes can reopen it. Use \`SameSite\` + CSRF tokens regardless.
 </details>
 
@@ -7128,7 +7164,7 @@ The defended endpoint still works perfectly for the real user — which is the h
 
 **3a. Why evil.com can't forge it.** The token is random and embedded in *your* page. The **Same-Origin Policy** forbids \`evil.com\`'s scripts from *reading the contents* of your pages or responses — so the attacker can auto-submit a form to your endpoint, but cannot learn the one value that endpoint now demands. The forged POST arrives tokenless → 403. This is the elegant part: the defense works *because* of the same SOP gap that CSRF exploits — SOP lets them *send* but not *read*, so a secret they must *read* to include defeats them.
 
-**3b. Why SameSite doesn't retire tokens.** \`SameSite=Lax\` blocks the cookie on cross-site *POST/fetch/iframe*, which kills classic form CSRF — but it does **not** cover state-changing **GET** requests reached by a **top-level navigation**. Be precise about the mechanism, because this is the detail people get wrong: Lax sends the cookie when the *whole page navigates* — a link the victim clicks, a \`window.location = "https://bank.example/account/delete?id=7"\`, a cross-site \`<form method="GET">\` that submits — but **not** on sub-resource loads. So a cross-site \`<img src=".../account/delete?id=7">\` is exactly the case Lax **does** stop; the pre-2020 default (no SameSite at all) is what made the classic \`<img>\` CSRF work. The residual hole is the navigation, not the image. Lax also doesn't apply to cookies deliberately set \`SameSite=None\` for embedded/SSO widgets. In those cases the token is the thing still standing. Defense-in-depth: \`SameSite\` as the cheap default, tokens for the cases it misses — and don't build state-changing GETs in the first place.
+**3b. Why SameSite doesn't retire tokens.** \`SameSite=Lax\` blocks the cookie on cross-site *POST/fetch/iframe*, which kills classic form CSRF — but it does **not** cover state-changing **GET** requests reached by a **top-level navigation**. Be precise about the mechanism, because this is the detail people get wrong: Lax sends the cookie when the *whole page navigates* — a link the victim clicks, a \`window.location = "https://bank.example/account/delete?id=7"\`, a cross-site \`<form method="GET">\` that submits — but **not** on sub-resource loads. So a cross-site \`<img src=".../account/delete?id=7">\` is exactly the case Lax **does** stop; the pre-2020 default (no SameSite at all) is what made the classic \`<img>\` CSRF work. The residual hole is the navigation, not the image. Lax also doesn't apply to cookies deliberately set \`SameSite=None\` for embedded/SSO widgets. And the hole the lab put in front of you: **Lax measures sites, not origins**, so an attacker who gets a page onto any subdomain or any other port of your host is same-site and Lax never sees them — a real shape, since a forgotten marketing subdomain or a neighbouring internal app is a far easier foothold than \`evil.com\`. In all of those cases the token is the thing still standing. Defense-in-depth: \`SameSite\` as the cheap default, tokens for the cases it misses — and don't build state-changing GETs in the first place.
 
 **3c. "JSON API so I'm immune" — no.** JSON reduces the *simplest* HTML-form CSRF (a plain \`<form>\` can't send \`application/json\` cross-site without tripping a CORS preflight). But it's not immunity: if the endpoint *also* accepts \`application/x-www-form-urlencoded\` (many do by default), a form posts to it fine; a **misconfigured CORS** policy (next module) can grant the cross-origin request outright; and any GET that changes state is wide open. The fix is the same regardless of content type: \`SameSite\` + a token the attacker can't read.
 
@@ -7138,7 +7174,7 @@ The defended endpoint still works perfectly for the real user — which is the h
 ---
 
 ➡️ **Next step:** CSRF defenses and many real bugs hinge on getting cross-origin sharing right. Misconfigure CORS and you hand attackers the cross-origin *reads* SOP was protecting. Continue to **Module 2.4: CORS Misconfiguration**.`,
-    tracker: ["Stood up csrf-victim.js + attacker.html on two origins and silently changed the victim's email", "Defended with SameSite=Lax and confirmed the cross-site POST is blocked", "Added the synchronizer CSRF token layer and saw the 403", "Read the Flask + Flask-WTF dual-language version", "Can explain why 'my API is JSON' is not a CSRF defense", "Answered the knowledge check", "Workbench: forged the email-change with curl -b (cookie only) against the unprotected route", "Workbench: proved the token route 403s without the token and 200s with it, and journalled why SOP stops evil.com reading it + residual cases for tokens"]
+    tracker: ["Stood up csrf-victim.js + attacker.html on two sites (localhost vs 127.0.0.1) and silently changed the victim's email", "Defended with SameSite=Lax and confirmed the cross-site POST is blocked", "Ran the same-site control on localhost:8000 and saw SameSite miss it entirely — can explain why a port makes an origin but not a site", "Added the synchronizer CSRF token layer and saw the 403", "Read the Flask + Flask-WTF dual-language version", "Can explain why 'my API is JSON' is not a CSRF defense", "Answered the knowledge check", "Workbench: forged the email-change with curl -b (cookie only) against the unprotected route", "Workbench: proved the token route 403s without the token and 200s with it, and journalled why SOP stops evil.com reading it + residual cases for tokens"]
   }, {
     id: "m2-4",
     phaseId: "p2",
@@ -7290,6 +7326,8 @@ Press CTRL+C to quit
 \`\`\`
 
 Two servers are now running: the victim API on \`:3000\` (that banner) and a plain static file server on \`:8000\` serving the attacker page. They are **different origins**, which is the entire premise — same-origin would need no CORS headers at all.
+
+> **Why two ports are enough here and weren't in 2.3.** CORS is an *origin*-granularity control, and a port is part of an origin, so \`localhost:8000\` really is foreign to \`localhost:3000\` and the browser really does enforce the check. \`SameSite\` is a *site*-granularity control, and a port is not part of a site — which is why the CSRF lab had to move to \`127.0.0.1\`. Same two URLs, two different verdicts, because they are answering two different questions. When a browser control surprises you, the first thing to check is which unit it measures in.
 
 You can confirm the server's half of this without the attacker page at all — ask it directly, claiming to be \`evil.example\` and carrying the victim's cookie:
 
@@ -15643,8 +15681,9 @@ const analyticsId = crypto.createHash("sha256").update(userId + ANALYTICS_SALT).
 GDPR is about *personal data*. A newer wave of EU law is about *the software itself* and *operational resilience* — and as a developer whose product might ship into the EU, the Cyber Resilience Act can land on **you**, not just your legal team.
 
 **Cyber Resilience Act (CRA) — the big one for product developers.** The CRA sets mandatory security requirements for "products with digital elements" (basically any connected software or hardware) sold in the EU. Key facts:
-- In force since **10 Dec 2024**. **Vulnerability & incident reporting obligations apply from 11 Sep 2026**; the full requirements from **11 Dec 2027**.
-- If a vulnerability in your product is being **actively exploited**, you must notify ENISA and the relevant national CSIRT within **24 hours** of becoming aware. (Compare GDPR's 72-hour *data-breach* clock above — different trigger, different regulator, tighter deadline.)
+- In force since **10 Dec 2024**. **Vulnerability & incident reporting obligations have applied since 11 Sep 2026** — that is live law now, not a future date to plan for; the full requirements follow on **11 Dec 2027** (also when the duty on open-source stewards begins).
+- If a vulnerability in your product is being **actively exploited**, you notify ENISA and the relevant national CSIRT through the single reporting platform on a **24 / 72 / 14** staircase (Art. 14): an **early warning within 24 hours** of becoming aware, a fuller **notification within 72 hours**, and a **final report within 14 days** of a corrective measure being available. (Compare GDPR's 72-hour *data-breach* clock above — different trigger, different regulator, tighter first deadline.)
+- **The 24-hour item is an early warning, not an investigation report**, and the CRA explicitly allows information to be supplied progressively. This is the part that changes how you staff an on-call rota: the hard skill is making a defensible early call while forensics are still moving, not producing a complete story in a day.
 - It expects **secure-by-design** development, an **SBOM**, timely security updates for a defined support period, and no shipping with known-exploitable vulnerabilities. Everything you learned earlier in this phase (SBOM, dependency management, signed releases) is how you *comply* with the CRA.
 
 **NIS2 Directive.** Raises baseline cybersecurity and incident-reporting duties for "essential" and "important" entities across many sectors (energy, transport, health, digital infrastructure, managed service providers). If your employer is in scope, expect risk-management measures, supply-chain security duties, and 24h/72h incident reporting. Applicable across the EU since national transposition (deadline was Oct 2024).
@@ -15832,7 +15871,7 @@ In your journal:
 
 1. **Right to Erasure — where the data hides, and what must pre-exist.** A real deletion must reach: the **primary database**, **read replicas**, **analytics tables/warehouses**, **application & access logs**, **backup snapshots** (or a documented overwrite-on-next-cycle schedule), and every **third-party processor** you've shared the data with (email provider, CRM, analytics SaaS, support desk). For any of that to be *possible*, engineering must have already built: (a) a **data map** — an inventory of every table/service holding user data (you can't delete what you can't enumerate); (b) a **cascading delete function** that hits all of them, not just \`DELETE FROM users\`; (c) a **process to request deletion from third parties** (their APIs / DPAs); and (d) a **deletion-confirmation record** (a timestamp/audit entry proving you complied). The lesson full-stack devs miss: erasure isn't a query, it's an *architecture* — and it's far easier if you practiced **data minimization** so there's less scattered to begin with.
 2. **PCI and Stripe — scope minimized, not eliminated.** Stripe Elements/Stripe.js collect the card in an iframe so the number goes **browser → Stripe directly**; your server only ever receives a **token**, which drops you from **SAQ D** (~300+ controls, full audit) to **SAQ A** (a short self-assessment). But obligations remain *yours*: serve payment pages over **HTTPS only** (no downgrade), **never log** card data, apply **access controls** to anything touching the cardholder-data environment, and keep the **integration itself secure** (a compromised page can swap the Stripe script — "e-skimming"/Magecart). "Stripe handles it" means *your scope shrank*, not *disappeared*.
-3. **Two clocks, two triggers.** GDPR's **72h** clock starts on awareness of a **personal-data breach** and runs to your **data-protection supervisory authority**; the CRA's **24h** clock starts on awareness of an **actively-exploited vulnerability in your product** and runs to **ENISA/national CSIRT**. Different events, different regulators, different deadlines — and *both* can be triggered by one incident. That's why your Phase 9 incident-response plan can't be purely technical ("contain, eradicate, recover"): it must encode **who is legally notified, by which deadline, for which trigger**, or you'll do perfect technical remediation and still incur a regulatory violation for missing a clock nobody was watching. If you handle PHI there is a **third** clock, and it is the one people get wrong: **HIPAA is 60 calendar days from discovery**, not 72 hours — see the HIPAA section above. The deadlines are not interchangeable, and nothing about a regulation's severity predicts which number it picked.
+3. **Two clocks, two triggers.** GDPR's **72h** clock starts on awareness of a **personal-data breach** and runs to your **data-protection supervisory authority**; the CRA's **24h** clock starts on awareness of an **actively-exploited vulnerability in your product** and runs to **ENISA/national CSIRT** — and unlike GDPR's single deadline it is the first step of a **24 / 72 / 14** staircase, so "we reported it" is three obligations, not one. Different events, different regulators, different deadlines — and *both* can be triggered by one incident. That's why your Phase 9 incident-response plan can't be purely technical ("contain, eradicate, recover"): it must encode **who is legally notified, by which deadline, for which trigger**, or you'll do perfect technical remediation and still incur a regulatory violation for missing a clock nobody was watching. If you handle PHI there is a **third** clock, and it is the one people get wrong: **HIPAA is 60 calendar days from discovery**, not 72 hours — see the HIPAA section above. The deadlines are not interchangeable, and nothing about a regulation's severity predicts which number it picked.
 
 **Outside the box:** the through-line of this whole module is that **privacy/compliance is engineered, not decreed** — every "the law requires X" resolves to a concrete control you build: minimize (collect less → less to protect, delete, or leak), allow-list what you log, map where data lives, cascade deletions, and wire notification deadlines into IR. And notice the *cheapest* control is upstream: the data you never collected needs no encryption, no deletion cascade, no breach notification, and can't leak. **Data minimization is the privacy equivalent of "change the primitive"** — the strongest way to secure data is to not have it. Everything else is protecting what you chose to keep. Clean up: nothing running.
 </details>
@@ -15865,7 +15904,7 @@ Create \`~/appsec-journal/notes/phase-7-secure-sdlc.md\` and answer, in your own
       "Can name the eight GDPR data subject rights (Arts. 15-22), and say which five land on your API as endpoints and which three do not",
       "Understands why PCI DSS scope reduction (never touching raw card data) is the most important PCI control for developers",
       "Can list at least 5 SOC 2 engineering controls that appear on audit evidence lists",
-      "Can keep the three breach clocks apart: HIPAA 60 calendar days from discovery, GDPR 72 hours to the supervisory authority, EU CRA 24 hours for an actively-exploited vulnerability - and say what triggers each",
+      "Can keep the three breach clocks apart: HIPAA 60 calendar days from discovery, GDPR 72 hours to the supervisory authority, EU CRA 24/72/14 for an actively-exploited vulnerability - and say what triggers each, and that the CRA's 24h is an early warning rather than a report",
       "Has implemented or designed at least one privacy-by-design pattern (data minimisation, log redaction, or a data export endpoint)",
       "Wrote the Phase 7 deliverable journal entry",
       "Answered the knowledge check",

@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-17 (Batch 5 — law claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-18 (Batch 6 — port claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,11 +54,21 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 6 | `port` — port and protocol assignments | 23 | mostly IANA-settleable, low risk, high volume — but read the Guardians ledger's Batch 4 first: 41 of its 48 were not assignments at all |
 | 7 | `date` — "as of", "since", release years | 15 | rots by definition — and per the Guardians Batch 5, the date is rarely what rotted |
 | 8 | `attribution` — "according to", "researchers found" | 1 | needs the **primary** document, not the report quoting it |
 
-(`law` — 29 candidates — is **closed** in Batch 5, rows 52–57.)
+(`law` — 29 candidates — is **closed** in Batch 5, rows 52–57.
+`port` — 23 candidates — is **closed** in Batch 6, rows 58–66.)
+
+**What Batch 6 changed about how to read this ledger.** The `port` tag was filed
+as the low-risk batch and it produced the most serious defect either ledger has
+found: a lab whose documented defence does not work, in the module a learner is
+most likely to actually run. The tag was not wrong about the *claims* — only two
+of the 23 were registry-settleable, exactly as predicted. It was wrong about what
+a tag *finds*. **A regex tag is a sampling instrument, not a risk classification:**
+it selected a sentence containing a port number, and the defect sitting in that
+sentence had nothing to do with ports being right or wrong. Do not let a batch's
+predicted priority set how carefully it is read.
 
 ## Batch 1 — standards and identifiers
 
@@ -193,7 +203,98 @@ one module plus a sweep of the incidental mentions elsewhere (row 57).
 | 56 | M7.3 | HIPAA: "Audit logs of all PHI access (who, what, when) — **retained for 6 years**" | `FIXED` | true as practice, mis-cited as text — the milder sibling of the Guardians Batch 4 finding (right advice, wrong authority). **45 CFR 164.312(b)** requires audit controls and specifies **no retention period at all** — no format, no fields, no duration. The familiar six years is **164.316(b)(2)**, which covers *documentation*: policies, procedures, assessments, retained six years from creation or last effective date. Your *logging policy* is unambiguously in scope; applying the same six years to the log **data** is the conservative industry reading, not the regulation, and most compliance vendors flatten the distinction without saying so. Left at six years — it is the right operational answer, and state law or a litigation hold can push it further — but the sentence now says which provision each half comes from. A developer who cites 164.312(b) for a six-year retention requirement will be corrected by the first auditor who reads it | 2028-01 |
 | 57 | M7.3, M7.5.5, M7.5.7, M7.5.8, M9.1, M9.3, M4.1 | The remaining 24 `law` mentions: CRA 24h / NIS2 / DORA / PCI; GDPR erasure applied to vector stores and embeddings; "GDPR 72h" in the incident-response phases; GDPR/CCPA data minimisation in logging | `SOURCED` `CORPUS` | **all correct as written, and four were already closed in Batch 1** — CRA in force 10 Dec 2024 with reporting from 11 Sep 2026 and full application 11 Dec 2027, 24h early warning to ENISA/CSIRT (row 20); DORA since 17 Jan 2025, five pillars (21); NIS2 transposition deadline Oct 2024, already correctly hedged as "since national transposition" (22); PCI DSS 4.0.1 with the 31 Mar 2025 future-dated requirements (17). Checked fresh this pass: every standalone "GDPR 72 hours" in M9.1/M9.3 names the supervisory authority and the personal-data-breach trigger, so none of them has the row 52 defect. The **M7.5.5 embeddings point is the strongest legal reasoning in the course and needed no change** — that deleting a source row does not delete its embedding is a live erasure problem, and that embeddings are not reliable anonymisation because inversion can partially reconstruct the source is the correct and non-obvious reading. M7.5.7/M7.5.8 on pasting customer data into AI assistants correctly separate "not trained on" from "not stored". The one incompleteness carried forward, not a defect: the CRA's 24h is only the **early warning** — a full notification is due at 72 hours and a final report at 14 days, which the module still does not mention (noted in row 20, unchanged) | 2027-12 |
 
+## Batch 6 — port and protocol assignments
+
+23 `port` candidates. The Batch 1 table predicted "mostly IANA-settleable, low
+risk, high volume" and pointed at the Guardians Batch 4 warning that 41 of its 48
+were not assignments at all. Both halves held: **only two of the 23 assert
+anything a registry could settle** (rows 58, 59), and the rest are lab fixtures,
+`docker ps` columns and server banners.
+
+**But the batch found five defects anyway, and four of them are one defect.** The
+`port` regex fired on a line in the CSRF lab that reads "serve the attacker page
+on a DIFFERENT origin (port 8000)". The port number is correct. The word
+**origin** is correct. The sentence is still the root of a lab that demonstrates
+the opposite of what it claims, because the control being demonstrated —
+`SameSite` — does not measure origins.
+
+**The finding: a browser boundary is only meaningful with its unit attached, and
+this course had three units wearing one word.** For the single URL pair
+`http://localhost:3000` and `http://localhost:8000`:
+
+| Question | Unit | Verdict |
+|---|---|---|
+| SOP / CORS / CSP | **origin** = (scheme, host, port) | cross-origin |
+| which cookies are sent | **domain + path**, port ignored entirely | shared |
+| `SameSite` / CSRF | **site** = (scheme, registrable domain) | same-site |
+
+Module 2.1 taught the origin triple correctly and then listed "cookie scope"
+among the rules "phrased against this triple" (row 60). Module 2.3 built a CSRF
+lab on two ports, called it cross-site, and told the learner that adding
+`SameSite=Lax` would return a 401 (row 61). It would not: the request never left
+the site. A learner who ran the lab as written would watch the documented defence
+fail and have no way to tell whether they had made a mistake — **the worst failure
+mode a teaching lab has, because it silently punishes the learner who actually
+runs it.** Worse, the lab "worked" in its undefended state for the same reason it
+failed in its defended state, so nothing looked wrong until the fix was applied.
+
+The lab is now built on `127.0.0.1:8000` → `localhost:3000` — different hosts,
+neither with a registrable domain, therefore genuinely different sites, and both
+still trustworthy origins so `Secure` cookies keep working on loopback. The old
+same-site pairing is **kept as a deliberate control** the learner runs second and
+watches `SameSite` miss entirely, which converts the defect into the module's
+sharpest lesson and into the argument for why synchronizer tokens are not
+optional. Module 2.4's CORS lab keeps its two ports, because CORS *is*
+origin-granularity and two ports are exactly right there — the two labs now name
+each other as the contrast.
+
+| # | Module | Claim as taught | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 58 | M0.2, M2.1 | Well-known assignments taught as fact: 443 HTTPS, 80 HTTP, 22 SSH, 1080 SOCKS; `https://app.example.com` has default port 443 | `SOURCED` | all confirmed against the 15,404-line IANA service-name registry (`iana.org/assignments/service-names-port-numbers/service-names-port-numbers.csv`, retrieved this pass): `https,443,tcp,http protocol over TLS/SSL`; `http,80,tcp`; `ssh,22,tcp` [RFC4251]; `socks,1080,tcp`. The M2.1 drill's use of `:443` as the *implied* port of an `https://` origin is the URL-spec default, not merely the IANA name, and the drill's four answers (different scheme / different host / different port / same-origin-despite-path) are each correct | 2028-09 |
+| 59 | M0.8, M1.1, M2.2, M3.3, M4.1, M5.3 | Lab-fixture ports: 3000 (Juice Shop and the Phase 3 labs), 8080/8082 (container host mappings), 8000 (attacker page), 8099, 4601, 4602, 4605, 4607, 5013, 9000 | `EXECUTED` `CORPUS` | these assert nothing about the world — they are inputs to commands printed on the same screen, exactly the Guardians Batch 4 pattern. Checked for the one thing that *can* be wrong: a fixture port that collides with something a learner is likely to be running. 4607 and 8099 are **unassigned** in the IANA registry; the rest are assigned to services nobody runs on a laptop (4601 `piranha2`, 4602 `mtsserver`, 4605 `sixchat`, 5013 `fmpro-v6`, 8000 `irdmi`, 8082 `us-cli`). M4.1's warning that "Port 3000 is busy in this course — Modules 3.1–3.4 use it" is **accurate**: all four of M3.1–M3.4 call `app.listen(3000)`. M0.7 and M1.6 also bind 3000, but a learner arriving at M4.1 is coming from Phase 3, so the note names the right neighbours | 2029-09 |
+| 60 | M2.1 | "Every browser security rule you meet for the rest of this phase — SOP, CORS, **cookie scope**, CSP — is phrased against this triple" | `FIXED` | **three of the four are; the one that isn't is the one the next module's lab depends on.** Cookies predate the origin concept and were never retrofitted onto it: they are scoped by domain and path, and the spec is explicit that "Cookies do not provide isolation by port. If a cookie is readable by a service running on one port, the cookie is also readable by a service running on another port of the same server" (draft-ietf-httpbis-rfc6265bis-22 §8.5; the same point is made in §1, noting cookies are shared across ports "even though the usual 'same-origin policy' … isolates content retrieved via different ports"). The sentence taught a learner that a second port isolates cookies — which is precisely the belief that makes row 61's lab look correct. Rewritten as an explicit three-unit table with the `localhost:3000` / `localhost:8000` pair worked through, and a forward pointer to the 2.3 lab. Guard `A71` | 2029-09 |
+| 61 | M2.3 | The CSRF lab: attacker page "served from a *different* origin (use a second port)", `localhost:8000` → `localhost:3000`, and "with `SameSite=Lax` the cookie isn't attached (401)" | `FIXED` | **the lab demonstrated the opposite of its own claim, in both the Node and the Flask version.** `SameSite` is computed against a **site**, and the HTML standard defines a site as a *scheme-and-host* tuple — "A site is an opaque origin or a scheme-and-host" (§7.1.1.1), with the port absent from the algorithm. `localhost` has a null registrable domain, so both pages resolve to the site `("http", "localhost")` and the POST is **same-site**: the cookie is attached under `Lax` and under `Strict`, and the documented 401 never arrives. The course's own text gave away the contradiction and nobody noticed — it states two screens earlier that `Lax` is the browser default, which means that if the lab really were cross-site the **undefended** attack could not have succeeded either. It succeeded for exactly the reason the defence failed. Fixed by moving the attacker to `127.0.0.1:8000` (different host → different site → genuinely cross-site, and `127.0.0.1` is still a potentially-trustworthy origin so `Secure` cookies work on loopback), setting the victim cookie explicitly to `SameSite=None; Secure` during the attack phase so the result no longer depends on a browser default (row 62), keeping the `localhost:8000` run as a labelled same-site control, and adding a Chrome instruction because Safari and Firefox block third-party cookies outright and would stop the attack for an unrelated reason. Guard `A69` | 2028-09 |
+| 62 | M2.3 | "`SameSite=Lax` (today's browser default)" | `FIXED` | true of one engine, false of another, and the lab's result depended on which browser the learner opened. Chrome and Edge have applied `Lax` to attribute-less cookies since **Chrome 80 (Feb 2020)**. **Firefox never shipped it on release**: `network.cookie.sameSite.laxByDefault` has only ever been on in Nightly and an early-Beta experiment, bug 1751435 reverted a later attempt, and the meta bug 1617609 stands resolved without the change (last touched 2026-06-04) — a Mozilla engineer's position on that bug is that the web breakage was too large. Safari reaches a similar end state by a different mechanism, blocking third-party cookies outright rather than defaulting the attribute. Rewritten to name the engines, and the lab now sets `SameSite` explicitly rather than leaning on any default. The durable rule added to the text: **never let a browser default stand in for a spec guarantee in a lab you expect someone to reproduce.** Guard `A70` | 2027-09 |
+| 63 | M2.3 | Quiz answer 4 and workbench 3b: what `SameSite=Lax` does not cover (GETs by top-level navigation, `SameSite=None` cookies, old browsers) | `FIXED` | correct as far as they went, and both omitted the residual hole this batch just proved exists: **`SameSite` is blind to a same-*site* attacker.** Because a site is (scheme, registrable domain), any subdomain and any other port of your host is inside the boundary — and a forgotten marketing subdomain or a neighbouring internal app is a far more plausible foothold than `evil.com`. Both passages now name it, which also supplies the missing half of the course's own argument for why synchronizer tokens are not redundant once `Lax` is set. The existing treatment of the GET-navigation hole was checked and is unusually precise — it correctly notes that `Lax` *does* stop a cross-site `<img>` sub-resource and that the residual hole is the navigation — so it was left alone | 2028-09 |
+| 64 | M0.8 | `docker ps` expected output: `"node server.js"` in COMMAND, no CREATED column, single-stack `0.0.0.0:8080->3000/tcp` | `FIXED` | **the same module printed two different outputs for the same image, and the first one was hand-written.** Three drifts: (1) COMMAND cannot read `"node server.js"` — the image is `FROM node:22-slim`, and the official Node image sets `ENTRYPOINT ["docker-entrypoint.sh"]` (verified against `nodejs/docker-node` `22/bookworm-slim/Dockerfile` on `raw.githubusercontent.com` this pass), so `docker ps` shows entrypoint-plus-command truncated to `"docker-entrypoint.s…"`. The module's *later* block, twenty lines down and running the same image, prints exactly that — so the course contradicted itself about its own container. (2) The CREATED column is missing; `docker ps` always prints it. (3) PORTS shows only the IPv4 mapping, while the later block shows the dual-stack `0.0.0.0:… , [::]:…` pair a published port actually produces. All three corrected to match the module's own later block, and the mismatch turned into teaching: a note explaining why COMMAND shows the entrypoint (with `docker inspect --format '{{.Path}} {{.Args}}'` to see it untruncated) and why publishing a port opens it on **both** address families — one more exposed surface than most people picture when they type `-p`. Not executed this pass: the Docker daemon was not running on the authoring machine, so the correction rests on the image's own Dockerfile plus the module's second block. Guard `A72` | 2027-09 |
+| 65 | M0.7, M1.6 | `lsof -iTCP -sTCP:LISTEN -n -P` expected output, in two modules | `FIXED` | header and data row were both missing the **SIZE/OFF** column. Executed this pass on macOS 27 (Darwin 27.0.0): the real header is `COMMAND     PID      USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME`, and a listening socket carries `0t0` in that column. **The course already knew this** — a third `lsof` block, in M1.7's SSH-tunnel section, prints `SIZE/OFF` and `0t0` correctly, so this is the row 64 pattern again in a second tool: the same course, the same command, two renderings, one of them hand-written. Cosmetic next to rows 60–63, but it is the course's own standard — an expected-output block exists so a learner can diff against it, and a missing column is a diff. Both instances corrected to match. **DEVICE is deliberately left elided as `0x...`**, matching the M1.7 block: it is a kernel object address that differs on every run and every machine, so a concrete value there would be the one column a learner *cannot* match and would teach them to distrust the block | 2029-09 |
+| 66 | M7.3 | CRA reporting: "24 hours", "apply from 11 Sep 2026" | `FIXED` | **closing an item the ledger itself logged as carried forward.** Batch 5's row 57 recorded that the CRA's 24 hours is only the *early warning* and that the module did not mention the rest — filed as "an incompleteness, not a defect". It has since become both: the manufacturer reporting duty **came into force on 11 September 2026**, so the future tense was stale as of this pass, and the deadline given as the obligation was one third of it. Article 14 runs **24 / 72 / 14** — early warning within 24h of awareness, fuller notification within 72h, final report within 14 days of a corrective measure — all to the coordinating CSIRT and ENISA via the single reporting platform (European Commission, *CRA reporting obligations*, `digital-strategy.ec.europa.eu/en/policies/cra-reporting`, read this pass). Corrected in the theory, the workbench answer and the tracker, with the operational point the staircase exists to make: the 24h item is **not** an investigation report, and the CRA expressly permits progressive disclosure. Fixed in both courses this pass — see Guardians row 62 | 2027-12 |
+
 ## Fixes applied in this pass
+
+**Batch 6 (2026-09-18) — five defects, four of which are one defect in four sentences.**
+
+1. **M2.1** — "cookie scope" listed among the rules phrased against the origin
+   triple. Cookies are scoped by domain and path and are **not isolated by port**
+   at all. Replaced with an explicit three-unit table (origin / cookie scope /
+   site) worked through on the exact URL pair the next module's lab uses.
+2. **M2.3** — the CSRF lab separated attacker from victim **by port**, called the
+   result cross-site, and promised a 401 once `SameSite=Lax` was set. Two ports
+   are the same *site*, so the cookie is sent and the defence appears to do
+   nothing. Rebuilt on `127.0.0.1:8000` → `localhost:3000`; the old pairing is
+   kept as a labelled same-site control. Node and Flask versions both.
+3. **M2.3** — "`SameSite=Lax` (today's browser default)" is Chrome/Edge only;
+   Firefox never shipped it on release. The lab now sets `SameSite` explicitly so
+   its result does not depend on which browser the learner opened.
+4. **M2.3** — quiz answer 4 and workbench 3b listed what `Lax` misses without the
+   one this batch proved: a **same-site** attacker on a subdomain or a neighbouring
+   port, which is the missing half of the course's own case for CSRF tokens.
+5. **M0.8** — `docker ps` output that the module's own later block contradicted:
+   wrong COMMAND for a `node:22-slim` image, missing CREATED column, single-stack
+   PORTS. Plus **M0.7/M1.6** `lsof` blocks missing the SIZE/OFF column.
+6. **M7.3** — the CRA item Batch 5 carried forward, now closed: 24/72/14, and the
+   obligation is in force rather than forthcoming.
+
+**Guard `A67` was widened, not added, and that is this batch's meta-finding.**
+Batch 5 wrote `A67` against the AppSec wording `personal data of EU residents,
+regardless of where`. The Guardians course carried the *same* GDPR territorial-scope
+error one comma away — `EU residents regardless of where` — and `check_banned`
+runs over **every** course in `COURSES`, so the guard was live against that file
+for a full pass and scored green on it. This is the second time a ledger batch has
+caught a guard cut to the exact shape of the one sentence it was born from; `A56`
+was the first (Guardians row 64). The rule both incidents point at: **when a guard
+is written, run it against the sibling course before the pass closes**, because a
+defect worth guarding in one course is usually present in the other.
 
 **Batch 5 (2026-09-17) — five defects, four of them in one module, two of them wrong deadlines.**
 

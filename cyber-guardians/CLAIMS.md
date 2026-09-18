@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-17 (Batch 5 — date claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-18 (Batch 6 — law claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,15 +54,16 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 6 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions |
-| 7 | `law` — GDPR/HIPAA/CFAA obligations and deadlines | 13 | wrong legal deadlines are the costliest error class here |
+| 7 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions — but they fail *visibly*, at a terminal, which is why `law` was promoted ahead of this |
 | 8 | `attribution` — "according to", "researchers found" | 5 | each needs the **primary** document, not the report quoting it |
 
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
 `rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.
 `quantity` — 55 candidates — is **closed** in Batch 3, rows 45–58.
 `port` — 51 candidates, 48 distinct — is **closed** in Batch 4, rows 59–63.
-`date` — 34 candidates — is **closed** in Batch 5, rows 64–71.)
+`date` — 34 candidates — is **closed** in Batch 5, rows 64–71.
+`law` — 13 candidates — is **closed** in Batch 6, rows 72–77, **pulled forward**
+from its scheduled slot at Batch 7; see that batch's opening for why.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -220,7 +221,91 @@ claim about a series, and a series has a direction.**
 | 70 | M28, M25.5, M24.5 | Relative-present dates: "a path that actually works **in 2025**"; "a router bought in 2015 still listening in **2025**"; "which in **2024** most organisations had not yet implemented" | `CONVENTION` | terminal, and the finding is that **these are the only `date` claims with no correct form.** Each names the year the sentence was *written* as though it were the year it is *read*; none is checkable, because no authority publishes "what works for a career-changer this year". They are kept because the alternative — deleting the year — makes them vaguer, not truer. The rule: a relative-present date is a **timestamp on the author, not a claim about the world**, and must never be given a statistic to carry. The moment one does, it becomes row 66 | — |
 | 71 | — | The 14 `date` candidates already adjudicated in Batches 1–4 | `CORPUS` | **Do not re-derive these.** CSF 2.0 released Feb 2024 (row 1); SP 800-63B-4 July 2025 (5); HQC selected March 2025 (19); SP 800-207 published 2020 (20); NICE Components v2.2.0 April 2026 (25); LinkedIn 2012 (53); Ubiquiti May 2015 (49); SolarWinds 2020 (45); Maersk June 2017 (50); Oldsmar Feb 2021 and the 2023 retraction (48); Twitter July 2020 (57); Mirai 2016 and the 30 Tbps floor (42, 62); the OWASP 2025 refresh (14–17); the Agentic Top 10 of Dec 2025 (AppSec ledger row 24). Listed here only so a later pass grepping for `date` can see they are closed rather than untouched | — |
 
+## Batch 6 — law and regulatory claims
+
+**Pulled forward out of turn.** The Batch 1 table scheduled `default` (22
+candidates) as Batch 6 and `law` (13) as Batch 7. `law` was promoted because it
+is the only tag in either ledger with **no cheap-dismissal rule**. Every other
+class has one: a `port` that is a scan fixture is `EXECUTED` on sight, a `rank`
+about the reader's own likely mistake is dismissed by row 44, a `date` that fixes
+a past event cannot rot (row 69). There is no equivalent move for a statute. A
+legal claim is either checked against the instrument or it is unadjudicated, and
+13 candidates is the smallest this class will ever be — so the cheapest moment to
+read it carefully is now, while it is small, rather than after the OSINT and
+forensics work adds more. `default` moves to Batch 7 and loses nothing by waiting;
+a vendor default that drifts fails visibly, at a terminal, in front of the learner.
+
+**All 13 are real claims.** Unlike `port` or `quantity`, a law cannot be mentioned
+incidentally — you do not write "GDPR" as a fixture. They collapse to the 6 rules
+below, and **five of the six needed work**, the highest defect density of any
+batch in either ledger.
+
+**The finding: the errors cluster in the *scope* of a law, never its headline
+number.** Every deadline in this course was already right — GDPR's 72 hours, and
+the M23 sentence that names PCI/DORA/HIPAA as running "their own" clocks, which
+is precisely the hedge that stopped this course from acquiring the fabricated
+"HIPAA 72-hour rule" the AppSec course did (AppSec row 52). What was wrong was
+always the sentence *around* the number: **who** a law reaches (row 72), **which**
+rights it grants (73), **when** it starts applying (74), and **whether** an act is
+actually the offence the course says it is (75). That is a more dangerous shape
+than a wrong number, because a wrong deadline is falsifiable in one search
+whereas a wrong scope reads as fluent background and is repeated by the learner
+as settled fact. The rule this batch sets: **a legal claim's verb is the risky
+part, not its figure** — "covers", "grants", "applies from", "is unauthorized
+access" each smuggle a scope decision that the instrument itself states narrowly.
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 72 | M5 | **GDPR** "covers personal data of EU residents regardless of where the company is based"; "fines up to **4% of global annual turnover**" | `FIXED` | **the same defect the AppSec course was fixed for in Batch 5, sitting in this course untouched — and a guard written that pass should have caught it.** See the meta-finding below; the substance is AppSec row 55's. Art. 3(1) covers a controller **established in the Union** for everything it processes anywhere; Art. 3(2) reaches a non-EU controller only where processing relates to **offering goods or services to** data subjects "**who are in the Union**", or **monitoring their behaviour** there. It is a *location* test applied per processing activity, and the EDPB's Guidelines 3/2018 state that the targeting criterion "is not limited by the citizenship, residence or other type of legal status" of the data subject — so an American tourist in Berlin can be in scope and an EU citizen living in Toronto is not. "Regardless of where the company is based" states the conclusion while deleting the condition that produces it. Separately, the fine ceiling was given as the percentage alone: Art. 83(5) is **€20 000 000 or 4% of total worldwide annual turnover, whichever is higher**, and for a small company the €20M is the binding figure — quoting only the percentage makes the ceiling sound proportional to size, which is the opposite of the article's design. Both halves rewritten, with the two Art. 3 doors named separately. Guards `A67` (widened), `A76` | 2028-09 |
+| 73 | M5 | **CCPA/CPRA** "grants California consumers rights to know, delete, and opt out of the sale of their data" | `FIXED` | a 2018 rights list flying a 2023 name. The bullet says "CCPA/**CPRA**" and then enumerates only the rights the original CCPA granted. CPRA took effect **1 January 2023** and added the right to **correct** inaccurate personal information and the right to **limit** the use and disclosure of *sensitive* personal information, and extended the opt-out from "sale" to "**sale or sharing**" (California Privacy Protection Agency, consumer-rights FAQ, read this pass — the agency lists six rights: know, delete, correct, opt out, limit, and non-discrimination). "Sharing" is a term of art meaning disclosure for cross-context behavioural advertising, and it exists precisely because companies argued ad-targeting was not a "sale" — so a list that stops at "sale" reproduces the loophole CPRA was written to close. Rewritten with all of them, the 2023 date attached, and the sale-vs-sharing distinction explained rather than listed. Guard `A75` | 2028-01 |
+| 74 | M5, M23 | The **EU Cyber Resilience Act** "gives you **24 hours** to report an actively-exploited vulnerability … (applies from 11 Sep 2026)", in two modules | `FIXED` | **stale by six days at the moment of the pass, and incomplete in the same breath.** The manufacturer reporting obligations **came into force on 11 September 2026** — this pass ran on 18 September — so a parenthetical written as a forward-looking heads-up now misdescribes live law, and a learner reading "applies from" as "not yet" would be wrong about their own employer's duty. The deadline was also one third of the obligation: Art. 14 runs a **24 / 72 / 14** staircase — early warning within 24h of awareness, fuller notification within 72h, final report within 14 days of a corrective measure being available — all to the coordinating CSIRT and ENISA through the single reporting platform, which then shares it with the CSIRTs of every member state where the product was made available (European Commission, *CRA reporting obligations*, `digital-strategy.ec.europa.eu/en/policies/cra-reporting`, read this pass; obligations for open-source stewards start 11 Dec 2027, with the rest of the regulation). Corrected in both modules, with the operational point the staircase exists to make: the 24h item is **not** an investigation report and the CRA expressly permits progressive disclosure, so the skill is making a defensible early call while forensics are still moving. The AppSec course carried the identical pair of errors and was fixed in the same pass (AppSec row 66). **This is the first row in either ledger to rot between batches rather than between passes** — Batch 5 closed on 2026-09-17 and this sentence was correct then | 2027-12 |
+| 75 | M15 | "Against a public site the same packets are **unauthorized access under the CFAA**, the UK Computer Misuse Act, and equivalents worldwide" | `FIXED` | **right advice, overclaimed authority — the Batch 4 shape (row 59), now in its most consequential form.** The module's conclusion is correct and nothing about it changed: do not point these tools at machines you do not own. But the sentence asserts a settled criminal characterisation for "the same packets", and those packets include the module's own Nmap scan, for which the law is genuinely unsettled *and differs by jurisdiction*. **US:** the only real authority on scanning is *Moulton v. VC3*, No. 1:00-CV-434-TWT (N.D. Ga. 2000), which rejected a CFAA claim on two grounds — the scan caused no "damage", the court holding that damage "must be an impairment to the integrity and availability of the network", and it "did not grant … access". That is one district-court decision, fact-bound, and it leaves fifty state computer-crime statutes with broader definitions of "access" untouched. **UK:** the opposite result on far less conduct — in *R v Cuthbert* (2005) a security consultant who typed `../../../` into the address bar of a tsunami-appeal donation site was convicted under **s.1** despite causing no harm (BT confirmed its Solaris server was unaffected) and despite the Crown accepting he had no malicious motive, because s.1 has no damage threshold and asks only whether he *intended* to secure access he was not authorised to have; he was fined £400 plus £600 costs and lost his job. Rewritten to give both cases and to state the real lesson, which is **sharper than the blanket it replaces**: your exposure for an identical packet depends on which country's server answered, and you cannot find out which rule applies until after you have sent it — so authorization is the only thing that removes the question. Guard `A73` | 2028-09 |
+| 76 | M11.7, M15 | "Reading a public record is lawful. **Access without authorisation is not.** That is the line the US **CFAA** and the UK **Computer Misuse Act 1990 (s.1)** actually draw" | `SOURCED` | correct, and **strengthened rather than corrected** — the one law row that needed no repair. CMA 1990 s.1 is indeed "Unauthorised access to computer material", and its elements are causing a computer to perform a function with intent to secure unauthorised access, plus knowledge that the access is unauthorised — which is why the module's "'the data was public' is not a defence" holds. On the US side the line the sentence describes was confirmed by the Supreme Court after the module was written: *Van Buren v. United States*, 593 U.S. 374 (2021), decided 3 June 2021 6–3 per Barrett J., held that a police sergeant who ran a licence-plate lookup he was authorised to run, in exchange for a bribe, did **not** "exceed authorized access" — the statute poses a "gates-up-or-down" question about whether information was off-limits to you, not whether your purpose was proper. That is the module's line exactly, and it is now cited there, with a pointer to row 75 noting that the same clarity does not extend to *scanning*. Note the asymmetry this creates and keep it: **M11.7 states the rule carefully and M15 stated it as a blanket**, and the course now uses the pair as a teaching contrast rather than contradicting itself across two modules | 2029-06 |
+| 77 | M5, M21, M23, M24.5, M28, M11.7 | The remaining law mentions: GDPR 72 hours; HIPAA scope; PCI DSS 4.0.1 as contractual not statutory; SOC 2 as an audit report not a law; Morris as the first CFAA conviction; the Cambridge Analytica fines; pasting regulated data into a public AI service as a possible GDPR/HIPAA violation; ToS breach as civil not criminal; GDPR applying to public personal data on an OSINT engagement | `SOURCED` `CORPUS` | **all correct as written; one enriched.** GDPR's 72 hours is Art. 33(1), stated to the supervisory authority — correct in both modules, and M23's "PCI, DORA, and HIPAA each run their own" is the hedge that kept this course clear of the fabricated "HIPAA 72-hour rule" found in the AppSec course (AppSec row 52); do not let a later edit "helpfully" fill in that number. HIPAA covering "hospitals, insurers, and their vendors" is covered entities plus business associates — right. PCI DSS as contractual and SOC 2 as an audit report are both correctly *excluded* from being laws, which is the distinction most compliance summaries blur. Morris: convicted January 1990, the first conviction under the CFAA of 1986 — right. M24.5's data rule is correctly hedged with "**can** itself be a compliance violation", which is the accurate modal: disclosing PHI to a vendor without a BAA, or personal data without an Art. 28 processor agreement, is a violation independent of misuse. M11.7's "ToS breach is not in itself a crime" is right and is the line *Van Buren* reinforces. **Enriched, not fixed:** the Cambridge Analytica case study said "the UK ICO and US FTC both fined Facebook (the FTC settlement alone was $5 billion)" — true, but it gave no figure for the ICO, leaving the "predates GDPR" clause as an unbacked assertion. The ICO's penalty was **£500,000**, settled in October 2019 with no admission of liability, and that number is **the statutory maximum available under the Data Protection Act 1998** — the conduct predated GDPR's 25 May 2018 application, so the regulator was capped regardless of what it found. Added, with the point it unlocks: an old fine quoted as evidence that a regulator was toothless is often evidence that the regulator was capped | 2028-09 |
+
 ## Fixes applied in this pass
+
+**Batch 6 (2026-09-18) — five defects in six rules, the highest density of any batch.**
+
+1. **M5** — GDPR scope given as "**EU residents** regardless of where the company
+   is based". Art. 3 is a *location* test plus, for non-EU controllers, a
+   targeting or monitoring condition. Rewritten with both doors named.
+2. **M5** — GDPR fines given as "4% of global annual turnover", omitting the
+   "**€20 million or** … whichever is higher" half that binds a small company.
+3. **M5** — CCPA/**CPRA** named while listing only the 2018 CCPA rights. Added
+   correct, limit-sensitive-PI, and opt-out of sale **or sharing**, effective
+   2023-01-01.
+4. **M5, M23** — the CRA reported as "24 hours (applies from 11 Sep 2026)". It is
+   **24 / 72 / 14** and it has been in force since 11 Sep 2026 — stale by six days
+   at the moment of this pass.
+5. **M15** — "the same packets are unauthorized access under the CFAA" stated as
+   settled law. Replaced with *Moulton* (US, 2000) and *Cuthbert* (UK, 2005) and
+   the lesson that the answer differs by jurisdiction and cannot be known in
+   advance. **M11.7** gained *Van Buren* (2021) as the authority for the careful
+   version of the same line.
+6. **M5** — Cambridge Analytica: added the ICO's £500,000 and that it was the DPA
+   1998 statutory maximum, which is what makes the "predates GDPR" clause mean
+   something.
+
+**The meta-finding: a guard from the previous batch was live over this file and
+scored green on the defect it was written for.** Batch 5 fixed the GDPR
+territorial-scope error in the AppSec course and wrote guard `A67` from that
+course's wording — `personal data of EU residents, regardless of where`. This
+course carried the same error with **no comma**, and `check_banned` runs over
+every course in `COURSES`, so the guard was aimed at this file for a full pass and
+missed by one character. `A67` is now `EU (?:residents|citizens),? regardless of
+where`.
+
+This is the **second** time a batch has caught a guard cut to the exact shape of
+the single sentence it was born from — `A56` was the first (row 64), and that one
+missed a sibling instance in the *same* module. Two incidents, one mechanism, so
+it is now a rule rather than an anecdote: **a guard must be tested against the
+text it was written from *and* against the sibling course before the pass closes.**
+A defect worth guarding in one course is, in a two-course repository built by one
+author, usually present in both. Every guard added this pass was checked in both
+directions — it fires on the pre-fix wording and is clear on the post-fix
+wording — and that check is now part of the batch procedure rather than a thing
+that happened to be done.
 
 **Batch 5 (2026-09-17) — five defects, and one of them is a hole in the previous pass's gate.**
 

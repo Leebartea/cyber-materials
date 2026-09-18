@@ -736,16 +736,73 @@ BANNED = [
      "LAWFUL BASES in Art. 6, which sits three paragraphs up the same page - and "
      "the table this tracker checks listed only five (AppSec ledger row 54)",
      "A66"),
-    (r"personal data of EU residents, regardless of where",
+    # WIDENED in Batch 6. This guard was written in Batch 5 from the AppSec
+    # wording, which carried a comma: `EU residents, regardless of where`. The
+    # Guardians course had the SAME error one comma away - `EU residents
+    # regardless of where` - and this guard, which runs over every course in
+    # COURSES, scored green over it for a full pass. Second time the ledger has
+    # caught a guard cut to the shape of the one sentence it was born from
+    # (cf. A56). The comma is now optional and `residents` may be `citizens`.
+    (r"personal data of EU (?:residents|citizens),? regardless of where",
      "Art. 3(2) keys on data subjects `who are in the Union` - a location test, "
      "not residency or citizenship - and reaches a non-EU company only where it "
      "OFFERS goods/services to them or MONITORS their behaviour. Mere "
-     "reachability from the EU is not enough (AppSec ledger row 55)", "A67"),
+     "reachability from the EU is not enough (AppSec ledger row 55, Guardians "
+     "ledger row 72)", "A67"),
     (r"PHI access[^\n]{0,40}retained for 6 years",
      "45 CFR 164.312(b) requires audit controls and sets NO retention period. The "
      "6 years is 164.316(b)(2), which covers DOCUMENTATION - your logging policy. "
      "Applying it to the log data is the conservative reading, not the text "
      "(AppSec ledger row 56)", "A68"),
+
+    # --- Batch 6 of the claim ledgers (port claims in AppSec, law claims in
+    # Guardians). The first four are one defect wearing four sentences: a
+    # browser control was described at the wrong granularity, and a lab was
+    # built on the description.
+    (r"(?:port|:8000)[^\n]{0,80}DIFFERENT origin[^\n]{0,400}SameSite",
+     "A second port makes a different ORIGIN, not a different SITE. SameSite is "
+     "measured in sites - (scheme, registrable domain), no port - so "
+     "localhost:8000 -> localhost:3000 is same-site and Lax does not fire. A "
+     "CSRF lab that separates attacker from victim by port alone demonstrates "
+     "the opposite of what it claims (AppSec ledger row 61)", "A69"),
+    (r"SameSite=Lax\\?`? \(today's browser default\)",
+     "Chrome/Edge apply Lax to an attribute-less cookie (Chrome 80, Feb 2020); "
+     "Firefox never shipped it on release (bug 1617609, resolved without it) and "
+     "Safari blocks third-party cookies instead. `The browser default` is one "
+     "engine's behaviour, not the web's (AppSec ledger row 62)", "A70"),
+    (r"SOP, CORS, cookie scope, CSP",
+     "Cookie scope is NOT phrased against the origin triple. Cookies are scoped "
+     "by domain and path and `do not provide isolation by port` "
+     "(draft-ietf-httpbis-rfc6265bis-22 s8.5). Listing it beside SOP/CORS/CSP "
+     "teaches that a second port isolates cookies, which is exactly the belief "
+     "that breaks the 2.3 lab (AppSec ledger row 60)", "A71"),
+    (r'"node server\.js"\s+Up \d',
+     "`docker ps` COMMAND shows ENTRYPOINT+CMD truncated, and node:22-slim sets "
+     "ENTRYPOINT [`docker-entrypoint.sh`], so the column reads "
+     "`docker-entrypoint.s...`. The block also dropped the CREATED column, which "
+     "docker ps always prints (AppSec ledger row 64)", "A72"),
+
+    (r"the same packets are unauthorized access under the CFAA",
+     "Overclaimed for a bare scan. US authority is one district case (Moulton v. "
+     "VC3, N.D. Ga. 2000: no `damage`, no `access`); the UK convicted on far less "
+     "(R v Cuthbert, 2005, s.1, no harm, no malicious motive). The honest "
+     "teaching is that the answer differs by jurisdiction and you cannot know "
+     "which applies before you send the packet (Guardians ledger row 75)", "A73"),
+    (r"Cyber Resilience Act[^\n]{0,120}(?:applies|apply) from 11 Sep",
+     "The CRA Art. 14 manufacturer reporting duty has been IN FORCE since "
+     "2026-09-11; future tense is now stale. And 24h is only the EARLY WARNING "
+     "in a 24/72/14 staircase - 72h notification, final report within 14 days of "
+     "a fix (Guardians ledger row 74)", "A74"),
+    (r"rights to know, delete, and opt out of the sale",
+     "That is the 2018 CCPA list. CPRA added CORRECT, LIMIT use of sensitive "
+     "personal information, and extended the opt-out to sale OR SHARING, all "
+     "effective 2023-01-01. Naming CPRA while listing only the CCPA rights is "
+     "three years stale (Guardians ledger row 73)", "A75"),
+    (r"fines up to \*\*4% of global annual turnover\*\*",
+     "Art. 83(5) is EUR 20 million OR 4% of global annual turnover, WHICHEVER IS "
+     "HIGHER. Quoting only the percentage makes the ceiling look proportional to "
+     "size; for a startup the EUR 20M is the binding figure (Guardians ledger "
+     "row 72)", "A76"),
 ]
 
 
