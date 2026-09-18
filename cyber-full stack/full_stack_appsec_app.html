@@ -4384,7 +4384,7 @@ no HSTS header
 Everything you just relied on for confidentiality in this module — TLS key exchange (ECDH), certificate signatures (RSA/ECDSA) — rests on math a large **quantum computer** could break. That computer doesn't exist yet at scale, but two facts make this your problem *now*:
 
 1. **Harvest now, decrypt later.** Adversaries are recording encrypted traffic today to decrypt once quantum hardware arrives. Anything with a long confidentiality lifetime (health records, state secrets, your users' data) is already exposed to a future break.
-2. **The standards are done.** In August 2024 NIST finalized the first post-quantum algorithms: **FIPS 203 (ML-KEM**, key encapsulation, formerly Kyber**)**, **FIPS 204 (ML-DSA**, signatures, formerly Dilithium**)**, and **FIPS 205 (SLH-DSA**, hash-based signatures**)**. A fourth, **HQC**, was selected in March 2025 as a backup KEM. This is no longer research — it's a migration project with government deadlines (US federal: key establishment by **2030**, classical algorithms **disallowed by 2035**).
+2. **The core standards are done.** In August 2024 NIST finalized the first post-quantum algorithms: **FIPS 203 (ML-KEM**, key encapsulation, formerly Kyber**)**, **FIPS 204 (ML-DSA**, signatures, formerly Dilithium**)**, and **FIPS 205 (SLH-DSA**, hash-based signatures**)**. Two more are in flight: **FN-DSA** (Falcon) is drafted as **FIPS 206**, and **HQC** — NIST's *fifth* selected algorithm, announced March 2025 — is a code-based backup KEM built on different mathematics from ML-KEM, its draft standard still in progress and a final expected in 2027. This is no longer research — it's a migration project with government deadlines (US federal: key establishment by **2030**, classical algorithms **disallowed by 2035**).
 
 **What this means for you as a developer — crypto-agility.** You almost never implement crypto yourself (good — don't). Your job is to make sure your systems can *swap algorithms without a rewrite*:
 - Don't hard-code cipher choices or key sizes across your codebase; centralize them behind config.
@@ -14674,7 +14674,7 @@ def register_verify():
 
 ### Real-world case study: LinkedIn 2012
 
-In 2012 LinkedIn lost 6.5M (later revised to 167M) password hashes — unsalted SHA-1. Within 72 hours public crackers had broken the majority. Lessons:
+In 2012 LinkedIn lost 6.5M password hashes — unsalted SHA-1. Four years later the real size surfaced: a 2016 dump of the same breach carried **117M** email-and-password pairs (inside a record set often quoted as 167M, the rest being accounts with no password attached), and LinkedIn confirmed it. Within 72 hours public crackers had broken the majority. Lessons:
 - **Why it happened:** unsalted, fast hash function; many users reused passwords; LinkedIn had no breach detection.
 - **Why it spread:** reused passwords meant the same credentials unlocked countless other sites — a classic credential-stuffing supply chain.
 - **Modern fix:** bcrypt/argon2 with per-user salt, breached-password checks (Have I Been Pwned), passkey rollout, and forced rotation on suspicion.
@@ -15348,7 +15348,7 @@ The naive instinct — "I \`npm install\`ed a popular package, so it's fine" —
 
 **Typosquatting.** A malicious package one keystroke from a real one: \`cross-env\` vs \`crossenv\`, \`electron\` vs \`electorn\`, \`lodash\` vs \`loadash\`. You fat-finger an install (or copy a typo'd name from a bad blog) and install malware. Defense: copy names from the official registry page, not from memory.
 
-**Dependency confusion (the subtle, scary one).** Your company has a *private* internal package \`@acme/auth-utils\` from your internal registry. An attacker publishes a package with the *same name* to *public* npm with a higher version. If your package manager checks the public registry too, it may pull the attacker's higher-versioned public package *instead of* your trusted internal one — most resolvers prefer the highest version. This breached Apple, Microsoft, and dozens of others in 2021 with zero social engineering. Defense: scope internal packages, lock the registry per scope (\`@acme:registry=...\`), enable namespace reservation.
+**Dependency confusion (the subtle, scary one).** Your company has a *private* internal package \`@acme/auth-utils\` from your internal registry. An attacker publishes a package with the *same name* to *public* npm with a higher version. If your package manager checks the public registry too, it may pull the attacker's higher-versioned public package *instead of* your trusted internal one — most resolvers prefer the highest version. In February 2021 the researcher **Alex Birsan** did exactly this to Apple, Microsoft, PayPal, Shopify, Netflix and 30-odd more — code execution inside their networks, no typo and **zero social engineering**, every target covered by a bug-bounty programme, US$130,000+ paid out. Read it as the proof-of-concept that named the class, not as a criminal campaign. Defense: scope internal packages, lock the registry per scope (\`@acme:registry=...\`), enable namespace reservation.
 
 **Malicious package / maintainer takeover.** A popular package gets a malicious update — the maintainer's account is phished (\`ua-parser-js\`, \`event-stream\`), or a maintainer hands the keys to a hostile "helpful new contributor," or goes rogue. Suddenly v1.2.4 exfiltrates env vars on install. Defense: pin versions, delay adopting brand-new releases ("cooldown"), review changelogs/diffs of dependency bumps.
 
@@ -15497,7 +15497,7 @@ fund=false
 
 In 2017 Equifax disclosed a breach of 147 million records. Root cause: an unpatched **Apache Struts2** RCE (CVE-2017-5638) whose patch had been available for two months. Lessons:
 - **Why it happened:** no SCA, no inventory of which apps used which versions, no CVE → asset map, no enforced patch SLA. They literally could not answer "which systems run the vulnerable Struts version?" — the exact question an SBOM answers in minutes.
-- **Why it was a record breach:** the vulnerable web app sat in front of credit data with no network segmentation; once the attacker had RCE they pivoted to a database with 143M SSNs.
+- **Why it was a record breach:** the vulnerable web app sat in front of credit data with no network segmentation; once the attacker had RCE they pivoted to a database holding **145.5M SSNs** (the FTC's figure; 143M was Equifax's first count, revised upward twice).
 - **Modern fix:** run \`npm audit\` / \`pip-audit\` / \`trivy fs .\` in CI, block on Critical/High, maintain an SBOM per app, map CVE feeds to assets *daily*, and enforce a patch SLA.
 
 ---
@@ -17005,8 +17005,8 @@ In your journal:
     phaseId: "p7_5",
     num: "7.5.8",
     title: "Agentic AI and Tool-Use Security (MCP, Autonomous Agents)",
-    objective: "Everything so far treated the LLM as something that answers a question. Wire that same LLM up to tools — read files, run commands, call APIs, spend money — and you've created an agent. Agency is a new risk axis: the more an agent can do, the more a single injected instruction costs you. This module covers the OWASP Agentic and MCP Top 10 risk classes and how to build tool-using agents that fail safely.",
-    body: `> **Why this matters.** Module 7.5.2 taught you that prompt injection can make an LLM say something it shouldn't. That's bad. It gets much worse once the LLM can *act* — call your internal APIs, run shell commands, read and write files, spend real money — because now an injected instruction doesn't just produce bad text, it produces a bad **action**. In December 2025 OWASP released a dedicated **Top 10 for Agentic Applications** and an **MCP Top 10**, distinct from the LLM Top 10 you already know, precisely because autonomous tool-use introduces risk classes the LLM list doesn't cover.
+    objective: "Everything so far treated the LLM as something that answers a question. Wire that same LLM up to tools — read files, run commands, call APIs, spend money — and you've created an agent. Agency is a new risk axis: the more an agent can do, the more a single injected instruction costs you. This module covers the OWASP Top 10 for Agentic Applications (ASI01–ASI10), the draft MCP Top 10, and how to build tool-using agents that fail safely.",
+    body: `> **Why this matters.** Module 7.5.2 taught you that prompt injection can make an LLM say something it shouldn't. That's bad. It gets much worse once the LLM can *act* — call your internal APIs, run shell commands, read and write files, spend real money — because now an injected instruction doesn't just produce bad text, it produces a bad **action**. In December 2025 OWASP released a dedicated **Top 10 for Agentic Applications**, distinct from the LLM Top 10 you already know, precisely because autonomous tool-use introduces risk classes the LLM list doesn't cover. A separate **OWASP MCP Top 10** is being drafted alongside it — useful to read, but still a beta at the time of writing (entries numbered \`MCP01:2025\`–\`MCP10:2025\`, project roadmap at Phase 3 of 5), so cite it as a draft, not as a published standard.
 
 ### 🎯 Concept: agency is the new risk axis
 

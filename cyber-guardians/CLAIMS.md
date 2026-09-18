@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-18 (Batch 6 — law claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-18 (Batch 7 — `default` claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,7 +54,6 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 7 | `default` — "by default", "defaults to" | 22 | vendor defaults change silently between versions — but they fail *visibly*, at a terminal, which is why `law` was promoted ahead of this |
 | 8 | `attribution` — "according to", "researchers found" | 5 | each needs the **primary** document, not the report quoting it |
 
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
@@ -63,7 +62,8 @@ Not yet adjudicated — the next batches, in priority order:
 `port` — 51 candidates, 48 distinct — is **closed** in Batch 4, rows 59–63.
 `date` — 34 candidates — is **closed** in Batch 5, rows 64–71.
 `law` — 13 candidates — is **closed** in Batch 6, rows 72–77, **pulled forward**
-from its scheduled slot at Batch 7; see that batch's opening for why.)
+from its scheduled slot at Batch 7; see that batch's opening for why.
+`default` — 22 candidates — is **closed** in Batch 7, rows 78–90.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -263,7 +263,80 @@ access" each smuggle a scope decision that the instrument itself states narrowly
 | 76 | M11.7, M15 | "Reading a public record is lawful. **Access without authorisation is not.** That is the line the US **CFAA** and the UK **Computer Misuse Act 1990 (s.1)** actually draw" | `SOURCED` | correct, and **strengthened rather than corrected** — the one law row that needed no repair. CMA 1990 s.1 is indeed "Unauthorised access to computer material", and its elements are causing a computer to perform a function with intent to secure unauthorised access, plus knowledge that the access is unauthorised — which is why the module's "'the data was public' is not a defence" holds. On the US side the line the sentence describes was confirmed by the Supreme Court after the module was written: *Van Buren v. United States*, 593 U.S. 374 (2021), decided 3 June 2021 6–3 per Barrett J., held that a police sergeant who ran a licence-plate lookup he was authorised to run, in exchange for a bribe, did **not** "exceed authorized access" — the statute poses a "gates-up-or-down" question about whether information was off-limits to you, not whether your purpose was proper. That is the module's line exactly, and it is now cited there, with a pointer to row 75 noting that the same clarity does not extend to *scanning*. Note the asymmetry this creates and keep it: **M11.7 states the rule carefully and M15 stated it as a blanket**, and the course now uses the pair as a teaching contrast rather than contradicting itself across two modules | 2029-06 |
 | 77 | M5, M21, M23, M24.5, M28, M11.7 | The remaining law mentions: GDPR 72 hours; HIPAA scope; PCI DSS 4.0.1 as contractual not statutory; SOC 2 as an audit report not a law; Morris as the first CFAA conviction; the Cambridge Analytica fines; pasting regulated data into a public AI service as a possible GDPR/HIPAA violation; ToS breach as civil not criminal; GDPR applying to public personal data on an OSINT engagement | `SOURCED` `CORPUS` | **all correct as written; one enriched.** GDPR's 72 hours is Art. 33(1), stated to the supervisory authority — correct in both modules, and M23's "PCI, DORA, and HIPAA each run their own" is the hedge that kept this course clear of the fabricated "HIPAA 72-hour rule" found in the AppSec course (AppSec row 52); do not let a later edit "helpfully" fill in that number. HIPAA covering "hospitals, insurers, and their vendors" is covered entities plus business associates — right. PCI DSS as contractual and SOC 2 as an audit report are both correctly *excluded* from being laws, which is the distinction most compliance summaries blur. Morris: convicted January 1990, the first conviction under the CFAA of 1986 — right. M24.5's data rule is correctly hedged with "**can** itself be a compliance violation", which is the accurate modal: disclosing PHI to a vendor without a BAA, or personal data without an Art. 28 processor agreement, is a violation independent of misuse. M11.7's "ToS breach is not in itself a crime" is right and is the line *Van Buren* reinforces. **Enriched, not fixed:** the Cambridge Analytica case study said "the UK ICO and US FTC both fined Facebook (the FTC settlement alone was $5 billion)" — true, but it gave no figure for the ICO, leaving the "predates GDPR" clause as an unbacked assertion. The ICO's penalty was **£500,000**, settled in October 2019 with no admission of liability, and that number is **the statutory maximum available under the Data Protection Act 1998** — the conduct predated GDPR's 25 May 2018 application, so the regulator was capped regardless of what it found. Added, with the point it unlocks: an old fine quoted as evidence that a regulator was toothless is often evidence that the regulator was capped | 2028-09 |
 
+## Batch 7 — `default` claims
+
+**22 candidates, 13 rules, 3 defects — and all three are one sentence shape.**
+A default is a property of **one product at one version**. Every defect in this
+batch is a sentence that dropped the product: *"a dev server that binds `0.0.0.0`
+by default"*, *"many routers expose admin panel to WAN by default"*, *"`listen(5432)`
+== `listen(5432, "0.0.0.0")`"*. Each reads as a fact about the world; none of
+them is checkable, because there is no subject to check. The rule this batch
+sets: **an unattributed default is not a claim, it is a guess wearing a claim's
+grammar.** Name the product and the version, or state the method instead of the
+value — the M15 fix does the second, and is the better of the two.
+
+**The direction of error is not what you would expect.** Two of the three were
+*pessimistic*: the course warned about an exposure that the vendors had already
+closed (retail routers ship with remote management off; Vite and Flask bind
+localhost and make you pass `--host`). A security course drifts toward
+overstating danger the same way it drifts toward stale versions, and the
+overstatement is the more corrosive of the two — a learner who checks and finds
+the scary default absent learns to discount the next warning. Both were rewritten
+to teach the **check** rather than the **verdict**.
+
+**Six of the 22 are not defaults at all.** "Deny by default", "redaction by
+default", "memory-safe by default", "scope every query to the caller by default",
+"sane and safe defaults" — these are statements of what the reader should
+*choose*, not what a vendor ships. They are terminal (row 90), and they are the
+`default` tag's cheap-dismissal rule, the analogue of row 44 for `rank` and row
+58 for `quantity`: **a default with no vendor is a design principle; look for a
+product name before opening a browser.**
+
+**Two rows were closed at a terminal rather than a browser** (84, 86, 87) and one
+of them is a method worth keeping: Apple documents *how to turn Remote Login on*
+and never states its default, so the Mac Help page cannot settle the claim — but
+the shipped launchd job can, and `plutil -p /System/Library/LaunchDaemons/ssh.plist`
+prints `"Disabled" => true`. **When a vendor documents the toggle but not the
+default, the shipped unit file is the authority.**
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 78 | M15 | "a dev server that binds \`0.0.0.0\` **by default** publishes your work-in-progress to the coffee shop, and nothing in its startup banner says so" | `FIXED` | **the frameworks disagree, and the two most likely to be in front of this learner disagree with the course.** Vite's `server.host` defaults to localhost and its banner literally reads `Network: use --host to expose`; Flask's `app.run()` defaults to `127.0.0.1`. On the other side, `next dev` defaults to hostname `0.0.0.0`, and `python3 -m http.server --help` documents `--bind` as *(default: all interfaces)*. So the sentence was true of half the ecosystem and backwards for the other half. Rewritten to name all four and to replace the verdict with the method: the banner prints the address it wants you to **click**, not the addresses it is **listening on**, and only `lsof` answers the second question — which is also the M9 lab the learner has already run. Guard `A77` | 2027-09 |
+| 79 | M25.5 | "Many routers expose admin panel to WAN **by default**" | `FIXED` | **backwards for retail gear.** NETGEAR's own KB states remote management is off by default and should be left off; TP-Link ships remote management disabled (its default remote-management address is `0.0.0.0`, which is the disabled state). The exposure that is actually found in the wild comes from three other places — ISP-supplied CPE with carrier-side management, vendor cloud/app management that is not the same toggle as "remote management", and settings a human turned on years ago — so the check the module asks for is right and only its premise was wrong. Rewritten to say where the exposure really lives and to require looking rather than assuming. Note the module's own three-item checklist (remote management / UPnP / Telnet) was already correct and is untouched. Guard `A78` | 2027-09 |
+| 80 | M9 | `require("express")().listen(5432);` annotated `// == listen(5432, "0.0.0.0")` | `FIXED` | `EXECUTED`: a Node `http` server with no host argument reports `{"address":"::","family":"IPv6","port":…}`. The security consequence the module teaches is unchanged — `::` is the IPv6 wildcard and a dual-stack host accepts IPv4 on it, so the LAN really can reach the service — but a learner told to expect `0.0.0.0` will not find that string anywhere: `lsof` prints `*:5432`, `server.address()` prints `::`. This is the "documented result cannot happen" shape, at its mildest. Both the code comment and the lab nudge now say *every interface*, print `::`, and explain the dual-stack part. Guard `A79` | 2028-09 |
+| 81 | Intro | The lab VM is "isolated — its network is host-only (no direct internet reach **by default** for attack labs)" | `SOURCED` | VirtualBox manual, Virtual Networking: host-only is "a network for VMs to communicate internally on this machine, but **not with external networks**", implemented as a loopback-like virtual interface on the host. Giving such a VM internet requires routing on the **host OS**, explicitly outside VirtualBox's scope — which is exactly the property the intro relies on | 2028-09 |
+| 82 | M15 | VirtualBox **NAT**: "inbound is blocked **by default**, but the VM has full **outbound** internet access" | `SOURCED` | VirtualBox manual: a NAT guest is "invisible and unreachable from the outside internet" and "you cannot run a server this way unless you set up port forwarding", while the NAT engine resends guest traffic through the host so it appears to come from the host's IP. Both halves of the course's sentence confirmed, including the half it calls "the wrong half" — which is the module's actual teaching point and survives intact | 2028-09 |
+| 83 | Intro | `wsl --install` "enables WSL2 and installs Ubuntu **by default**" | `SOURCED` | Microsoft Learn, *Install WSL*: "This command will enable the features necessary to run WSL and install the Ubuntu distribution of Linux"; "**By default, the installed Linux distribution will be Ubuntu**"; "New Linux installations, installed using the `wsl --install` command, will be set to **WSL 2 by default**". Both halves exact. Caveat the doc adds and the course does not need: the bare command only works when WSL is not installed at all | 2027-09 |
+| 84 | M5 | Flask `resp.set_cookie("session", token)` — "no Secure/HttpOnly/SameSite **by default**" | `EXECUTED` | `inspect.signature` on the installed Werkzeug `Response.set_cookie`: `secure: bool = False, httponly: bool = False, samesite: str \| None = None`. All three confirmed at the API. **One nuance recorded so a later pass does not "fix" a correct line:** Chrome has treated a cookie with no `SameSite` attribute as `Lax` since Chrome 80, so the *browser* partly compensates for the third missing flag — which means the two that actually bite here are `Secure` and `HttpOnly`. The course's paired secure example sets all three explicitly, which is right regardless of browser default, and the WHY WRONG comment is a statement about the **server** API, where it is exactly true | 2028-09 |
+| 85 | M6 | macOS **Gatekeeper** "blocks unsigned/unnotarized apps **by default**" | `SOURCED` | Apple Platform Security, *Gatekeeper and runtime protection*: "By default, Gatekeeper ensures all downloaded software has been signed by the App Store or signed by a registered developer and notarized by Apple", and all software is checked for known malicious content on first open regardless of how it arrived. Apple also notes users can override the policy — **the course teaches no override path** (no Control-click-Open, no `xattr -d com.apple.quarantine`, checked across both courses), so the macOS 15 change that moved that override into System Settings touches nothing here | 2028-09 |
+| 86 | M12 | Port 22 closed on macOS because "**Remote Login is off by default** — closed is the correct, healthy result" | `EXECUTED` | Apple's Mac Help page for Remote Login documents **how to turn it on** and never states the default, so it cannot settle this. The shipped launchd job can: `plutil -p /System/Library/LaunchDaemons/ssh.plist` prints `"Disabled" => true` on a stock system, with `Label => com.openssh.sshd`. Keep the method — **when a vendor documents the toggle but not the default, read the shipped unit file** — because it generalises to every service in this module's scan | 2028-09 |
+| 87 | M11.5 | "`grep -E`/`awk`/`sed -E` (ERE) make them special **by default**" (of regex metacharacters) | `EXECUTED` | `echo 'aab' \| grep -c 'a+b'` → `0` and `echo 'a+b' \| grep -c 'a+b'` → `1` (BRE: `+` is literal); `echo 'aab' \| grep -Ec 'a+b'` → `1` (ERE: `+` quantifies). The quiz question built on this row ("which tools default to which?") is answerable from the run | 2029-09 |
+| 88 | M11.7 | Registry data (RDAP/WHOIS): "registrant details are **redacted by default** now" | `SOURCED` | ICANN's **Registration Data Policy**, effective **2025-08-21**, superseding the 2018 Temporary Specification and carrying its default-redaction posture forward: registrant fields are redacted unless the registered name holder consents to publication. RDAP implements it per **RFC 9537** and §§2.7.7–2.7.8 of the 2024 RDAP Response Profile (registrant `handle` removed, `fn` emptied, postal code and voice redacted). **Adjacent fact the module already gets right:** WHOIS was sunset for gTLDs on **2025-01-28** with RDAP as the definitive source, and M11.7 teaches `rdap.org` as "the structured successor to whois" — no `whois` invocation survives anywhere in the course | 2028-01 |
+| 89 | M25 | Cloud posture list: "**IMDSv2 required**" | `SOURCED` | correct, and worth keeping in the **imperative** rather than the descriptive, because AWS's own defaults are partial: instance types released from mid-2024 are IMDSv2-only, console Quick Start launches have been IMDSv2-only since Nov 2023, and an account-level per-region "IMDSv2 by default" switch has existed since Mar 2024 — but an older instance type still launches IMDSv1-optional unless that switch is set or the AMI carries `imds-support=v2.0`. "Require it" stays true in 2026; "AWS does it for you" would not. Pairs with AppSec row 74 (Capital One), where the same line appears as a lesson | 2027-09 |
+| 90 | Intro, M14, M16, M20, M21, M26 | The design-principle "defaults": deny by default (M14, ×3); redaction by default (M16); memory-safe languages by default (M21); scope every query to the caller by default (M20); sane and safe defaults for a published tool (M26) | `CONVENTION` | **terminal — no source can settle these even in principle**, because they describe what the reader should *choose*, not what any product ships. Nothing to look up, nothing to rot. This is the `default` tag's cheap-dismissal rule and it removes 6 of the 22 candidates on sight: **a default with no vendor attached is a design principle.** One rider inside the M21 sentence is *not* dismissed by this row and is **deferred to Batch 8** as an `attribution` claim: "the pragmatic strategy … governments (CISA/NSA memory-safety guidance) and major vendors have actually adopted" names a document and must be checked against that document, not against this row | — |
+
 ## Fixes applied in this pass
+
+**Batch 7 (2026-09-18) — three defects, one shape: a default with no product named.**
+
+1. **M15** — "a dev server that binds `0.0.0.0` by default". Vite and Flask bind
+   localhost; `next dev` and `python3 -m http.server` bind everything. Rewritten
+   to name all four and to teach the check (`lsof`, not the startup banner).
+2. **M25.5** — "Many routers expose admin panel to WAN by default". NETGEAR and
+   TP-Link both document remote management as **disabled** by default; the real
+   exposure is ISP-supplied CPE, vendor cloud/app management, and stale manual
+   changes. Rewritten; the checklist it introduces was already correct.
+3. **M9** — `listen(5432)` annotated `== listen(5432, "0.0.0.0")`. Node reports
+   `::`. Same reachability, but the learner cannot find the documented string.
+
+**The direction worth noticing: two of the three overstated the danger.** The
+course warned about exposures the vendors had already closed. That drift is
+easier to acquire than a stale version number and more expensive to carry — a
+learner who checks and finds no scary default learns to discount the next
+warning. Both fixes replace a verdict with a check.
+
+Guards `A77`, `A78`, `A79` here and `A80`–`A84` in the AppSec course; all eight
+verified firing against the pre-fix file and clear against the fixed one.
 
 **Batch 6 (2026-09-18) — five defects in six rules, the highest density of any batch.**
 

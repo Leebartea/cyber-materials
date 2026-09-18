@@ -4065,8 +4065,9 @@ Every control and attack lives at a layer: firewalls filter at L3/L4, TLS protec
 
 \`\`\`javascript
 // Node - VULNERABLE: binds to ALL interfaces by default
-require("express")().listen(5432);            // == listen(5432, "0.0.0.0")
-// WHY WRONG: no host arg -> 0.0.0.0 -> reachable from the whole LAN/Wi-Fi.
+require("express")().listen(5432);            // no host arg -> every interface
+// WHY WRONG: server.address() reports "::" (IPv6 "any"), which on a dual-stack
+// host accepts IPv4 too -> reachable from the whole LAN/Wi-Fi.
 
 // Node - SECURE: bind internal services to localhost only
 require("express")().listen(5432, "127.0.0.1");
@@ -4190,7 +4191,7 @@ Common wrong attempts: reading only the port number and ignoring the *address* �
 <details>
 <summary>Nudge — open if you've been stuck more than three minutes</summary>
 
-A Node \`http\` server with \`.listen(PORT)\` and no host argument binds to \`0.0.0.0\`; adding \`"127.0.0.1"\` as the host restricts it. Find your LAN IP with \`ipconfig getifaddr en0\`.
+A Node \`http\` server with \`.listen(PORT)\` and no host argument binds to every interface — \`server.address()\` prints \`::\`, the IPv6 wildcard, which on a dual-stack host covers IPv4 as well; adding \`"127.0.0.1"\` as the host restricts it. Find your LAN IP with \`ipconfig getifaddr en0\`.
 </details>
 
 <details>
@@ -6714,7 +6715,7 @@ chmod +x isolation-check.sh
 \`\`\`
 Your LAN address will be a different \`192.168.x.y\` (or \`10.x.y.z\`); the four verdicts are what must match. **9301 is the pass and 9302 is the finding.** Both are reachable from the machine itself — that tells you nothing, and it is exactly the check most people stop at. The second line of each report is the one that carries information: 9301 refuses from the LAN address, 9302 answers it. Same laptop, same \`curl localhost\` success, completely different exposure.
 
-The two servers differ by one argument — \`listen(9301, "127.0.0.1")\` versus \`listen(9302, "0.0.0.0")\` — and that argument is the entire security boundary. It is also the argument frameworks pick for you: a dev server that binds \`0.0.0.0\` by default publishes your work-in-progress to the coffee shop, and nothing in its startup banner says so.
+The two servers differ by one argument — \`listen(9301, "127.0.0.1")\` versus \`listen(9302, "0.0.0.0")\` — and that argument is the entire security boundary. It is also the argument frameworks pick for you, and **they do not agree**: \`python3 -m http.server\` binds every interface by default (its own \`--help\` reads *bind to this address (default: all interfaces)*) and \`next dev\` defaults to hostname \`0.0.0.0\`, while Vite and Flask default to localhost and make you pass \`--host\` before anything is published. So the lesson is not "dev servers are safe" or "dev servers are exposed" — it is that the banner a dev server prints (\`http://localhost:5173\`) is the address it wants you to **click**, not the list of addresses it is **listening on**. Only \`lsof\` answers the second question.
 
 **Two ways this check can lie to you, both worth knowing before you trust a \`refused\`.** If Wi-Fi is down there is no LAN address, and the script prints \`(no LAN address — Wi-Fi down)\` rather than a verdict — read that as "not tested," never as "isolated." And \`refused\` from *your own* LAN address proves the service is not listening there; it does not prove a firewall would stop a **different** machine, since traffic to your own address never leaves the host. To close that gap properly you probe from a second device on the network. This one is still worth running constantly, because it catches the common case — a service bound wider than you meant — in half a second.
 
@@ -10549,7 +10550,10 @@ curl -s -o /dev/null -w "%{http_code}" "http://192.168.1.1/" 2>/dev/null
 # If it logs in: YOU HAVE A DEFAULT CREDENTIAL PROBLEM. Fix it immediately.
 
 # 3. Check your router's WAN exposure (without touching any external system)
-# Many routers expose admin panel to WAN by default.
+# Retail routers ship with remote management OFF (NETGEAR and TP-Link both
+# document it as disabled by default) -- the exposure you actually find is on
+# ISP-supplied gear, on vendor cloud/app management, and on settings someone
+# turned on years ago and forgot. Never assume either way; open the page and look.
 # Log into your router admin panel and confirm:
 # - Remote management is DISABLED
 # - UPnP is DISABLED

@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-18 (Batch 6 — port claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-18 (Batch 7 — date claims, closed: no `PENDING` rows remain)
 
 ## How to use it
 
@@ -54,11 +54,11 @@ Not yet adjudicated — the next batches, in priority order:
 
 | Batch | Class | Candidates | Why it matters |
 |---|---|---|---|
-| 7 | `date` — "as of", "since", release years | 15 | rots by definition — and per the Guardians Batch 5, the date is rarely what rotted |
 | 8 | `attribution` — "according to", "researchers found" | 1 | needs the **primary** document, not the report quoting it |
 
 (`law` — 29 candidates — is **closed** in Batch 5, rows 52–57.
-`port` — 23 candidates — is **closed** in Batch 6, rows 58–66.)
+`port` — 23 candidates — is **closed** in Batch 6, rows 58–66.
+`date` — 19 candidates — is **closed** in Batch 7, rows 67–75.)
 
 **What Batch 6 changed about how to read this ledger.** The `port` tag was filed
 as the low-risk batch and it produced the most serious defect either ledger has
@@ -260,7 +260,88 @@ each other as the contrast.
 | 65 | M0.7, M1.6 | `lsof -iTCP -sTCP:LISTEN -n -P` expected output, in two modules | `FIXED` | header and data row were both missing the **SIZE/OFF** column. Executed this pass on macOS 27 (Darwin 27.0.0): the real header is `COMMAND     PID      USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME`, and a listening socket carries `0t0` in that column. **The course already knew this** — a third `lsof` block, in M1.7's SSH-tunnel section, prints `SIZE/OFF` and `0t0` correctly, so this is the row 64 pattern again in a second tool: the same course, the same command, two renderings, one of them hand-written. Cosmetic next to rows 60–63, but it is the course's own standard — an expected-output block exists so a learner can diff against it, and a missing column is a diff. Both instances corrected to match. **DEVICE is deliberately left elided as `0x...`**, matching the M1.7 block: it is a kernel object address that differs on every run and every machine, so a concrete value there would be the one column a learner *cannot* match and would teach them to distrust the block | 2029-09 |
 | 66 | M7.3 | CRA reporting: "24 hours", "apply from 11 Sep 2026" | `FIXED` | **closing an item the ledger itself logged as carried forward.** Batch 5's row 57 recorded that the CRA's 24 hours is only the *early warning* and that the module did not mention the rest — filed as "an incompleteness, not a defect". It has since become both: the manufacturer reporting duty **came into force on 11 September 2026**, so the future tense was stale as of this pass, and the deadline given as the obligation was one third of it. Article 14 runs **24 / 72 / 14** — early warning within 24h of awareness, fuller notification within 72h, final report within 14 days of a corrective measure — all to the coordinating CSIRT and ENISA via the single reporting platform (European Commission, *CRA reporting obligations*, `digital-strategy.ec.europa.eu/en/policies/cra-reporting`, read this pass). Corrected in the theory, the workbench answer and the tracker, with the operational point the staircase exists to make: the 24h item is **not** an investigation report, and the CRA expressly permits progressive disclosure. Fixed in both courses this pass — see Guardians row 62 | 2027-12 |
 
+## Batch 7 — date claims
+
+**19 candidates, 9 of them already adjudicated by earlier batches** — the FIPS
+finalisation (row 16), the Top 10:2025 refresh and its A10 (rows 1, 37), ASVS 5.0
+(row 5), SSRF's absorption into A01 (row 37), the LLM Top 10 renumbering (row 23),
+and the Agentic Top 10's December 2025 publication (row 24). A `date` regex fires
+on every one of them because a date is how a standards claim is *spelled*, not
+what it asserts. **Triage rule for this tag: if the sentence's subject is a
+standard, the row that adjudicated the standard already owns the date.** That
+leaves 10 candidates and 9 rules below, of which **five were wrong**.
+
+**The finding, and it is the opposite of Guardians Batch 5.** That batch
+concluded that in a date claim "the date is rarely what rotted" — the year was
+right and the sentence around it had drifted. Here **not one of the five defects
+is a wrong year either**, but the drift is in a different direction: it is the
+*other number* in the sentence (rows 68, 70), the *ordinal* (67), the *agent*
+(69), or the *verb* (71). Stated as a rule: **a date claim is a compound, and the
+date is its most-checked and therefore safest component.** A pass that reads the
+year and moves on will score this whole tag green and miss all five.
+
+**Row 71 is the one to read first.** "In December 2025 OWASP released … an **MCP
+Top 10**" describes a document that has not been released — the project's own
+roadmap puts it at *Phase 3 of 5, Beta Release and Pilot Testing, "we are here
+right now"*. This is the defect shape with the worst downstream cost, because a
+learner who cites a draft as a published standard in a design review is
+embarrassed by their source rather than by their reasoning. The Agentic Top 10 in
+the same sentence **is** published, which is exactly why the false half rode
+along unchallenged.
+
+**Row 72 records a trap for whoever audits this next.** The course says the LLM
+Top 10's current edition is 2026, published August 2026 — and that is right
+(v1.0, 2026-08-03). But `genai.owasp.org/llm-top-10/` **still serves the 2025
+list**, so a re-verification that fetches the obvious landing page will "disprove"
+a correct course and re-break it. Check the release artefact, not the landing
+page. This is the second time this ledger has caught a *correct* line that a
+lazy re-check would have reverted.
+
+| # | Where | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 67 | M1.2 | "**A fourth**, HQC, was selected in March 2025 as a backup KEM" | `FIXED` | the month is right and the ordinal is wrong: NIST's own announcement is titled *NIST Selects HQC as **Fifth** Algorithm for Post-Quantum Encryption* (2025-03-11). The fourth is **FN-DSA (Falcon)**, drafted as **FIPS 206** — a standard the course never mentioned at all, so the ordinal was not a slip, it was the visible edge of a gap. Also corrected: HQC's draft is still in progress with a final expected **2027**, which the bare word "selected" left open. **This is the same defect the Guardians ledger closed at its row 4** (M10, Batch 1, 2026-09-11) — HQC presented among finalised FIPS standards — caught one course over, under a different tag, seven days later. Lead sentence softened from "The standards are done" to "The core standards are done". Guard `A80` | 2027-06 |
+| 68 | M6.6 | LinkedIn 2012: "lost 6.5M (later revised to **167M**) password hashes" | `FIXED` | 6.5M unsalted SHA-1 hashes posted June 2012 — correct. The 2016 revision is **117M** email-and-password pairs, the figure LinkedIn confirmed after the "Peace" listing; **167M is the record count**, which includes accounts that had no password attached (registered via a social login). "167M password hashes" is a number nobody reported. Rewritten to give both figures and say which is which, since the gap between them is itself the lesson about how breach sizes get quoted. Guard `A81` | 2029-09 |
+| 69 | M7.2 | Dependency confusion "**breached** Apple, Microsoft, and dozens of others in 2021 with zero social engineering" | `FIXED` | every factual component is right and the **agent is missing**, which inverts how the event should be read. This was **Alex Birsan's** research, published 2021-02-09: code execution inside 35+ organisations including Apple, Microsoft, PayPal, Shopify and Netflix, **every target covered by a bug-bounty programme**, US$130,000+ paid out (Microsoft $40k; Shopify, Apple and PayPal $30k each). "Zero social engineering" is exact — that is the point of the technique and Birsan's own framing. Rewritten with the attribution and the authorisation, because a proof-of-concept that **named a vulnerability class** teaches differently from an anonymous in-the-wild campaign. Guard `A82` | 2029-09 |
+| 70 | M7.2 | Equifax: "the attacker pivoted to a database with **143M SSNs**" | `FIXED` | **a superseded people-count quoted as an SSN-count.** The FTC's complaint gives ~147M names and dates of birth, **145.5M SSNs**, 99M addresses, 209,000 payment cards. 143M was Equifax's *first* announcement (Sept 2017) of people affected, revised to 145.5M on 2017-10-02 after it found a query it had wrongly concluded returned nothing. So the sentence used the wrong metric **and** a figure the issuer itself had withdrawn. **Cross-tag note:** this sat two sentences below row 51, a `quantity` row closed in Batch 4 that verified the *147M* in the same paragraph and did not look further down. Guard `A83` | 2028-09 |
+| 71 | M7.5.8 | "In December 2025 OWASP released a dedicated Top 10 for Agentic Applications **and an MCP Top 10**" | `FIXED` | **the second half describes an unpublished document.** `owasp.org/www-project-mcp-top-10` shows a five-phase roadmap with *Phase 3 – Beta Release and Pilot Testing* marked "We are here right now", Phase 4 Final Release still planned, and entries numbered `MCP01:2025`–`MCP10:2025`; Phase 5 targets a next release in October 2026. The Agentic Top 10 in the same sentence is genuinely published (2025-12-09, ASI01–ASI10 — row 24), and that is what carried the false half. Rewritten in both the module objective and the body to call the MCP list a draft and say so in the citation. No `MCP0…` entry is taught anywhere in the course, so nothing downstream depends on it. Guard `A84` | 2027-03 |
+| 72 | M7.5.1 | "The current edition is **2026**, published by the OWASP GenAI Security Project in **August 2026**" | `SOURCED` | confirmed: the 2026 edition is **v1.0 dated 2026-08-03**, CC BY-SA 4.0, and is the first edition ranked on evidence rather than practitioner vote alone — a corpus of **7,714** incidents, **6,639** classifiable, weighted one quarter against three quarters for the community vote. Only LLM01 and LLM02 kept their 2025 slots. **Trap recorded for the next pass: `genai.owasp.org/llm-top-10/` still serves the 2025 list and its March 2025 date.** Fetching that page and "correcting" the course would re-break it; verify from the release artefact. Complements row 23, which owns the numbering | 2027-11 |
+| 73 | M7.2 | Protestware: "`node-ipc` wiped files in **2022**; `colors`/`faker` were sabotaged" | `SOURCED` | both correct. node-ipc 10.1.1–10.1.2 (7–8 March 2022) shipped `dao/ssl-geospec.js`, which geolocated the host and recursively overwrote files with a heart emoji on systems in Russia or Belarus — **CVE-2022-23812**, Snyk 9.8 — and from 11.0.0 imported `peacenotwar` instead; downstream blast radius included `@vue/cli`. `colors` 1.4.1 / 1.4.44-liberty-2 and `faker` 6.6.6 (5–8 January 2022) were the maintainer's own infinite loop and emptied package, breaking builds including the AWS CDK, at roughly 23M and 2.4M weekly downloads. The course's framing — maintainer-initiated, not account compromise — is the distinction that matters and it is right | 2029-09 |
+| 74 | M8.3 | Capital One: "In **2019** a former AWS engineer exfiltrated **100M+** credit card applications" | `SOURCED` | DOJ and Capital One: **Paige Thompson**, who had previously worked at Amazon Web Services, accessed data affecting ~**100M** individuals in the US and ~6M in Canada, largely credit-card **applications from 2005 through early 2019**; entry was "through a **misconfigured web application firewall**", the WAF-to-IMDS chain the module teaches. Detected 2019-07-17 via a GitHub tip-off, disclosed 2019-07-29; convicted 2022. The module's closing lesson "IMDSv2 by default" is **posture, not an AWS fact** — see Guardians row 89 for what AWS actually defaults to | 2029-09 |
+| 75 | M7.1 | "the numbers above were **captured in Aug 2026**" (npm audit 1 / trivy 10 / osv-scanner 8 for `lodash@4.17.4`) | `CORPUS` | self-referential provenance for the course's own lab output, and **correctly hedged already**: the paragraph tells the learner their totals will be *higher, not equal*, tells them not to chase an exact match, and pins the two things that must still hold — all three tools name `lodash@4.17.4`, and **no two of them agree on the count**. That disagreement is the teaching point and it does not rot; the integers do, by design. A date-stamped figure that says out loud which part of itself will expire is the pattern the rest of this tag should copy | 2027-08 |
+
 ## Fixes applied in this pass
+
+**Batch 7 (2026-09-18) — five defects, and not one of them is a wrong date.**
+
+1. **M7.5.8** — "In December 2025 OWASP released … an **MCP Top 10**." It has not
+   been released: Phase 3 of 5, beta, entries `MCP01:2025`. Now cited as a draft
+   in both the objective and the body. The Agentic Top 10 beside it is real, and
+   that is what let the false half pass.
+2. **M1.2** — "**A fourth**, HQC." NIST calls it the fifth; the fourth is FN-DSA
+   (Falcon) as FIPS 206, which the course never mentioned. Added, with HQC's
+   draft status and its 2027 final.
+3. **M6.6** — LinkedIn "revised to **167M** password hashes". 117M credentials;
+   167M is the record count including password-less accounts.
+4. **M7.2** — Equifax "a database with **143M SSNs**". The FTC's SSN figure is
+   145.5M; 143M was Equifax's own withdrawn people-count.
+5. **M7.2** — dependency confusion "**breached** Apple, Microsoft…". Alex Birsan's
+   February 2021 research, every target inside a bug-bounty programme, $130k+
+   paid. Attribution restored.
+
+**The shape: a date claim is a compound, and the date is its safest part.**
+Guardians Batch 5 found that in a date claim the year is usually right and the
+sentence around it has drifted. This batch is the sharper version — five defects,
+five correct years. What was wrong was the *other* number (3, 4), the *ordinal*
+(2), the *agent* (5), and the *verb* (1). Read the year and move on and this
+entire tag scores green.
+
+**The near-miss worth keeping: row 72 is a correct line a re-check would break.**
+`genai.owasp.org/llm-top-10/` still serves the 2025 LLM Top 10, so the obvious
+verification source contradicts a course that is right. The row now says where to
+look instead.
+
+Guards `A80`–`A84` here, `A77`–`A79` in the Guardians course; all eight verified
+firing against the pre-fix file and clear against the fixed one.
 
 **Batch 6 (2026-09-18) — five defects, four of which are one defect in four sentences.**
 

@@ -803,6 +803,47 @@ BANNED = [
      "HIGHER. Quoting only the percentage makes the ceiling look proportional to "
      "size; for a startup the EUR 20M is the binding figure (Guardians ledger "
      "row 72)", "A76"),
+
+    # --- Batch 7 of the claim ledgers (`default` claims in Guardians, `date`
+    # claims in AppSec). The Guardians defects share one shape: a vendor default
+    # asserted as universal. A default is a property of ONE product at ONE
+    # version, so a sentence of the form "X does Y by default" with no X named is
+    # unfalsifiable and usually wrong for at least one X the learner will meet.
+    (r"dev server that binds .{0,2}0\.0\.0\.0.{0,2} by default",
+     "Dev servers disagree: `python3 -m http.server` and `next dev` bind every "
+     "interface, Vite and Flask bind localhost and need `--host`. Name them. The "
+     "durable lesson is that the printed banner is the address to CLICK, not the "
+     "addresses bound - only `lsof` answers that (Guardians ledger row 78)", "A77"),
+    (r"routers expose admin panel to WAN by default",
+     "Backwards for retail gear: NETGEAR and TP-Link both document remote "
+     "management as DISABLED by default. Real WAN-side admin exposure comes from "
+     "ISP-supplied CPE, vendor cloud/app management, and stale manual changes "
+     "(Guardians ledger row 79)", "A78"),
+    (r'== listen\(5432, "0\.0\.0\.0"\)',
+     "Node with no host arg binds `::` (IPv6 wildcard), not `0.0.0.0` - "
+     "`server.address()` prints `::`. Reachability is the same on a dual-stack "
+     "host, but a learner told to expect `0.0.0.0` will not find it "
+     "(Guardians ledger row 80)", "A79"),
+    (r"A fourth, \*\*HQC\*\*",
+     "NIST calls HQC its FIFTH selected algorithm; the fourth is FN-DSA (Falcon), "
+     "drafted as FIPS 206 and absent from the course. Same defect the Guardians "
+     "ledger closed at its row 4, one course over (AppSec ledger row 67)", "A80"),
+    (r"later revised to 167M\) password hashes",
+     "The 2016 dump carried 117M email+password pairs; 167M is the record count "
+     "including accounts with no password attached. 167M password HASHES is a "
+     "figure nobody reported (AppSec ledger row 68)", "A81"),
+    (r"This breached Apple, Microsoft, and dozens of others",
+     "Alex Birsan's Feb 2021 research, every target inside a bug-bounty "
+     "programme, $130k+ paid. Taught as an anonymous in-the-wild breach it loses "
+     "the fact that the class was named by a PoC (AppSec ledger row 69)", "A82"),
+    (r"a database with 143M SSNs",
+     "143M was Equifax's FIRST count of people affected, revised to 147M; the "
+     "FTC's SSN figure is 145.5M. The course quoted a superseded people-count as "
+     "an SSN-count (AppSec ledger row 70)", "A83"),
+    (r"Applications\*\* and an \*\*MCP Top 10\*\*",
+     "The OWASP MCP Top 10 was not released in Dec 2025 and is not released now - "
+     "its own roadmap puts it at Phase 3 of 5 (beta), entries `MCP01:2025`. Only "
+     "the Agentic Top 10 (ASI01-ASI10) shipped (AppSec ledger row 71)", "A84"),
 ]
 
 
