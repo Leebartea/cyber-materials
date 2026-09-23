@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **42-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **43-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **42-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 42 modules at a glance
+### All 43 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -834,6 +834,7 @@ Cyber Guardians is a **42-module breadth-first course** that takes you from zero
 - M20: Burp Suite — Web App Pentesting
 - M21: Intro to Exploitation (Conceptual + Safe Practice)
 - M22: Digital Forensics Fundamentals
+- M22.5: Filesystem & OS Artifacts — What the System Remembers For You *(new in this edition)*
 - M23: Incident Response
 - M23.5: Business Continuity & Disaster Recovery *(new in this edition)*
 - M24: Malware Analysis 101
@@ -922,7 +923,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 42 modules, expect ~53–63 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 43 modules, expect ~54–65 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -933,7 +934,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 42 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 43 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -7493,7 +7494,7 @@ Reconnaissance -> Weaponization -> Delivery -> Exploitation -> Installation -> C
 
 #### MITRE ATT&CK
 
-A taxonomy of attacker behavior by **tactic** (Initial Access, Execution, Persistence, Privilege Escalation, Defense Evasion, ...) and **techniques**. Red teams plan realistic paths; blue teams map detections to techniques to find gaps. Bookmark attack.mitre.org.
+A taxonomy of attacker behavior by **tactic** (Initial Access, Execution, Persistence, Privilege Escalation, Stealth, Defense Impairment, ...) and **techniques**. Red teams plan realistic paths; blue teams map detections to techniques to find gaps. Bookmark attack.mitre.org.
 
 #### Why the naive approach fails
 
@@ -7692,7 +7693,7 @@ Common wrong attempts: using \`socket.gethostbyname\` (IPv4 only — it cannot e
 | **Technique** — the method used | T1566 Phishing |
 | **Sub-technique** — specific variant | T1566.001 Spearphishing Attachment |
 
-There are currently 14 tactics (from Initial Access → Exfiltration → Impact), 200+ techniques, and 400+ sub-techniques. Techniques are cross-referenced to threat groups (APT28, Lazarus Group, FIN7) and software (Cobalt Strike, Mimikatz, BloodHound).
+As of ATT&CK v19 there are 15 tactics (from Reconnaissance → Exfiltration → Impact), 200+ techniques, and 400+ sub-techniques. v19 split the old **Defense Evasion** (TA0005) in two: TA0005 is now **Stealth** (hiding: timestomping, file deletion, masquerading) and the new TA0112 **Defense Impairment** takes the attacks on the defences themselves (disabling tools, bypassing Gatekeeper). Older reports, SIEM rules and training say "Defense Evasion", so learn both names. Techniques are cross-referenced to threat groups (APT28, Lazarus Group, FIN7) and software (Cobalt Strike, Mimikatz, BloodHound).
 
 ### Reading an ATT&CK technique
 
@@ -8989,6 +8990,520 @@ Common wrong attempts: assuming deleting visible content removes embedded metada
 **(3) Anti-forensics, and counters.** **Log deletion / clearing** — the attacker wipes local logs to erase their trail; **counter:** ship logs off-box in real time to a system the attacker doesn't control (central SIEM, append-only/WORM storage), so the local copy is a convenience, not the record — exactly the M16 argument, now with a forensic motive. **Timestomping** (T1070.006) — altering file MAC times to hide when something was planted or to blend in; **counter:** correlate *multiple* timestamp sources (filesystem MFT vs \`$STANDARD_INFORMATION\`, journal entries, log timestamps, external telemetry), since an attacker rarely forges all of them consistently. **Encryption / packing / memory-only execution** — payloads that are encrypted at rest, exist decrypted only in RAM, or run without ever writing a file; **counter:** this is precisely why you capture memory first (the packed malware is unpacked in RAM) and why network and behavioural telemetry matter — a fileless implant still has to make connections and spawn processes you logged. **Outside the box:** notice the whole module converges on one idea — **the value of evidence is inseparable from its integrity and its capture order**, and both are things you engineer *before* the incident, not during it. The developer's takeaway isn't that you'll run Autopsy at work; it's that the logging, hashing, and off-box shipping you design today decide whether next year's incident is answerable at all. Forensics is a downstream consumer of the observability you either built or didn't.
 </details>`,
     tracker: ["Analyzed a sample disk image in Autopsy (deleted files, history, USB artifacts)", "Ran Volatility 3 on a sample memory image (pslist/netscan/malfind)", "Hashed evidence before and after and verified it was unchanged", "I can explain order of volatility and why RAM is captured first", "I can apply 'preserve + hash + work on a copy' to an incident artifact in my own code", "Workbench: built the acquire -> hash -> work-on-copy -> verify loop with a chain-of-custody record and watched a one-byte change break the hash", "Workbench: extracted filesystem and document metadata and explained the BTK lesson — scrubbing content is not scrubbing the file", "Workbench: explained why you capture RAM before pulling the plug, stated the order of volatility, and countered three anti-forensic techniques"]
+  }, {
+    id: "m22_5",
+    level: 3,
+    num: "M22.5",
+    title: "Filesystem & OS Artifacts — What the System Remembers For You",
+    objective: "M22 taught you to preserve evidence so that nobody can say you changed it. This module is what comes next: reading it. Almost nothing an examiner proves comes from the files a user made. It comes from the records the operating system made about them without being asked: filesystem entries that outlive a delete, change journals, and databases of downloads and launched programs. You will build a USB-stick image, delete a file from it, and recover the file, its name and the OS's own log of the delete. You will trace a download to its source through two independent witnesses. And you will learn the discipline that separates a finding from an overstatement: presence is not execution, a timestamp is a claim, and a tool's count is only as good as its validation.",
+    theory: `> ⚖️ **Ethics:** every artifact in this module is a record of what a *person* did: what they downloaded, opened, deleted, and when. Examine only the image you build in the lab and files on **your own** Mac or PC. Reading someone else's device, even a family member's, without legal authority is the same offence it would be with any other tool.
+
+#### Define the words first
+
+- **Artifact** — a record the system wrote as a side effect of something happening, not because anyone asked it to. The user deleted a file; the filesystem, the OS change log and a database each kept a note of it anyway.
+- **Metadata vs content** — content is what is *in* the file. Metadata is the record *about* it: name, size, where its data lives, its timestamps. Deleting a file mostly destroys metadata's *claim* on the content, not the content (M22).
+- **Allocated / unallocated** — whether the filesystem currently considers a record or a block in use. "Unallocated" means *free to be overwritten*, not *empty*.
+- **Directory entry / MFT record / inode** — the structure that holds a file's metadata. FAT calls it a directory entry, NTFS a Master File Table (MFT) record, Unix filesystems an inode. The Sleuth Kit calls all of them "metadata addresses", which is why one set of commands reads all three.
+- **Change journal** — a log the OS keeps of *what changed* on a volume so that indexers and backup tools do not have to rescan everything. Windows has the USN journal; macOS has FSEvents. Neither was built for forensics, which is exactly why they are useful: attackers forget them.
+- **Provenance** — where a file came from. On a Mac it is written onto the file (extended attributes) *and* into a database, by two different parts of the OS.
+- **Set vs earned** — a timestamp is *earned* when the OS writes it because something happened, and *set* when a program writes a chosen value into it. Much of this module is learning to tell the two apart and admitting when you cannot.
+
+#### Why this module exists
+
+M22 taught you to **preserve** evidence: image it, hash it, never work on the original, keep the chain of custody (M22). It named the tools but left open the question every examiner is actually paid to answer: *what does this image say happened?*
+
+The answer is almost never in the files the user made. It is in the records the operating system made **about** them, without being asked, in three places the user never looks.
+
+#### The three layers
+
+| Layer | What writes it | What it remembers | How long it lasts |
+|---|---|---|---|
+| **Filesystem metadata** | the filesystem driver, on every create/write/rename/delete | names, sizes, timestamps, which blocks a file used — including for deleted files until the slot is reused | until overwritten; for deleted entries, often a long time on a quiet volume |
+| **OS change journals** | the OS, for its indexers | a running list of *what changed*: created, modified, renamed, removed | rolling — oldest records fall off as the journal fills |
+| **OS & application databases** | the OS and apps, for their own features | downloads and their origin, programs launched, folders browsed, devices attached | varies: some for years, some until the next reboot or shutdown |
+
+The layers matter because they fail **independently**. An attacker who deletes a file has dealt with layer 1's live entry. They have not touched the deleted entry that remains, the journal record of the delete, or the database row about where the file came from. The lab shows all four surviving a single \`rm\`.
+
+#### Timestamps: four clocks, and who can set them
+
+Every filesystem keeps several timestamps per file. Examiners call the set **MACB**: Modified, Accessed, Changed (metadata changed), Born (created).
+
+| Filesystem | What it keeps | The catch |
+|---|---|---|
+| **NTFS** | two full MACB sets per file: \`$STANDARD_INFORMATION\` (\`$SI\`) and \`$FILE_NAME\` (\`$FN\`) | \`$SI\` is what Explorer shows **and what a user-level API call can rewrite**. \`$FN\` is maintained by the kernel and normally only changes on create, rename or move |
+| **APFS / HFS+** (macOS) | birth, modify, access, change (\`stat\` shows all four) | \`touch\` can move birth, modify and access. It cannot move **change** — userland has no call that sets it |
+| **FAT / exFAT** (USB sticks, SD cards) | created (with 10 ms precision), written (**2-second** resolution), accessed (**date only**) | **no timezone.** FAT stores the wall-clock time of whichever machine wrote it. Any zone your tool prints is a label the tool added |
+
+Two consequences that catch people in real cases:
+
+- **On FAT, "written" can read *earlier* than "created".** Created is stored to 10 ms; written is rounded **down** to an even second. A file created at 19:49:33.4 and written in the same instant can show Written 19:49:32, Created 19:49:33. This module's own lab produced exactly that on one run. It is arithmetic, not tampering.
+- **A FAT time is only as good as the clock and zone of the machine that wrote it.** A stick written in New York and examined in London is about five hours out before anyone has lied about anything, and daylight saving can move that by an hour depending on the date. Establish the writing machine's zone before you put a FAT time in a report.
+
+#### Windows: the artifacts an examiner reaches for first
+
+| Artifact | Where it lives | What it can show | What it does **not** show |
+|---|---|---|---|
+| **MFT** (\`$SI\` + \`$FN\`) | the root of every NTFS volume | every file's metadata, both timestamp sets, deleted records until reused | \`$SI\` alone is user-settable — never rely on it by itself |
+| **USN journal** (\`$UsnJrnl:$J\`) | \`$Extend\` on the volume | create / delete / rename / overwrite events with times and reasons | anything older than the journal's current size; \`fsutil usn deletejournal\` empties it, and a missing journal is a finding in itself |
+| **Prefetch** (\`*.pf\`) | \`C:\\Windows\\Prefetch\` | a program **ran**: run count, and on Windows 10/11 up to its last eight run times | anything on Windows **Server**, where prefetch is **off by default** — its absence there proves nothing |
+| **Amcache** | \`C:\\Windows\\AppCompat\\Programs\\Amcache.hve\` | an executable was **present**: path, and a SHA-1 you can look up even after the file is gone | that it **executed** — see below |
+| **ShimCache** (AppCompatCache) | the \`SYSTEM\` registry hive, written at shutdown | the compatibility subsystem **saw** a file | execution, on Windows 10/11 |
+| **UserAssist** | each user's \`NTUSER.DAT\`, value names ROT13-encoded | programs started from **Explorer** (Start menu, double-click), with count and last run | anything launched from a command line |
+| **ShellBags** | \`NTUSER.DAT\` and \`UsrClass.dat\` | folders a user **browsed**, including folders since deleted and removable drives since unplugged | what was done inside them |
+| **Run keys** | \`HKCU\\...\` and \`HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\` | what starts at logon (persistence, ATT&CK T1547.001) | who put it there |
+| **Zone.Identifier** (Mark of the Web) | an NTFS alternate data stream on the downloaded file | that the file came from the internet; the zone, and often the URL | anything once the file is copied to FAT or through a tool that drops streams |
+
+#### macOS: the same questions, different files
+
+| Artifact | Where it lives | What it can show |
+|---|---|---|
+| **\`com.apple.quarantine\`** xattr | on the downloaded file | set by the downloading app: a flags field, the download time (hex Unix seconds), the app's name, and an event UUID |
+| **\`kMDItemWhereFroms\`** | on the file, via Spotlight metadata (\`mdls\`) | the URL(s) it came from. Often the **final redirected** URL, which can embed a signed access token: treat it as sensitive evidence |
+| **QuarantineEventsV2** | \`~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2\` (SQLite) | one row per quarantine event: time, agent, URLs. It has **no file path column**. You join it to a file through the UUID in the xattr, which is why the two must be read together |
+| **FSEvents** | a hidden \`.fseventsd\` folder on each volume | gzip-compressed pages of *path + event ID + flags* (created, removed, renamed…). No timestamps at all: the IDs give **order**, not time |
+| **\`com.apple.provenance\`** | on files, since macOS 13 | an ID for the **non-Apple** app that last wrote the file. Apple's own apps (Safari, Terminal) do not get one, so its absence proves nothing |
+| **\`._name\` AppleDouble files** | next to files on FAT, exFAT and network shares | the Mac's extended attributes for a file on a volume that cannot store them. A \`._\` file on a USB stick says a Mac wrote there |
+
+#### Presence is not execution
+
+This is the most expensive mistake in the module, and it is made in published reports.
+
+Amcache and ShimCache were long taught as "evidence of execution". Current testing says otherwise: on Windows 10 and 11 an entry can appear because Explorer **listed** a folder, or because an installer **dropped** a file that never ran. Harlan Carvey's summary is blunt: an Amcache entry does not, by itself, mean the file was executed, and combining it with ShimCache does not fix that.
+
+So grade what you write:
+
+- **Presence** — Amcache, ShimCache, MFT, a directory entry. "This file was on this system."
+- **Execution** — Prefetch, a process-creation log event, EDR telemetry, a process in a memory image (M22). "This program ran."
+- **Intent** — none of the above, on their own. Execution under which account, from which parent, after what download: that is a *timeline*, built from several artifacts that agree.
+
+Write the strongest sentence your weakest necessary artifact supports, and no stronger.
+
+#### Where this sits in ATT&CK
+
+ATT&CK v19 (April 2026) renamed TA0005 from *Defense Evasion* to **Stealth** and moved attacks on the defences themselves into a new tactic, TA0112 **Defense Impairment**. Older reports use the old name; learn both (M18.5).
+
+| ID | Technique | Tactic | What it looks like here |
+|---|---|---|---|
+| T1070.004 | File Deletion | Stealth | \`rm\`, \`del\`, secure-delete tools. This module is about why it leaves so much behind |
+| T1070.006 | Timestomp | Stealth | rewriting \`$SI\` or \`touch -t\`. MITRE also documents **double timestomping**: rewriting \`$SI\` *and* \`$FN\` so the classic comparison comes up clean |
+| T1547.001 | Registry Run Keys / Startup Folder | Persistence | the \`Run\` keys above |
+| T1553.001 | Gatekeeper Bypass | Defense Impairment | removing \`com.apple.quarantine\` (\`xattr -d\`) so macOS never checks the file. The download still happened, and the database row usually survives |
+
+#### Why the naive approach fails
+
+- **"The tool says 84, so it's 84."** Two forensic tools, run on the same browser history, reported one visit and 84 visits; the jury heard 84 (case study). **Fix:** validate every count that matters with a second tool or a hand parse, and state what a count counts: visits, page loads, searches.
+- **"I checked the history."** Which browser? Which user profile? Which of the three layers? In the same case, examiners read 17 entries from one browser and missed over 1,200 in the one the suspect used. **Fix:** inventory every source before analysing any of them.
+- **"The timestamp says January 2023, so it's from January 2023."** A timestamp is a claim written by a program. **Fix:** corroborate it with a record the user could not set — ctime, \`$FN\`, a journal event, a download row.
+- **"I'll just have a quick look at the stick in Finder."** Mounting a volume read-write lets the OS write to it: \`.fseventsd\`, \`._\` files, \`.DS_Store\`. You have just added artifacts and changed the hash. **Fix:** image first, hash, examine the copy with tools that read, not mount (M22).
+- **"No quarantine flag, so it wasn't downloaded."** \`curl\` does not set one, \`xattr -d\` removes one, and \`cat file > copy\` drops it. **Fix:** absence of an artifact is weak evidence; look for the other layers.`,
+    lab: {
+      mac: `# LAB: build your own evidence, then read it the way an examiner would (Apple Silicon)
+# ETHICS: this lab examines an image YOU create and files on YOUR OWN Mac. Nothing else.
+mkdir -p ~/cyber-journal/m22_5 && cd ~/cyber-journal/m22_5
+export TZ=UTC                   # report every time in UTC; see "What you should see" for why FAT ignores this
+brew install sleuthkit          # large: it pulls in openjdk for TSK's Java bindings
+
+# 1. Make a 16 MB FAT16 "USB stick", put two files on it, delete one.
+#    Do NOT open the volume in Finder: Finder writes its own files and you would be examining those too.
+hdiutil create -size 16m -fs "MS-DOS FAT16" -volname EVIDENCE -layout MBRSPUD evidence.dmg
+hdiutil attach evidence.dmg
+echo "Q3 acquisition plan - internal" > /Volumes/EVIDENCE/plan.txt
+printf 'name,iban\\nA. Jones,GB00TEST00000000000001\\n' > /Volumes/EVIDENCE/payroll_export.csv
+rm /Volumes/EVIDENCE/payroll_export.csv
+hdiutil detach /Volumes/EVIDENCE
+
+# 2. From here on it is evidence: hash before you look.
+shasum -a 256 evidence.dmg | tee evidence.dmg.sha256
+
+# 3. Read it layer by layer: partitions -> filesystem -> names -> metadata -> content.
+mmls evidence.dmg                   # the partition starts at sector 1, hence -o 1 below
+fsstat -o 1 evidence.dmg | head -7
+fls -r -o 1 evidence.dmg            # every name, live and deleted (* = deleted)
+fls -rd -o 1 evidence.dmg           # deleted only
+istat -o 1 evidence.dmg 11          # metadata of entry 11; use the number YOUR fls printed
+icat -o 1 evidence.dmg 11           # the "deleted" content
+
+# 4. The layer you did not know was there: macOS wrote a change log onto the stick.
+icat -o 1 evidence.dmg 522 | gunzip | LC_ALL=C strings    # the first long hex-named file under .fseventsd
+
+# 5. Prove you changed nothing.
+shasum -a 256 -c evidence.dmg.sha256
+
+# 6. Your own Mac: where did a download come from? Pick any file you downloaded in a browser.
+f=~/Downloads/<a-file-you-downloaded>
+xattr "$f"
+xattr -p com.apple.quarantine "$f"
+date -u -r $((16#$(xattr -p com.apple.quarantine "$f" | cut -d";" -f2)))
+mdls -raw -name kMDItemWhereFroms "$f" | awk -F/ '/http/{print $3}'    # host only: the full URL can carry a token
+q=$(xattr -p com.apple.quarantine "$f" | cut -d";" -f4)
+sqlite3 -header ~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2 "SELECT datetime(LSQuarantineTimeStamp + 978307200, 'unixepoch') AS utc, LSQuarantineAgentName AS agent FROM LSQuarantineEvent WHERE LSQuarantineEventIdentifier = '$q';"`,
+      windows: `# ⚠️ Not executed for this edition (authored and verified on macOS). The commands follow
+# Microsoft's documentation. Run them in an elevated PowerShell 7 on YOUR OWN PC only.
+# The Sleuth Kit has a Windows build (sleuthkit-4.15.0-win32.zip on its GitHub releases page);
+# every fls/istat/icat line from the macOS lab works unchanged against a copied evidence.dmg.
+
+# 1. Mark of the Web: Windows' version of the quarantine xattr is an NTFS alternate data stream.
+$f = "$HOME\\Downloads\\<a-file-you-downloaded>"
+Get-Item $f -Stream *
+Get-Content $f -Stream Zone.Identifier
+
+# 2. The USN change journal for the volume, and the journal's view of one file (admin).
+fsutil usn queryjournal C:
+fsutil usn readdata $f
+
+# 3. Prefetch: programs that ran, most recent first (admin).
+Get-ChildItem C:\\Windows\\Prefetch -Filter *.pf | Sort-Object LastWriteTime -Descending | Select-Object -First 10 Name, LastWriteTime
+
+# 4. Run keys: what starts at logon (ATT&CK T1547.001).
+Get-ItemProperty HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run
+Get-ItemProperty HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`,
+      linux: `# ⚠️ Not executed for this edition. mkfs.fat and mtools syntax is from their manuals; the
+# fls/istat/icat commands are the ones run on macOS. The image has no partition table here, so there is no -o 1.
+sudo apt install sleuthkit dosfstools mtools
+mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384      # -C creates the image file; 16384 x 1 KiB = 16 MiB
+echo "Q3 acquisition plan - internal" > plan.txt
+printf 'name,iban\\nA. Jones,GB00TEST00000000000001\\n' > payroll_export.csv
+mcopy -i evidence.img plan.txt payroll_export.csv ::      # writes into the image without mounting it
+mdel -i evidence.img ::payroll_export.csv
+sha256sum evidence.img | tee evidence.img.sha256
+fls -r evidence.img && fls -rd evidence.img
+istat evidence.img <number-fls-printed> && icat evidence.img <number-fls-printed>
+sha256sum -c evidence.img.sha256
+# You will find no .fseventsd and no ._ files: those were macOS writing to the volume.
+# Their absence is itself a clue to which operating system last had the stick.`,
+      expected: {
+        mac: `\`\`\`text
+$ hdiutil attach evidence.dmg
+hdiutil: WARNING: 'hdiutil attach ...' is deprecated. Please use 'diskutil image attach ...' instead.
+/dev/disk4          	FDisk_partition_scheme
+/dev/disk4s1        	DOS_FAT_16                     	/Volumes/EVIDENCE
+
+$ shasum -a 256 evidence.dmg | tee evidence.dmg.sha256
+55044aa6eb254cb6e22f714979bfc6e036daeef45355b6255bf45fdbaa7a6ebd  evidence.dmg
+
+$ mmls evidence.dmg
+DOS Partition Table
+Offset Sector: 0
+Units are in 512-byte sectors
+
+      Slot      Start        End          Length       Description
+000:  Meta      0000000000   0000000000   0000000001   Primary Table (#0)
+001:  -------   0000000000   0000000000   0000000001   Unallocated
+002:  000:000   0000000001   0000032767   0000032767   DOS FAT16 (0x06)
+
+$ fls -r -o 1 evidence.dmg
+r/r 3:	EVIDENCE    (Volume Label Entry)
+d/d 5:	.fseventsd
++ r/r 519:	fseventsd-uuid
++ r/r 522:	0000000006a9c279
++ r/r 525:	0000000006a9c27a
+r/r 6:	plan.txt
+r/r 8:	._plan.txt
+r/r * 11:	payroll_export.csv
+r/r * 14:	._payroll_export.csv
+v/v 523235:	$MBR
+v/v 523236:	$FAT1
+v/v 523237:	$FAT2
+V/V 523238:	$OrphanFiles
+
+$ fls -rd -o 1 evidence.dmg
+r/r * 11:	payroll_export.csv
+r/r * 14:	._payroll_export.csv
+
+$ istat -o 1 evidence.dmg 11
+Directory Entry: 11
+Not Allocated
+File Attributes: File, Archive
+Size: 42
+Name: _AYROL~2.CSV
+
+Directory Entry Times:
+Written:	2026-09-23 19:51:08 (UTC)
+Accessed:	2026-09-23 00:00:00 (UTC)
+Created:	2026-09-23 19:51:08 (UTC)
+
+Sectors:
+125 0 0 0
+
+$ icat -o 1 evidence.dmg 11
+name,iban
+A. Jones,GB00TEST00000000000001
+
+$ icat -o 1 evidence.dmg 522 | gunzip | LC_ALL=C strings
+3SLD
+._payroll_export.csv
+._plan.txt
+payroll_export.csv
+payroll_export.csv
+plan.txt
+plan.txt
+
+$ shasum -a 256 -c evidence.dmg.sha256
+evidence.dmg: OK
+
+$ xattr "$f"
+com.apple.lastuseddate#PS
+com.apple.metadata:kMDItemWhereFroms
+com.apple.quarantine
+
+$ xattr -p com.apple.quarantine "$f"
+0083;6ab41c9c;Safari;D9A8120E-148C-410B-842A-A17F8083FFB3
+
+$ date -u -r $((16#$(xattr -p com.apple.quarantine "$f" | cut -d";" -f2)))
+Wed Sep 23 18:38:20 UTC 2026
+
+$ mdls -raw -name kMDItemWhereFroms "$f" | awk -F/ '/http/{print $3}'
+release-assets.githubusercontent.com
+
+$ sqlite3 -header ~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2 "SELECT ..."
+utc|agent
+2026-09-23 18:38:20|Safari
+\`\`\`
+
+Your hash, volume ID, \`.fseventsd\` file names and times will all differ from these. The *shape* should not. (The \`hdiutil\` deprecation warnings appear on macOS 27; earlier versions print none. \`hdiutil\` still works, and it is used here because \`diskutil image\` cannot choose FAT16.)
+
+**The rm did not remove the file. It removed one claim to it.** \`fls\` still lists \`payroll_export.csv\`, with a \`*\` meaning *unallocated*, and \`icat\` prints the whole thing, IBAN included. FAT marks a deleted entry by overwriting the first byte of its short 8.3 name with \`0xE5\`, which \`istat\` shows as \`_AYROL~2.CSV\`. The long name survived in separate entries, and the data clusters were marked free, not wiped. That is T1070.004 in one command, and why it so rarely works.
+
+**The OS kept notes you never asked for.** The volume holds three things you did not create: \`._plan.txt\` and a deleted \`._payroll_export.csv\` (AppleDouble files: the Mac storing extended attributes on a filesystem that has none) and \`.fseventsd\`, the FSEvents change log. \`strings\` shows \`payroll_export.csv\` twice in that log: once for its creation, once for its removal. So the deleted name survives in **three** independent places: the directory entry, the AppleDouble entry and the change log. A careful attacker has to know about all three. Build 1 in the Workbench has you write the directory-entry parser that finds the first of them, without The Sleuth Kit.
+
+**Read the timestamps like an examiner.** *Accessed* is \`00:00:00\`: FAT keeps a date only. And the \`(UTC)\` label is **not in the image**. FAT stored your Mac's local wall-clock time; \`istat\` added the label from \`TZ\`. If your Mac is not on UTC, those times are off by your offset, while the quarantine times below really are UTC. On one of this module's test runs, *Created* read 19:49:33 and *Written* 19:49:32. That is FAT's 2-second write resolution, not tampering.
+
+**\`evidence.dmg: OK\` is the line that makes the rest admissible.** Everything above it was read without changing a byte.
+
+**Two witnesses to one download.** The xattr's second field is hex Unix time (\`6ab41c9c\` → 18:38:20 UTC), the third is the app, the fourth is a UUID. That UUID finds the row in \`QuarantineEventsV2\`, and the database, written by a different part of the OS, agrees to the second. The lab prints only the **host** of each \`kMDItemWhereFroms\` URL, on purpose. The link clicked was on github.com, but the value recorded was the **redirected** download URL on \`release-assets.githubusercontent.com\`, and it carried a signed access token. Provenance evidence can contain live secrets; redact it in anything you share.
+
+**If step 6 prints \`No such xattr\`:** the file was not downloaded by a browser (\`curl\` sets no quarantine), or was copied in a way that drops attributes. Try a file you know you downloaded in Safari or Chrome. \`date\` needs zsh or bash for the \`16#\` hex conversion, which the macOS default shell provides.`
+      }
+    },
+    caseStudy: {
+      title: "Casey Anthony (2011) — two tools, one browser history, 84 against 1",
+      body: "In 2008 two-year-old Caylee Anthony disappeared in Orlando, Florida, and was later found dead. In 2011 her mother, Casey Anthony, was tried for her murder. Part of the prosecution's case came from the family computer's browser history. The Orange County Sheriff's Office had examined it with two tools. One, NetAnalysis, showed that a web page about chloroform had been visited once. The other, CacheBack, reported 84. The jury heard 84, repeatedly, offered as evidence of planning. CacheBack's developer, John Bradley, testified on 8 June. Afterwards he grew suspicious of the figure, redesigned his software, and found one Google search for chloroform leading to one visit to one page, about the chemical's use in the 1800s. He said he told the prosecutor and the sheriff's office in late June. The jury never heard the correction, and the prosecutors later said the discrepancy had been disclosed to the defence. Casey Anthony was acquitted of murder on 5 July 2011. The second failure surfaced in November 2012, when the sheriff's office acknowledged that its examiner had missed a Google search for \"fool-proof suffication\" [sic], run at 2:51 p.m. on 16 June 2008. Investigators had pulled 17 entries from Internet Explorer. Casey Anthony had used Firefox almost exclusively, and more than 1,200 Firefox entries went unexamined. The defence's expert had found the search before trial; the defence lawyer later disputed that investigators had overlooked Firefox altogether. Nobody can say what either correction would have changed in that courtroom, and this module does not try. The forensic lessons are narrower, and they are certain. First, two tools disagreed by a factor of 84 and the higher figure went to court: a count is a claim about a parser until it is validated, by a second tool or by hand. Second, the examination read the wrong browser: inventory every source (every browser, every user profile, every layer) before analysing any of them. Third, \"84 searches\", \"84 visits\" and \"84 records\" are three different claims. A number in a forensic report needs a definition beside it, or it will be heard as the strongest one."
+    },
+    challenges: [{
+      q: "You examine a suspect's USB stick. A document on it shows Created 14:03:07 and Written 14:03:06 in istat. The suspect's lawyer says a file cannot be written before it exists, so the timestamps were tampered with and the stick is unreliable. How do you answer?",
+      a: "The stick is FAT, and FAT stores the two times at different resolutions: creation to 10 milliseconds, the last write rounded down to an even second. A file created at 14:03:07.40 and written in the same instant is recorded as Written 14:03:06. The one-second inversion is arithmetic, not tampering, and this module's own lab produced one. Two further points belong in the answer. FAT times carry no timezone, so establish the zone of the machine that wrote them before comparing them to anything else. And test the claim rather than assert it: build a FAT image, write a file on an odd second, and show the court that istat reports the same inversion."
+    }, {
+      q: "On a compromised Windows Server you find Amcache and ShimCache entries for C:\\ProgramData\\m.exe, with a SHA-1 that threat intelligence identifies as Mimikatz. There is no Prefetch file for it. A colleague drafts: \"The attacker executed Mimikatz on this server.\" Can the report say that?",
+      a: "Not on this evidence. Amcache and ShimCache establish presence: the binary was on the system and the SHA-1 identifies it. On Windows 10/11-era builds neither proves execution. The missing Prefetch file proves nothing either way, because Prefetch is disabled by default on Windows Server. The defensible sentence is \"a file matching Mimikatz was present at C:\\ProgramData\\m.exe\". To say it ran, find an execution artifact: a process-creation event if auditing was on, EDR telemetry, the process or its injected code in a memory image (M22), or LSASS access consistent with credential dumping. Then write the strongest sentence those support. Overstating presence as execution is the kind of error a defence expert takes apart in cross-examination."
+    }, {
+      q: "A file in a user's ~/Downloads on a Mac has no com.apple.quarantine attribute. A colleague concludes it was never downloaded from the internet. List the ways that conclusion can be wrong, and say where you would look instead.",
+      a: "Several. A command-line download sets no quarantine flag at all: curl never does. `xattr -d com.apple.quarantine` removes one, which is ATT&CK T1553.001 Gatekeeper Bypass. Copying with `cat file > copy` drops the attributes. So does any tool that ignores extended attributes, or a trip through a FAT stick via a machine that discards the ._ companion files a Mac writes there to keep them. Where to look: QuarantineEventsV2 has no path column, so you cannot search it by filename, but you can search it by time and URL around the file's birth time. Check shell history and the unified log for curl or wget. Check `kMDItemWhereFroms`, which is a separate attribute and sometimes survives. Check com.apple.provenance for the non-Apple app that wrote the file. And check FSEvents for where the name's creation falls in the order of events around it (FSEvents records order, not time). The absence of one artifact is weak evidence; the other layers decide it."
+    }],
+    quiz: ["Name the three layers of artifacts in this module, and explain why an attacker who deletes a file has usually dealt with only one of them.", "Why can `istat` print a FAT timestamp with a (UTC) label that is wrong, and what must you establish before putting a FAT time in a report?", "What is the difference between NTFS's $STANDARD_INFORMATION and $FILE_NAME timestamps, and what does 'double timestomping' do to the classic comparison?", "Rank Amcache, Prefetch and a process in a memory image by what each can prove about an executable. Why does a missing Prefetch file on Windows Server prove nothing?", "What four fields are in a com.apple.quarantine value, and how do you join it to its row in QuarantineEventsV2?", "Your timestomp detector flags a file whose ctime is years after its birth and modify times. Name two innocent causes, and say what kind of record you need to tell them from an attack.", "In the Casey Anthony case, name the two separate forensic failures and the one practice that would have caught each."],
+    workbench: `> **What this trains.** The lab had The Sleuth Kit and three OS commands read the artifacts for you. Here you write the readers yourself, in standard-library Python with no installs. That is also how an examiner **validates** a tool: if your 70-line parser and \`fls\` disagree about a deleted file, one of you is wrong, and you have to find out which before anything goes in a report.
+
+> ⚖️ **Ethics:** the scripts read the \`evidence.dmg\` you built in the lab and files on your own Mac. \`provenance.py\` opens the quarantine database **read-only**. Keep it that way: an examiner never writes to a source.
+
+#### 🟢 Drill 1 — Two witnesses to one download ~20 min
+
+**Goal.** Write \`provenance.py FILE\`. It reads the file's \`com.apple.quarantine\` xattr, decodes the timestamp and agent, looks up the matching row in \`QuarantineEventsV2\`, and prints whether the two witnesses **agree**.
+
+**Done when.** On a file you downloaded in a browser it prints both witnesses and \`AGREE\`. On a file you made yourself it exits with a clear message instead of a traceback.
+
+<details><summary>Nudge</summary>
+
+- Python's \`os.getxattr\` exists only on Linux. On macOS, call the \`xattr\` command with \`subprocess.run(["xattr", "-p", "com.apple.quarantine", path], capture_output=True, text=True)\`.
+- Split the value on \`;\`. Field 2 is **hex** Unix seconds (\`int(x, 16)\`), field 4 is the event UUID.
+- The database stores Cocoa time: seconds since **2001-01-01**, which is Unix time 978307200.
+- Open SQLite with \`sqlite3.connect(f"file:{db}?mode=ro", uri=True)\` so a slip cannot write to the database, and pass the UUID as a \`?\` parameter, never by string formatting.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""provenance.py FILE - where did this download come from? Two witnesses, compared."""
+import datetime as dt, os, sqlite3, subprocess, sys
+
+path = sys.argv[1]
+raw = subprocess.run(["xattr", "-p", "com.apple.quarantine", path],
+                     capture_output=True, text=True).stdout.strip()
+if not raw:
+    sys.exit("no com.apple.quarantine xattr - not a browser download, or it was stripped")
+
+flags, hex_time, agent, event_id = (raw.split(";") + ["", "", ""])[:4]
+xattr_utc = dt.datetime.fromtimestamp(int(hex_time, 16), dt.timezone.utc)
+print(f"witness 1  xattr     {xattr_utc:%Y-%m-%d %H:%M:%S} UTC  agent={agent}  id={event_id}")
+
+db = os.path.expanduser("~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2")
+con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)     # read-only: never write to evidence
+row = con.execute("SELECT LSQuarantineTimeStamp, LSQuarantineAgentName "
+                  "FROM LSQuarantineEvent WHERE LSQuarantineEventIdentifier = ?",
+                  (event_id,)).fetchone()
+if row is None:
+    sys.exit("witness 2  database  NO ROW - the history was cleared, or the xattr was forged")
+
+COCOA_EPOCH = 978307200                                    # 2001-01-01 in Unix seconds
+db_utc = dt.datetime.fromtimestamp(row[0] + COCOA_EPOCH, dt.timezone.utc)
+print(f"witness 2  database  {db_utc:%Y-%m-%d %H:%M:%S} UTC  agent={row[1]}")
+gap = abs((db_utc - xattr_utc).total_seconds())
+print("verdict   ", "AGREE" if gap < 2 and row[1] == agent else f"DISAGREE (gap {gap:.0f}s)")
+\`\`\`
+
+Run on the lab's download, then on a file whose xattr was forged with \`xattr -w\`:
+
+\`\`\`text
+$ python3 provenance.py ~/Downloads/sleuthkit-4.15.0.tar.gz.asc
+witness 1  xattr     2026-09-23 18:38:20 UTC  agent=Safari  id=D9A8120E-148C-410B-842A-A17F8083FFB3
+witness 2  database  2026-09-23 18:38:20 UTC  agent=Safari
+verdict    AGREE
+
+$ echo hi > forged.txt
+$ xattr -w com.apple.quarantine "0083;5f5e1000;Safari;00000000-0000-0000-0000-000000000000" forged.txt
+$ python3 provenance.py forged.txt
+witness 1  xattr     2020-09-13 12:26:40 UTC  agent=Safari  id=00000000-0000-0000-0000-000000000000
+witness 2  database  NO ROW - the history was cleared, or the xattr was forged
+\`\`\`
+
+The second run is why this is two witnesses and not one. Anyone can write an xattr; a matching database row takes a real download. **NO ROW** is still not proof of forgery. A user can clear the database or delete their browser history, so treat it as a *lead* to explain.
+
+Common wrong attempts: reading field 2 as decimal (it is hex: \`int('6ab41c9c')\` raises \`ValueError\`); adding the Cocoa offset to the xattr time as well as the database time (only the database uses 2001); building the SQL with an f-string, which breaks on the first odd filename and is SQL injection by habit; and opening the database read-write "just to look", which leaves you one stray statement away from altering a source.
+
+</details>
+
+#### 🟡 Build 1 — Find deleted files without The Sleuth Kit ~45 min
+
+**Goal.** Write \`fatscan.py IMAGE\`. It walks the FAT16 root directory in the lab's \`evidence.dmg\`, prints every entry, **live and deleted**, with its real long name, size, first cluster and three timestamps, and recovers the content of small deleted files.
+
+**Done when.** Your output lists \`payroll_export.csv\` as \`DELETED\`, prints its contents, and agrees with \`fls -r -o 1\` and \`istat\` on every name, size and time.
+
+<details><summary>Nudge</summary>
+
+- Everything is little-endian: \`struct.unpack_from("<I", img, 0x1C6)\` reads the first partition's start sector from the MBR.
+- The boot sector (BPB) at that offset gives bytes per sector (+11), sectors per cluster (+13), reserved sectors (+14), number of FATs (+16), root entries (+17) and sectors per FAT (+22). The root directory follows the reserved sectors and the FATs; cluster 2 starts right after the root directory.
+- Each entry is 32 bytes. First byte \`0x00\` means the end of the directory, \`0xE5\` means deleted. Attribute byte (offset 11) \`0x0F\` means a **long-file-name fragment**; fragments come *before* their 8.3 entry and in **reverse** order.
+- Dates are \`yyyyyyy mmmm ddddd\` bits from 1980; times are \`hhhhh mmmmmm sssss\` with seconds **halved**.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""fatscan.py - list every root-directory entry in a FAT16 image, deleted ones too."""
+import struct, sys
+
+img = open(sys.argv[1], "rb").read()
+
+# 1. MBR: the first partition's start sector is a 4-byte little-endian int at 0x1C6.
+part = struct.unpack_from("<I", img, 0x1C6)[0] * 512
+
+# 2. Boot sector (BPB): the numbers that say where everything else lives.
+bps, spc, reserved, nfats, root_entries = struct.unpack_from("<HBHBH", img, part + 11)
+fat_sectors = struct.unpack_from("<H", img, part + 22)[0]
+root = part + (reserved + nfats * fat_sectors) * bps
+data = root + root_entries * 32                    # cluster 2 starts here
+
+def fat_time(d, t, cs=0):
+    """FAT date/time: no timezone, 2-second resolution plus optional 10 ms units."""
+    if d == 0:
+        return "-"
+    y, mo, da = 1980 + (d >> 9), (d >> 5) & 15, d & 31
+    h, mi, s = t >> 11, (t >> 5) & 63, (t & 31) * 2 + cs // 100
+    return f"{y}-{mo:02}-{da:02} {h:02}:{mi:02}:{s:02}"
+
+lfn = []
+for i in range(root_entries):
+    e = img[root + i * 32 : root + i * 32 + 32]
+    if e[0] == 0x00:                               # end of directory
+        break
+    if e[11] == 0x0F:                              # long-file-name fragment
+        lfn.insert(0, (e[1:11] + e[14:26] + e[28:32]).decode("utf-16-le"))
+        continue
+    deleted = e[0] == 0xE5
+    short = (b"_" + e[1:8] if deleted else e[:8]).decode("ascii", "replace").rstrip()
+    ext = e[8:11].decode("ascii", "replace").rstrip()
+    if e[12] & 0x08: short = short.lower()         # NT case flags: an all-lowercase
+    if e[12] & 0x10: ext = ext.lower()             # 8.3 name needs no LFN entry
+    name = "".join(lfn).split("\\0")[0] or (short + ("." + ext if ext else ""))
+    lfn = []
+    if e[11] & 0x08:                               # volume label, not a file
+        continue
+    cs, ct, cd, ad = struct.unpack_from("<BHHH", e, 13)
+    wt, wd, cluster, size = struct.unpack_from("<HHHI", e, 22)
+    flag = "DELETED" if deleted else "live"
+    print(f"{flag:<8} {name:<22} {size:>6} B  cluster {cluster:<4} "
+          f"created {fat_time(cd, ct, cs)}  written {fat_time(wd, wt)}  accessed {fat_time(ad, 0)[:10]}")
+    if deleted and 0 < size <= spc * bps and cluster >= 2:
+        off = data + (cluster - 2) * spc * bps     # a single-cluster file: no chain needed
+        print("         recovered:", img[off : off + size].decode("utf-8", "replace").replace("\\n", " | "))
+\`\`\`
+
+\`\`\`text
+$ python3 fatscan.py evidence.dmg
+live     .fseventsd                  0 B  cluster 2    created 2026-09-23 19:51:08  written 2026-09-23 19:51:08  accessed 2026-09-23
+live     plan.txt                   31 B  cluster 6    created 2026-09-23 19:51:08  written 2026-09-23 19:51:08  accessed 2026-09-23
+live     ._plan.txt               4096 B  cluster 4    created 2026-09-23 19:51:08  written 2026-09-23 19:51:08  accessed 2026-09-23
+DELETED  payroll_export.csv         42 B  cluster 9    created 2026-09-23 19:51:08  written 2026-09-23 19:51:08  accessed 2026-09-23
+         recovered: name,iban | A. Jones,GB00TEST00000000000001 |
+DELETED  ._payroll_export.csv     4096 B  cluster 7    created 2026-09-23 19:51:08  written 2026-09-23 19:51:08  accessed 2026-09-23
+\`\`\`
+
+Now check it against the tool, which is the point of the exercise. \`fls\` listed entry 11 as \`* payroll_export.csv\` and \`istat\` gave \`Size: 42\`, \`Sectors: 125\`. Your parser says 42 bytes at cluster 9. With the cluster area starting at sector 97 and four sectors per cluster, cluster 9 is 97 + (9 − 2) × 4 = **125**. Two independent readers agree, so you can put this in a report.
+
+Two details the tool did silently. \`plan.txt\` has **no** long-name entry at all: Windows NT stores an all-lowercase 8.3 name as flags in byte 12, and without those two lines your parser prints \`PLAN.TXT\` where \`fls\` prints \`plan.txt\`. And the deleted short name really is \`_AYROL~2\` on disk, with \`0xE5\` in place of the \`P\`. The name you see comes from the LFN fragments, which deletion marks but does not erase.
+
+Common wrong attempts: stopping at the first \`0xE5\` entry as if it ended the directory (only \`0x00\` does); assembling long-name fragments in the order they appear on disk, which silently gives \`t.csv\`: the last fragment comes first, and the padding after it cuts the name short without anything looking broken; forgetting to double the seconds, so every time is off by up to half a minute; recovering a multi-cluster deleted file by reading consecutive clusters, which is only a guess, because deletion zeroes its FAT chain (the parser above only recovers single-cluster files and says nothing about the rest); and trusting your parser because it runs. It is only validated once it agrees with an independent tool.
+
+</details>
+
+#### 🔴 Break & Defend — Timestomp, then catch it ~30 min
+
+**Goal.** *Break:* backdate a file on your Mac's APFS disk to January 2023 with \`touch -t\`. *Defend:* write \`stompscan.py DIR\` that finds files whose timestamps were **set by a program** rather than earned by a write, then find out what else your detector catches.
+
+**Done when.** Your scanner flags the stomped file and ignores a freshly written one, and you can name two innocent operations that trip it too and say why.
+
+<details><summary>Walkthrough</summary>
+
+\`touch -t\` rewrote **birth**, modify and access together: on APFS, setting a modify time earlier than the birth time drags birth back too. What it could not move is **change** (ctime), because no userland call sets it. That is the macOS counterpart of NTFS's \`$SI\` vs \`$FN\` comparison, and it gives the first tell. The second is that \`touch -t\` writes whole seconds, while a real write almost never lands exactly on \`.000000000\`.
+
+\`\`\`python
+#!/usr/bin/env python3
+"""stompscan.py DIR - list files whose timestamps were SET by a program, not earned by a write."""
+import datetime as dt, os, sys
+
+HOUR = 3600
+def ts(x):
+    return dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+for top, _, files in os.walk(sys.argv[1]):
+    for name in files:
+        p = os.path.join(top, name)
+        s = os.lstat(p)
+        gap = s.st_ctime - s.st_mtime            # ctime cannot be set from userland
+        whole_second = s.st_mtime_ns % 1_000_000_000 == 0
+        if gap > HOUR and whole_second:
+            print(f"LEAD  {p:<22} mtime {ts(s.st_mtime)}  birth {ts(s.st_birthtime)}  "
+                  f"ctime {ts(s.st_ctime)}  (+{gap / 86400:.0f} days)")
+\`\`\`
+
+Run it on a stomped file, a fresh one, and two files produced by perfectly ordinary means:
+
+\`\`\`text
+$ mkdir -p src out
+$ echo "quarterly figures" > src/fresh.txt
+$ echo "dropper" > src/stomped.txt && touch -t 202301151200.00 src/stomped.txt
+$ echo "old report" > src/report.txt && touch -t 202301151200.00 src/report.txt && tar -cf r.tar -C src report.txt
+$ tar -xf r.tar -C out
+$ cp -p src/report.txt out/copied.txt
+$ python3 ../stompscan.py .
+LEAD  ./out/report.txt       mtime 2023-01-15 12:00  birth 2023-01-15 12:00  ctime 2026-09-23 18:55  (+1347 days)
+LEAD  ./out/copied.txt       mtime 2023-01-15 12:00  birth 2023-01-15 12:00  ctime 2026-09-23 18:55  (+1347 days)
+LEAD  ./src/stomped.txt      mtime 2023-01-15 12:00  birth 2023-01-15 12:00  ctime 2026-09-23 18:55  (+1347 days)
+LEAD  ./src/report.txt       mtime 2023-01-15 12:00  birth 2023-01-15 12:00  ctime 2026-09-23 18:55  (+1347 days)
+\`\`\`
+
+(These times are UTC because the run had \`TZ=UTC\` set; \`touch -t\` reads its argument in your local zone.)
+
+\`fresh.txt\` is correctly ignored. The dropper is caught, and so is \`src/report.txt\`, which the setup line backdated to stand in for an old document. But so is a report **extracted from a tar archive**, and so is one **copied with \`cp -p\`**. Both look identical to the timestomp on every field: \`tar\` restores the archived modify time in whole seconds, \`cp -p\` copies it, and both leave ctime at the moment they ran. Your detector is correct, and what it detects is *"a program set this timestamp"*, not *"an attacker did"*. That is why every line says \`LEAD\` and none says \`STOMPED\`.
+
+Common wrong attempts: flagging \`mtime < birth\` (after \`touch -t\` they are equal, because birth moved too); using \`st_ctime\` as creation time, which is a Windows habit (on macOS \`st_ctime\` is *change*, and creation is \`st_birthtime\`); a threshold of zero, which flags every file whose permissions or xattrs changed after writing; and reporting a hit as proof of anti-forensics.
+
+**Outside the box:** so how do you tell the dropper from the tarball? Not from the file. Its own metadata, as you have just proved, cannot separate them. You need a record **the actor did not control**: a \`tar\` or \`cp\` in shell history or the unified log gives the innocent explanation; \`com.apple.provenance\` names the non-Apple app that wrote it; a quarantine row shows where it arrived from. This is the M22.5 rule in one exercise: **a timestamp is a claim, and claims are checked against other layers**. On Windows the same logic is why "double timestomping" (T1070.006 rewriting \`$FN\` too) defeats the classic \`$SI\`/\`$FN\` check, while the USN journal's record of the change often does not.
+
+</details>`,
+    tracker: ["Built a FAT16 image, deleted a file on it, and recovered the file, its name and its content with fls, istat and icat, with the hash verified before and after", "Found the macOS-written .fseventsd and ._ AppleDouble artifacts on the image and explained what each records", "Traced a real download to its app, time and URL through the quarantine xattr, kMDItemWhereFroms and QuarantineEventsV2", "Can say which Windows artifacts show presence and which show execution, and why Prefetch absence on Server proves nothing", "Workbench: wrote provenance.py and caught a forged quarantine xattr with no matching database row", "Workbench: wrote fatscan.py and validated it against fls/istat (cluster 9 = sector 125)", "Workbench: timestomped a file, detected it by ctime, and showed that tar and cp -p trip the same detector"]
   }, {
     id: "m23",
     level: 3,

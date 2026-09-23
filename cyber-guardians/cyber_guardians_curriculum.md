@@ -3317,7 +3317,7 @@ Reconnaissance → Weaponization → Delivery → Exploitation → Installation 
 
 #### MITRE ATT&CK
 
-The industry-standard taxonomy of attacker behavior, organized by **tactic** (Initial Access, Execution, Persistence, Privilege Escalation, Defense Evasion, …) and the **techniques** under each. Both sides use it: red teams plan realistic attack paths; blue teams map their detections to techniques to find coverage gaps. Bookmark `https://attack.mitre.org` — you'll reference it for your whole career.
+The industry-standard taxonomy of attacker behavior, organized by **tactic** (Initial Access, Execution, Persistence, Privilege Escalation, Stealth, Defense Impairment, …) and the **techniques** under each. Both sides use it: red teams plan realistic attack paths; blue teams map their detections to techniques to find coverage gaps. Bookmark `https://attack.mitre.org` — you'll reference it for your whole career.
 
 #### Why the naive approach fails
 

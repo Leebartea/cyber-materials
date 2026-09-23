@@ -853,6 +853,15 @@ BANNED = [
      "68% of USB-drop participants said they meant to return the drive; 'nearly "
      "half' is the paper's figure for those who opened the vacation photos FIRST. "
      "The two numbers describe opposite motives (Guardians ledger row 92)", "A86"),
+    (r"(?i)\b1[34] (?:ATT&CK |enterprise )?tactics\b",
+     "ATT&CK v19 (2026-04-28) has 15 enterprise tactics: TA0005 was renamed Stealth and "
+     "TA0112 Defense Impairment was added (Guardians ledger row 96)", "A87"),
+    (r"Defense Evasion",
+     "TA0005 is 'Stealth' since ATT&CK v19; 'Defense Evasion' may appear only beside the "
+     "new name, as history (Guardians ledger row 96)", "A88", "Stealth"),
+    (r"(?i)\b(?:amcache|shimcache|appcompatcache)\b[^.\n]{0,80}\b(?:proves|confirms|shows|evidence of)\b[^.\n]{0,20}\bexecut",
+     "Amcache/ShimCache show PRESENCE; on Windows 10/11 neither proves execution "
+     "(Carvey 2024; Guardians ledger row 105)", "A89", "Presence is not execution"),
 ]
 
 
@@ -1073,6 +1082,10 @@ TOPIC_ANCHORS = {
         "att&ck": ["M18.5"],
         "zero trust": ["M16.5"],
         "chain of custody": ["M22"],
+        "timestomp": ["M22.5"],
+        "fsevents": ["M22.5"],
+        "prefetch": ["M22.5"],
+        "amcache": ["M22.5"],
     },
     "appsec": {
         # 0.5 introduces it hands-on from first principles; 3.2 is the deep dive.

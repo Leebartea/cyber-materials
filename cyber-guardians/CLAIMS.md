@@ -5,9 +5,9 @@ behind it. The guardrail gate (`tools/guardrail.py`) proves the course is
 *structurally* sound — balanced fences, resolving cross-references, no dead
 links. It cannot prove anything here is *true*. That is what this file is for.
 
-- **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
+- **Course file:** `cyber-guardians/cyber_guardians_app.html` (43 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-23 (Batch 8 — `attribution` claims, closed: no `PENDING` rows remain; every extracted tag is now adjudicated)
+- **Last pass:** 2026-09-23 (Batch 9 — M22.5 build pass: 13 rows, 1 defect in M18.5; Batch 8 closed every earlier tag, and no `PENDING` rows remain)
 
 ## How to use it
 
@@ -332,7 +332,47 @@ you read the abstract, not that you read the results.**
 | 94 | M21 | "the pragmatic strategy … governments (CISA/NSA memory-safety guidance) and major vendors have actually adopted": new code memory-safe, rewrite highest-risk parts, harden the rest | `SOURCED` | Deferred from row 90. CISA + NSA, *Memory Safe Languages: Reducing Vulnerabilities in Modern Software Development*, CSI U/OO/172709-25, **2025-06-24**. States each element: no full rewrite; new code in MSLs (Android's example, memory-safety CVEs 76% → 24%, 2019–2024); rewrites limited to high-risk components (crypto, parsers, network-facing); hardening for code that stays. **Text tightened, not corrected:** the loose phrase "CISA/NSA memory-safety guidance" now names the document and date, so the reader can check it. | 2027-06 |
 | 95 | M3, M6.5 | M3 quiz "According to NIST SP 800-63B-4 …"; M6.5 tailgating question ("A colleague **reports** …") | `CORPUS` | Extractor noise. M3's source is already settled in row 5. M6.5 is a scenario in a question, not a claim about the world, so there is nothing to look up. | — |
 
+## Batch 9 — M22.5 build pass (claims ledgered as they were written)
+
+**New module, 13 rules, 1 defect found on the way in — not in M22.5.** M22.5
+*Filesystem & OS Artifacts* was written under the verify-before-teaching rule:
+every command run, every standard read, and the ledger filled as the text was
+written rather than audited afterwards. Checking its ATT&CK ids against the
+current STIX bundle exposed the defect: **ATT&CK v19 (2026-04-28) renamed
+TA0005 and split the tactic**, and M18.5 was still teaching v18's names and
+count. The table's 32 existing ids were re-verified at the same time; all are
+live. T1562 *Impair Defenses* is revoked in v19, and neither course uses it.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 96 | M18.5, M22.5 | ATT&CK has **15** enterprise tactics; TA0005 is **Stealth** (was Defense Evasion); TA0112 **Defense Impairment** is new in v19; 200+ techniques, 400+ sub-techniques | `SOURCED` | `enterprise-attack.json` v19.2 (2026-08-05), `mitre-attack/attack-stix-data`: 15 live `x-mitre-tactic` objects; TA0112 created 2026-04-14; v19.0 released 2026-04-28 (repo releases); 222 techniques, 475 sub-techniques. **Defect:** M18.5 said "currently 14 tactics" and listed Defense Evasion (app and md). Fixed; guards `A87`, `A88` | next ATT&CK release (Oct 2026) |
+| 97 | M22.5 | T1070.004 File Deletion, T1070.006 Timestomp (`$SI` user-settable via API, `$FN` kernel-maintained; "double timestomping"), T1547.001 Run Keys / Startup Folder, T1553.001 Gatekeeper Bypass (names `com.apple.quarantine`) | `SOURCED` | same bundle: all four live, not revoked; Timestomp description quoted for the `$SI`/`$FN` sentences; tactics `stealth` / `persistence` / `defense-impairment`. Added to `tools/attack_ids_verified.json` | next ATT&CK release |
+| 98 | M22.5 | The lab transcript: FAT16 image, `rm`'d file listed by `fls` with `*`, content recovered by `icat`, short name shown as `_AYROL~2.CSV` (0xE5 marker), FAT *Accessed* is a date only, FSEvents log carries the deleted name, hash verifies after | `EXECUTED` | macOS 27.0, The Sleuth Kit 4.15.0 built from the upstream tarball (the version Homebrew's formula ships). Run three times; entry numbers 11 and 522 stable; transcript pasted verbatim except the host-only `mdls` line (row 101) | on TSK major release |
+| 99 | M22.5 | On FAT, *Written* can read one second earlier than *Created* (2-second write resolution vs 10 ms creation) | `EXECUTED` | run 1: Created 19:49:33, Written 19:49:32 on the same file; runs 2–3 equal. Stated in the course as "can", with the observed case | — |
+| 100 | M22.5 | FAT timestamps carry no zone; the label `istat` prints comes from `TZ`, and the value does not change | `EXECUTED` | same image read with default `TZ`, `TZ=UTC` and `-z America/New_York`: identical numbers, only the label changed | — |
+| 101 | M22.5 | `com.apple.quarantine` = flags;hex Unix time;agent;UUID; the UUID joins `QuarantineEventsV2`, which stores Cocoa time (+978307200) and has **no path column**; `kMDItemWhereFroms` holds the redirected URL, which carried a signed token | `EXECUTED` | one public 228-byte file downloaded with the owner's approval: xattr hex time and database row agree to the second; `.schema` read. The full URL is not published; the lab prints the host only | — |
+| 102 | M22.5 | `cp` / `ditto` keep quarantine and WhereFroms; `cat >` and `curl` output carry neither; `com.apple.provenance` (macOS 13+) tags files written by **non-Apple** apps only | `EXECUTED` + `SOURCED` | copy test on the approved file; Eclectic Light Co., "Ventura has changed app quarantine with a new xattr" (2023-03-13) and Apple Developer Forums thread 723397 | — |
+| 103 | M22.5 | FSEvents on disk: gzip pages, 12-byte header, records of path + little-endian event id + **big-endian** flags; no timestamps, ids give order only | `EXECUTED` + `SOURCED` | decoded the lab image's page: Created then Removed for `payroll_export.csv`; byte order from FSEventsParser V4.1 (`struct.unpack(">I", …)`, line 1342) after a first decode with little-endian flags gave nonsense | — |
+| 104 | M22.5 | `touch -t` on APFS moves birth, modify and access but not change; `tar -x` and `cp -p` produce the identical signature, including zero nanoseconds | `EXECUTED` | Workbench Break & Defend transcript, run under `TZ=UTC` | — |
+| 105 | M22.5 | Windows artifact table: Prefetch keeps up to 8 run times on Win10/11 and is off by default on Server; Amcache and ShimCache show presence, not execution; UserAssist is ROT13-encoded and records Explorer launches, not command-line ones; `fsutil usn` subcommands | `SOURCED` | Velociraptor `Windows.Forensics.Prefetch` / `Windows.Timeline.Prefetch` docs; H. Carvey, "Program Execution: The ShimCache/AmCache Myth", windowsir.blogspot.com (Nov 2024); Magnet Forensics UserAssist artifact profile; Microsoft Learn `fsutil usn` (it documents no `csv` option, so none is taught). Guard `A89` | 2027-09 |
+| 106 | M22.5 | Windows lab block (`Get-Item -Stream *`, `Get-Content -Stream Zone.Identifier`, `fsutil usn queryjournal`/`readdata`) and Linux lab block (`mkfs.fat -C -F 16 -n`, `mcopy -i … ::`, `mdel -i`) | `SOURCED` | syntax checked against Microsoft Learn `Get-Content` (Example 5) and `fsutil usn`, and against the Debian `mkfs.fat(8)` and `mtools(1)` manuals. **Not executed**: no Windows or Linux host was available, and both blocks say so in the course | when a Windows / Linux host is available |
+| 107 | M22.5 | Casey Anthony case study: sheriff's tools disagreed (NetAnalysis 1 visit, CacheBack 84); Bradley testified 8 June 2011, re-ran, reported one search → one visit; jury never heard it; prosecutors said it was disclosed; acquitted 5 July 2011; Nov 2012 admission of the missed 2:51 p.m. 16 June 2008 "fool-proof suffication" search; 17 IE entries pulled, 1,200+ Firefox entries missed; defence lawyer disputed the "overlooked" framing | `SOURCED` | UPI, "Error reported at Casey Anthony trial" (2011-07-19); NBC News wbna43807133; ABA Journal (prosecutors' disclosure statement); CS Monitor (2012-11-26); CBS Miami (Nov 2012). The course makes no claim about what either correction would have changed | — |
+| 108 | M22.5 | `hdiutil` is deprecated in macOS 27 but works; `diskutil image create blank --fs` offers only generic `MS-DOS`, so cannot choose FAT16 | `EXECUTED` + `SOURCED` | warnings observed on 27.0; `diskutil image create blank --help`; J. Johnson, lapcatsoftware.com (2026-08-07) | 2027-09 (removal expected) |
+
 ## Fixes applied in this pass
+
+**Batch 9 (2026-09-23) — one stale standard, found by building, not auditing.**
+
+1. **M18.5** — "There are currently 14 tactics" and a tactic list naming
+   *Defense Evasion*. ATT&CK v19 has 15: TA0005 is now *Stealth* and TA0112
+   *Defense Impairment* is new. Rewritten in the app and the md, keeping the old
+   name as history because older reports and SIEM rules still use it.
+
+The defect was five months old and invisible to every earlier pass, because
+those passes verified *ids*, and every id was still live. A rename changes no
+id. **Verifying that an identifier resolves is not verifying what the course
+says about it.** Guards `A87`, `A88`, plus `A89` as a forward guard on the new
+module's central rule (presence is not execution).
 
 **Batch 8 (2026-09-23) — one defect, twice: a real paper, correctly cited, reversed.**
 
