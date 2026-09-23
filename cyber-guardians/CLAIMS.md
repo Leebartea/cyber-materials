@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (42 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-18 (Batch 7 — `default` claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-23 (Batch 8 — `attribution` claims, closed: no `PENDING` rows remain; every extracted tag is now adjudicated)
 
 ## How to use it
 
@@ -50,11 +50,8 @@ own reachability probe all fail while non-Pages hosts answer normally. A blocked
 `mitre-attack/attack-stix-data`, and `raw.githubusercontent.com` is reachable.
 All 32 distinct technique ids were validated against that bundle (row 35).
 
-Not yet adjudicated — the next batches, in priority order:
-
-| Batch | Class | Candidates | Why it matters |
-|---|---|---|---|
-| 8 | `attribution` — "according to", "researchers found" | 5 | each needs the **primary** document, not the report quoting it |
+**Every tag the extractor emits is now adjudicated.** Nothing is scheduled; the
+ledger's remaining work is the re-check dates in the last column.
 
 (`attack` — 73 candidates, 32 distinct ids — is **closed** in Batch 1, row 35.
 `rank` — 182 candidates — is **closed** in Batch 2, rows 36–44.
@@ -63,7 +60,8 @@ Not yet adjudicated — the next batches, in priority order:
 `date` — 34 candidates — is **closed** in Batch 5, rows 64–71.
 `law` — 13 candidates — is **closed** in Batch 6, rows 72–77, **pulled forward**
 from its scheduled slot at Batch 7; see that batch's opening for why.
-`default` — 22 candidates — is **closed** in Batch 7, rows 78–90.)
+`default` — 22 candidates — is **closed** in Batch 7, rows 78–90.
+`attribution` — 5 candidates (4 extracted + 1 deferred from row 90) — is **closed** in Batch 8, rows 91–95.)
 
 **How 182 `rank` candidates collapsed to 9 rules.** The regex fires on any
 `the first` / `the only` / `top \d+` / `most common`, and in a teaching text
@@ -315,7 +313,46 @@ default, the shipped unit file is the authority.**
 | 89 | M25 | Cloud posture list: "**IMDSv2 required**" | `SOURCED` | correct, and worth keeping in the **imperative** rather than the descriptive, because AWS's own defaults are partial: instance types released from mid-2024 are IMDSv2-only, console Quick Start launches have been IMDSv2-only since Nov 2023, and an account-level per-region "IMDSv2 by default" switch has existed since Mar 2024 — but an older instance type still launches IMDSv1-optional unless that switch is set or the AMI carries `imds-support=v2.0`. "Require it" stays true in 2026; "AWS does it for you" would not. Pairs with AppSec row 74 (Capital One), where the same line appears as a lesson | 2027-09 |
 | 90 | Intro, M14, M16, M20, M21, M26 | The design-principle "defaults": deny by default (M14, ×3); redaction by default (M16); memory-safe languages by default (M21); scope every query to the caller by default (M20); sane and safe defaults for a published tool (M26) | `CONVENTION` | **terminal — no source can settle these even in principle**, because they describe what the reader should *choose*, not what any product ships. Nothing to look up, nothing to rot. This is the `default` tag's cheap-dismissal rule and it removes 6 of the 22 candidates on sight: **a default with no vendor attached is a design principle.** One rider inside the M21 sentence is *not* dismissed by this row and is **deferred to Batch 8** as an `attribution` claim: "the pragmatic strategy … governments (CISA/NSA memory-safety guidance) and major vendors have actually adopted" names a document and must be checked against that document, not against this row | — |
 
+## Batch 8 — `attribution` claims
+
+**4 extracted candidates + 1 carried from row 90, 5 rules, 1 defect in two
+places.** The only attribution in this course that reports a *finding* was the
+one that was wrong. The finding it misreported is the paper's own headline
+result, and the course said the opposite. The claim was **attributed but not
+read**: the paper was named and its most-quoted numbers (297, 45–98%, six
+minutes) were exact, and those exact numbers made the invented result look
+checked. The rule this batch sets: **an accurate number from a source proves
+you read the abstract, not that you read the results.**
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 91 | M6.5 | USB-drop study: UIUC, **297** drives, estimated success **45–98%**, first connection **within about six minutes** | `SOURCED` | Tischer, Durumeric, Foster, Duan, Mori, Bursztein, Bailey, *Users Really Do Plug in USB Drives They Find*, IEEE S&P 2016, pp. 306–319, doi:10.1109/SP.2016.26. **Read from the paper's own text** (elie.net PDF), not the press. 45% = 135/297 with a file opened; 98% = 290/297 taken; the paper calls the whole range an *estimate of attack success*, and secondary sources that relabel it "picked up then clicked" are wrong. Median time to connection **6.9 h**. | — |
+| 92 | M6.5 (×2: case study + workbench answer) | "drives labelled to suggest an owner **did better** than unlabelled ones"; "drives labelled to look like they belonged to someone were picked up and opened, and **roughly half** … said they intended to find the owner" | `FIXED` | **Inverted.** Abstract: "Contrary to popular belief, the appearance of a drive does not increase the likelihood that someone will connect it". §IV: "none of the different drive types had a higher success rate"; **return-label drives did worse**, 17/59 (29%) against 27/60 (45%) unlabelled (p = 0.10), because the finder had another way to reach the owner. Table I: confidential 29/58, exams 30/60, keys 32/60. **68%** said they meant to return the drive (18% curiosity). "Nearly half" in the paper is a *different* population: those who opened the vacation photos **before** the résumé. The course had merged the two figures, so one number was describing opposite motives. Guards `A85`, `A86` | — |
+| 93 | M6.5 | agent.btz (2008) reached DoD networks on a flash drive, triggered **Operation Buckshot Yankee**, and contributed directly to the creation of **US Cyber Command** | `SOURCED` | William J. Lynn III (Deputy SecDef), "Defending a New Domain", *Foreign Affairs* 89(5), Sep/Oct 2010 (DTIC ADA527707): infected flash drive, Buckshot Yankee "a turning point", Cyber Command inaugurated in response. The 2016 FBI/DHS JAR attributes agent.btz to Russian intelligence; the course makes no attribution claim, so none is owed. | — |
+| 94 | M21 | "the pragmatic strategy … governments (CISA/NSA memory-safety guidance) and major vendors have actually adopted": new code memory-safe, rewrite highest-risk parts, harden the rest | `SOURCED` | Deferred from row 90. CISA + NSA, *Memory Safe Languages: Reducing Vulnerabilities in Modern Software Development*, CSI U/OO/172709-25, **2025-06-24**. States each element: no full rewrite; new code in MSLs (Android's example, memory-safety CVEs 76% → 24%, 2019–2024); rewrites limited to high-risk components (crypto, parsers, network-facing); hardening for code that stays. **Text tightened, not corrected:** the loose phrase "CISA/NSA memory-safety guidance" now names the document and date, so the reader can check it. | 2027-06 |
+| 95 | M3, M6.5 | M3 quiz "According to NIST SP 800-63B-4 …"; M6.5 tailgating question ("A colleague **reports** …") | `CORPUS` | Extractor noise. M3's source is already settled in row 5. M6.5 is a scenario in a question, not a claim about the world, so there is nothing to look up. | — |
+
 ## Fixes applied in this pass
+
+**Batch 8 (2026-09-23) — one defect, twice: a real paper, correctly cited, reversed.**
+
+1. **M6.5** — the USB-drop case study said owner-labelled drives "did better
+   than unlabelled ones". The paper found that no design did better, and that
+   return-labelled drives did *worse*. Rewritten with the paper's counts.
+2. **M6.5** — the workbench answer repeated the error and swapped the 68%
+   return-the-drive figure for "roughly half", the paper's figure for people who
+   opened the vacation photos first. Rewritten.
+3. **M21** (tightening, not a defect) — the unnamed "CISA/NSA memory-safety
+   guidance" now names the June 2025 CSI.
+
+The defect *strengthened* the course's point. "Helpfulness, not carelessness" is
+more convincing when a plain unlabelled drive does as well as a baited one, and
+a lure makes things *worse* once it gives the finder another way to be helpful.
+The paper already said this. The course had replaced it with the folk version.
+
+Guards `A85`, `A86`. Each alternation branch was tested alone: it fires on the
+pre-fix file, stays clear on the fixed file, and matches nothing in the AppSec
+course.
 
 **Batch 7 (2026-09-18) — three defects, one shape: a default with no product named.**
 

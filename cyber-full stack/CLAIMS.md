@@ -11,7 +11,7 @@ rule are the same in both, deliberately.
 
 - **Course file:** `cyber-full stack/full_stack_appsec_app.html` (64 modules)
 - **Candidates extracted by:** `python3 tools/claims_extract.py appsec --json out.json`
-- **Last pass:** 2026-09-18 (Batch 7 — date claims, closed: no `PENDING` rows remain)
+- **Last pass:** 2026-09-23 (Batch 8 — attribution claims, closed: no `PENDING` rows remain; every extracted tag is now adjudicated)
 
 ## How to use it
 
@@ -50,15 +50,13 @@ This course teaches **no ATT&CK technique ids** — the gate's `attack-ids` chec
 confirms it — so the STIX-bundle validation that Batch 1 of the Guardians ledger
 had to perform has no counterpart here.
 
-Not yet adjudicated — the next batches, in priority order:
-
-| Batch | Class | Candidates | Why it matters |
-|---|---|---|---|
-| 8 | `attribution` — "according to", "researchers found" | 1 | needs the **primary** document, not the report quoting it |
+**Every tag the extractor emits is now adjudicated.** Nothing is scheduled; the
+ledger's remaining work is the re-check dates in the last column.
 
 (`law` — 29 candidates — is **closed** in Batch 5, rows 52–57.
 `port` — 23 candidates — is **closed** in Batch 6, rows 58–66.
-`date` — 19 candidates — is **closed** in Batch 7, rows 67–75.)
+`date` — 19 candidates — is **closed** in Batch 7, rows 67–75.
+`attribution` — 1 candidate — is **closed** in Batch 8, row 76.)
 
 **What Batch 6 changed about how to read this ledger.** The `port` tag was filed
 as the low-risk batch and it produced the most serious defect either ledger has
@@ -309,7 +307,21 @@ lazy re-check would have reverted.
 | 74 | M8.3 | Capital One: "In **2019** a former AWS engineer exfiltrated **100M+** credit card applications" | `SOURCED` | DOJ and Capital One: **Paige Thompson**, who had previously worked at Amazon Web Services, accessed data affecting ~**100M** individuals in the US and ~6M in Canada, largely credit-card **applications from 2005 through early 2019**; entry was "through a **misconfigured web application firewall**", the WAF-to-IMDS chain the module teaches. Detected 2019-07-17 via a GitHub tip-off, disclosed 2019-07-29; convicted 2022. The module's closing lesson "IMDSv2 by default" is **posture, not an AWS fact** — see Guardians row 89 for what AWS actually defaults to | 2029-09 |
 | 75 | M7.1 | "the numbers above were **captured in Aug 2026**" (npm audit 1 / trivy 10 / osv-scanner 8 for `lodash@4.17.4`) | `CORPUS` | self-referential provenance for the course's own lab output, and **correctly hedged already**: the paragraph tells the learner their totals will be *higher, not equal*, tells them not to chase an exact match, and pins the two things that must still hold — all three tools name `lodash@4.17.4`, and **no two of them agree on the count**. That disagreement is the teaching point and it does not rot; the integers do, by design. A date-stamped figure that says out loud which part of itself will expire is the pattern the rest of this tag should copy | 2027-08 |
 
+## Batch 8 — attribution claims
+
+**1 candidate, 1 rule, 0 defects.** This course sources its external claims
+through standards and CVE ids, which Batches 1–7 already covered. So the
+`attribution` regex found only one phrase here, and it names nobody.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 76 | M4.2 | "a repeatable methodology and the **industry-standard** tooling" (the Next-step line into 4.3) | `CONVENTION` | **Terminal: no source can settle it.** No third party is named, so there is nothing to look up. This is the same boundary as rank row 38: a claim can be checked only if it names who says so. The tooling it points to (Burp Suite, the PortSwigger Academy track) is named and handled in 4.3. The Guardians course's Batch 8 found its defect in a *named* paper, which is where attribution defects live. | — |
+
 ## Fixes applied in this pass
+
+**Batch 8 (2026-09-23) — no defects.** One candidate, adjudicated `CONVENTION`
+(row 76). The Guardians-side guards `A85`/`A86` were checked against this course
+before closing and match nothing.
 
 **Batch 7 (2026-09-18) — five defects, and not one of them is a wrong date.**
 

@@ -844,6 +844,15 @@ BANNED = [
      "The OWASP MCP Top 10 was not released in Dec 2025 and is not released now - "
      "its own roadmap puts it at Phase 3 of 5 (beta), entries `MCP01:2025`. Only "
      "the Agentic Top 10 (ASI01-ASI10) shipped (AppSec ledger row 71)", "A84"),
+    (r"(?i)label+ed to (?:suggest|look like)[^.\n]{0,60}(?:did better|were picked up and opened)"
+     r"|(?i:label+ed)[^.\n]{0,40}(?:did better than|more likely than|outperformed) unlabel+ed",
+     "Tischer et al. (IEEE S&P 2016): NO drive design beat an unlabelled one, and "
+     "return-address-labelled drives did WORSE (17/59 vs 27/60) because the finder "
+     "had another way to reach the owner (Guardians ledger row 92)", "A85"),
+    (r"(?i)(?:roughly|about|around|nearly) half[^.\n]{0,60}(?:find|return)[^.\n]{0,25}owner",
+     "68% of USB-drop participants said they meant to return the drive; 'nearly "
+     "half' is the paper's figure for those who opened the vacation photos FIRST. "
+     "The two numbers describe opposite motives (Guardians ledger row 92)", "A86"),
 ]
 
 
