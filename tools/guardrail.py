@@ -862,6 +862,9 @@ BANNED = [
     (r"(?i)\b(?:amcache|shimcache|appcompatcache)\b[^.\n]{0,80}\b(?:proves|confirms|shows|evidence of)\b[^.\n]{0,20}\bexecut",
      "Amcache/ShimCache show PRESENCE; on Windows 10/11 neither proves execution "
      "(Carvey 2024; Guardians ledger row 105)", "A89", "Presence is not execution"),
+    (r"\bwindows\.malfind\b",
+     "Volatility 3 2.28 moved malfind to windows.malware.malfind; the old name is a "
+     "deprecated alias past its 2026-06-07 removal date (Guardians ledger row 109)", "A90"),
 ]
 
 

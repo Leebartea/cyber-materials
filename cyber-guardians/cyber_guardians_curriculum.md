@@ -3947,7 +3947,7 @@ shasum -a 256 memory.raw | tee memory.raw.sha256
 # Analyze the COPY (these are read-only against the image):
 vol -f memory.raw windows.pslist    # running processes
 vol -f memory.raw windows.netscan   # network connections at capture time
-vol -f memory.raw windows.malfind   # injected/hidden code
+vol -f memory.raw windows.malware.malfind   # injected/hidden code (vol3 2.28 name)
 # Re-hash afterward and confirm it MATCHES memory.raw.sha256 (you didn't alter the evidence).
 shasum -a 256 -c memory.raw.sha256
 ```

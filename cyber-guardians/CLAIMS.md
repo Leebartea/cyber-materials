@@ -358,6 +358,7 @@ live. T1562 *Impair Defenses* is revoked in v19, and neither course uses it.
 | 106 | M22.5 | Windows lab block (`Get-Item -Stream *`, `Get-Content -Stream Zone.Identifier`, `fsutil usn queryjournal`/`readdata`) and Linux lab block (`mkfs.fat -C -F 16 -n`, `mcopy -i … ::`, `mdel -i`) | `SOURCED` | syntax checked against Microsoft Learn `Get-Content` (Example 5) and `fsutil usn`, and against the Debian `mkfs.fat(8)` and `mtools(1)` manuals. **Not executed**: no Windows or Linux host was available, and both blocks say so in the course | when a Windows / Linux host is available |
 | 107 | M22.5 | Casey Anthony case study: sheriff's tools disagreed (NetAnalysis 1 visit, CacheBack 84); Bradley testified 8 June 2011, re-ran, reported one search → one visit; jury never heard it; prosecutors said it was disclosed; acquitted 5 July 2011; Nov 2012 admission of the missed 2:51 p.m. 16 June 2008 "fool-proof suffication" search; 17 IE entries pulled, 1,200+ Firefox entries missed; defence lawyer disputed the "overlooked" framing | `SOURCED` | UPI, "Error reported at Casey Anthony trial" (2011-07-19); NBC News wbna43807133; ABA Journal (prosecutors' disclosure statement); CS Monitor (2012-11-26); CBS Miami (Nov 2012). The course makes no claim about what either correction would have changed | — |
 | 108 | M22.5 | `hdiutil` is deprecated in macOS 27 but works; `diskutil image create blank --fs` offers only generic `MS-DOS`, so cannot choose FAT16 | `EXECUTED` + `SOURCED` | warnings observed on 27.0; `diskutil image create blank --help`; J. Johnson, lapcatsoftware.com (2026-08-07) | 2027-09 (removal expected) |
+| 109 | M22 | Volatility 3 malfind plugin is `windows.malware.malfind` (was `windows.malfind`); lab transcript labelled illustrative (hash = SHA-256 of "test") | `SOURCED` | volatility3 v2.28.2 source: `plugins/windows/malfind.py` is a `PluginRenameClass` shim, `removal_date="2026-06-07"`; PyPI latest = 2.28.2 (checked 2026-09-23) | next vol3 release |
 
 ## Fixes applied in this pass
 
@@ -367,6 +368,13 @@ live. T1562 *Impair Defenses* is revoked in v19, and neither course uses it.
    *Defense Evasion*. ATT&CK v19 has 15: TA0005 is now *Stealth* and TA0112
    *Defense Impairment* is new. Rewritten in the app and the md, keeping the old
    name as history because older reports and SIEM rules still use it.
+
+2. **M22** — the lab taught `windows.malfind`, which Volatility 3 2.28.2 keeps
+   only as a deprecated alias whose removal date (2026-06-07) has already passed.
+   It is now `windows.malware.malfind` in the app and the md. Found while checking
+   the M22.7 prerequisites, before any sample was downloaded. M22's `expected`
+   transcript is now labelled illustrative rather than left to pass as captured.
+   Guard `A90`. Row 109.
 
 The defect was five months old and invisible to every earlier pass, because
 those passes verified *ids*, and every id was still live. A rename changes no
