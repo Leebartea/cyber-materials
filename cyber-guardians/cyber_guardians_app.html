@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **43-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **44-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **43-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 43 modules at a glance
+### All 44 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -837,6 +837,7 @@ Cyber Guardians is a **43-module breadth-first course** that takes you from zero
 - M22.5: Filesystem & OS Artifacts — What the System Remembers For You *(new in this edition)*
 - M23: Incident Response
 - M23.5: Business Continuity & Disaster Recovery *(new in this edition)*
+- M23.7: Timeline Analysis & Reporting — One Clock, Honest Gaps, Checkable Claims *(new in this edition)*
 - M24: Malware Analysis 101
 - M24.5: AI-Powered Attacks & Defenses *(new in this edition)*
 - M25: Cloud & Mobile Security
@@ -923,7 +924,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 43 modules, expect ~54–65 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 44 modules, expect ~55–66 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -934,7 +935,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 43 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 44 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -8816,7 +8817,7 @@ shasum -a 256 -c memory.raw.sha256  # re-verify: evidence unchanged`,
 sha256sum memory.raw | tee memory.raw.sha256
 vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`,
       expected: {
-        mac: `⚠️ **Illustrative shape, not a captured run.** The hash below is SHA-256 of the string "test" and the process rows are representative, so your values WILL differ. What must match is the shape: one hash line, a PID/PPID table, and \`memory.raw: OK\` at the end. A real Volatility transcript arrives with M22.7.
+        mac: `⚠️ **Illustrative shape, not a captured run.** The hash below is SHA-256 of the string "test" and the process rows are representative, so your values WILL differ. What must match is the shape: one hash line, a PID/PPID table, and \`memory.raw: OK\` at the end. Your own run on a real sample image is the transcript that counts.
 
 \`\`\`text
 $ shasum -a 256 memory.raw | tee memory.raw.sha256
@@ -9076,7 +9077,7 @@ So grade what you write:
 
 - **Presence** — Amcache, ShimCache, MFT, a directory entry. "This file was on this system."
 - **Execution** — Prefetch, a process-creation log event, EDR telemetry, a process in a memory image (M22). "This program ran."
-- **Intent** — none of the above, on their own. Execution under which account, from which parent, after what download: that is a *timeline*, built from several artifacts that agree.
+- **Intent** — none of the above, on their own. Execution under which account, from which parent, after what download: that is a *timeline* (M23.7 builds one), from several artifacts that agree.
 
 Write the strongest sentence your weakest necessary artifact supports, and no stronger.
 
@@ -10170,6 +10171,391 @@ Common wrong attempts: deriving the site tier from RPO (they are different quest
 **(3) Where a 4-hour RTO goes to die.** A checkable list, roughly in the order the clock actually burns: *detection and decision* — how long before anyone notices, and who is authorised to declare a disaster at 3am (this is often the largest single block, and it is pure preparation, exactly as in M23); *access* — can the responders reach the recovery console if the identity provider is down, and is the break-glass credential somewhere reachable and tested; *retrieval* — how long to get the offsite copy back, remembering that "immutable in cold storage" often means hours of restore-to-warm before the first byte is readable, and that bandwidth turns a 4TB restore into a scheduling problem; *somewhere to restore to* — does the target hardware or capacity exist right now, or is it a purchase order; *dependencies and order* — identity, DNS, and the database must come back before the app, and each has its own RTO that adds rather than overlaps; *verification* — the restore that completes and produces a database which will not start, or an application-inconsistent snapshot; *cutover* — DNS TTLs, certificates that expired while the system was down, firewall rules at the DR site nobody has touched in a year; and finally *WRT* — the reconciliation of everything the business did on paper while you worked, which is real time before anyone would call the service recovered. **Outside the box:** notice how few of those are technical problems with the backup itself. The restore is usually the fastest part; almost every hour is spent on decisions, access, and dependencies — all of which are cheap to fix *before* the disaster and nearly impossible to fix during one. That is the same conclusion M23 reached about preparation, arrived at from the other end.
 </details>`,
     tracker: ["I can state the difference between an IRP, a DRP, and a BCP, and say who owns each", "I can draw the outage timeline and place RPO, RTO, WRT, and MTD on it correctly", "I can explain why RPO costs money continuously while RTO costs money to stand by", "I ran the lab and watched rm -f fail against an immutable offsite copy", "I restored from a verified archive and can explain why the restored tree had 5 files and not 6", "I can explain why a snapshot, a RAID array, and a replica are each not a backup", "I can name the four site tiers and the six rungs of the testing ladder", "Workbench: measured a real RPO exposure in seconds from file timestamps rather than quoting the schedule", "Workbench: built the RTO/RPO-to-architecture mapper with a gate that reports UNPROVEN when no restore has been timed", "Workbench: analysed Code Spaces with the 3-2-1-1-0 vocabulary, explained why replication gives no RPO against logical corruption, and listed where a 4-hour RTO really goes"]
+  }, {
+    id: "m23_7",
+    level: 3,
+    num: "M23.7",
+    title: "Timeline Analysis & Reporting — One Clock, Honest Gaps, Checkable Claims",
+    objective: "M22 taught you to preserve evidence; M22.5 taught you to read what one filesystem remembers. This module puts those readings in order and then writes them down so that someone else can check every line. You will build a timeline from a disk image you made yourself, watch the same image give three different \"UTC\" answers on three examiners' machines, fix it at the source, bracket an event the filesystem never recorded, and write the finding in a form that survives cross-examination.",
+    theory: `> ⚖️ **Ethics:** a timeline is a reconstruction of what a *person* did, minute by minute. Build one only from the image you make in the lab or from systems you own or are authorised in writing to examine. A timeline in a report can put someone in a room at a time, and it will be read by people who cannot check it themselves.
+
+#### Define the words first
+
+- **Timeline** — every timestamp from every source, converted to one clock and sorted. It is an *index* into the evidence, not a finding. A finding is a claim you make *from* it.
+- **MACB** — the four times a filesystem may keep per file: **M**odified (content written), **A**ccessed (read), **C**hanged (metadata changed), **B**orn (created). \`mactime\` prints them as the \`m.cb\` column. Which of the four exist, and what each means, depends on the filesystem.
+- **Bodyfile** — The Sleuth Kit's intermediate format: one line per file, eleven \`|\`-separated fields ending in atime, mtime, ctime, crtime as Unix seconds. \`fls -m\` writes it; \`mactime\` sorts it. Every number in it is **already a conversion** from whatever the disk stored.
+- **Super timeline** — one timeline built from many sources at once: filesystem, logs, browser history, registry, change journals. **plaso** (\`log2timeline.py\` → \`psort.py\`) is the standard open-source tool for it.
+- **Normalisation** — converting every source to UTC **before** you sort. A source that stores local time without saying which zone is the commonest way a timeline goes wrong.
+- **Bracket** — an interval that must contain an event the system did not timestamp: *not before* X, *not after* Y.
+
+#### Why a timeline, and why it is harder than sorting
+
+A single artifact rarely proves anything. M22.5 ended on this: execution under which account, from which parent, after what download — that is a *timeline*, built from several artifacts that agree. The hard part is not sorting. It is that each source keeps time differently:
+
+| Question | Why it matters | What the lab shows on FAT |
+|---|---|---|
+| Which zone was the clock in? | FAT stores **local wall-clock time with no zone**. The converter has to guess. | \`fls\` guesses *the examiner's* zone. Same image, three \`TZ\` settings, three answers. |
+| What resolution? | FAT write time is floored to 2 s, creation to 10 ms, access to the **date only**. | A file's *modified* time is earlier than its *born* time. An append at :29 reads :28. |
+| What is not recorded at all? | FAT has no *changed* time and keeps **no deletion time**. (Other filesystems differ: ext4 inodes have a deletion-time field, and NTFS logs deletions in its USN journal.) | \`0000-00-00T00:00:00Z\` rows: that is "no such field", not a date. |
+| Was the clock right? | A machine's clock can be wrong or deliberately changed. | Not testable here. On a real case, compare against an outside clock (NTP logs, server logs, email headers). |
+
+NIST SP 800-86 (2006) says the same thing in a list: file times "may not always be accurate", because the clock was wrong, or because "the time may not be recorded with the expected level of detail". Knowing the machine's time, date and zone settings "can greatly assist an analyst".
+
+#### Normalise at the source, not at the end
+
+The one-hour error in the lab is not in the image. FAT stored \`19:45:21\` as a local time. \`fls\` turned that into a Unix number using **your** \`TZ\`. From that moment the bodyfile holds a clean-looking integer, and nothing downstream can tell it was a guess. \`mactime\`, a spreadsheet, a SIEM: all of them will sort the wrong number perfectly.
+
+So the zone is fixed where the conversion happens:
+
+- **The Sleuth Kit:** \`fls -z <zone of the original machine>\` (and \`-s <seconds>\` for a known clock skew). \`mactime -y\` then prints the result in UTC. Its own \`-z\` option "does not work with -y", its help says, so put the zone on \`fls\`.
+- **plaso:** \`log2timeline.py -z <zone>\` sets the "preferred time zone of extracted date and time values that are stored without a time zone indicator". If plaso cannot find the zone in the source, it **defaults to UTC**. On FAT evidence from a machine that was not on UTC, that is the same error as the lab, made silently. \`psort.py\` writes output in UTC by default.
+- **Where the zone comes from:** the evidence, never your assumption. On Windows it is in the SYSTEM hive under \`ControlSet00x\\Control\\TimeZoneInformation\`, in the control set that \`Select\\Current\` points to. \`CurrentControlSet\` exists only on a live system. On a Mac it is the \`/etc/localtime\` link. For a USB stick, it is the zone of **whichever machine wrote it**, which can differ from file to file.
+
+#### What a gap means
+
+A timeline shows only what was recorded. Deletion is the classic case. On FAT, deleting a file marks its entry free (\`(deleted)\` in \`fls\`) and writes **no time**. You can still bracket it:
+
+- **Not before** the file's own latest timestamp: it existed then.
+- **Not after** the first independent record of its removal. On a Mac-written volume that is the \`.fseventsd\` page containing a *Removed* event for that path. The page's own FAT birth time is when it was written. FSEvents records carry no timestamps, but event IDs give **order**.
+
+A bracket is honest. A single time for an event nobody recorded is not.
+
+#### Writing it down: the report is part of the evidence
+
+SP 800-86 describes a four-phase process: **collection, examination, analysis, and reporting**. The report is where the first three are either checkable or not. A forensic report that holds up has:
+
+1. **Scope and authority** — who asked, what question, what you were authorised to examine.
+2. **Evidence and integrity** — each item, how it was acquired, its hash at acquisition and at the end of analysis.
+3. **Tools and versions** — \`fls\` from The Sleuth Kit 4.15.0 is a claim someone can re-run. "Forensic software" is not.
+4. **Method, including the zone** — which zone you applied, and **the artifact you took it from**.
+5. **Findings as bracketed claims** — each with the artifact it rests on, its time in UTC, and its resolution.
+6. **Alternative explanations considered** — and why the evidence does or does not exclude them.
+7. **Limitations** — what you could not examine and what that means for the findings.
+
+The Amero case study below is what happens when items 4–7 are missing. The same failure can appear, in miniature, in the report that corrected it.
+
+#### Three ways a timeline goes wrong
+
+- **"The tool printed Z, so it is UTC."** The \`Z\` is a formatting choice made after the conversion. The lab prints a \`Z\` on times that are an hour out.
+- **"There is no timestamp between 19:45:28 and 19:45:32, so nothing happened."** A timeline is not a log of everything. Absence of a record is evidence only for sources that *would* have recorded the event, and FAT would not have recorded a deletion.
+- **"The page was visited, so the user visited it."** A timeline tells you *when* and *what*. It does not tell you *who* or *why* unless another artifact does. The Amero prosecution treated browser history as intent.`,
+    lab: {
+      mac: `# LAB: build evidence with a known history, then see how close a timeline gets to the truth (Apple Silicon)
+# ETHICS: this lab examines an image YOU create. Nothing else.
+mkdir -p ~/cyber-journal/m23_7 && cd ~/cyber-journal/m23_7
+brew install sleuthkit          # skip if you installed it for M22.5
+
+# 1. Build a FAT16 "USB stick" and keep your own ground truth as you go.
+#    Do NOT open the volume in Finder: Finder writes its own files onto it.
+hdiutil create -size 16m -fs "MS-DOS FAT16" -volname EVIDENCE -layout MBRSPUD evidence.dmg
+hdiutil attach evidence.dmg
+date -u +"%H:%M:%SZ  created plan.txt" | tee -a groundtruth.txt
+echo "Q3 acquisition plan - internal" > /Volumes/EVIDENCE/plan.txt; sleep 4
+date -u +"%H:%M:%SZ  created payroll_export.csv" | tee -a groundtruth.txt
+printf 'name,iban\\nA. Jones,GB00TEST00000000000001\\n' > /Volumes/EVIDENCE/payroll_export.csv; sleep 4
+date -u +"%H:%M:%SZ  appended to plan.txt" | tee -a groundtruth.txt
+echo "revised" >> /Volumes/EVIDENCE/plan.txt; sleep 4
+date -u +"%H:%M:%SZ  deleted payroll_export.csv" | tee -a groundtruth.txt
+rm /Volumes/EVIDENCE/payroll_export.csv
+hdiutil detach /Volumes/EVIDENCE
+
+# 2. It is evidence now: hash before you look.
+shasum -a 256 evidence.dmg | tee evidence.dmg.sha256
+
+# 3. Three examiners, one image: convert FAT's local times under two different TZ settings.
+for z in UTC America/New_York; do TZ=$z fls -r -m / -o 1 evidence.dmg | grep "|/plan.txt|"; done
+
+# 4. Establish the zone of the machine that WROTE the stick (here, your Mac), and convert with it.
+readlink /etc/localtime
+ZONE=$(readlink /etc/localtime | sed 's#.*zoneinfo/##')
+fls -r -m / -z "$ZONE" -o 1 evidence.dmg > bodyfile.txt
+
+# 5. The timeline, in UTC, without macOS's housekeeping files. Compare it with your ground truth.
+mactime -b bodyfile.txt -y -d | grep -v -e fseventsd -e '/\\._' -e '/\\$'
+cat groundtruth.txt
+
+# 6. The deletion has no timestamp. What was written at about the same time?
+mactime -b bodyfile.txt -y -d | grep fseventsd | grep -E ',[m.][a.][c.]b,'   # every BIRTH row, whatever shares its second
+
+# 7. Prove you changed nothing.
+shasum -a 256 -c evidence.dmg.sha256`,
+      windows: `# ⚠️ Not executed for this edition (authored and verified on macOS). Run the Linux block under WSL:
+# The Sleuth Kit's mactime is a Perl script, and WSL gives you Perl, mtools and the same fls.
+wsl --install -d Ubuntu          # once, then open the Ubuntu shell and follow the Linux block
+# The Windows-native lesson is WHERE THE ZONE LIVES in evidence. In an offline SYSTEM hive:
+#   Select\\Current            -> which ControlSet00x was in use
+#   ControlSet00x\\Control\\TimeZoneInformation\\TimeZoneKeyName  -> e.g. "W. Europe Standard Time"
+# CurrentControlSet exists only on a live system; a hive you are examining does not have it.`,
+      linux: `# ⚠️ Not executed for this edition. mkfs.fat and mtools syntax is from their manuals. fls and mactime
+# are the same Sleuth Kit tools as the macOS block. mtools writes no .fseventsd, so step 6 has no Linux
+# equivalent: the deletion cannot be bracketed from this image at all. That is the lesson of step 6.
+sudo apt install sleuthkit dosfstools mtools
+mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384        # no partition table: drop "-o 1" below
+date -u +"%H:%M:%SZ  created plan.txt" | tee -a groundtruth.txt
+echo "Q3 acquisition plan - internal" > plan.txt && mcopy -i evidence.img plan.txt ::; sleep 4
+date -u +"%H:%M:%SZ  created payroll_export.csv" | tee -a groundtruth.txt
+printf 'name,iban\\nA. Jones,GB00TEST00000000000001\\n' > p.csv && mcopy -i evidence.img p.csv ::payroll_export.csv; sleep 4
+date -u +"%H:%M:%SZ  deleted payroll_export.csv" | tee -a groundtruth.txt
+mdel -i evidence.img ::payroll_export.csv
+sha256sum evidence.img | tee evidence.img.sha256
+ZONE=$(timedatectl show -p Timezone --value)
+fls -r -m / -z "$ZONE" evidence.img > bodyfile.txt
+mactime -b bodyfile.txt -y -d
+sha256sum -c evidence.img.sha256`,
+      expected: {
+        mac: `\`\`\`text
+$ hdiutil attach evidence.dmg
+hdiutil: WARNING: 'hdiutil attach ...' is deprecated. Please use 'diskutil image attach ...' instead.
+/dev/disk4          	FDisk_partition_scheme
+/dev/disk4s1        	DOS_FAT_16                     	/Volumes/EVIDENCE
+19:50:20Z  created plan.txt
+19:50:24Z  created payroll_export.csv
+19:50:28Z  appended to plan.txt
+19:50:32Z  deleted payroll_export.csv
+
+$ shasum -a 256 evidence.dmg | tee evidence.dmg.sha256
+34a5161e1a4e5feb8d47d1779091fe169e97043fc5a844f0a2fb6c87192aa546  evidence.dmg
+
+$ for z in UTC America/New_York; do TZ=$z fls -r -m / -o 1 evidence.dmg | grep "|/plan.txt|"; done
+0|/plan.txt|6|r/rrwxrwxrwx|0|0|39|1790121600|1790196628|0|1790196620
+0|/plan.txt|6|r/rrwxrwxrwx|0|0|39|1790136000|1790211028|0|1790211020
+
+$ readlink /etc/localtime
+/var/db/timezone/zoneinfo/<redacted: a UTC+01:00 zone>
+
+$ mactime -b bodyfile.txt -y -d | grep -v -e fseventsd -e '/\\._' -e '/\\$'
+Date,Size,Type,Mode,UID,GID,Meta,File Name
+0000-00-00T00:00:00Z,42,..c.,r/rrwxrwxrwx,0,0,11,"/payroll_export.csv (deleted)"
+0000-00-00T00:00:00Z,0,.acb,r/rrwxrwxrwx,0,0,3,"/EVIDENCE    (Volume Label Entry)"
+0000-00-00T00:00:00Z,39,..c.,r/rrwxrwxrwx,0,0,6,"/plan.txt"
+2026-09-22T23:00:00Z,42,.a..,r/rrwxrwxrwx,0,0,11,"/payroll_export.csv (deleted)"
+2026-09-22T23:00:00Z,39,.a..,r/rrwxrwxrwx,0,0,6,"/plan.txt"
+2026-09-23T19:50:20Z,39,...b,r/rrwxrwxrwx,0,0,6,"/plan.txt"
+2026-09-23T19:50:24Z,42,m..b,r/rrwxrwxrwx,0,0,11,"/payroll_export.csv (deleted)"
+2026-09-23T19:50:28Z,39,m...,r/rrwxrwxrwx,0,0,6,"/plan.txt"
+2026-09-23T19:50:32Z,0,m...,r/rrwxrwxrwx,0,0,3,"/EVIDENCE    (Volume Label Entry)"
+
+$ mactime -b bodyfile.txt -y -d | grep fseventsd | grep -E ',[m.][a.][c.]b,'
+2026-09-23T19:50:20Z,2048,m..b,d/dr-xr-xr-x,0,0,5,"/.fseventsd"
+2026-09-23T19:50:20Z,36,...b,r/rrwxrwxrwx,0,0,519,"/.fseventsd/fseventsd-uuid"
+2026-09-23T19:50:33Z,141,...b,r/rrwxrwxrwx,0,0,522,"/.fseventsd/0000000006af153a"
+2026-09-23T19:50:33Z,72,...b,r/rrwxrwxrwx,0,0,525,"/.fseventsd/0000000006af153b"
+
+$ shasum -a 256 -c evidence.dmg.sha256
+evidence.dmg: OK
+\`\`\`
+
+Your hash, times, dates, disk number and the hex page names will all differ. The **relationships** below will not. (Captured on macOS 27.0 with The Sleuth Kit 4.15.0, on a Mac set to a UTC+01:00 zone. The zone's name is redacted in these transcripts, and nothing else is changed.)
+
+**Step 3 is the module in two lines.** The last field is the birth time. Under \`TZ=UTC\` it is \`1790196620\` = 20:50:20Z. Under \`TZ=America/New_York\` it is \`1790211020\` = **00:50:20Z the next day**. The file was created at 19:50:20Z, and both answers are wrong: one by an hour, one by five hours and a date. Nothing in the image changed between the two lines. Only the examiner's \`TZ\` did. If you run this on a Mac set to UTC, the first line is right by coincidence. Try \`TZ=Asia/Tokyo\` and watch it move.
+
+**Step 5 against your ground truth.** With \`-z\` set to the zone of the machine that wrote the stick, the birth times match \`groundtruth.txt\` to the second. Then read the rows that do not look like events:
+
+- \`0000-00-00T00:00:00Z ..c.\` — FAT has no *changed* time. \`mactime\` prints a zero as a date. It means "not recorded", not "the year zero".
+- \`2026-09-22T23:00:00Z .a..\` — FAT keeps the access **date** only. Midnight local in a UTC+01:00 zone is 23:00 UTC the day **before**. An access that happened on the 23rd sorts onto the 22nd. Never read a time from this row.
+- **Write times floor to 2 seconds.** In this run every event landed on an even second, so *modified* matched *born* (\`m..b\`). On other runs we saw \`payroll_export.csv\` modified at :24 and born at :25, a file apparently written before it existed, and an append at :29 recorded as :28. Your run will show one or the other.
+
+**Step 6 is the deletion.** There is no row for it: FAT stored no time. But the two \`.fseventsd\` pages were born at 19:50:33, when the volume was ejected, and the true deletion was 19:50:32. That page is where the bracket's upper bound comes from. The workbench decodes it to prove the *Removed* record is really there. The \`m..b\` on the \`.fseventsd\` folder is why the filter matches any Type ending in \`b\`, and not just \`...b\`.
+
+**\`evidence.dmg: OK\`** — every command above read the image and none of them changed it.
+
+**If \`fls\` prints nothing for step 3:** your partition may not start at sector 1. Run \`mmls evidence.dmg\` and use the start value it gives for \`-o\`. **On the page timing:** in all three of our runs the pages were born within a second of the eject, which is consistent with FSEvents flushing its buffer on unmount. That is an observation from three runs, not a documented guarantee. If yours are born earlier, the bracket is simply tighter.`
+      }
+    },
+    caseStudy: {
+      title: "State v. Amero (2004–2008): a timeline nobody built, and a date the correction got wrong",
+      body: "On 19 October 2004 a substitute teacher, Julie Amero, was covering a seventh-grade class at Kelly Middle School in Norwich, Connecticut, when pornographic pop-ups began appearing on the classroom computer and would not stop. On 5 January 2007 she was convicted on four counts of risk of injury to a minor. The prosecution's computer evidence came from a police detective who testified that he had relied solely on ComputerCop Professional, a tool that searches a drive for suspicious terms and images. He also told the jury that a red link proved a page had been deliberately visited, and he confirmed the computer was never checked for malware. In March 2007 a group of examiners led by Alex Eckelberry reviewed the trial testimony and the drive image. They found adware (newdotnet), apparently bundled with a Halloween screensaver, installed several days before the class. They also found that the link colour defined in the machine's registry was a greenish grey, not red. On 6 June 2007 a judge threw out the conviction and granted a new trial. On 21 November 2008 Amero pleaded guilty to a single charge of disorderly conduct and gave up her teaching credentials. The timeline question was never asked at trial: what was installed, when, and did browsing activity start before or after it? The reviewers' own report states the install date twice, and inconsistently. Its main text says 12 October 2004. Its footnote says '14-Oct-2004 15:35', adding that no browsing activity was detected at that time. Secondary sources, Wikipedia among them, repeat the 14 October figure. The finding survives either date, because both are days before the class. But a report written to correct unreliable testimony contains two different dates for its central fact, and only a reader checking line by line would notice."
+    },
+    challenges: [{
+      q: "A colleague exports a timeline from a FAT USB stick seized in Berlin and analysed on a laptop set to UTC. The key file's birth time reads 14:03:10Z. The suspect's alibi covers 13:30–14:30 UTC. Does the timeline break the alibi?",
+      a: "Not yet, because nobody has established the zone. FAT stored local wall-clock time, and fls converted it using the analyst's TZ (UTC), so 14:03:10Z really means '14:03:10 on whatever clock wrote the stick'. If a Berlin machine wrote it, and in summer (CEST, UTC+2), the true time is 12:03:10Z, before the alibi window. In winter (CET, UTC+1) it is 13:03:10Z, also before. Rebuild the bodyfile with fls -z Europe/Berlin, but first establish which machine wrote the file. A stick can carry files written by several computers in different zones. Then record in the report which zone you applied and the artifact you took it from."
+    }, {
+      q: "Your timeline shows a file's access time as 2026-03-08T05:00:00Z on a FAT volume written in New York. A manager asks: 'So they opened it at 5 a.m.?' What do you answer?",
+      a: "No. FAT stores the access DATE only. 05:00Z is just midnight local converted to UTC (New York was on EST, UTC−5, on 8 March 2026 until 02:00 local, when the clocks went forward). The row means 'accessed at some point on 8 March, local date'. Any time of day that date allows is possible. Report it as a date, and never sort it among precise times as if it were one. A timeline tool that prints it as 05:00:00Z is formatting a date as a time. The precision you see is not in the evidence."
+    }, {
+      q: "In the lab, the deleted file's last own timestamp is 19:50:24Z and the FSEvents page recording its removal was born at 19:50:33Z. Your draft report says 'The file was deleted at 19:50:33.' What is wrong, and what should it say?",
+      a: "19:50:33 is when the page recording the removal was written, not when the removal happened. FSEvents records carry no time. The page's own FAT birth time is only an upper bound. Write the bracket: 'payroll_export.csv was deleted not before 19:50:24Z (its own latest timestamp) and not after 19:50:33Z (birth of the FSEvents page containing a Removed record for it). FAT records no deletion time.' Then add the resolution: the lower bound can be up to 2 seconds early, because FAT floors write times. The true time was 19:50:32. The one-time version would have been off by a second, and the bracket contains it. Precision you cannot defend is a liability under cross-examination."
+    }],
+    quiz: ["What is a bodyfile, and why is a Unix timestamp in it already an interpretation rather than raw evidence when the source is FAT?", "In the lab, the same image gave three different birth times for plan.txt. What changed between the runs, and at which step must the fix be applied?", "mactime prints 0000-00-00T00:00:00Z for every FAT ctime. What does that row mean, and what would be wrong with sorting it into a timeline as an event?", "Why does a FAT access time show up on the previous UTC day for a machine east of Greenwich, and how should it be reported?", "What does log2timeline.py do with a time value stored without a zone indicator if you do not pass -z, and why does that matter for FAT evidence?", "Explain how to bracket a deletion on a Mac-written FAT volume: which artifact gives each bound, and what each bound actually proves.", "Name four things a forensic report must contain beyond the findings themselves, and say which of them the prosecution's evidence in State v. Amero lacked."],
+    workbench: `> **What this trains.** In the lab, \`mactime\` sorted times and printed a \`Z\` on every one of them, including a zero and a bare date. Here you write the two readers an examiner actually needs: one that says what it does *not* know, and one that closes the gap around an event nobody timestamped. Then you write the paragraph that goes in the report. Standard-library Python only, no installs.
+
+> ⚖️ **Ethics:** the scripts read the \`evidence.dmg\` and \`bodyfile.txt\` you made in the lab. \`bracket.py\` calls \`icat\`, which reads the image and never writes to it. Keep it that way, and re-run \`shasum -a 256 -c evidence.dmg.sha256\` when you finish.
+
+#### 🟢 Drill 1 — A timeline that admits what it does not know ~25 min
+
+**Goal.** Write \`timeline.py BODYFILE [ZONE]\`. It prints every timestamp in the bodyfile in UTC, sorted, with a one-letter MACB marker. It must **not** print a row for a zero. Instead it reports, per field, how many entries lack it and whether the *whole filesystem* lacks it. If a zone is given, it flags access times that fall on local midnight as *date only*.
+
+**Done when.** On your lab bodyfile it prints no \`0000-00-00\` rows, says ctime is missing from every entry, and marks both access rows as date only.
+
+<details><summary>Nudge</summary>
+
+- A bodyfile line has 11 \`|\`-separated fields. The last four are atime, mtime, ctime, crtime, in Unix seconds.
+- \`datetime.fromtimestamp(t, timezone.utc)\` gives UTC. \`zoneinfo.ZoneInfo(zone_name)\` gives the zone for the midnight test.
+- TSK adds virtual entries (\`/$MBR\`, \`/$FAT1\`, \`/$OrphanFiles\`) with every time zero. Skip names starting \`/$\`, or your "the filesystem keeps none" verdict will be wrong for every field.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""timeline.py BODYFILE [ZONE] - a mactime that says what it does not know."""
+import sys
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+FIELDS = ("atime", "mtime", "ctime", "crtime")      # bodyfile columns 8-11
+MARK = {"atime": "a", "mtime": "m", "ctime": "c", "crtime": "b"}
+zone = ZoneInfo(sys.argv[2]) if len(sys.argv) > 2 else None
+
+rows, missing = [], {}
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    p = line.rstrip("\\n").split("|")
+    if len(p) != 11:
+        continue
+    name = p[1]
+    if name.startswith("/$"):                       # TSK virtual files ($MBR, $FAT1...): not real entries
+        continue
+    for kind, raw in zip(FIELDS, p[7:11]):
+        t = int(raw)
+        if t == 0:                                  # 0 = the filesystem has no such field
+            missing.setdefault(kind, set()).add(name)
+            continue
+        dt = datetime.fromtimestamp(t, timezone.utc)
+        note = ""
+        if kind == "atime" and zone and dt.astimezone(zone).time() == datetime.min.time():
+            note = f"  [date only: some time on {dt.astimezone(zone):%Y-%m-%d} {zone.key}]"
+        rows.append((t, MARK[kind], name, note))
+
+for t, k, name, note in sorted(rows):
+    print(f"{datetime.fromtimestamp(t, timezone.utc):%Y-%m-%dT%H:%M:%SZ}  {k}  {name}{note}")
+seen = {r[2] for r in rows} | set().union(*missing.values()) if missing else set()
+for kind, names in sorted(missing.items()):
+    verdict = "the filesystem keeps none" if names == seen else "absent here, present elsewhere: ask why"
+    print(f"NOT RECORDED  {kind}: {len(names)} of {len(seen)} entries ({verdict})")
+\`\`\`
+
+\`\`\`text
+$ python3 timeline.py bodyfile.txt "$ZONE" | grep -v -e fseventsd -e "/\\._"
+2026-09-22T23:00:00Z  a  /payroll_export.csv (deleted)  [date only: some time on 2026-09-23 <redacted zone>]
+2026-09-22T23:00:00Z  a  /plan.txt  [date only: some time on 2026-09-23 <redacted zone>]
+2026-09-23T19:50:20Z  b  /plan.txt
+2026-09-23T19:50:24Z  b  /payroll_export.csv (deleted)
+2026-09-23T19:50:24Z  m  /payroll_export.csv (deleted)
+2026-09-23T19:50:28Z  m  /plan.txt
+2026-09-23T19:50:32Z  m  /EVIDENCE    (Volume Label Entry)
+NOT RECORDED  atime: 1 of 9 entries (absent here, present elsewhere: ask why)
+NOT RECORDED  crtime: 1 of 9 entries (absent here, present elsewhere: ask why)
+NOT RECORDED  ctime: 9 of 9 entries (the filesystem keeps none)
+\`\`\`
+
+The three \`0000-00-00\` rows are gone, replaced by one honest line. The "1 of 9" rows are the volume label, which FAT gives only a modified time. "Absent here, present elsewhere" is the verdict that deserves attention on real evidence. If *one* file lacks a time every other file has, ask why before you move on.
+
+Common wrong attempts: printing zeros as dates, as \`mactime\` does; treating "missing" per field without first dropping TSK's \`/$\` virtual files (then every field looks missing somewhere, and the verdicts are wrong); and doing the midnight test in UTC. The access time is midnight **local**, which is 23:00Z in a UTC+01:00 zone, so a UTC test never fires.
+
+</details>
+
+#### 🟡 Drill 2 — Bracket the deletion ~35 min
+
+**Goal.** Write \`bracket.py IMAGE OFFSET BODYFILE NAME\`. It finds every FSEvents record for \`NAME\` in the image's \`.fseventsd\` pages, shows each record's flags, and prints a **not before / not after** bracket for the removal. If there is no removal record, it must say so and exit non-zero.
+
+**Done when.** For \`payroll_export.csv\` it prints a bracket containing the deletion time in your \`groundtruth.txt\`, and for \`plan.txt\` (never deleted) it refuses.
+
+<details><summary>Nudge</summary>
+
+- Page inode numbers and birth times are in the bodyfile. \`icat -o 1 evidence.dmg INODE | gunzip\` is the page, as in M22.5.
+- A page starts with a 4-byte magic (\`1SLD\`, \`2SLD\` or \`3SLD\`) and 8 more header bytes. Each record is a NUL-terminated path, an 8-byte **little-endian** event ID and a 4-byte flags field, then 0, 8 or 12 more bytes depending on the version.
+- The flags field is the trap. The reference parser (FSEventsParser 4.1) reads it as the bytes' hex in stored order, which is **big-endian**. Read it little-endian and *Removed* (\`0x02000000\`) will never match.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""bracket.py IMAGE OFFSET BODYFILE NAME - when was NAME deleted, as tightly as the evidence allows."""
+import gzip, subprocess, sys
+from datetime import datetime, timezone
+
+image, offset, bodyfile, target = sys.argv[1:5]
+REMOVED = 0x02000000                                   # on-disk mask, read big-endian (FSEventsParser 4.1)
+utc = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M:%SZ")
+
+own, pages = [], []
+for line in open(bodyfile, encoding="utf-8", errors="replace"):
+    p = line.rstrip("\\n").split("|")
+    if len(p) != 11:
+        continue
+    name, inode, times = p[1], p[2], [int(x) for x in p[7:11]]
+    if name.removesuffix(" (deleted)").lstrip("/") == target:
+        own += [t for t in times if t]                 # every time the file itself carries
+    elif name.startswith("/.fseventsd/") and not name.endswith("-uuid"):
+        pages.append((times[3], inode, name))          # crtime = when the page was written
+
+records = []
+for born, inode, name in sorted(pages):
+    raw = gzip.decompress(subprocess.run(["icat", "-o", offset, image, inode],
+                                         capture_output=True, check=True).stdout)
+    extra = {b"1SLD": 0, b"2SLD": 8, b"3SLD": 12}[raw[:4]]
+    i = 12
+    while i < len(raw):
+        j = raw.index(b"\\0", i)
+        path = raw[i:j].decode(errors="replace")
+        event_id = int.from_bytes(raw[j + 1:j + 9], "little")
+        flags = int.from_bytes(raw[j + 9:j + 13], "big")
+        i = j + 13 + extra
+        if path == target:
+            records.append((event_id, flags, born, name))
+
+for event_id, flags, born, name in sorted(records):
+    print(f"event {event_id:#x}  flags {flags:#010x}  removed={bool(flags & REMOVED)}  in {name} (page born {utc(born)})")
+gone = [r for r in sorted(records) if r[1] & REMOVED]
+if not gone:
+    sys.exit("No removal record: the bracket cannot be closed from FSEvents.")
+print(f"NOT BEFORE {utc(max(own))}  the file's own latest timestamp")
+print(f"NOT AFTER  {utc(gone[0][2])}  birth of the first page that records the removal")
+\`\`\`
+
+\`\`\`text
+$ python3 bracket.py evidence.dmg 1 bodyfile.txt payroll_export.csv
+event 0x6af142f  flags 0x05028000  removed=False  in /.fseventsd/0000000006af153a (page born 19:50:33Z)
+event 0x6af1539  flags 0x12008000  removed=True  in /.fseventsd/0000000006af153a (page born 19:50:33Z)
+NOT BEFORE 19:50:24Z  the file's own latest timestamp
+NOT AFTER  19:50:33Z  birth of the first page that records the removal
+$ python3 bracket.py evidence.dmg 1 bodyfile.txt plan.txt
+event 0x6af13a1  flags 0x05028000  removed=False  in /.fseventsd/0000000006af153a (page born 19:50:33Z)
+event 0x6af14ab  flags 0x10008000  removed=False  in /.fseventsd/0000000006af153a (page born 19:50:33Z)
+No removal record: the bracket cannot be closed from FSEvents.
+\`\`\`
+
+The true deletion was 19:50:32 and the bracket contains it. Decode the flags with FSEventsParser's mask. \`0x05028000\` is Created, InodeMetaMod, ExtendedAttrModified and FileEvent: the file was created and its extended attributes were set (FAT cannot hold them, so macOS writes them to the \`._\` file beside it). \`0x12008000\` is **Removed**, Modified and FileEvent. \`0x10008000\` on \`plan.txt\` is the append. The event IDs give the **order** (create < remove), and only the page gives a **time**.
+
+Common wrong attempts: reading flags little-endian (nothing is ever "removed"); taking the page's *modified* time instead of its *born* time; stripping \`" (deleted)"\` with \`rstrip\`, which strips a *set of characters*, so a file named \`failed\` would lose its \`ed\`. Use \`removesuffix\`. And reporting the upper bound as "the deletion time": see challenge 3.
+
+</details>
+
+#### 🔴 Drill 3 — Write the finding ~20 min
+
+**Goal.** Write the paragraph of a forensic report that states what happened to \`payroll_export.csv\`, from your own run. It must name the evidence and its hash, the tools and versions, the zone applied and where it came from, the finding as a bracket with its resolution, one alternative explanation, and one limitation.
+
+**Done when.** A classmate who has only your paragraph and your \`evidence.dmg\` can re-run every step and reach the same bracket, and nothing in the paragraph is more precise than the evidence.
+
+<details><summary>Walkthrough</summary>
+
+A model answer, from the run above:
+
+> **Item 1:** \`evidence.dmg\`, a 16 MB FAT16 image, SHA-256 \`34a5161e…a546\` at acquisition and again after analysis (match). **Tools:** The Sleuth Kit 4.15.0 (\`fls\`, \`icat\`, \`mactime\`); \`bracket.py\` (attached). **Zone:** FAT stores local time without a zone indicator. Times were converted with \`fls -z <zone>\` (UTC+01:00), the zone of the Mac that wrote the volume, taken from its \`/etc/localtime\`. All times below are UTC.
+>
+> **Finding:** \`payroll_export.csv\` (42 bytes, directory entry 11) was created at 19:50:24Z and deleted **not before 19:50:24Z and not after 19:50:33Z**. The lower bound is the file's own latest timestamp. FAT floors write times to 2 seconds, so the true time may be up to 2 seconds later. The upper bound is the birth time of the FSEvents page \`0000000006af153a\`, which contains a *Removed* record for the file. FAT records no deletion time.
+>
+> **Alternatives considered:** that the file was never deleted and the entry is corrupt. This is excluded by the FSEvents *Removed* record, which macOS writes independently of the directory entry. **Limitation:** the bracket depends on the writer's zone being that UTC+01:00 zone for the whole session. If the volume was also written by another machine, times from that machine need their own zone.
+
+Notice what it does *not* say: who deleted the file, or why. Nothing on this image can answer either question.
+
+Common wrong attempts: "deleted at 19:50:33"; omitting the zone because "everything is in UTC" (it is, **because** you chose a zone, and the reader must be able to check the choice); and writing "the user deleted". The image contains no user.
+
+</details>`,
+    tracker: ["Built a FAT16 image with a recorded ground truth, produced a bodyfile and a mactime timeline, and verified the hash before and after", "Showed the same image giving different birth times under two TZ settings, and fixed it with fls -z using the zone of the machine that wrote it", "Can read a timeline's non-events correctly: 0000-00-00 as 'not recorded', a midnight access time as 'date only', and a 2-second write floor", "Bracketed a deletion the filesystem never timestamped, using the file's own times and a decoded FSEvents Removed record", "Wrote a report paragraph with evidence hash, tool versions, zone and its source, a bracketed finding, an alternative explanation and a limitation", "Can explain what the State v. Amero prosecution's evidence lacked, and why the defence report's two install dates still matter"]
   }, {
     id: "m24",
     level: 3,

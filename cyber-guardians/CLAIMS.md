@@ -360,7 +360,52 @@ live. T1562 *Impair Defenses* is revoked in v19, and neither course uses it.
 | 108 | M22.5 | `hdiutil` is deprecated in macOS 27 but works; `diskutil image create blank --fs` offers only generic `MS-DOS`, so cannot choose FAT16 | `EXECUTED` + `SOURCED` | warnings observed on 27.0; `diskutil image create blank --help`; J. Johnson, lapcatsoftware.com (2026-08-07) | 2027-09 (removal expected) |
 | 109 | M22 | Volatility 3 malfind plugin is `windows.malware.malfind` (was `windows.malfind`); lab transcript labelled illustrative (hash = SHA-256 of "test") | `SOURCED` | volatility3 v2.28.2 source: `plugins/windows/malfind.py` is a `PluginRenameClass` shim, `removal_date="2026-06-07"`; PyPI latest = 2.28.2 (checked 2026-09-23) | next vol3 release |
 
+## Batch 10 — M23.7 build pass (claims ledgered as they were written)
+
+**New module, 13 rows, 0 defects shipped, 5 caught on the way in.** M23.7
+*Timeline Analysis & Reporting* was built with the same rule as M22.5: every
+command run, and every transcript taken from one verbatim re-run of the published
+lab. Its lab needs no download (it reuses M22.5's FAT16 method and the TSK 4.15.0
+build), which is why it was built before M22.7: memory forensics needs a sample
+image, and the only live public one found is 518 MB (NIST CFReDS), deferred to
+an unmetered link. The five defects caught before publication are listed under
+Fixes. Each was in the draft and would have passed the gate.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 110 | M23.7 | Without `-z`, `fls -m` converts FAT's zone-less local times using the **examiner's** `TZ`: one image gave birth times 20:50:20Z (`TZ=UTC`) and 00:50:20Z next day (`TZ=America/New_York`) for a file created at 19:50:20Z; `fls -z` with the writer's zone (UTC+01:00, name redacted) matched ground truth to the second | `EXECUTED` | TSK 4.15.0 on macOS 27.0, three runs, 2026-09-23 | next TSK release |
+| 111 | M23.7 | `mactime`'s `-z` "does not work with -y", so the zone goes on `fls` | `EXECUTED` + `SOURCED` | `mactime` usage text, TSK 4.15.0 | next TSK release |
+| 112 | M23.7 | On FAT, ctime is absent (`mactime` prints `0000-00-00T00:00:00Z`); access is date-only (local midnight = 23:00Z the previous day at UTC+01:00); write times floor to 2 s, so mtime can precede birth | `EXECUTED` | lab transcript; FAT resolutions already ledgered for M22.5 | stable (on-disk format) |
+| 113 | M23.7 | Deletion bracket: FSEvents *Removed* record, page birth as upper bound; bracket [19:50:24Z, 19:50:33Z] held true deletion 19:50:32Z. Pages were born at eject in 3/3 runs, which the course states as an observation, not a guarantee | `EXECUTED` | three runs 2026-09-23 | if macOS changes FSEvents flushing |
+| 114 | M23.7 | FSEvents on-disk flag mask: Created `0x01000000`, Removed `0x02000000`, InodeMetaMod `0x04000000`, Modified `0x10000000`, ExtendedAttrModified `0x00020000`, FileEvent `0x00008000`; the flags are read big-endian (`raw_record[8:12].hex()`), the event ID little-endian; `1SLD`/`2SLD`/`3SLD` add 0/8/12 trailing bytes | `SOURCED` + `EXECUTED` | dlcowen/FSEventsParser `FSEParser_V4.1.py` lines 59–80, 1040, 1057; decoded against lab ground truth | stable |
+| 115 | M23.7 | plaso 20260720 (PyPI latest, 2026-07-21): `log2timeline.py -z/--zone/--timezone` = "preferred time zone of extracted date and time values that are stored without a time zone indicator", **defaults to UTC**; `psort.py` outputs UTC by default; `--storage-file`, `-o l2tcsv -w` syntax | `SOURCED` | `plaso/cli/extraction_tool.py` at tag 20260720; plaso.readthedocs.io Using-log2timeline / Using-psort | next plaso release |
+| 116 | M23.7 | NIST SP 800-86 (Aug 2006, final): four phases *collection, examination, analysis, reporting*; file times "may not always be accurate" (clock wrong; "not recorded with the expected level of detail"); knowing time/date/zone settings "can greatly assist an analyst" | `SOURCED` | nvlpubs.nist.gov SP 800-86 PDF, text lines quoted | if SP 800-86 is revised or withdrawn |
+| 117 | M23.7 | Windows zone: SYSTEM hive `ControlSet00x\Control\TimeZoneInformation\TimeZoneKeyName`, control set from `Select\Current`; `CurrentControlSet` exists only live | `SOURCED` | winreg-kb (libyal) Time-zones page; Microsoft Learn TIME_ZONE_INFORMATION; Windows block marked not executed | stable |
+| 118 | M23.7 | ext4 inodes carry a deletion time (`i_dtime`); NTFS logs deletions in the USN journal | `SOURCED` | linux `fs/ext4/ext4.h` (`__le32 i_dtime; /* Deletion Time */`); USN per M22.5 rows | stable |
+| 119 | M23.7 | State v. Amero: incident 19 Oct 2004, Kelly Middle School, Norwich CT; convicted 5 Jan 2007 on four counts of risk of injury to a minor; new trial granted 6 Jun 2007; 21 Nov 2008 plea to disorderly conduct, teaching credentials surrendered; the detective testified the machine was never checked for malware | `SOURCED` | Wikipedia *State v. Amero*; GovTech "Teacher Granted New Trial"; InfoWorld | stable (closed case) |
+| 120 | M23.7 | Eckelberry et al., *Technical review of the Trial Testimony*, 21 Mar 2007: detective relied solely on ComputerCop Professional; "red" link claim false, registry link colour `96,100,32` greenish grey; newdotnet install **12 Oct 2004 in the body vs "14-Oct-2004 15:35" in the footnote**, apparently via a Halloween screensaver, no browsing at install time | `SOURCED` | primary PDF (thatinfosecguy.com mirror of the Sunbelt original), lines read directly | stable |
+| 121 | M23.7 | Challenge arithmetic: 8 Mar 2026 00:00 America/New_York = 05:00Z (EDT from 02:00 local); Berlin UTC+2 summer, UTC+1 winter | `EXECUTED` | Python `zoneinfo` | stable |
+| 122 | M0 | Module count 43 → **44**; pace estimate 44 × 5–6 h ÷ 4 h/week = **55–66 weeks** | `EXECUTED` | gate `module-count`; arithmetic | on every new module |
+
 ## Fixes applied in this pass
+
+**Batch 10 (2026-09-23) — five defects caught while building M23.7; none shipped.**
+
+1. **Lab step 6 filter** `grep '\.\.\.b'` matched only rows whose Type was exactly
+   `...b`. In one verbatim re-run it silently dropped the FSEvents page births,
+   because mtime fell in the same second (`m..b`). Now `grep -E ',[m.][a.][c.]b,'`. Guard `A91`.
+2. **Theory overclaim:** "no filesystem records a deletion time". False: ext4 has
+   `i_dtime`, and NTFS logs deletions in the USN journal. Scoped to FAT. Guard `A92`.
+3. **Drill 2 script:** `name.rstrip(" (deleted)")` strips a *character set*, so
+   `failed` would become `fail`. Now `removesuffix`, and taught as a wrong attempt. Guard `A93`.
+4. **FSEvents flags read little-endian** in the first decode: *Removed* would never
+   match. The reference parser reads them big-endian. Guard `A94`.
+5. **Dangling promise:** the new M22 label said a real transcript "arrives with
+   M22.7". The gate resolved `M22.7` as a section of M22, so it stayed green, which
+   is the "cross-ref promising absent coverage" shape. Reworded before commit.
+
+Also removed before commit: a troubleshooting tip ("you ejected very quickly")
+that no run had tested. It was replaced with what three runs actually showed.
 
 **Batch 9 (2026-09-23) — one stale standard, found by building, not auditing.**
 

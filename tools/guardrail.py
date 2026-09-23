@@ -865,6 +865,19 @@ BANNED = [
     (r"\bwindows\.malfind\b",
      "Volatility 3 2.28 moved malfind to windows.malware.malfind; the old name is a "
      "deprecated alias past its 2026-06-07 removal date (Guardians ledger row 109)", "A90"),
+    # Raw-file scan: inside a template literal every backslash is doubled.
+    (r"grep '(?:\\{1,2}\.){3}b'",
+     "a Type filter of exactly '...b' drops birth rows that share their second with "
+     "another time (m..b); match ',[m.][a.][c.]b,' (Guardians ledger Batch 10, fix 1)", "A91"),
+    (r"(?i)\bno (?:file ?systems?|filesystems?) (?:records?|keeps?|stores?)\b[^.\n]{0,20}\bdeletion time",
+     "false universal: ext4 keeps i_dtime and NTFS logs deletions in the USN journal; "
+     "scope the claim to FAT (Guardians ledger row 118)", "A92"),
+    (r"rstrip\(\s*[\"'] \(deleted\)",
+     "str.rstrip strips a character SET ('failed' -> 'fail'); use removesuffix "
+     "(Guardians ledger Batch 10, fix 3)", "A93"),
+    (r"flags\s*=\s*int\.from_bytes\([^\n]*[\"']little[\"']",
+     "FSEvents on-disk flags are read big-endian (FSEventsParser 4.1); little-endian "
+     "never matches Removed 0x02000000 (Guardians ledger row 114)", "A94"),
 ]
 
 
@@ -1089,6 +1102,9 @@ TOPIC_ANCHORS = {
         "fsevents": ["M22.5"],
         "prefetch": ["M22.5"],
         "amcache": ["M22.5"],
+        "mactime": ["M23.7"],
+        "plaso": ["M23.7"],
+        "super timeline": ["M23.7"],
     },
     "appsec": {
         # 0.5 introduces it hands-on from first principles; 3.2 is the deep dive.
