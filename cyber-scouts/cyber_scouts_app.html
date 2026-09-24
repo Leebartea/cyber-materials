@@ -803,7 +803,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 | S1.3 | Certificate transparency: finding names in the public certificate logs | ✅ available |
 | S1.4 | People and organisations: official registers, identity and the minimum necessary | ✅ available |
 | S1.5 | Breach exposure: checking without handling stolen data | ✅ available |
-| — | Geospatial: where a photo was taken | planned |
+| S1.6 | Geospatial: where a photo was taken | ✅ available |
 | — | Capstone: an investigation report | planned |
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
@@ -2435,6 +2435,408 @@ Each line of the function guards against a real failure:
 "Not found" does not make a password strong. It means only that this exact password is not among those HIBP has collected from breaches.
 </details>`,
     tracker: ["Can explain why breach data itself is out of bounds, and what s.170 DPA 2018 covers", "Read every breach flag, and can explain why Paytm is verified and fabricated at once", "Treated BreachDate as a guide and PwnCount as addresses, not people", "Told an organisation's own breaches from its staff's exposure, and knew which one needs authorisation", "Checked a password with k-anonymity and padding, sending only five characters", "Built a password check that refuses empty input and reports UNKNOWN when the request fails"]
+  }, {
+    id: "s1_6",
+    level: 1,
+    num: "S1.6",
+    title: "Geospatial — Where a Photo Was Taken, and How Sure You Can Be",
+    objective: `Read the location and time a photo claims about itself; apply the hemisphere sign correctly; report a position with no more precision than its stated error; derive the time zone from the camera and GPS clocks; test title, position and heading against independent coordinates; and strip location from a file, then prove it is gone.`,
+    theory: `#### Define the words first
+
+- **Geolocation** — working out *where* a photo or video was taken. **Chronolocation** is the same question about *when*.
+- **EXIF** — the metadata standard cameras and phones use to write facts about a photo into the file itself: the device, the settings, the time and, if location was switched on, a GPS position.
+- **XMP** — a second, more general metadata format. Some software writes location into it, so a file can carry a position in XMP even when its EXIF has none.
+- **Decimal degrees** — a position as two signed numbers, such as \`51.507428, -0.078081\`. Latitude first. North and east are positive; south and west are negative.
+- **DMS** — the same position as degrees, minutes and seconds plus a letter: \`51° 30' 26.74" N\`. EXIF stores it this way, with the letter in a separate **Ref** tag.
+- **Datum** — the model of the Earth the numbers refer to. GPS uses **WGS 84**. A position without a datum is ambiguous: a phone's position is most likely WGS 84, but the file only says so if it records a datum.
+- **Heading** — the direction the camera was pointing, in degrees clockwise from north (0 = north, 90 = east). EXIF stores it as \`GPSImgDirection\`, measured from true or magnetic north.
+
+#### The line this module never crosses
+
+A photo's location is the most dangerous fact in open-source research, because it can lead someone to a person's door. So this module only ever examines **photos of public places, published by their authors for reuse**. The lab uses one such photo. The same technique pointed at a photo of a person, or at their home, is how people get stalked.
+
+In England and Wales, section 2A of the Protection from Harassment Act 1997 makes stalking an offence. It covers a course of conduct that amounts to harassment and involves acts "associated with stalking". The Act's own examples include "monitoring the use by a person of the internet, email or any other form of electronic communication" and "watching or spying on a person". Working out where someone lives from their photos, as part of that kind of conduct, fits those examples.
+
+So, as a rule for this course: **never geolocate a photo of a person, or of anywhere a person lives, and never work out who took a photo or where they live.** The lab's scope file says the same thing.
+
+#### Whose log? Three of them
+
+- **Wikimedia's.** Commons and Wikidata see your IP address, which file and which items you asked for, and your **User-Agent**. Wikimedia's User-Agent policy asks scripts to include contact details, and scripts without an informative User-Agent "may be blocked without notice". The lab asks you to put your own address in \`CONTACT\`. Leave the placeholder and \`upload.wikimedia.org\` refuses it: when this module was written, the exact string \`you@example.com\` got HTTP 403, while other addresses were accepted.
+- **Yours.** The collection log from S1.1, one line per request.
+- **The photographer's.** EXIF is a log the photographer's phone wrote without asking. Everything in Step 2 comes from it, which is why the photographer's consent to publish it matters.
+
+#### Step 1 — prove the bytes before you read them
+
+Commons publishes a SHA-1 hash of every upload. The lab compares it with the SHA-1 of the file you downloaded. If they differ, you are not looking at the file Commons describes, and nothing you read from it is evidence. Your log also records a SHA-256 of the file, as in S1.1.
+
+#### Step 2 — read what the file claims, as it stores it
+
+The photo, \`LONDON BRIDGE.jpg\`, was taken on an iPhone 8 and uploaded to Commons in 2018. Its EXIF says:
+
+\`\`\`text
+GPSLatitude                     : 51 deg 30' 26.74" N
+GPSLongitude                    : 0 deg 4' 41.09" W
+GPSHPositioningError            : 10 m
+GPSImgDirectionRef              : True North
+GPSImgDirection                 : 75.18820225
+GPSMapDatum                     : -
+\`\`\`
+
+Three things to notice:
+
+- **The letter is a separate tag.** EXIF stores \`0 deg 4' 41.09"\` and, elsewhere, \`W\`.
+- **The error is stated: 10 m.** \`GPSHPositioningError\` is the device's own estimate of how far off its position might be. It is an estimate, not a guarantee.
+- **There is no datum.** The Exif standard says recording \`GPSMapDatum\` is "strongly recommended" when there is any GPS data. This phone did not record it. Your report should say "WGS 84 assumed", not "WGS 84".
+
+#### Step 3 — the sign trap
+
+Ask ExifTool for plain numbers (\`-n\`) and the GPS tag gives \`0.0780805555555556\`: **positive**. The minus sign lives in \`GPSLongitudeRef\`. ExifTool's **Composite** tag combines the two and gives \`-0.0780805555555556\`. Use the Composite value, or apply the Ref yourself.
+
+This mistake is easy to make and hard to notice. A longitude of +0.078 instead of −0.078 is 0.156° further east, which at London's latitude is about 11 km. The wrong point is still in London and still plausible. Nothing warns you.
+
+#### Step 4 — precision is not accuracy
+
+The lab prints six decimal places: \`51.507428, -0.078081\`. Six places resolve about 0.1 m. The phone says it could be 10 m out. Workbench Drill 1 works out that four places, about 11 m north–south, is the most this photo supports. Write \`51.5074, -0.0781 (±10 m, device-stated)\`. More digits would claim a precision the evidence does not have.
+
+#### Step 5 — two clocks
+
+\`\`\`text
+DateTimeOriginal                : 2018:08:26 09:42:06
+OffsetTimeOriginal              : -
+GPSDateTime                     : 2018:08:26 08:42:06Z
+\`\`\`
+
+\`DateTimeOriginal\` is the camera's local clock, with **no time zone**. The Exif standard only added tags for the zone offset (\`OffsetTime…\`) in version 2.31, in July 2016, and this file does not have one. The GPS stamp is different: the standard defines it as UTC. So the two clocks together give the offset: one hour. London on 26 August 2018 was on British Summer Time, UTC+1, so the clocks agree with the position. Drill 2 checks that against the time-zone database instead of from memory.
+
+If the clocks disagree, that is a finding. The camera's clock might be set wrong, or the file might have been edited. Report it; do not choose the one you prefer.
+
+#### Step 6 — test every claim against something independent
+
+The file makes three claims about place. Test each one.
+
+1. **The title says "London Bridge".** The Commons description says "The famous London Tower Bridge", and the file is in the category *Remote views of Tower Bridge*. They are different bridges. Using Wikidata's coordinates, the lab measures from the camera: **Tower Bridge 285 m away, bearing 137°; London Bridge 675 m away, bearing 276°**, almost the opposite direction. This is why a title is a lead, never a fact.
+2. **The GPS says where the camera was, not where the subject is.** The photo is described as showing a bridge 285 m from the position it records. A report that gives the GPS position as "the location of Tower Bridge" is wrong by 285 m.
+3. **The heading says 75°, roughly east-north-east.** Tower Bridge's recorded point is at 137°. The heading misses it by about 62°. A heading is a sensor reading, and sensors are sometimes wrong. You cannot tell from the file why this one is wrong, and your report should not guess. Write: "The recorded heading (75°) is inconsistent with the bearing to the subject (137°); the heading is not relied on."
+
+#### Step 7 — what stripping removes, and what it cannot
+
+\`exiftool -all=\` writes a copy with no metadata. The lab proves it by counting every tag with GPS in its name, in the original and in the copy. It does not check just the EXIF GPS block, because a file can carry its position in XMP too.
+
+Stripping removes the metadata, not the picture. A photo of Tower Bridge still shows Tower Bridge. Finding a place from what is in the picture is **visual geolocation**: landmarks, signs, skylines, the angle of shadows. It follows the same discipline as this module. Each clue is a claim. It needs an independent source, and the report says which clue supports which conclusion.
+
+Whether a website keeps or removes metadata from uploaded photos is that site's choice, and it can change without notice. Do not rely on it for your own photos. Strip them yourself before you share them, and check the copy you are about to publish (Drill 3).
+
+#### What a photo's metadata proves — and what it does not
+
+EXIF, collected and hashed the S1.1 way, proves that **this file says this about itself**. It does not prove that:
+
+- **The position is right.** It is an estimate with a stated error, and the datum may be missing.
+- **The subject is at that position.** The GPS records the camera.
+- **The time is local time in any known zone.** Without an offset tag, you have to work it out.
+- **Nobody edited it.** Any tag can be rewritten with the same tool that reads it. The case study is about what happens when someone claims exactly that.
+
+MITRE ATT&CK lists **T1591.001 Determine Physical Locations** under T1591 Gather Victim Org Information (reconnaissance). An attacker's use of photos is exactly this module's technique. The defender's use is the other half: checking your organisation's photos, and your own, before anyone else does.`,
+    lab: {
+      mac: `# LAB: test every location claim in one public landmark photo (Apple Silicon)
+# ETHICS: the photo is a Wikimedia Commons upload of Tower Bridge, published by its author under
+# CC BY-SA 4.0 with its metadata left in on purpose. No person is the subject, and nothing here is
+# ever pointed at a photo of a person, a home or anything you were not given to examine.
+# NEEDS: exiftool - run: brew install exiftool
+ANALYST=analyst01
+CONTACT="you@example.com"   # Wikimedia asks scripts to identify themselves: put your own address here
+mkdir -p ~/scouts-case/s1_6/evidence && cd ~/scouts-case/s1_6
+[ "$CONTACT" = "you@example.com" ] && { echo "set CONTACT first: Wikimedia refuses this placeholder with HTTP 403"; exit 1; }
+command -v exiftool >/dev/null || { echo "exiftool not found - run: brew install exiftool"; exit 1; }
+
+cat > scope.txt <<'SCOPE'
+case:        S1.6 practice
+authorised:  self (one openly licensed Commons photo of a public landmark; Wikidata coordinates)
+in scope:    where and when the file says it was taken, and whether those claims hold up
+out of scope: any photo of a person or a home; working out who took a photo or where they live;
+             any image not published for reuse
+SCOPE
+
+# collect ID URL EXT - as S1.4, with Wikimedia's requested User-Agent.
+collect() {
+  local T H id=$1 url=$2 ext=$3
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  curl -sfL --retry 3 --retry-all-errors -A "CyberScoutsLab/1.0 ($CONTACT)" -o "evidence/$id.$ext" "$url" || { echo "FAILED: $id"; return 1; }
+  H=$(shasum -a 256 "evidence/$id.$ext" | cut -d' ' -f1)
+  printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$id" "$T" "$ANALYST" "$url" "$H" >> collection_log.tsv
+  sleep 1
+}
+API="https://commons.wikimedia.org/w/api.php"
+WD="https://www.wikidata.org/w/api.php"
+
+# 1. The Commons record for the file, then the file itself. Commons publishes a SHA-1 of every
+#    upload, so you can prove the bytes you examine are the bytes it holds.
+collect record "$API?action=query&format=json&titles=File:LONDON_BRIDGE.jpg&prop=imageinfo&iiprop=url|sha1|size" json || exit 1
+collect photo "$(jq -r '.query.pages[].imageinfo[0].url' evidence/record.json)" jpg || exit 1
+WANT=$(jq -r '.query.pages[].imageinfo[0].sha1' evidence/record.json)
+GOT=$(shasum -a 1 evidence/photo.jpg | cut -d' ' -f1)
+[ "$WANT" = "$GOT" ] && echo "SHA-1 matches the Commons record: $GOT" || { echo "SHA-1 MISMATCH - stop"; exit 1; }
+
+# 2. What the camera recorded: degrees-minutes-seconds plus a letter. -f prints "-" for a tag
+#    the file does not have, so what is missing shows up too.
+exiftool -s -f -Make -Model -GPSLatitude -GPSLatitudeRef -GPSLongitude -GPSLongitudeRef \\
+  -GPSHPositioningError -GPSImgDirectionRef -GPSImgDirection -GPSMapDatum evidence/photo.jpg
+
+# 3. The sign trap. -n gives plain numbers, but the GPS tag alone has no sign: West is in the Ref.
+#    ExifTool's Composite tag applies it. Always read the Composite value, or apply the Ref yourself.
+exiftool -n -s -GPS:GPSLongitude -GPS:GPSLongitudeRef -Composite:GPSLongitude evidence/photo.jpg
+read -r LAT LON <<< "$(exiftool -n -s3 -Composite:GPSLatitude -Composite:GPSLongitude evidence/photo.jpg | tr '\\n' ' ')"
+printf "camera position (decimal degrees): %.6f, %.6f\\n" "$LAT" "$LON"
+
+# 4. Two clocks. DateTimeOriginal is local time with no zone; the GPS stamp is UTC.
+exiftool -s -f -DateTimeOriginal -OffsetTimeOriginal -GPSDateTime evidence/photo.jpg
+
+# 5. Test the title and the heading against geometry. Wikidata property P625 = coordinates.
+collect tower "$WD?action=wbgetclaims&format=json&entity=Q83125&property=P625" json
+collect london "$WD?action=wbgetclaims&format=json&entity=Q130206&property=P625" json
+for B in tower london; do
+  read -r BLAT BLON <<< "$(jq -r '.claims.P625[0].mainsnak.datavalue.value | "\\(.latitude) \\(.longitude)"' evidence/$B.json)"
+  awk -v a="$LAT" -v b="$LON" -v c="$BLAT" -v d="$BLON" -v n="$B" 'BEGIN{r=atan2(0,-1)/180
+    p1=a*r; p2=c*r; dl=(d-b)*r
+    br=atan2(sin(dl)*cos(p2), cos(p1)*sin(p2)-sin(p1)*cos(p2)*cos(dl))/r; if(br<0) br+=360
+    h=sin((p2-p1)/2)^2+cos(p1)*cos(p2)*sin(dl/2)^2; m=2*6371008.8*atan2(sqrt(h),sqrt(1-h))
+    printf "%-6s bridge: bearing %5.1f deg, %4.0f m from the camera\\n", n, br, m}'
+done
+
+# 6. Strip every metadata tag into a copy and prove the location is gone from it. The check
+#    counts any tag with GPS in its name, in any group - not just the EXIF GPS block.
+rm -f evidence/stripped.jpg; exiftool -q -all= -o evidence/stripped.jpg evidence/photo.jpg
+echo "GPS tags in the original: $(exiftool -a -s '-*gps*' evidence/photo.jpg | wc -l | tr -d ' ')   in the stripped copy: $(exiftool -a -s '-*gps*' evidence/stripped.jpg | wc -l | tr -d ' ')"
+awk -F'\\t' '{printf "%-7s %s %.12s...\\n", $1, $2, $5}' collection_log.tsv`,
+      windows: `# PowerShell 7 - the same case (not run on Windows by the author; the macOS version is the
+# tested reference). Same ETHICS as above. NEEDS: exiftool - run: winget install OliverBetz.ExifTool
+$Analyst = "analyst01"
+$Contact = "you@example.com"   # Wikimedia asks scripts to identify themselves: put your own address here
+if ($Contact -eq "you@example.com") { "set Contact first: Wikimedia refuses this placeholder with HTTP 403"; return }
+if (-not (Get-Command exiftool -ErrorAction SilentlyContinue)) { "exiftool not found - run: winget install OliverBetz.ExifTool"; return }
+New-Item -ItemType Directory -Force -Path "$HOME\\scouts-case\\s1_6\\evidence" | Out-Null
+Set-Location "$HOME\\scouts-case\\s1_6"
+
+function Collect($Id, $Url, $Ext) {
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  Invoke-WebRequest -Uri $Url -OutFile "evidence\\$Id.$Ext" -UserAgent "CyberScoutsLab/1.0 ($Contact)" -MaximumRetryCount 3 -RetryIntervalSec 5
+  $H = (Get-FileHash "evidence\\$Id.$Ext" -Algorithm SHA256).Hash.ToLower()
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+  Start-Sleep -Seconds 1
+}
+$Api = "https://commons.wikimedia.org/w/api.php"
+$Wd = "https://www.wikidata.org/w/api.php"
+
+# 1. Record, file, and the SHA-1 check against Commons.
+Collect record "\${Api}?action=query&format=json&titles=File:LONDON_BRIDGE.jpg&prop=imageinfo&iiprop=url|sha1|size" json
+$Info = (Get-Content evidence\\record.json -Raw | ConvertFrom-Json).query.pages.PSObject.Properties.Value.imageinfo[0]
+Collect photo $Info.url jpg
+$Got = (Get-FileHash evidence\\photo.jpg -Algorithm SHA1).Hash.ToLower()
+if ($Got -ne $Info.sha1) { "SHA-1 MISMATCH - stop"; return }
+"SHA-1 matches the Commons record: $Got"
+
+# 2-4. Stored values, the sign trap, and the two clocks.
+exiftool -s -f -Make -Model -GPSLatitude -GPSLatitudeRef -GPSLongitude -GPSLongitudeRef -GPSHPositioningError -GPSImgDirectionRef -GPSImgDirection -GPSMapDatum evidence\\photo.jpg
+exiftool -n -s -GPS:GPSLongitude -GPS:GPSLongitudeRef -Composite:GPSLongitude evidence\\photo.jpg
+$Lat = [double](exiftool -n -s3 -Composite:GPSLatitude evidence\\photo.jpg)
+$Lon = [double](exiftool -n -s3 -Composite:GPSLongitude evidence\\photo.jpg)
+"camera position (decimal degrees): {0:F6}, {1:F6}" -f $Lat, $Lon
+exiftool -s -f -DateTimeOriginal -OffsetTimeOriginal -GPSDateTime evidence\\photo.jpg
+
+# 5. Bearing and distance to each bridge from Wikidata's coordinates.
+foreach ($B in @(@("tower", "Q83125"), @("london", "Q130206"))) {
+  Collect $B[0] "\${Wd}?action=wbgetclaims&format=json&entity=$($B[1])&property=P625" json
+  $V = (Get-Content "evidence\\$($B[0]).json" -Raw | ConvertFrom-Json).claims.P625[0].mainsnak.datavalue.value
+  $r = [math]::PI / 180; $p1 = $Lat * $r; $p2 = $V.latitude * $r; $dl = ($V.longitude - $Lon) * $r
+  $br = [math]::Atan2([math]::Sin($dl) * [math]::Cos($p2), [math]::Cos($p1) * [math]::Sin($p2) - [math]::Sin($p1) * [math]::Cos($p2) * [math]::Cos($dl)) / $r
+  if ($br -lt 0) { $br += 360 }
+  $h = [math]::Pow([math]::Sin(($p2 - $p1) / 2), 2) + [math]::Cos($p1) * [math]::Cos($p2) * [math]::Pow([math]::Sin($dl / 2), 2)
+  $m = 2 * 6371008.8 * [math]::Atan2([math]::Sqrt($h), [math]::Sqrt(1 - $h))
+  "{0,-6} bridge: bearing {1,5:F1} deg, {2,4:F0} m from the camera" -f $B[0], $br, $m
+}
+
+# 6. Strip into a copy and prove the GPS tags are gone.
+Remove-Item evidence\\stripped.jpg -ErrorAction SilentlyContinue
+exiftool -q -all= -o evidence\\stripped.jpg evidence\\photo.jpg
+"GPS tags left in the stripped copy: $(@(exiftool -s -gps:all evidence\\stripped.jpg).Count)"
+Import-Csv collection_log.tsv -Delimiter "\`t" -Header Id, Time, Analyst, Url, Sha256 | Format-Table Id, Time, Sha256`,
+      linux: `# Identical to macOS with two substitutions:
+#   sudo apt install libimage-exiftool-perl   instead of   brew install exiftool
+#   sha256sum / sha1sum                       instead of   shasum -a 256 / shasum -a 1
+# jq, curl and awk behave the same. The <<< here-strings are a bash feature: run the lab
+# with bash, not sh (on Debian and Ubuntu, sh is dash and does not support them).`,
+      expected: {
+        mac: `\`\`\`text
+SHA-1 matches the Commons record: c6bac702d58366bca4915ee5b970461f12929cec
+Make                            : Apple
+Model                           : iPhone 8
+GPSLatitude                     : 51 deg 30' 26.74" N
+GPSLatitudeRef                  : North
+GPSLongitude                    : 0 deg 4' 41.09" W
+GPSLongitudeRef                 : West
+GPSHPositioningError            : 10 m
+GPSImgDirectionRef              : True North
+GPSImgDirection                 : 75.18820225
+GPSMapDatum                     : -
+GPSLongitude                    : 0.0780805555555556
+GPSLongitudeRef                 : W
+GPSLongitude                    : -0.0780805555555556
+camera position (decimal degrees): 51.507428, -0.078081
+DateTimeOriginal                : 2018:08:26 09:42:06
+OffsetTimeOriginal              : -
+GPSDateTime                     : 2018:08:26 08:42:06Z
+tower  bridge: bearing 137.0 deg,  285 m from the camera
+london bridge: bearing 275.9 deg,  675 m from the camera
+GPS tags in the original: 20   in the stripped copy: 0
+record  2026-09-24T17:40:29Z df48d5c41c76...
+photo   2026-09-24T17:40:32Z 49e94c07bf33...
+tower   2026-09-24T17:40:41Z 26af344514b4...
+london  2026-09-24T17:40:45Z fb5da2a65a58...
+\`\`\`
+
+That is the run on 24 September 2026. Everything above the log should match yours exactly, because a Commons upload never changes under the same SHA-1. The log lines differ, and each for a reason:
+
+- **The times** are when *you* collected.
+- **\`photo\`** should match: the SHA-256 of the same bytes is always the same.
+- **\`record\`, \`tower\` and \`london\`** are live API answers. They match only while nobody edits the Commons page or the Wikidata items. If a bearing moves by a few tenths of a degree, someone has refined a bridge's coordinates. Record it; do not "fix" it.
+
+If the first line says \`SHA-1 MISMATCH\`, stop: the file you downloaded is not the one Commons describes, and nothing after that step would be evidence. If a step prints \`FAILED\`, run the lab again; the Wikimedia APIs sometimes throttle. The lab will not start while \`CONTACT\` is still the placeholder, because \`upload.wikimedia.org\` answers that exact string with HTTP 403.`
+      }
+    },
+    caseStudy: {
+      title: "John McAfee, December 2012 — the metadata was right, and it still needed checking",
+      body: `**What happened.** On 3 December 2012, Vice published a photo of John McAfee, then a fugitive, with Vice's editor-in-chief. The photo had been taken on an iPhone 4S, and nobody had removed its EXIF. A Twitter user, @simplenomad, pointed out the metadata the same day. Its GPS tags read about 15.658167, −88.992167, in Guatemala. Scientific American reported that the spot was the Ranchon Mary resort. Vice then removed the metadata and posted the photo again.
+
+**The claim and the counter-claim.** McAfee first said in a blog post that the metadata had been "manipulated" to mislead the authorities, and later removed that post. On 4 December he wrote: "Vice Magazine reporters are indeed with me in Guatemala. Yesterday was chaotic due to the accidental release of my exact co-ordinates." He added: "I am in Guatemala and will be meeting with Guatemalan officials this morning."
+
+**Why it matters for this module.** Both of McAfee's statements were possible. EXIF can be rewritten with the same tools that read it, so "the metadata was faked" is not absurd. It just turned out to be false. On 3 December, anyone reporting "McAfee is in Guatemala" on the strength of the EXIF alone was relying on a single, editable source. Naming a resort from the coordinates added nothing independent: it came from the same tags. What made the location reliable was a separate source, McAfee's own admission a day later.
+
+That is the discipline from Step 6. A GPS tag is a claim the file makes about itself. It becomes a finding only when something independent agrees with it.
+
+**The part this course does not copy.** The people who read that photo's EXIF were locating a person, in public, within hours. This module never does that, for the reasons in "The line this module never crosses". The technique is the same one you practise on a bridge; the difference is the target.
+
+*Sources: Graham Cluley, "Fugitive John McAfee's location revealed by photo meta-data screw-up", 3 December 2012 (device, coordinates, @simplenomad). Scientific American / TechNewsDaily, "McAfee's Rookie Mistake Gives Away His Location", 4 December 2012 (Ranchon Mary, the "manipulated" claim, McAfee's quotes, Vice's re-posting).*`
+    },
+    challenges: [{
+      q: `A classmate shows you a photo a friend posted of their new flat, "just to practise geolocation", and says: "It's already public, so where's the harm?" What do you say?`,
+      a: `No. This course never geolocates a photo of a person or of anywhere a person lives, and "public" is not permission, as in S1.1. Working out where someone lives from their photos is exactly the kind of act the Protection from Harassment Act 1997 lists as associated with stalking: "watching or spying on a person", "monitoring" their online activity. Calling it practice does not change the technique or the target. If they want practice, the lab's bridge is there, and so are the thousands of landmark photos on Commons whose authors published them for reuse.`
+    }, {
+      q: `A draft report says: "Location of Tower Bridge: 51.507428, -0.078081 (from photo EXIF)." What is wrong with it?`,
+      a: `Three things. The GPS records the camera, not the subject: the bridge is about 285 m away, bearing 137°. The six decimal places claim about 0.1 m, but the device states an error of 10 m, so four places is the most the evidence supports. And the file records no datum, so the report should say "WGS 84 assumed". A defensible sentence: "The photo's EXIF records a camera position of 51.5074, -0.0781 (±10 m, device-stated; WGS 84 assumed). The subject, Tower Bridge, is about 285 m from that position."`
+    }, {
+      q: `A photo's DateTimeOriginal is 2018:08:26 09:42:06 and its GPSDateTime is 2018:08:26 13:42:06Z. The GPS position is in London. What can you conclude, and what should the report say?`,
+      a: `The clocks differ by minus four hours: the camera's clock reads UTC−4. London in late August is UTC+1. So the camera's clock was set to another zone, or simply wrong. Or the file was edited. The metadata cannot tell you which, and you should not guess. The report gives both clocks as recorded, notes that the camera clock does not match the local zone at the GPS position, and relies on the GPS time (defined as UTC) for when the photo was taken. It does not treat the camera's zone as evidence of where anyone is from.`
+    }],
+    quiz: ["Why does this course never geolocate a photo of a person or their home, even one they posted publicly?", "EXIF stores a longitude as 0 deg 4' 41.09\" and a separate Ref tag W. What goes wrong if you ignore the Ref, and how far out would you be in London?", "A phone states a horizontal error of 10 m. How many decimal places should your report use, and why?", "DateTimeOriginal has no time zone. How can a file's GPS tags tell you the offset, and what should you do if they disagree?", "The photo's GPS is 285 m from Tower Bridge. Is the GPS position the location of Tower Bridge?", "McAfee claimed the EXIF was manipulated. Why was that claim not absurd, and what actually settled the question?"],
+    workbench: `> **What this trains.** The lab read the claims for you. Here you check them yourself: convert a position by hand, reconcile two clocks, and build the check you run on your own photos before you share them. Run every drill from \`~/scouts-case/s1_6\`, after the lab.
+
+#### 🟢 Drill 1 — convert by hand, then decide how many digits to keep ~8 min
+
+**Goal.** From the stored degrees, minutes, seconds and Ref alone, compute the decimal longitude yourself and check it against ExifTool's Composite value. Then work out how many decimal places the photo's stated 10 m error justifies.
+
+**Done when.** Your number matches the Composite value to ten places, sign included, and you can write the position with the right number of digits.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+exiftool -c "%d %d %.4f" -s3 -GPS:GPSLongitude -GPS:GPSLongitudeRef evidence/photo.jpg | paste -s -d ' ' - |
+  awk '{d = $1 + $2/60 + $3/3600; if ($4 ~ /^[WS]/) d = -d; printf "by hand:   %.10f  (from %s %s %s %s)\\n", d, $1, $2, $3, $4}'
+exiftool -n -s3 -Composite:GPSLongitude evidence/photo.jpg | awk '{printf "Composite: %.10f\\n", $1}'
+awk 'BEGIN{r=atan2(0,-1)/180; lat=51.507428
+  for (dp=3; dp<=6; dp++) printf "%d decimal places: %6.2f m north-south, %6.2f m east-west\\n", dp, 10^-dp*111320, 10^-dp*111320*cos(lat*r)}'
+\`\`\`
+
+\`\`\`text
+by hand:   -0.0780805556  (from 0 4 41.0900 West)
+Composite: -0.0780805556
+3 decimal places: 111.32 m north-south,  69.29 m east-west
+4 decimal places:  11.13 m north-south,   6.93 m east-west
+5 decimal places:   1.11 m north-south,   0.69 m east-west
+6 decimal places:   0.11 m north-south,   0.07 m east-west
+\`\`\`
+
+\`-c "%d %d %.4f"\` makes ExifTool print the stored degrees, minutes and seconds as plain numbers. The awk applies the sign from the Ref, which is the step people forget. Two traps came up while this drill was being written. Asking for \`-GPSLongitude\` without the \`GPS:\` group returns the Composite value, which already has a \`W\` on the end. And deleting the letters \`d\`, \`e\` and \`g\` to clean up "deg" also deletes the \`e\` in "West". Both gave a positive longitude with no error message.
+
+The table uses about 111,320 m per degree of latitude; a degree of longitude shrinks with the cosine of the latitude. With a stated error of 10 m, **four places** (about 11 m by 7 m) is the finest that means anything: \`51.5074, -0.0781\`. Five places would claim about 1 m.
+</details>
+
+#### 🟡 Drill 2 — reconcile the two clocks ~8 min
+
+**Goal.** Work out the difference between the camera's clock and the GPS clock, then ask the time-zone database what London's offset was at that instant. Do not use your memory of when summer time starts.
+
+**Done when.** Three lines: both clocks, the difference in minutes, and London's zone at the GPS instant. And one sentence on whether they agree.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+L=$(exiftool -s3 -DateTimeOriginal evidence/photo.jpg)
+U=$(exiftool -s3 -GPS:GPSDateStamp -GPS:GPSTimeStamp evidence/photo.jpg | paste -s -d ' ' -)
+echo "camera clock: $L   GPS clock (UTC): $U"
+TL=$(TZ=UTC date -j -f "%Y:%m:%d %H:%M:%S" "$L" +%s)
+TU=$(TZ=UTC date -j -f "%Y:%m:%d %H:%M:%S" "$U" +%s)
+echo "difference: $(( (TL - TU) / 60 )) minutes"
+TZ=Europe/London date -r "$TU" "+London at that instant: %Y-%m-%d %H:%M:%S %Z (UTC%z)"
+\`\`\`
+
+\`\`\`text
+camera clock: 2018:08:26 09:42:06   GPS clock (UTC): 2018:08:26 08:42:06
+difference: 60 minutes
+London at that instant: 2018-08-26 09:42:06 BST (UTC+0100)
+\`\`\`
+
+A 60-minute difference, and London on BST (UTC+1) at that instant: the clocks agree with each other and with the position. Parsing both clocks with \`TZ=UTC\` means you compare two plain numbers of seconds, so your own time zone never enters the sum. \`date -j -f\` and \`date -r\` are the macOS forms; on Linux, use \`date -u -d "2018-08-26 08:42:06" +%s\` and \`TZ=Europe/London date -d @SECONDS\`.
+
+The GPS stamp records the moment of the position fix, not necessarily the moment the shutter opened. So a difference of a few seconds from a whole number of minutes can be normal. A difference that is not close to a real zone offset is a finding: report it and do not explain it away.
+</details>
+
+#### 🔴 Drill 3 — check your own photos before you share them ~12 min
+
+**Goal.** Write a shell function \`gpscheck\` that takes a file and prints one of three answers: \`HAS GPS\` with the position rounded to four places and the device-stated error, \`NO GPS\`, or \`UNKNOWN\` with a reason. It must work in bash and zsh, and it must never say \`NO GPS\` about something it could not actually check.
+
+**Done when.** You have tested five files: the lab photo (has GPS), a copy with its position only in XMP (has GPS), the stripped copy (no GPS), a text file renamed \`.jpg\` (unknown), and a file that does not exist (unknown).
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+gpscheck() {
+  local f=$1 pos lat lon err
+  command -v exiftool >/dev/null || { echo "UNKNOWN  $f: exiftool is not installed"; return 2; }
+  [ -r "$f" ] || { echo "UNKNOWN  $f: cannot read the file"; return 2; }
+  case $(exiftool -q -q -s3 -MIMEType "$f" 2>/dev/null) in
+    image/*) ;;
+    *) echo "UNKNOWN  $f: not an image exiftool recognises"; return 2 ;;
+  esac
+  # GPSPosition is built from the EXIF GPS block or, failing that, from XMP. Asking for
+  # Composite:GPSLatitude instead would miss a file that has its location only in XMP.
+  pos=$(exiftool -q -q -n -s3 -f -GPSPosition "$f") || { echo "UNKNOWN  $f: exiftool failed"; return 2; }
+  if [ "$pos" = "-" ]; then echo "NO GPS   $f"; return 0; fi
+  read -r lat lon <<< "$pos"
+  err=$(exiftool -q -q -s3 -GPSHPositioningError "$f"); err=\${err:-not stated}
+  printf "HAS GPS  %s: %.4f, %.4f (device-stated error: %s)\\n" "$f" "$lat" "$lon" "$err"
+  return 1
+}
+rm -f xmp_only.jpg; exiftool -q -o xmp_only.jpg -XMP-exif:GPSLatitude=51.5074 -XMP-exif:GPSLongitude=-0.0781 evidence/stripped.jpg
+printf 'not a jpeg' > fake.jpg
+for f in evidence/photo.jpg xmp_only.jpg evidence/stripped.jpg fake.jpg missing.jpg; do gpscheck "$f"; echo "  exit $?"; done
+\`\`\`
+
+\`\`\`text
+HAS GPS  evidence/photo.jpg: 51.5074, -0.0781 (device-stated error: 10 m)
+  exit 1
+HAS GPS  xmp_only.jpg: 51.5074, -0.0781 (device-stated error: not stated)
+  exit 1
+NO GPS   evidence/stripped.jpg
+  exit 0
+UNKNOWN  fake.jpg: not an image exiftool recognises
+  exit 2
+UNKNOWN  missing.jpg: cannot read the file
+  exit 2
+\`\`\`
+
+The exit status is the answer: 0 is safe to share, 1 has a location, and 2 means nobody knows. A script that publishes photos can then refuse anything that is not 0.
+
+Two earlier versions of this function were wrong, and running them is how that came out. The first said \`NO GPS\` about a text file, a confident answer about something it never checked. The MIME-type test fixes that. The second asked for \`Composite:GPSLatitude\` and said \`NO GPS\` about the XMP-only copy, because that Composite tag is built only from the EXIF GPS block. \`GPSPosition\` falls back to XMP. With \`exiftool\` missing, the function prints \`UNKNOWN … exiftool is not installed\` instead of a clean bill of health.
+</details>`,
+    tracker: ["Can explain why photos of people and homes are out of bounds, and which Act lists 'watching or spying' as stalking", "Checked the downloaded photo's SHA-1 against the Commons record before reading it", "Converted DMS to decimal by hand, sign included, and matched the Composite value", "Reported a position with the precision its stated error supports, and 'WGS 84 assumed'", "Derived the time zone from the two clocks and checked it against the time-zone database", "Built a photo check that finds XMP-only locations and reports UNKNOWN when it cannot check"]
   }]
 };
 

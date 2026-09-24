@@ -2,7 +2,7 @@
  "_source": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json",
  "_why": "attack.mitre.org resolves to GitHub Pages, which is unreachable from the authoring connection; the STIX bundle is the same data from a reachable host.",
  "_verified": "2026-09-23",
- "_note": "Every id below resolved to a live attack-pattern with no deprecation or revocation on the verified date. First verified 2026-09-11 (CLAIMS.md row 35); all ids re-verified 2026-09-23 against ATT&CK v19.2 (2026-08-05), when T1070.004, T1547.001 and T1553.001 were added for M22.5 (CLAIMS.md row 96). T1596.003 added 2026-09-24 for Scouts S1.3 (scouts CLAIMS.md row 49): read from mitre/cti attack-pattern--0979abf9-4e26-43ec-9b6e-54efc4e70fca (tip = ATT&CK v19.2, same release as the bundle), not revoked or deprecated. 2026-09-24: T1589.003, T1591.002, T1591.004 added for Cyber Scouts S1.4, each read from its mitre/cti attack-pattern object (repo tip = ATT&CK v19.2 Enterprise; not revoked, not deprecated, tactic reconnaissance).",
+ "_note": "Every id below resolved to a live attack-pattern with no deprecation or revocation on the verified date. First verified 2026-09-11 (CLAIMS.md row 35); all ids re-verified 2026-09-23 against ATT&CK v19.2 (2026-08-05), when T1070.004, T1547.001 and T1553.001 were added for M22.5 (CLAIMS.md row 96). T1596.003 added 2026-09-24 for Scouts S1.3 (scouts CLAIMS.md row 49): read from mitre/cti attack-pattern--0979abf9-4e26-43ec-9b6e-54efc4e70fca (tip = ATT&CK v19.2, same release as the bundle), not revoked or deprecated. 2026-09-24: T1589.003, T1591.002, T1591.004 added for Cyber Scouts S1.4, each read from its mitre/cti attack-pattern object (repo tip = ATT&CK v19.2 Enterprise; not revoked, not deprecated, tactic reconnaissance). 2026-09-24: T1591.001 added for Cyber Scouts S1.6 (scouts CLAIMS.md row 101), read from mitre/cti attack-pattern--ed730f20-0e44-48b9-85f8-0e2adeb76867 (tip 8543c5b05b = ATT&CK v19.2 Enterprise; not revoked, not deprecated).",
  "techniques": {
   "T1003": "OS Credential Dumping",
   "T1003.001": "LSASS Memory",
@@ -35,6 +35,7 @@
   "T1589.003": "Employee Names",
   "T1590": "Gather Victim Network Information",
   "T1591": "Gather Victim Org Information",
+  "T1591.001": "Determine Physical Locations",
   "T1591.002": "Business Relationships",
   "T1591.004": "Identify Roles",
   "T1592": "Gather Victim Host Information",

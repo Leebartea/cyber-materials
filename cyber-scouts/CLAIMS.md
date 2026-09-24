@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.5 + 1 roadmap)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.6 + 1 roadmap)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-24 (Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-24 (Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -222,3 +222,50 @@ Defects caught in the S1.5 build pass (none shipped):
   gate skipped `…/$VAR` templates but not the escaped `…/\${…}` form a template literal
   stores. The gate now treats `\$` as a placeholder too; only that one prefix left the probe set (85 → 84).
 - **Theory's padding quote cut Hunt's sentence mid-clause.** Replaced with a complete quoted phrase.
+
+## Batch 6 — S1.6 Geospatial
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 88 | S1.6 | Protection from Harassment Act 1997 s.2A: stalking offence = course of conduct in breach of s.1(1) that amounts to stalking; s.2A(3) examples include "monitoring the use by a person of the internet, email or any other form of electronic communication" and "watching or spying on a person"; extent E+W; inserted by Protection of Freedoms Act 2012 s.111(1), in force 25.11.2012 | `SOURCED` | legislation.gov.uk/ukpga/1997/40/section/2A, read 2026-09-24 ("Latest available (Revised)") | on amendment |
+| 89 | S1.6 | "Never geolocate a photo of a person, or of anywhere a person lives, and never work out who took a photo or where they live"; "photos of public places, published by their authors for reuse" only | `CONVENTION` | course rule (S1.1 practice targets) | — |
+| 90 | S1.6 | Wikimedia User-Agent policy asks for contact information (email, website or wiki user); generic format `<client>/<version> (<contact>) …`; scripts without an informative UA "may be blocked without notice" (HTTP 403) | `SOURCED` | foundation.wikimedia.org Policy:Wikimedia_Foundation_User-Agent_Policy, read 2026-09-24 | yearly |
+| 91 | S1.6 lab | `upload.wikimedia.org` answers the exact UA `CyberScoutsLab/1.0 (you@example.com)` with HTTP 403 ("Please honor our robot policy"); `(student@school.invalid)`, `(a@example.org)`, `(you@example)`, no contact, a real-looking webmail address all 200. The lab refuses to start while `CONTACT` is the placeholder | `EXECUTED` | six curl probes, 2026-09-24 | volatile — Wikimedia may change its blocklist |
+| 92 | S1.6 lab | Commons `File:LONDON_BRIDGE.jpg`: SHA-1 `c6bac702d58366bca4915ee5b970461f12929cec`, 399,534 bytes, CC BY-SA 4.0, uploader Accord14, uploaded 2018-10-06; description "The famous London Tower Bridge along the Thames River"; category *Remote views of Tower Bridge*; no people categories; downloaded file's SHA-1 matches the API | `EXECUTED` | Commons API `imageinfo` + `categories`; image content not viewed by the author (description and categories only) | stable while the SHA-1 holds |
+| 93 | S1.6 lab | EXIF: Apple iPhone 8, software 11.4.1; 51° 30' 26.74" N, 0° 4' 41.09" W; GPSHPositioningError 10 m; GPSImgDirectionRef True North, GPSImgDirection 75.18820225; no GPSMapDatum; no OffsetTimeOriginal; DateTimeOriginal 2018:08:26 09:42:06; GPSDateTime 2018:08:26 08:42:06Z; 20 tags matching `*gps*` | `EXECUTED` | ExifTool 13.59 (tarball SHA-256 `668ea3ac…fd65a` = exiftool.org checksums-13.59.txt) | stable |
+| 94 | S1.6 Step 3 | `exiftool -n -GPS:GPSLongitude` = `0.0780805555555556` (unsigned); `-Composite:GPSLongitude` = `-0.0780805555555556`; Composite GPSLatitude/Longitude `Require` GPS:GPSLatitude + GPS:GPSLatitudeRef | `EXECUTED` | lab run; `lib/Image/ExifTool/GPS.pm` Composite table | stable |
+| 95 | S1.6 Steps 3–4, Drill 1 | Sign error = 0.156° ≈ 10.8 km at 51.51° N ("about 11 km"); per-decimal-place table (111,320 m/deg × cos lat): 4 dp ≈ 11.13 m N–S / 6.93 m E–W; 6 dp ≈ 0.1 m; hand DMS→decimal equals Composite to 10 places | `EXECUTED` | Drill 1 run in bash and zsh; python cross-check | stable |
+| 96 | S1.6 Step 2, 5 | Exif (CIPA DC-008 English translation, 2019 = Exif 2.32): GPSTimeStamp "Indicates the time as UTC"; OffsetTimeOriginal = offset from UTC "including daylight saving time", "±HH:MM"; revision history "2.31 July 2016 … Added three time offset tags"; GPSMapDatum "strongly recommended" when GPS Info is recorded; GPSHPositioningError "horizontal positioning errors in meters"; GPSImgDirection 0.00–359.99; Ref T = true, M = magnetic (ExifTool GPS.pm) | `SOURCED` | cipa.jp DC-X008-Translation-2019-E.pdf, text extracted and read 2026-09-24 | on new Exif edition |
+| 97 | S1.6 Step 5, Drill 2 | Europe/London 2018: GMT→BST 2018-03-25, BST→GMT 2018-10-28; 2018-08-26 08:42:06 UTC = 09:42:06 BST (UTC+0100); clocks differ by exactly 60 min | `EXECUTED` | macOS tz database via `TZ=Europe/London date`; Drill 2 in bash and zsh | stable |
+| 98 | S1.6 Step 6 | Wikidata P625: Q83125 Tower Bridge 51.5055556, −0.0752778; Q130206 London Bridge 51.5080556, −0.0877778. From the camera: Tower Bridge bearing 137.0°, 285 m; London Bridge 275.9°, 675 m (awk in lab = independent python haversine) | `EXECUTED` | `wbgetclaims` + lab awk + python | re-check if either item's P625 is edited |
+| 99 | S1.6 Step 6 | Heading 75.19° vs bearing 137.0° to the subject's recorded point = ~62° discrepancy; the course names no cause ("a sensor reading … sometimes wrong") | `EXECUTED` | rows 93 + 98 | stable |
+| 100 | S1.6 Step 7, Drill 3 | `exiftool -all= -o` copy has 0 `*gps*` tags (original 20). A copy with location only in `XMP-exif:GPSLatitude/Longitude` has no Composite:GPSLatitude but does have `GPSPosition` (51.5074 -0.0781) | `EXECUTED` | lab + Drill 3 | stable |
+| 101 | S1.6 | ATT&CK T1591.001 Determine Physical Locations (sub-technique of T1591 Gather Victim Org Information, reconnaissance); not revoked or deprecated | `SOURCED` | mitre/cti `attack-pattern--ed730f20-0e44-48b9-85f8-0e2adeb76867` at tip `8543c5b05b` (= ATT&CK v19.2 Enterprise; attack-stix-data latest release v19.2); added to `tools/attack_ids_verified.json` | each ATT&CK release |
+| 102 | S1.6 case | 3 Dec 2012: Vice photo of McAfee (with Vice's editor-in-chief) kept its EXIF; iPhone 4S; 15.658167, −88.992167; @simplenomad pointed it out; McAfee a "fugitive" (headline). 4 Dec: Ranchon Mary resort; McAfee first said the metadata was "manipulated", later removed that post; quotes "Vice Magazine reporters are indeed with me in Guatemala. Yesterday was chaotic due to the accidental release of my exact co-ordinates." and "I am in Guatemala and will be meeting with Guatemalan officials this morning."; Vice removed the metadata and re-posted | `SOURCED` | Graham Cluley, 3 Dec 2012; Scientific American / TechNewsDaily, 4 Dec 2012; both read 2026-09-24 via a summarising fetch. DMS lead 15°39'29.4"N 88°59'31.8"W converts exactly to Cluley's decimals. NPR's page timed out and is not relied on | stable |
+| 103 | S1.6 lab | Install names: `brew install exiftool` (homebrew-core `Formula/e/exiftool.rb`); `winget install OliverBetz.ExifTool` (winget-pkgs manifests up to 13.59); Debian/Ubuntu `libimage-exiftool-perl` (sources.debian.org) | `SOURCED` | gh api + sources.debian.org API, 2026-09-24 | yearly |
+| 104 | S1.6 Drills | Drills 1–3 run exactly as written in bash and zsh; outputs byte-identical; Drill 3: photo → HAS GPS exit 1, XMP-only → HAS GPS exit 1, stripped → NO GPS exit 0, text renamed `.jpg` → UNKNOWN exit 2, missing file → UNKNOWN exit 2, exiftool absent → UNKNOWN | `EXECUTED` | drill runs, 2026-09-24 | stable |
+| 105 | S1.6 lab | Lab run 5× (3 bash, 2 zsh) with `CONTACT` set; everything above the log identical; `photo` SHA-256 `49e94c07bf33…` and `record` `df48d5c41c76…` stable across runs; placeholder guard exits before any request. Windows variant **not run** (stated in the lab) | `EXECUTED` | five lab runs + built-HTML round-trip (lab, windows, workbench, theory, case, expected all MATCH) | stable |
+
+Defects caught in the S1.6 build pass (none shipped):
+
+- **The lab's first run failed at the download** with a bare `FAILED: photo`: Wikimedia refuses the
+  `you@example.com` placeholder (row 91). The lab now stops before any request and says why.
+- **Draft Drill 1 printed a positive longitude with no error.** Unqualified `-GPSLongitude` returned
+  the Composite value with a trailing `W`, and `tr -d "deg'\""` also deleted the `e` in "West", so the
+  Ref test never matched. Now `-c "%d %d %.4f"` on explicit `GPS:` tags. Guard A96.
+- **Draft Drill 2 printed London time as UTC**: `date -u` applies to output as well as input.
+  Now parses both clocks to epoch seconds with `TZ=UTC` and formats with `TZ=Europe/London date -r`.
+- **Draft Drill 3 said `NO GPS` about a text file** — the two-way-classifier shape again. MIME-type
+  check added; non-images are UNKNOWN.
+- **Draft Drill 3 said `NO GPS` about an XMP-only file**: `Composite:GPSLatitude` is built from the
+  EXIF GPS block only (row 94). Now `GPSPosition`. Guard A97.
+- **Draft lab counted only `-gps:all` in the stripped copy**, which cannot see XMP. Now counts every
+  `*gps*` tag in any group, original and copy. Guard A98.
+- **Draft theory said the photo "shows" the bridge**, but the author could not view the image. Now
+  "is described as showing", pinned to the Commons description (row 92).
+- **Draft theory asserted causes it had not sourced**: a compass "thrown off by metal", "almost always
+  WGS 84", a title "the kind of mistake visitors make". All reworded to what the evidence supports.
+- **Draft case study said McAfee was in Belize before**, and counted the resort name as corroboration.
+  Neither was in a page read; and a resort named *from* the coordinates is not independent of them.
+- **Draft Challenge 1 said "practising once is not a crime"**, which leans on the course-of-conduct
+  threshold in s.7 — not read this pass. Removed.

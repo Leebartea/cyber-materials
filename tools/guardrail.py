@@ -888,6 +888,17 @@ BANNED = [
      "a typed symbol table fetched while Volatility's auto-generated STRIPPED table of the same "
      "name stays in the venv: which one loads is not deterministic, and a verbatim re-run "
      "printed nothing (Guardians ledger Batch 11, fix 1)", "A95"),
+    (r"""tr -d "deg""",
+     "Deleting the letters d, e, g to strip 'deg' also deletes the e in 'West', "
+     "so a West/South Ref test never matches and the longitude silently comes out "
+     "positive (Scouts ledger S1.6 defects, Drill 1)", "A96"),
+    (r"-f -Composite:GPSLatitude",
+     "Composite:GPSLatitude is built from the EXIF GPS block only, so a presence "
+     "test on it says NO GPS for a file whose location is only in XMP; use "
+     "GPSPosition (Scouts ledger row 100)", "A97"),
+    (r"-gps:all evidence/stripped",
+     "Checking only the EXIF GPS group cannot see a position kept in XMP; count "
+     "every *gps* tag in any group (Scouts ledger S1.6 defects)", "A98"),
 ]
 
 
@@ -1156,6 +1167,10 @@ TOPIC_ANCHORS = {
         "pwned passwords": ["S1.5"],
         "k-anonymity": ["S1.5"],
         "fabricated breach": ["S1.5"],
+        "exif": ["S1.6"],
+        "geolocation": ["S1.6"],
+        "chronolocation": ["S1.6"],
+        "gpsposition": ["S1.6"],
     },
 }
 
