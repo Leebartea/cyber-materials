@@ -878,6 +878,11 @@ BANNED = [
     (r"flags\s*=\s*int\.from_bytes\([^\n]*[\"']little[\"']",
      "FSEvents on-disk flags are read big-endian (FSEventsParser 4.1); little-endian "
      "never matches Removed 0x02000000 (Guardians ledger row 114)", "A94"),
+    # The fetch line followed (after comment lines only) by anything but the delete.
+    (r"(?m)^python3 fetch_isf\.py ntkrnlpa[^\n]*\n(?!(?:#[^\n]*\n)*find vol3 -name '[0-9A-F]+-\d+\.json\.xz' -print -delete)",
+     "a typed symbol table fetched while Volatility's auto-generated STRIPPED table of the same "
+     "name stays in the venv: which one loads is not deterministic, and a verbatim re-run "
+     "printed nothing (Guardians ledger Batch 11, fix 1)", "A95"),
 ]
 
 
@@ -1105,6 +1110,10 @@ TOPIC_ANCHORS = {
         "mactime": ["M23.7"],
         "plaso": ["M23.7"],
         "super timeline": ["M23.7"],
+        "volatility": ["M22.7", "M22"],
+        "malfind": ["M22.7", "M22"],
+        "memory forensics": ["M22.7", "M22"],
+        "appinit_dlls": ["M22.7"],
     },
     "appsec": {
         # 0.5 introduces it hands-on from first principles; 3.2 is the deep dive.

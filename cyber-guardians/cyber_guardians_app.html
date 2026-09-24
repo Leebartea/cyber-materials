@@ -781,7 +781,7 @@ const curriculum = {
     objective: "Before you write a single command, understand the map. This module shows you what Cyber Guardians covers, why the course is structured the way it is, what you'll be able to DO at each level, and how to pace yourself for a sustainable finish. Spending 30 minutes here prevents 30 hours of confusion later.",
     theory: `### What Cyber Guardians is — and is not
 
-Cyber Guardians is a **44-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
+Cyber Guardians is a **45-module breadth-first course** that takes you from zero to defender-level competence across the entire cybersecurity landscape. It is NOT a narrow certification cram — it is designed to build lasting mental models and real hands-on skills.
 
 **What it is:** a structured journey through every domain a working security professional must understand — networking, cryptography, OS internals, offensive hacking, defensive monitoring, digital forensics, incident response, cloud, mobile, IoT, AI threats, and governance.
 
@@ -796,7 +796,7 @@ Cyber Guardians is a **44-module breadth-first course** that takes you from zero
 | **L2** | Operator | M9 – M17 | Weeks 9–20 | Technical depth: scanning, sniffing, web vulns, blue team, lab capstone |
 | **L3** | Specialist | M18 – M29+ | Weeks 21–36 | Pro skills: ethical hacking, MITRE ATT&CK, forensics, IR, AI threats, certifications |
 
-### All 44 modules at a glance
+### All 45 modules at a glance
 
 **Level 1 — Recruit (build rock-solid mental models)**
 - M0: Welcome & Environment Setup
@@ -835,6 +835,7 @@ Cyber Guardians is a **44-module breadth-first course** that takes you from zero
 - M21: Intro to Exploitation (Conceptual + Safe Practice)
 - M22: Digital Forensics Fundamentals
 - M22.5: Filesystem & OS Artifacts — What the System Remembers For You *(new in this edition)*
+- M22.7: Memory Forensics with Volatility 3 — What Was Running, and What the Tools Cannot See *(new in this edition)*
 - M23: Incident Response
 - M23.5: Business Continuity & Disaster Recovery *(new in this edition)*
 - M23.7: Timeline Analysis & Reporting — One Clock, Honest Gaps, Checkable Claims *(new in this edition)*
@@ -924,7 +925,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
       a: "Confidentiality (encryption/access control — cryptography + OS + web), Integrity (hashing/signing/logging — cryptography + forensics), Availability (resilience/backups/DDoS mitigation — networking + cloud). The correct answer isn't a single domain per property — the triad runs through every domain, and that cross-cutting nature is the entire point of learning it first (Module 1)."
     }, {
       q: "You have 4 hours per week available. How many weeks should you budget to finish the course, and what is the single most important habit to maintain at that pace?",
-      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 44 modules, expect ~55–66 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
+      a: "At 4 hrs/week and ~5–6 hrs honest effort per module across 45 modules, expect ~56–68 weeks. The single most important habit: consistency over intensity. Doing 1 hour every day beats a 4-hour Saturday followed by a 2-week gap. The tracker checklist is your weekly anchor: touch it every week, even if only one item changes."
     }],
     quiz: ["What are the three levels of this course, and what is the primary outcome of each?", "What percentage of completion earns the 'Blue Team Analyst' skill badge?", "Why should you NOT skip the Level 1 modules even if you already know the basics?", "What are two certifications this course prepares you for, and which modules primarily cover their material?"],
     tracker: ["I've read the full module map and understand the three-level structure", "I know my target pace (hrs/week) and have calculated my realistic finish date", "My development environment is set up (M0) and all version checks pass", "I understand the difference between Cyber Guardians and the Full-Stack AppSec companion course", "I've bookmarked the tracker checklist habit: I will complete it before moving to the next module"]
@@ -935,7 +936,7 @@ A missing tool announces itself as \`zsh: command not found: node\`, not as a ve
     level: 0,
     num: "Intro",
     title: "Welcome & Environment Setup",
-    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 44 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
+    objective: "Every tool you install today will be used in a specific module. This isn't a vague 'install stuff' module — it's a precise engineering decision to give you the exact lab you need for 45 modules of hands-on security work. By the end you have a host environment, a dedicated attack VM, and a workflow that keeps your personal files isolated from every exploit you run.",
     theory: `### The three pillars of this course
 
 **Theory you actually understand.** We build mental models, not flashcards. If you can't explain a concept to a 10-year-old, you don't truly understand it yet.
@@ -8842,7 +8843,7 @@ The first and last commands matter more than the ones between them. Hash before 
 
 In \`pslist\`, read the PPID column — \`powershell.exe\` whose parent is \`svchost.exe\` at 03:14 is not how a human starts PowerShell. \`malfind\` then names the mechanism: a region marked \`PAGE_EXECUTE_READWRITE\`, memory that is simultaneously writable and executable, which is what code injection looks like in a dump. Legitimate code is loaded from a file and marked read-execute.
 
-These commands need an actual sample: with no \`memory.raw\` in the directory Volatility exits with \`Unable to validate the plugin requirements: file not found\`. Grab a public image from a DFIR CTF first — and expect the first run to take a minute while Volatility builds its symbol cache.`
+These commands need an actual sample: with no \`memory.raw\` in the directory Volatility exits with \`Unable to validate the plugin requirements: file not found\`. Grab a public image from a DFIR CTF first — and expect the first run to take a minute while Volatility builds its symbol cache. M22.7 walks through a real one end to end: a 31 MB sample, its hash, and what to do when the automatic symbols fail.`
       }
     },
     caseStudy: {
@@ -9507,6 +9508,441 @@ Common wrong attempts: flagging \`mtime < birth\` (after \`touch -t\` they are e
 
 </details>`,
     tracker: ["Built a FAT16 image, deleted a file on it, and recovered the file, its name and its content with fls, istat and icat, with the hash verified before and after", "Found the macOS-written .fseventsd and ._ AppleDouble artifacts on the image and explained what each records", "Traced a real download to its app, time and URL through the quarantine xattr, kMDItemWhereFroms and QuarantineEventsV2", "Can say which Windows artifacts show presence and which show execution, and why Prefetch absence on Server proves nothing", "Workbench: wrote provenance.py and caught a forged quarantine xattr with no matching database row", "Workbench: wrote fatscan.py and validated it against fls/istat (cluster 9 = sector 125)", "Workbench: timestomped a file, detected it by ctime, and showed that tar and cp -p trip the same detector"]
+  }, {
+    id: "m22_7",
+    level: 3,
+    num: "M22.7",
+    title: "Memory Forensics with Volatility 3 — What Was Running, and What the Tools Cannot See",
+    objective: "M22 named Volatility; this module uses it on a real case. You will take a 2011 memory image of a machine infected with the German \"state trojan\", check that you have the right bytes, fix Volatility when its automatic symbols fail, and find the malware's DLL and driver from four independent angles. Then you will prove why the plugin everyone reaches for first cannot see it, and write a finding that claims exactly what the evidence supports. The download is 31 MB.",
+    theory: `> ⚖️ **Ethics & safety:** the lab image holds a real piece of government surveillance malware, stored as data. It is Windows code and cannot run on macOS or Linux, and no command in this module writes an executable to disk. Keep it that way: never add \`--dump\` to a plugin here, keep the files in one folder, and delete that folder when you finish. Everything else in this module applies only to images you are authorised in writing to examine. A memory image holds whatever was in RAM, and that includes passwords, messages and documents.
+
+#### Define the words first
+
+- **Memory image** — a copy of a machine's physical RAM taken at one moment. \`0zapftis.vmem\` is a VMware virtual machine's RAM file. It is raw bytes with no file system and no index.
+- **Symbols** — the map that says where each kernel structure sits and what its fields are. Without it the image is 256 MiB of bytes that mean nothing. Microsoft publishes them as **PDB** files. Each kernel build has its own, identified by a **GUID and age** (\`BD8F451F…-1\` in the lab).
+- **ISF** — *Intermediate Symbol Format*, the JSON that Volatility 3 converts a PDB into and then reads. A \`.json.xz\` file under a \`symbols/\` folder.
+- **Stripped symbols** — a PDB with names and addresses but **no types**. It tells you *where* \`PsActiveProcessHead\` is but not what an \`_EPROCESS\` looks like, so nothing can be walked.
+- **VAD** — *Virtual Address Descriptor*: the kernel's record of one region of a process's memory. It gives the region's protection (\`PAGE_EXECUTE_READWRITE\`…) and says whether a file backs it (a DLL on disk) or the region is **private** (allocated at run time, no file).
+- **Free memory** — physical pages that no process owned at capture time. Old data survives in them until something reuses the page.
+
+#### Why RAM, and why it is the first thing you lose
+
+M22's order of volatility put memory near the top: it is gone the moment the power goes. It also holds things the disk never will: which processes were running and who started them, which DLLs and drivers were loaded into them, network state, and decrypted data. The disk has the malware's file. Memory shows the malware *running*: which processes it is inside, and how it got there.
+
+#### How Volatility reads an image, and the three ways that fails
+
+Volatility 3 finds the kernel in the raw bytes, reads the kernel's PDB GUID, loads the matching symbol table, and then walks the kernel's own lists: processes, modules, handles, registry hives. Every plugin depends on that chain. The lab breaks it twice on purpose:
+
+| Failure | What you see | What it means | The fix |
+|---|---|---|---|
+| No symbols at all | \`Unable to validate the plugin requirements: [...symbol_table_name]\` | Volatility could not find or build a table for this kernel | Get the table for the exact GUID, not "an XP table" |
+| **Stripped** symbols | the same message, and at \`-vv\` a warning \`Symbol type not in symbol_table_name1 SymbolTable: _ETHREAD\` | Volatility fetched Microsoft's public PDB for this 2004 XP kernel. It has 10,412 symbol names and **0 types** | A table that has the types. The lab takes one file out of the Volatility Foundation's pack (561 types) |
+| **Unsupported OS version** | \`NotImplementedError: This version of Windows is not supported: 5.1 15.2600!\` from \`windows.netscan\` | The plugin does not know how this Windows version lays out its network structures | Different evidence: raw bytes, or a tool that supports the version. Do not assume the plugin will ever work |
+
+The second row is the trap. Volatility downloaded symbols automatically and saved them, so it looks as though they are there. It even saved them in a place that competes with the good table you fetch later. The lab makes you delete the bad one, because with two tables under one name, Volatility's choice is not something to rely on.
+
+#### Hunting: outliers, not a magic plugin
+
+There is no plugin called \`find_malware\`. You look at a normal-looking system from several angles, and you trust what **several angles agree on**. In the lab, four independent angles all point at the same two files:
+
+1. **Where a driver was loaded from.** Almost every kernel module is loaded from \`\\SystemRoot\\…\`. Two are loaded from a raw \`\\??\\C:\\…\` path. One is VMware Tools' memory driver in VMware's own folder. The other is \`winsys32.sys\` in \`system32\\drivers\`, a name made to look at home.
+2. **Where a DLL sits in memory.** Microsoft's linker gives a 32-bit DLL a default base address of \`0x10000000\` unless it is told otherwise. In this image no Windows DLL sits there: each was built with a base of its own (\`comctl32.dll\` at \`0x5d090000\`, \`xpsp2res.dll\` at \`0x20000000\`, and so on). So a DLL at exactly \`0x10000000\` was most likely built with the default, by someone who was not Microsoft. In the lab, 13 copies of \`mfc42ul.dll\` sit there, plus two VMware files. The name is one letter away from Microsoft's real MFC library, \`mfc42u.dll\`.
+3. **How far it spread.** \`mfc42ul.dll\` is loaded in 15 of the 21 processes that have a DLL list. Something put it there system-wide.
+4. **How it got there.** The SOFTWARE hive's \`AppInit_DLLs\` value is \`mfc42ul.dll\`. Microsoft documents that \`user32.dll\` reads this value when it loads into a process and loads the DLLs it names, which is why so many processes carry it. The key was last written at 16:56:35 UTC. Processes in the image start from 17:03:56 UTC, so the machine was rebooted after the key was set.
+
+Then say what does **not** fit: 20 processes load \`user32.dll\`, but only 15 carry \`mfc42ul.dll\`. The image does not say why. Maybe the DLL chose not to stay in some processes, or maybe something else happened, and nothing here separates the two. A report says so rather than smoothing it over.
+
+#### Why malfind missed it
+
+\`windows.malware.malfind\` is the plugin people reach for first. Here it flags 12 regions, 11 in \`winlogon.exe\` and 1 in \`csrss.exe\`, and **none of them is R2D2**. That is not a bug. Read its selection rule in \`malfind.py\`: it wants memory that is executable **and** writable (or executable with a modified page), **and** either private (\`VadS\`) or file-backed with a protection other than \`PAGE_EXECUTE_WRITECOPY\`. Windows maps every DLL it loads the normal way as file-backed \`PAGE_EXECUTE_WRITECOPY\`. \`mfc42ul.dll\` was loaded the normal way, by Windows itself, through \`AppInit_DLLs\`. \`malfind\` finds *code injection*. This malware never needed to inject code. A clean \`malfind\` means "no injected code of the kind malfind looks for", not "no malware".
+
+#### A string in memory is not a connection
+
+\`netscan\` cannot parse XP. A raw search of the image still finds the command-and-control address \`172.16.98.1\`, and the malware's name string \`C3PO-r2d2-POE\` three times. \`windows.strings\` then maps each hit to its owner, and all four are in **FREE MEMORY**. You can say the address was in RAM. You cannot say, from Volatility 3 alone, which process used it or that a connection existed. A 2011 analysis using Volatility 2's \`connscan\`, which scanned for XP connection structures, reported an active connection from PID 1956 (\`explorer.exe\`) to \`172.16.98.1:6666\`. That is someone else's result from another tool. Cite it as that. Do not present it as your own finding.
+
+Notice also that \`172.16.98.1\` is a **private** address (RFC 1918). The capture was two days after the malware was made public, on a VMware machine talking to a private address. That fits a researcher's test machine better than a real target. It is an inference from the evidence, and it is labelled as one.
+
+#### Three ways memory analysis goes wrong
+
+- **"malfind was clean, so the process is clean."** It only looks for one shape of code. A DLL that Windows loaded for the attacker is invisible to it.
+- **"The IP is in memory, so this process connected to it."** A raw hit tells you what bytes existed, not who owned them. In this image, no process owned them.
+- **"Volatility downloaded the symbols, so symbols are fine."** A table with no types fails exactly like a missing table, and it keeps failing until you remove it.`,
+    lab: {
+      mac: `# LAB: hunt a government trojan in a real 2011 memory image (Apple Silicon)
+# ETHICS & SAFETY: the image holds live Windows malware, stored as DATA. It cannot run on
+# macOS, and nothing below writes an executable to disk. Never add --dump to these commands.
+# Keep everything in this one folder and delete the folder when you finish.
+mkdir -p ~/cyber-journal/m22_7 && cd ~/cyber-journal/m22_7
+
+# 1. Download the 31 MB sample in your browser. The Volatility Foundation's Memory Samples wiki
+#    lists it as "Malware - R2D2": https://www.mediafire.com/file/yxqodp1p2aca91x/0zapftis.rar
+#    Move it here, then prove you hold the same bytes this lab was built on.
+mv ~/Downloads/0zapftis.rar .
+shasum -a 256 0zapftis.rar     # must be 0ab81aec6d61593a03a7b6fbda9266af8dd9c8df1b6477faa880fafd19cb21b1
+
+# 2. Unpack with the official 7-Zip console build: macOS cannot open an encrypted RAR.
+curl -sLO https://www.7-zip.org/a/7z2603-mac.tar.xz
+mkdir -p 7z && tar -xJf 7z2603-mac.tar.xz -C 7z
+./7z/7zz l -pinfected 0zapftis.rar | tail -3     # look BEFORE you extract: one .vmem, nothing else
+./7z/7zz x -pinfected 0zapftis.rar > /dev/null
+shasum -a 256 0zapftis.vmem | tee 0zapftis.vmem.sha256     # hash first, as in M22
+
+# 3. Volatility 3 in its own virtual environment, pinned to the version this lab was run on.
+python3 -m venv vol3 && ./vol3/bin/pip install -q volatility3==2.28.2
+vol() { ./vol3/bin/vol -q -s symbols -f 0zapftis.vmem "$@"; }     # shorthand for every step below
+
+# 4. First attempt. It FAILS. Read why before you fix anything.
+vol windows.info 2>&1 | grep -m1 Unable
+./vol3/bin/vol -vv -f 0zapftis.vmem windows.info 2>&1 | grep -oE 'ntkrnl[a-z]*\\.pdb/[0-9A-F]+-[0-9]+' | sort -u
+
+# 5. Fetch the one symbol table this kernel needs: under 1 MB of Volatility's 840 MB pack.
+cat > fetch_isf.py <<'EOF'
+#!/usr/bin/env python3
+"""fetch_isf.py NAME - copy ONE symbol table out of Volatility's 840 MB Windows pack
+with HTTP range requests. Downloads under 1 MB, not 840."""
+import os, struct, sys, urllib.request, zlib
+
+URL = "https://downloads.volatilityfoundation.org/volatility3/symbols/windows.zip"
+WANT = sys.argv[1]              # e.g. ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1
+
+def get(start, end):
+    req = urllib.request.Request(URL, headers={"Range": f"bytes={start}-{end}"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        if r.status != 206:
+            sys.exit("server ignored the Range header - stopping rather than pull 840 MB")
+        return r.read()
+
+head = urllib.request.Request(URL, method="HEAD")
+size = int(urllib.request.urlopen(head, timeout=60).headers["Content-Length"])
+tail = get(size - 65536, size - 1)
+eocd = tail.rfind(b"PK" + bytes([5, 6]))          # end-of-central-directory record
+cd_size, cd_off = struct.unpack("<II", tail[eocd + 12:eocd + 20])
+cd = get(cd_off, cd_off + cd_size - 1)            # the zip's table of contents
+p = 0
+while cd[p:p + 4] == b"PK" + bytes([1, 2]):
+    method, = struct.unpack("<H", cd[p + 10:p + 12])
+    csize, _, nlen, xlen, clen = struct.unpack("<IIHHH", cd[p + 20:p + 34])
+    local, = struct.unpack("<I", cd[p + 42:p + 46])
+    name = cd[p + 46:p + 46 + nlen].decode()
+    if WANT in name:
+        nl, xl = struct.unpack("<HH", get(local + 26, local + 29))
+        start = local + 30 + nl + xl
+        data = get(start, start + csize - 1)
+        if method == 8:                            # deflate
+            data = zlib.decompress(data, -15)
+        out = os.path.join("symbols", name)
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "wb") as f:
+            f.write(data)
+        print(f"saved {out} ({len(data)} bytes)")
+        break
+    p += 46 + nlen + xlen + clen
+else:
+    sys.exit(f"{WANT}: not in the pack")
+EOF
+python3 fetch_isf.py ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1
+# Step 4 left a STRIPPED table (names, no types) inside the venv under the same name. Two tables
+# with one name: Volatility may pick either. Delete the one that cannot work.
+find vol3 -name 'BD8F451F3E754ED8A34B50560CEB08E3-1.json.xz' -print -delete
+vol windows.info 2>/dev/null | grep -E 'Is64Bit|IsPAE|NTBuildLab|SystemTime'
+
+# 6. Processes: who started what?
+vol windows.pstree 2>/dev/null | grep -E 'explorer|cmd.exe|reader_sl' | cut -f1-3
+
+# 7. Kernel drivers loaded from a raw \\??\\ path instead of \\SystemRoot\\.
+vol windows.modules 2>/dev/null | grep -F '\\??\\' | cut -f4,5
+
+# 8. DLLs sitting at 0x10000000, the linker's default base for a 32-bit DLL.
+vol windows.dlllist 2>/dev/null > dlllist.txt
+awk -F'\\t' '$3 == "0x10000000" {print $5}' dlllist.txt | sort | uniq -c
+awk -F'\\t' '$5 == "mfc42ul.dll"' dlllist.txt | wc -l
+vol windows.registry.printkey --key 'Microsoft\\Windows NT\\CurrentVersion\\Windows' 2>/dev/null | grep AppInit | cut -f1,5,6
+
+# 9. The plugin everyone reaches for first: what does it flag, and what does it miss?
+vol windows.malware.malfind 2>/dev/null | awk -F'\\t' '$1 ~ /^[0-9]+$/ && NF > 5 {print $2}' | sort | uniq -c
+vol windows.vadinfo --pid 1956 --address 0x10000000 2>/dev/null | tail -1 | cut -f2,4,6,7,11
+
+# 10. Network: Volatility 3 cannot parse XP's network structures, so fall back to raw bytes.
+vol windows.netscan 2>&1 | tail -1
+strings -a -t d 0zapftis.vmem | grep -E '172\\.16\\.98\\.1|C3PO-r2d2-POE' | tee hits.txt
+vol windows.strings --strings-file hits.txt 2>/dev/null | grep -A1 172.16
+
+# 11. Prove you changed nothing.
+shasum -a 256 -c 0zapftis.vmem.sha256`,
+      windows: `# ⚠️ Not executed for this edition (authored and verified on macOS). Use the Linux block under WSL:
+wsl --install -d Ubuntu          # once, then open the Ubuntu shell and follow the Linux block
+# Keep the sample INSIDE the WSL filesystem (~/cyber-journal/m22_7), not on C:\\.
+# Microsoft Defender identifies this family as Backdoor:Win32/R2d2.A and may quarantine the
+# archive or the .vmem if it lands on a Windows drive. Do not add an exclusion to make it stay:
+# that trains the wrong habit. The Windows-native lesson is the one in step 8: on a live
+# system, AppInit_DLLs lives at HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows.`,
+      linux: `# ⚠️ Not executed for this edition. Same image, same Volatility; only the tools around it differ.
+# 7-Zip's Linux build replaces the macOS one (see https://www.7-zip.org/download.html for the
+# current file name), sha256sum replaces shasum -a 256, and strings comes from binutils.
+sudo apt install python3-venv binutils
+mkdir -p ~/cyber-journal/m22_7 && cd ~/cyber-journal/m22_7
+sha256sum 0zapftis.rar          # must be 0ab81aec6d61593a03a7b6fbda9266af8dd9c8df1b6477faa880fafd19cb21b1
+7zz x -pinfected 0zapftis.rar   # after installing 7-Zip's Linux build
+sha256sum 0zapftis.vmem | tee 0zapftis.vmem.sha256
+python3 -m venv vol3 && ./vol3/bin/pip install -q volatility3==2.28.2
+# Then steps 4-10 of the macOS block unchanged (vol(), fetch_isf.py, find ... -delete, the plugins).
+sha256sum -c 0zapftis.vmem.sha256`,
+      expected: {
+        mac: `\`\`\`text
+$ shasum -a 256 0zapftis.rar
+0ab81aec6d61593a03a7b6fbda9266af8dd9c8df1b6477faa880fafd19cb21b1  0zapftis.rar
+
+$ ./7z/7zz l -pinfected 0zapftis.rar | tail -3
+2011-10-10 12:42:18 ....A    268435456     32890016  0zapftis.vmem
+------------------- ----- ------------ ------------  ------------------------
+2011-10-10 12:42:18          268435456     32890016  1 files
+
+$ shasum -a 256 0zapftis.vmem | tee 0zapftis.vmem.sha256
+eb8cc1f46cf0ed2ada1b467916a684ee8ab3e5ce2cb66ee581f89d921e4e539b  0zapftis.vmem
+
+$ vol windows.info 2>&1 | grep -m1 Unable
+Unable to validate the plugin requirements: ['plugins.Info.kernel.symbol_table_name']
+
+$ ./vol3/bin/vol -vv -f 0zapftis.vmem windows.info 2>&1 | grep -oE 'ntkrnl[a-z]*\\.pdb/[0-9A-F]+-[0-9]+' | sort -u
+ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1
+
+$ python3 fetch_isf.py ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1
+saved symbols/windows/ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1.json.xz (160992 bytes)
+
+$ find vol3 -name 'BD8F451F3E754ED8A34B50560CEB08E3-1.json.xz' -print -delete
+vol3/lib/python3.11/site-packages/volatility3/symbols/windows/ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1.json.xz
+
+$ vol windows.info 2>/dev/null | grep -E 'Is64Bit|IsPAE|NTBuildLab|SystemTime'
+Is64Bit	False
+IsPAE	True
+NTBuildLab	2600.xpsp_sp2_rtm.040803-2158
+SystemTime	2011-10-10 17:06:54+00:00
+
+$ vol windows.pstree 2>/dev/null | grep -E 'explorer|cmd.exe|reader_sl' | cut -f1-3
+1956	1884	explorer.exe
+* 544	1956	cmd.exe
+* 228	1956	reader_sl.exe
+
+$ vol windows.modules 2>/dev/null | grep -F '\\??\\' | cut -f4,5
+winsys32.sys	\\??\\C:\\WINDOWS\\system32\\drivers\\winsys32.sys
+vmmemctl.sys	\\??\\C:\\Program Files\\VMware\\VMware Tools\\Drivers\\memctl\\vmmemctl.sys
+
+$ awk -F'\\t' '$3 == "0x10000000" {print $5}' dlllist.txt | sort | uniq -c
+  13 mfc42ul.dll
+   1 sigc-2.0.dll
+   1 VMControlPanel.cpl
+
+$ awk -F'\\t' '$5 == "mfc42ul.dll"' dlllist.txt | wc -l
+      15
+
+$ vol windows.registry.printkey --key 'Microsoft\\Windows NT\\CurrentVersion\\Windows' 2>/dev/null | grep AppInit | cut -f1,5,6
+2011-10-10 16:56:35.000000 UTC	AppInit_DLLs	mfc42ul.dll
+
+$ vol windows.malware.malfind 2>/dev/null | awk -F'\\t' '$1 ~ /^[0-9]+$/ && NF > 5 {print $2}' | sort | uniq -c
+   1 csrss.exe
+  11 winlogon.exe
+
+$ vol windows.vadinfo --pid 1956 --address 0x10000000 2>/dev/null | tail -1 | cut -f2,4,6,7,11
+explorer.exe	0x10000000	Vad 	PAGE_EXECUTE_WRITECOPY	\\WINDOWS\\system32\\mfc42ul.dll
+
+$ vol windows.netscan 2>&1 | tail -1
+NotImplementedError: This version of Windows is not supported: 5.1 15.2600!
+
+$ strings -a -t d 0zapftis.vmem | grep -E '172\\.16\\.98\\.1|C3PO-r2d2-POE' | tee hits.txt
+110531672 C3PO-r2d2-POE
+203102032 172.16.98.1
+221025368 C3PO-r2d2-POE
+221791320 C3PO-r2d2-POE
+
+$ vol windows.strings --strings-file hits.txt 2>/dev/null | grep -A1 172.16
+172.16.98.1
+	0xc1b1750	FREE MEMORY
+
+$ shasum -a 256 -c 0zapftis.vmem.sha256
+0zapftis.vmem: OK
+\`\`\`
+
+Your two SHA-256 lines must match these exactly. If \`0zapftis.rar\` differs, stop: you do not have the file this lab was built on. Everything after that is analysis of a fixed image, so your output should match line for line, apart from the path in the \`find\` line and pip's upgrade notice. Captured on macOS 27.0 with Volatility 3 2.28.2 and 7-Zip 26.03, from one verbatim run of the block above. The whole run takes about a minute and a half.
+
+**Step 4 is supposed to fail.** \`vol -vv\` shows why: Volatility identified the kernel as \`ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1\` and fetched Microsoft's public PDB for it, and that PDB has symbol names but no types. It also printed a warning on every run: \`No metadata file found alongside VMEM file\`. That warning refers to VMware's \`.vmss\` snapshot file. It is harmless for this image, which is why the lab sends it to \`/dev/null\`.
+
+**The \`find\` line is the fix that matters.** It deletes the stripped table that step 4 saved inside the venv. Leave that file in place and Volatility has two tables with the same name. On our second run it picked the stripped one, and every step after this one printed nothing.
+
+**Steps 7 and 8 agree from two directions.** A driver loaded from a raw \`\\??\\C:\\…\` path, and a DLL at the linker's default base, loaded in 15 processes. The registry line gives the mechanism and the time, 16:56:35 UTC, before the 17:03:56 boot.
+
+**Step 9 is the lesson in one line.** \`malfind\` flags 12 regions in \`winlogon.exe\` and \`csrss.exe\`. The DLL that is actually malicious shows up as \`Vad\` + \`PAGE_EXECUTE_WRITECOPY\` + a file path, and that is exactly the shape \`malfind\` is written to skip.
+
+**Step 10 is the honest limit.** \`netscan\` does not support XP. The raw search finds the C2 address, and \`windows.strings\` places it in \`FREE MEMORY\`, owned by no process. Report it at that strength and no stronger.
+
+**\`0zapftis.vmem: OK\`**: nothing you ran changed the evidence.
+
+**If step 1's hash differs** or the download page has gone, do not substitute another file into this lab: every number above belongs to this one image. **If \`fetch_isf.py\` stops with "server ignored the Range header"**, the server has changed behaviour. The script refuses to download the full 840 MB, deliberately.`
+      }
+    },
+    caseStudy: {
+      title: "The Staatstrojaner (2011): a lawful-intercept tool that could do what the law forbade",
+      body: "On 8 October 2011 the Chaos Computer Club (CCC) published its analysis of a Windows trojan used by German police, known as the Staatstrojaner or Bundestrojaner. It became known as R2D2 after a string inside it, C3PO-r2d2-POE, the same string the lab finds three times in memory. German law allowed police to intercept internet telephony such as Skype calls. A ruling of the Federal Constitutional Court on 27 February 2008, in the CCC's words, 'forbade the use of malware to manipulate German citizen's PCs'. The CCC found the trojan could do far more: take screenshots of the web browser, turn on the microphone or camera for room surveillance, and 'receive uploads of arbitrary programs from the Internet and execute them remotely'. It found that 'neither the commands to the trojan nor its replies are authenticated or have their integrity protected', so anyone who found an infected machine could in principle control it, or plant files on it. It also found data routed through a rented server in the USA. The CCC's argument was forensic as much as legal: a trojan anyone could command 'could even be used to upload falsified \"evidence\" against the PC's owner, or to delete files, which puts the whole rationale for this method of investigation into question.' Microsoft's malware encyclopedia lists the family as Backdoor:Win32/R2d2.A and gives two files as indicators of compromise: mfc42ul.dll and winsys32.sys, the DLL and driver the lab finds. The lab image, 0zapftis.vmem, was captured on 10 October 2011, two days after publication, from a VMware machine whose trojan talks to a private address. That fits a researcher's test machine, not a real target. Memory analysis became the standard way to teach this case because the evidence that matters, a DLL loaded system-wide and a registry value that loads it, is plainest in RAM."
+    },
+    challenges: [{
+      q: "A colleague runs windows.malware.malfind against every process in an image. explorer.exe has no hits, and they write 'explorer.exe: no injected code, clean'. In the lab image, what is wrong with that sentence?",
+      a: "The first half can stand. The second cannot. malfind flags memory that is executable and writable, either private (VadS) or file-backed with a protection other than PAGE_EXECUTE_WRITECOPY. Windows maps DLLs it loads the normal way as file-backed PAGE_EXECUTE_WRITECOPY: all 69 image-backed executable regions in explorer.exe look like that. In the lab, explorer.exe has 72 executable regions and malfind's rule flags none of them, yet explorer.exe contains mfc42ul.dll, loaded by Windows itself through AppInit_DLLs. So write: 'malfind reported no regions of the kind it detects in explorer.exe.' Then check what malfind cannot see: dlllist for unexpected DLLs, modules for unexpected drivers, and the autostart locations in the registry."
+    }, {
+      q: "strings finds 172.16.98.1 in the lab image. A draft report says 'explorer.exe (PID 1956) connected to the C2 server 172.16.98.1'. What can you actually claim from your own Volatility 3 analysis, and how should the published connscan result appear?",
+      a: "You can claim that the string 172.16.98.1 is present in the image at physical offset 0xc1b1750, in memory that windows.strings attributes to no process (FREE MEMORY). You cannot claim a connection, a process or a port: windows.netscan raised NotImplementedError for Windows 5.1. The 2011 Volatility 2 connscan result (PID 1956 to 172.16.98.1:6666) belongs in the report as a cited, unreproduced result from a different tool, with its source. If the connection matters, reproduce it with a tool that supports XP and record which tool and which version."
+    }, {
+      q: "You run a Windows XP image through Volatility 3 and every plugin fails with a symbol_table_name error. With -vv you see Volatility download ntkrnlpa.pdb from Microsoft and then 'Symbol type not in symbol_table_name1 SymbolTable: _ETHREAD'. A teammate says 'the symbols downloaded, so the image must be corrupt'. What is actually going on, and what do you do?",
+      a: "The image is fine: Volatility found the kernel, read its PDB GUID and got the matching PDB. That PDB is stripped. It has symbol names but no types, and Volatility needs types to read an _ETHREAD or an _EPROCESS. Get a typed table for that exact GUID and age, for example the one file from the Volatility Foundation's symbol pack, as fetch_isf.py does. Then delete the stripped table Volatility saved under the same name, so it cannot be picked instead. In the report, record which table you used and where it came from, because another examiner needs that to reproduce your results."
+    }],
+    quiz: ["What is a symbol table, what identifies the right one for a given kernel, and why does a table with names but no types fail in the same way as having no table at all?", "In the lab, why did the first run of windows.info fail, and why is deleting the stripped table after fetching the typed one part of the fix rather than tidying up?", "Name the four independent angles in the lab that point at mfc42ul.dll or winsys32.sys, and say what each one shows on its own.", "What is special about the address 0x10000000 for a 32-bit DLL, and why does a DLL at a different base (0x390000 in two VMware processes) not clear it?", "Explain malfind's selection rule in your own words, and why it skips a malicious DLL that Windows loaded through AppInit_DLLs.", "The C2 address is in the image, but windows.strings places it in FREE MEMORY. What may a report claim about it, and what may it not?", "20 processes load user32.dll but only 15 contain mfc42ul.dll. How should a report handle a fact that the evidence does not explain?"],
+    workbench: `> **What this trains.** In the lab you ran plugins and read their output. Here you write the two small tools an examiner needs when the plugins run out: one that measures how far a suspicious DLL spread, and one that shows *exactly* what \`malfind\` cannot see, using \`malfind\`'s own rule. Then you write the paragraph that goes in the report. Standard-library Python only, no installs.
+
+> ⚖️ **Ethics:** the scripts read text files that Volatility produced from the lab image. None of them touches the image itself, and none writes an executable. Re-run \`shasum -a 256 -c 0zapftis.vmem.sha256\` when you finish.
+
+#### 🟢 Drill 1 — How far did it spread? ~25 min
+
+**Goal.** Write \`spread.py DLLLIST\`. It reads the \`dlllist.txt\` you saved in lab step 8 and, for every DLL loaded at \`0x10000000\` in at least one process, prints how many processes loaded it at that base, how many loaded it at all, out of how many processes have a DLL list, and every path it was loaded from.
+
+**Done when.** It prints three DLLs, \`mfc42ul.dll\` first, with \`at 0x10000000 in 13, loaded in 15/21 processes\`, and shows that \`mfc42ul.dll\` was loaded under two different spellings of \`system32\`.
+
+<details><summary>Nudge</summary>
+
+- The file is tab-separated. Keep only lines whose first field is a number: that drops Volatility's banner and header.
+- Fields: PID, process, base, size, name, path. Compare names in lower case, or \`uxtheme.dll\` and \`UxTheme.dll\` count as two DLLs.
+- 21, not 22: \`System\` (PID 4) is the kernel and has no user-mode DLL list.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""spread.py DLLLIST - which DLLs sit at the linker's default base, and how far did they spread?"""
+import sys
+from collections import defaultdict
+
+DEFAULT_BASE = "0x10000000"          # MSVC /BASE default for a 32-bit DLL
+procs = set()
+where = defaultdict(set)             # dll name (lower-case) -> {(pid, process)}
+at_default = defaultdict(set)        # dll name -> {pid} where it loaded at DEFAULT_BASE
+paths = defaultdict(set)
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    f = line.rstrip("\\n").split("\\t")
+    if len(f) < 6 or not f[0].isdigit():
+        continue                     # header, banner, blank
+    pid, proc, base, name, path = f[0], f[1], f[2], f[4].lower(), f[5]
+    procs.add(pid)
+    where[name].add((pid, proc))
+    paths[name].add(path)
+    if base == DEFAULT_BASE:
+        at_default[name].add(pid)
+
+print(f"{len(procs)} processes with a DLL list\\n")
+for name in sorted(at_default, key=lambda n: -len(where[n])):
+    print(f"{name}: at {DEFAULT_BASE} in {len(at_default[name])}, loaded in {len(where[name])}/{len(procs)} processes")
+    for p in sorted(paths[name]):
+        print(f"    {p}")
+\`\`\`
+
+\`\`\`text
+$ python3 spread.py dlllist.txt
+21 processes with a DLL list
+
+mfc42ul.dll: at 0x10000000 in 13, loaded in 15/21 processes
+    C:\\WINDOWS\\System32\\mfc42ul.dll
+    C:\\WINDOWS\\system32\\mfc42ul.dll
+vmcontrolpanel.cpl: at 0x10000000 in 1, loaded in 1/21 processes
+    C:\\Program Files\\VMware\\VMware Tools\\VMControlPanel.cpl
+sigc-2.0.dll: at 0x10000000 in 1, loaded in 1/21 processes
+    C:\\Program Files\\VMware\\VMware Tools\\sigc-2.0.dll
+\`\`\`
+
+Two things to read here. First, 15 loads but only 13 at the default base: in \`VMwareTray.exe\` and \`VMwareUser.exe\` it sits at \`0x390000\`, because a VMware file (\`VMControlPanel.cpl\`, \`sigc-2.0.dll\`) already occupied \`0x10000000\` in those two processes. A DLL that cannot get its preferred base is relocated. So "not at \`0x10000000\`" never clears a DLL. Second, \`System32\` and \`system32\`: Windows paths are case-insensitive, so this is one file. The capital S appears in one process only (\`svchost.exe\`, PID 964), and it is only the spelling of the path the loader was given. Do not read more into it.
+
+Common wrong attempts: counting 22 processes (System has no DLL list); comparing names case-sensitively; and flagging every DLL whose base does not start \`0x7\` — that flags \`comctl32.dll\`, \`xpsp2res.dll\` and about 40 other files under \`C:\\WINDOWS\`.
+
+</details>
+
+#### 🟡 Drill 2 — Prove malfind's blind spot ~35 min
+
+**Goal.** Save \`vol windows.vadinfo --pid 1956 2>/dev/null > vad1956.txt\` and \`vol windows.vadinfo --pid 632 2>/dev/null > vad632.txt\`. Write \`blindspot.py VADINFO\`. For every executable region, it applies the selection rule from Volatility 3's \`malfind.py\` and prints how many regions the rule flags and how many it skips. For flagged regions, and for any region backed by \`mfc42ul.dll\`, it prints one line.
+
+**Done when.** For \`explorer.exe\` it reports 72 executable regions, 0 flagged, and shows \`mfc42ul.dll\` as \`skip … Vad PAGE_EXECUTE_WRITECOPY\`. For \`winlogon.exe\` it flags 9, and you can say why the real \`malfind\` reported 11.
+
+<details><summary>Nudge</summary>
+
+- \`vadinfo\` columns: PID, process, offset, start, end, tag, protection, commit charge, private memory, parent, file. The tag has a trailing space (\`Vad \`): strip it.
+- The rule in \`malfind.py\` (2.28.2): executable **and** writable, and either \`PrivateMemory == 1\` with tag \`VadS\`, or \`PrivateMemory == 0\` with a protection other than \`PAGE_EXECUTE_WRITECOPY\`.
+- \`malfind\` has a second branch you are not copying: an executable, *non*-writable region with a modified ("dirty") page. You cannot see dirty pages in \`vadinfo\` output. That branch is your two missing hits.
+
+</details>
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`python
+#!/usr/bin/env python3
+"""blindspot.py VADINFO - apply malfind's selection rule to every executable region, and show what it skips."""
+import sys
+
+rows = []
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    f = line.rstrip("\\n").split("\\t")
+    if len(f) < 11 or not f[0].isdigit():
+        continue
+    start, tag, prot, private, path = f[3], f[5].strip(), f[6], f[8], f[10]
+    if "EXECUTE" not in prot:
+        continue                                   # malfind only looks at executable memory
+    write_exec = "WRITE" in prot
+    # volatility3 malfind.py: private VadS, or shared memory that is not PAGE_EXECUTE_WRITECOPY
+    shape_ok = (private == "1" and tag == "VadS") or (private == "0" and prot != "PAGE_EXECUTE_WRITECOPY")
+    flagged = write_exec and shape_ok              # (the dirty-page branch for EXECUTE_READ is ignored here)
+    backing = path if path not in ("N/A", "") else "(no file: private)"
+    rows.append((flagged, start, tag, prot, backing))
+
+skipped = [r for r in rows if not r[0]]
+print(f"{len(rows)} executable regions: {len(rows) - len(skipped)} flagged, {len(skipped)} skipped\\n")
+for flagged, start, tag, prot, backing in rows:
+    if "mfc42ul" in backing.lower() or flagged:
+        print(f"{'FLAG' if flagged else 'skip'}  {start:>12}  {tag:<5} {prot:<24} {backing}")
+\`\`\`
+
+\`\`\`text
+$ python3 blindspot.py vad1956.txt
+72 executable regions: 0 flagged, 72 skipped
+
+skip    0x10000000  Vad   PAGE_EXECUTE_WRITECOPY   \\WINDOWS\\system32\\mfc42ul.dll
+
+$ python3 blindspot.py vad632.txt | head -1
+83 executable regions: 9 flagged, 74 skipped
+\`\`\`
+
+The 9 flagged in \`winlogon.exe\` are exactly the 9 \`PAGE_EXECUTE_READWRITE\` regions the real \`malfind\` lists. Its other 2 hits are \`PAGE_EXECUTE_READ\` regions caught by the dirty-page branch. So your copy of the rule is faithful, and it proves the point: \`PAGE_EXECUTE_WRITECOPY\` contains \`WRITE\`, but the second test throws it out on purpose. In \`explorer.exe\`, all 69 executable regions backed by an image file look like that. Excluding it is what keeps \`malfind\` from flagging every DLL on the system. The same choice is what makes it blind to a malicious DLL that Windows loaded normally.
+
+Common wrong attempts: testing \`"WRITE" in prot\` alone (that flags every DLL, because WRITECOPY contains WRITE); forgetting to strip the tag, so \`"Vad " == "Vad"\` is never true; and concluding "malfind is broken". It does its job. Its job is just narrower than "find malware".
+
+</details>
+
+#### 🔴 Drill 3 — Write the finding ~20 min
+
+**Goal.** Write the findings paragraph of a report on \`0zapftis.vmem\`. Every sentence must be a claim someone else can check by re-running one lab step, and it must name the tool and version, the image hash, what you did **not** establish, and what came from someone else's work.
+
+**Done when.** A classmate who has only your paragraph and the image can re-run every step and reach the same numbers, and nothing in it says more than the evidence does.
+
+<details><summary>Walkthrough</summary>
+
+A version that holds up:
+
+> **Finding 1 (memory image \`0zapftis.vmem\`, SHA-256 \`eb8cc1f4…e539b\`, verified unchanged after analysis).** Analysed with Volatility 3 2.28.2 using the symbol table \`ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1\` from the Volatility Foundation's Windows symbol pack (the table Microsoft's symbol server supplies for this kernel has no type information). The image is Windows XP SP2 (build 2600), 32-bit PAE, system time 2011-10-10 17:06:54 UTC.
+>
+> The DLL \`C:\\WINDOWS\\system32\\mfc42ul.dll\` is loaded in 15 of the 21 processes that have a DLL list (\`windows.dlllist\`), in 13 of them at \`0x10000000\`. The SOFTWARE hive value \`Microsoft\\Windows NT\\CurrentVersion\\Windows\\AppInit_DLLs\` is \`mfc42ul.dll\`, in a key last written 2011-10-10 16:56:35 UTC (\`windows.registry.printkey\`). The driver \`winsys32.sys\` is loaded from \`\\??\\C:\\WINDOWS\\system32\\drivers\\winsys32.sys\` (\`windows.modules\`). Both file names match Microsoft's published indicators for Backdoor:Win32/R2d2.A.
+>
+> **Not established:** why 5 processes that load \`user32.dll\` do not contain \`mfc42ul.dll\`. Also not established: any network connection. \`windows.netscan\` does not support this Windows version. The string \`172.16.98.1\` is present, but only in memory owned by no process (\`windows.strings\`). A published 2011 analysis with Volatility 2's \`connscan\` reported a connection from PID 1956 to \`172.16.98.1:6666\`. That result has not been reproduced here. \`windows.malware.malfind\` flagged 12 regions (11 in \`winlogon.exe\`, 1 in \`csrss.exe\`), none of them backed by \`mfc42ul.dll\`. Its selection rule excludes DLLs mapped by the Windows loader, so its silence about \`mfc42ul.dll\` is not evidence that the DLL is harmless.
+
+Notice what it does *not* say: who installed the malware, or on whose behalf. Nothing in the image answers either question.
+
+Common wrong attempts: "explorer.exe connected to the C2 server" (not shown by your own analysis); "malfind confirmed the system was clean apart from…" (malfind cannot confirm that); "the government infected this machine" (the image identifies software, not an operator); and leaving out the symbol table's source, which is the one thing another examiner needs in order to reproduce step 5.
+
+</details>`,
+    tracker: ["Verified the sample's SHA-256 before extracting it, listed the archive before unpacking, and hashed the image before and after analysis", "Diagnosed a stripped symbol table from Volatility's own output, fetched the typed one by its GUID, and removed the bad copy", "Found winsys32.sys from its \\??\\ load path and mfc42ul.dll from its default base address, and explained why vmmemctl.sys and the two VMware DLLs are not findings", "Read AppInit_DLLs from the image's SOFTWARE hive and placed its last-write time before the boot", "Can explain why malfind flagged 12 regions and none of them was the malware", "Reported the C2 string at the strength the evidence supports: present, but in memory owned by no process", "Workbench: measured the DLL's spread with spread.py and explained the two relocated copies", "Workbench: reproduced malfind's selection rule in blindspot.py, matched its 9 read-write-execute hits, and explained the other 2", "Workbench: wrote a finding that names the tool version, the symbol source and the image hash, and says what was not established"]
   }, {
     id: "m23",
     level: 3,

@@ -5,9 +5,9 @@ behind it. The guardrail gate (`tools/guardrail.py`) proves the course is
 *structurally* sound — balanced fences, resolving cross-references, no dead
 links. It cannot prove anything here is *true*. That is what this file is for.
 
-- **Course file:** `cyber-guardians/cyber_guardians_app.html` (43 modules + 3 roadmaps)
+- **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-23 (Batch 9 — M22.5 build pass: 13 rows, 1 defect in M18.5; Batch 8 closed every earlier tag, and no `PENDING` rows remain)
+- **Last pass:** 2026-09-24 (Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -387,7 +387,56 @@ Fixes. Each was in the draft and would have passed the gate.
 | 121 | M23.7 | Challenge arithmetic: 8 Mar 2026 00:00 America/New_York = 05:00Z (EDT from 02:00 local); Berlin UTC+2 summer, UTC+1 winter | `EXECUTED` | Python `zoneinfo` | stable |
 | 122 | M0 | Module count 43 → **44**; pace estimate 44 × 5–6 h ÷ 4 h/week = **55–66 weeks** | `EXECUTED` | gate `module-count`; arithmetic | on every new module |
 
+## Batch 11 — M22.7 build pass (claims ledgered as they were written)
+
+**New module, 16 rows, 0 defects shipped, 6 caught on the way in.** M22.7
+*Memory Forensics with Volatility 3* was built with the same rule as M22.5 and
+M23.7: every command run, and the published transcript taken from one verbatim
+re-run of the published lab in a fresh `HOME`. **Correction to Batch 10:** its
+note that "the only live public [memory] image found is 518 MB (NIST CFReDS)"
+was wrong. The Volatility wiki's R2D2 sample is live at 31 MB, 1/16 of that. It
+was on the same list, and nobody had checked its size. The sample is never
+committed: the lab links to it and pins its hash.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 123 | M22.7 | Sample `0zapftis.rar` (MediaFire key `yxqodp1p2aca91x`, listed on the Volatility Memory Samples wiki as "Malware - R2D2") is 32,890,132 bytes, SHA-256 `0ab81aec…21b1`; password `infected`; contains exactly one file, `0zapftis.vmem`, 268,435,456 bytes, SHA-256 `eb8cc1f4…e539b`, no executables | `EXECUTED` | download 2026-09-23; `7zz l`; `file` reports `data` | if the host removes it |
+| 124 | M22.7 | 7-Zip 26.03 (2026-09-03) macOS arm64 console build `7z2603-mac.tar.xz` (1,863,192 bytes) opens the header-encrypted RAR; macOS `bsdtar` cannot ("RAR encryption support unavailable") | `EXECUTED` | 7-zip.org download page; run | next 7-Zip release |
+| 125 | M22.7 | Volatility 3 2.28.2 (PyPI latest on 2026-09-23) auto-fetches Microsoft's PDB for kernel `ntkrnlpa.pdb/BD8F451F3E754ED8A34B50560CEB08E3-1`; the ISF it builds has 10,412 symbols and **0 user types**, so every plugin fails with `symbol_table_name` and `-vv` shows `Symbol type not in symbol_table_name1 SymbolTable: _ETHREAD` | `EXECUTED` | ISF inspected with `json` | next vol3 release |
+| 126 | M22.7 | Volatility Foundation `windows.zip` symbol pack: 839,727,133 bytes, 3,019 entries, last modified 2019-10-16; its `ntkrnlpa.pdb/BD8F…-1.json.xz` (160,992 bytes) has 561 user types including `_ETHREAD`; the server honours HTTP Range, so `fetch_isf.py` pulls it with under 1 MB transferred | `EXECUTED` | HEAD + ranged reads | if the pack is rebuilt |
+| 127 | M22.7 | Image facts: Windows XP SP2 `2600.xpsp_sp2_rtm.040803-2158`, 32-bit PAE, SystemTime 2011-10-10 17:06:54 UTC, 22 processes, 21 with a DLL list; `smss.exe` started 17:03:56 UTC | `EXECUTED` | `windows.info`, `pslist`, `dlllist` | stable (fixed image) |
+| 128 | M22.7 | Exactly two kernel modules load from a `\??\` path: `winsys32.sys` (`system32\drivers`) and `vmmemctl.sys` (VMware Tools folder) | `EXECUTED` | `windows.modules` | stable (fixed image) |
+| 129 | M22.7 | At `0x10000000`: `mfc42ul.dll` in 13 processes, plus `sigc-2.0.dll` and `VMControlPanel.cpl`; `mfc42ul.dll` is in 15/21 DLL lists, relocated to `0x390000` in `VMwareTray.exe`/`VMwareUser.exe`, where the VMware files hold `0x10000000`; `System32` spelling in PID 964 only; about 40 other `\WINDOWS\` DLL names sit outside `0x7…` | `EXECUTED` | `dlllist` + `spread.py` | stable (fixed image) |
+| 130 | M22.7 | MSVC default `/BASE` for a 32-bit DLL is `0x10000000` (EXE `0x400000`) | `SOURCED` | Microsoft Learn, "/BASE (Base address)" | stable |
+| 131 | M22.7 | SOFTWARE hive `Microsoft\Windows NT\CurrentVersion\Windows` → `AppInit_DLLs` = `mfc42ul.dll`, key last written 2011-10-10 16:56:35 UTC; 20 processes load `user32.dll`, 15 carry `mfc42ul.dll` (5 unexplained, taught as an open gap) | `EXECUTED` | `windows.registry.printkey`; `dlllist` | stable (fixed image) |
+| 132 | M22.7 | `user32.dll` reads `AppInit_DLLs` when it loads into a process and loads the named DLLs | `SOURCED` | Microsoft Learn, "AppInit DLLs and Secure Boot" / "AppInit_DLLs in Windows 7…" | stable |
+| 133 | M22.7 | `malfind` rule (vol3 2.28.2 `malfind.py`): execute+write (or execute with a dirty page) **and** (private `VadS` or file-backed ≠ `PAGE_EXECUTE_WRITECOPY`). Here: 12 hits, 11 `winlogon.exe` + 1 `csrss.exe`, none `mfc42ul.dll`; explorer's `mfc42ul.dll` VAD is `Vad`/`PAGE_EXECUTE_WRITECOPY`; all 69 image-backed exec regions in explorer are WRITECOPY; `blindspot.py` flags 0/72 (explorer) and 9/83 (winlogon) = malfind's 9 RWX hits, the other 2 are its dirty-page branch | `EXECUTED` + `SOURCED` | source read; runs | next vol3 release |
+| 134 | M22.7 | `windows.netscan` on this image: `NotImplementedError: This version of Windows is not supported: 5.1 15.2600!`; raw `strings` finds `172.16.98.1` once (offset 203102032) and `C3PO-r2d2-POE` three times; `windows.strings` places all four in `FREE MEMORY` | `EXECUTED` | runs | next vol3 release |
+| 135 | M22.7 | 2011 Volatility 2 `connscan` on this image reported PID 1956 → `172.16.98.1:6666`; persistence via `AppInit_DLLs` — cited in the course as someone else's unreproduced result | `SOURCED` | evild3ad / "Mr.J", jay-fva.blogspot.com, 21 Oct 2011 | stable (historical) |
+| 136 | M22.7 | CCC, 8 Oct 2011 21:00: browser screenshots, mic/camera, "receive uploads of arbitrary programs from the Internet and execute them remotely"; commands and replies not authenticated; relay via rented US server; 27 Feb 2008 court ruling "forbade the use of malware to manipulate German citizen's PCs" (CCC's words); "could even be used to upload falsified 'evidence' against the PC's owner, or to delete files…" | `SOURCED` | ccc.de/en/updates/2011/staatstrojaner (primary) | stable (historical) |
+| 137 | M22.7 | Microsoft names the family Backdoor:Win32/R2d2.A with indicators `%windir%\System32\mfc42ul.dll` and `%windir%\System32\winsys32.sys` | `SOURCED` | Microsoft Security Intelligence encyclopedia entry (via search index; page is script-rendered) | stable |
+| 138 | M0 | Module count 44 → **45**; pace estimate 45 × 5–6 h ÷ 4 h/week = 56.25–67.5 → **~56–68 weeks** | `EXECUTED` | gate `module-count`; arithmetic | on every new module |
+
 ## Fixes applied in this pass
+
+**Batch 11 (2026-09-24) — six defects caught while building M22.7; none shipped.**
+
+1. **Lab step 5 left the stripped symbol table in place.** The first full run
+   passed by luck. The verbatim re-run loaded the stripped table instead of the
+   typed one, and every later step printed nothing. The lab now deletes it, and
+   says why. Guard `A95` (fires once on the pre-fix text, clear on the fixed text).
+2. **Theory:** "Windows DLLs sit mostly in the `0x7…` range". False here: 40
+   Windows DLL names sit elsewhere (`0x5…`, `0x6…`, `0x2…`). Replaced with named examples.
+3. **Report walkthrough:** "malfind reported no regions in any process that loads
+   `mfc42ul.dll` except `winlogon.exe` and `csrss.exe`". `csrss.exe` does not load
+   it. Now states the 12 hits and that none is backed by the DLL.
+4. **Case study misquote:** the CCC's "or to delete files" was quoted without
+   "to", and a paraphrase ("cannot produce trustworthy evidence") was not in the
+   source. Both replaced with the CCC's verbatim sentence.
+5. **"a dozen more Microsoft files"** would be flagged by a naive `0x7…` rule. The
+   count is about 40. Corrected.
+6. **Two lab `cut` column errors** (step 6 too wide; step 7 printed Size+Name, not
+   Name+Path). Caught in the first transcript.
 
 **Batch 10 (2026-09-23) — five defects caught while building M23.7; none shipped.**
 
