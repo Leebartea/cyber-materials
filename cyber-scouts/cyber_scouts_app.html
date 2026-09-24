@@ -799,7 +799,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 | # | Topic | Status |
 |---|---|---|
 | S1.1 | Lawful by design: scope, law and the collection record | ✅ available |
-| — | Domain registration data (RDAP) | planned |
+| S1.2 | Registration data: reading RDAP for domains, addresses and networks | ✅ available |
 | — | Certificate transparency and subdomains | planned |
 | — | People and organisations | planned |
 | — | Breach exposure: checking without handling stolen data | planned |
@@ -1077,6 +1077,318 @@ The out-of-scope line is the one that matters. "Individual pupils" is the obviou
 This is why the Berkeley Protocol asks for the hash *and* the collection data together. Each covers the other's blind spot.
 </details>`,
     tracker: ["Can state the four pre-collection questions and what each protects", "Can explain Van Buren's gates-up-or-down test and apply it to a URL", "Can explain why hiQ lost even after winning its CFAA argument", "Opened a case folder with a written scope before collecting anything", "Checked my clock offset, collected one item, logged it with a SHA-256 hash, and verified it", "Demonstrated that a one-word edit breaks the hash and can explain why a re-fetch may not match"]
+  }, {
+    id: "s1_2",
+    level: 1,
+    num: "S1.2",
+    title: "Registration Data — Reading RDAP for Domains, Addresses and Networks",
+    objective: `Find out which registry is authoritative for a domain name, an IP address or an AS number; read its RDAP record without sending the target a single packet; and say precisely what that record proves, what it cannot prove, and what the registry deliberately left out.`,
+    theory: `#### Define the words first
+
+- **Registry** — the organisation that runs a top-level domain and keeps the master list of names in it: Verisign for \`.com\`, Public Interest Registry for \`.org\`. For IP addresses and AS numbers the equivalent is a **regional internet registry (RIR)**. There are five: AFRINIC, APNIC, ARIN, LACNIC and RIPE NCC.
+- **Registrar** — the company that sells a domain to the public and submits it to the registry. Every ICANN-accredited registrar has a number, its **IANA Registrar ID**.
+- **Registrant** — whoever registered the domain: a company, a person, or a privacy service standing in for either.
+- **RDAP** — the Registration Data Access Protocol. You ask a question over HTTPS and get back structured JSON. It is defined by five IETF standards: RFC 7480 (HTTP use), 7481 (security), 9082 (queries), 9083 (responses) and 9224 (finding the right server).
+- **WHOIS** — RDAP's predecessor (RFC 3912, 2004). It answers in free text that each registry formats its own way, and it has no standard way to find the right server.
+- **Bootstrap file** — a map published by IANA that says which RDAP server is authoritative for each top-level domain, IP range or AS number range.
+- **Handle** — a registry's own identifier for a record, such as \`NET-192-0-2-0-1\`.
+
+#### Whose log? The registry's.
+
+Every request in this module goes to IANA, a domain registry or an RIR. The target's own servers never see it. In S1.1's terms, that makes RDAP about as passive as a source can be.
+
+One caution. A third-party "WHOIS lookup" website is a *different* third party: your query lands in its log, under its terms, and it may do other things with it. The lab talks to the registries directly, so you know exactly whose log each request lands in.
+
+#### From WHOIS to RDAP
+
+RDAP fixed three things WHOIS never had:
+
+1. **A fixed structure.** Every response is JSON with named fields (RFC 9083). You can read a field with \`jq\` instead of guessing at one registry's text layout.
+2. **A way to find the right server** (RFC 9224): the IANA bootstrap files below.
+3. **A record of what was withheld** (RFC 9537, 2024): a \`redacted\` list that names each field the server left out and how.
+
+For generic top-level domains (\`.com\`, \`.org\`, \`.app\` and the rest), ICANN made RDAP the definitive source on **28 January 2025**. From that date gTLD registries and registrars are no longer required to run WHOIS, except for \`.com\`, \`.name\` and \`.post\`. Some still run it voluntarily. Country-code domains such as \`.uk\` or \`.de\` are outside that change. Each decides for itself.
+
+#### Step 1 — ask IANA who is authoritative
+
+IANA publishes four bootstrap files at \`https://data.iana.org/rdap/\`: \`dns.json\`, \`ipv4.json\`, \`ipv6.json\` and \`asn.json\`. Each holds a \`services\` list, and every entry pairs a list of keys with a list of server URLs:
+
+\`\`\`text
+[ ["com"], ["https://rdap.verisign.com/com/v1/"] ]
+\`\`\`
+
+Find the entry containing your key and put the query on the end of the URL: \`domain/example.com\`, \`ip/192.0.2.1\` or \`autnum/64496\`.
+
+Not every TLD is in the file. On 24 September 2026 the DNS file (published 16 September 2026) listed 1,202 of the 1,438 top-level domains in IANA's root list. \`.fr\`, \`.uk\` and \`.au\` were in it. \`.de\`, \`.jp\` and \`.io\` were not. **"Not in the file" does not mean "no data".** It means that registry has not listed an RDAP server with IANA. Its own website or WHOIS service is then the fallback, and your collection record says which one you used.
+
+Keep the bootstrap file you used as evidence. It is the reason you asked *that* server, and it changes over time.
+
+#### Step 2 — read a domain record
+
+| Field | What it holds |
+|---|---|
+| \`ldhName\` | the domain name, as the registry stores it |
+| \`status\` | locks and states. RFC 5731 status values starting with "client" are set by the registrar, and values starting with "server" are set by the registry. RFC 8056 maps them to the RDAP strings you see, such as \`client transfer prohibited\`. |
+| \`events\` | dated events: \`registration\`, \`expiration\`, \`last changed\`, \`last update of RDAP database\` |
+| \`entities\` | the parties, each with \`roles\` (\`registrar\`, \`registrant\`, \`technical\`, \`abuse\` …) and contact details in \`vcardArray\` |
+| \`nameservers\` | the DNS servers the domain is delegated to |
+| \`secureDNS\` | whether the delegation is signed with DNSSEC |
+| \`rdapConformance\` | which specifications the response claims to follow. \`redacted\` here means an RFC 9537 list is present. |
+| \`links\` | related URLs, including \`self\` (this record) |
+
+The lab reads \`example.com\` from Verisign and \`example.org\` from Public Interest Registry. Three findings from the run on 24 September 2026:
+
+- **Same registrar ID, two names.** Both records name registrar **376**. Verisign calls it *"RESERVED-Internet Assigned Numbers Authority"*; PIR calls it *"ICANN"*. Two registries gave the same entity two labels. **Join records on IDs, never on names.**
+- **Where the trail ends.** For an ordinary gTLD domain, the registrar runs its own RDAP service. Since ICANN's 2023 contract amendments every gTLD registrar must, for all the domains it sponsors. IANA's Registrar IDs registry lists each registrar's RDAP base URL. ID 376 has status *Reserved* and no RDAP server, so for \`example.com\` the registry record is all there is.
+- **A redaction you can read.** PIR's response declares \`redacted\` conformance and lists one redaction: *Registry Domain ID*, at \`$.handle\`, by **removal**. RFC 9537 defines four methods: removal, empty value, partial value and replacement value. The list tells you *that* something was withheld and *where*, even when you cannot see it.
+
+#### Redaction: what the record deliberately leaves out
+
+GDPR began to apply on 25 May 2018. The ICANN Board had adopted a *Temporary Specification* for gTLD registration data on 17 May 2018. Its successor, the **Registration Data Policy**, has been in force since **21 August 2025**. For the registrant data elements it lists, the policy says the output "MUST NOT include the value of the data element … and MUST indicate that the value is redacted", unless the registrant has given consent to publish.
+
+So when a registrant's name, email and phone come back as redacted, the system is working as designed. Some people with a legitimate need (police, lawyers, security teams) can ask for non-public data through ICANN's Registration Data Request Service (RDRS) or the registrar's own disclosure process. That is a formal request made by someone with a lawful basis. It is not a practice tool, and nothing in this course uses it.
+
+#### Numbers have registries too
+
+The same method works for IP addresses and AS numbers. The IPv4 bootstrap file maps address blocks to the five RIRs' RDAP servers; the ASN file maps number ranges.
+
+- **\`192.0.2.1\`** falls in \`192.0.0.0/8\`, which the file assigns to ARIN. ARIN returns \`NET-192-0-2-0-1\`, the range \`192.0.2.0–192.0.2.255\` named **TEST-NET-1**, with registrant **IANA** and a remark that addresses in \`192.0.2.\`, \`198.51.100.\` and \`203.0.113.\` "are reserved for use in documentation" (RFC 5737).
+- **AS64496** is in no range in the ASN bootstrap file. No RIR claims it. Ask ARIN anyway and it answers **AS64496**, range **64496–64511**, **IANA-RSVD**, "Reserved for use in documentation and sample code [RFC5398]".
+
+An IP record tells you which organisation holds an address block, usually a network operator such as an ISP, a cloud provider or a hosting company. It does not tell you who was using a particular address at a particular moment. Only the operator's own records can show that, and a Scout cannot see those.
+
+#### What a registration record proves — and what it does not
+
+A record, collected and hashed the S1.1 way, proves that **this registry said this at this time**. It does not prove any of the following:
+
+- **Who a person is.** Contact data is whatever the registrant supplied, and a privacy service may stand in for them. Most of it is redacted anyway.
+- **When the current holder got the domain.** In EPP (RFC 5731), the registration event (\`crDate\`) is when the domain object was *created*. A transfer is recorded separately (\`trDate\`). A domain can change hands without its registration date moving.
+- **That "last changed" means a change of owner.** Any update counts: a new name server, a status change, a renewal.
+- **Who used an IP address.** See above.
+
+Attackers use these sources too. MITRE ATT&CK lists this as **T1596 Search Open Technical Databases**, under tactic **TA0043 Reconnaissance**. A defender reads their own organisation's records the same way an attacker would: check which names, addresses and contacts anyone can see.`,
+    lab: {
+      mac: `# LAB: ask the right registry, read what it says, and log every answer (Apple Silicon)
+# ETHICS: every request goes to IANA, a domain registry or a regional internet
+# registry - public services whose job is to answer lookups. Every target is
+# reserved for documentation: example.com/.org (RFC 2606), 192.0.2.0/24 (RFC 5737)
+# and AS64496 (RFC 5398). Nothing here touches a server the targets run.
+ANALYST=analyst01
+mkdir -p ~/scouts-case/s1_2/evidence && cd ~/scouts-case/s1_2
+
+cat > scope.txt <<'SCOPE'
+case:        S1.2 practice
+authorised:  self (public registration data about reserved names and numbers)
+in scope:    RDAP records for example.com, example.org, 192.0.2.1, AS64496
+out of scope: any request to the targets' own servers; any person
+SCOPE
+
+# collect ID URL - fetch, fingerprint and log in one step (S1.1's record, as a habit)
+collect() {
+  local T H
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  curl -sL -o "evidence/$1.json" "$2"
+  H=$(shasum -a 256 "evidence/$1.json" | cut -d' ' -f1)
+  printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$1" "$T" "$ANALYST" "$2" "$H" >> collection_log.tsv
+}
+
+# 1. Ask IANA who is authoritative. The bootstrap file is evidence: it shows why you asked whom.
+collect boot_dns https://data.iana.org/rdap/dns.json
+jq -r '"bootstrap published: " + .publication' evidence/boot_dns.json
+base() { jq -r --arg t "$1" '[.services[] | select(.[0] | index($t)) | .[1][0]][0] // "NOT IN FILE"' evidence/boot_dns.json; }
+for tld in com org de; do echo "$tld -> $(base $tld)"; done
+
+# 2. Query each registry and read the fields that matter.
+collect d_example_com "$(base com)domain/example.com"
+collect d_example_org "$(base org)domain/example.org"
+for f in evidence/d_example_*.json; do
+  jq -r '"\\(.ldhName) | registered \\(.events[] | select(.eventAction=="registration") | .eventDate[0:10]) | registrar \\(.entities[] | select(.roles | index("registrar")) | .handle) \\(.entities[] | select(.roles | index("registrar")) | .vcardArray[1][] | select(.[0]=="fn") | .[3])"' "$f"
+done
+
+# 3. What did the registry deliberately leave out? (RFC 9537)
+jq -c '.rdapConformance' evidence/d_example_org.json
+jq -r '.redacted[]? | "REDACTED: \\(.name.type) at \\(.prePath) by \\(.method)"' evidence/d_example_org.json
+
+# 4. Numbers have registries too: an IPv4 address, then an AS number.
+collect boot_ipv4 https://data.iana.org/rdap/ipv4.json
+IPBASE=$(jq -r '.services[] | select(.[0] | index("192.0.0.0/8")) | .[1][0]' evidence/boot_ipv4.json)
+collect ip_192_0_2_1 "\${IPBASE}ip/192.0.2.1"
+jq -r '"\\(.handle) \\(.startAddress)-\\(.endAddress) \\(.name) registrant=\\(.entities[0].handle)"' evidence/ip_192_0_2_1.json
+collect boot_asn https://data.iana.org/rdap/asn.json
+jq -r '[.services[] | select(any(.[0][]; split("-") as $r | ($r[0]|tonumber) <= 64496 and (($r[1] // $r[0])|tonumber) >= 64496)) | .[1][0]][0] // "AS64496: NOT IN FILE"' evidence/boot_asn.json
+# No RIR is listed for it - ask ARIN anyway and read the answer.
+collect as_64496 "\${IPBASE}autnum/64496"
+jq -r '"\\(.handle) \\(.startAutnum)-\\(.endAutnum) \\(.name): \\(.remarks[0].description[0])"' evidence/as_64496.json
+
+# 5. The case file: what, when, fingerprint (first 12 hex digits shown).
+awk -F'\\t' '{printf "%-14s %s %s...\\n", $1, $2, substr($5,1,12)}' collection_log.tsv`,
+      windows: `# PowerShell 7 - the same case, native cmdlets (not run on Windows by the author; the
+# macOS version is the tested reference). Same ETHICS as above: registries only.
+$Analyst = "analyst01"
+New-Item -ItemType Directory -Force -Path "$HOME\\scouts-case\\s1_2\\evidence" | Out-Null
+Set-Location "$HOME\\scouts-case\\s1_2"
+
+function Collect($Id, $Url) {
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  Invoke-WebRequest -Uri $Url -OutFile "evidence\\$Id.json"
+  $H = (Get-FileHash "evidence\\$Id.json" -Algorithm SHA256).Hash.ToLower()
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+  Get-Content "evidence\\$Id.json" -Raw | ConvertFrom-Json
+}
+
+$boot = Collect boot_dns "https://data.iana.org/rdap/dns.json"
+"bootstrap published: $($boot.publication)"
+function Base($Tld) { $s = $boot.services | Where-Object { $_[0] -contains $Tld } | Select-Object -First 1
+  if ($s) { $s[1][0] } else { "NOT IN FILE" } }
+foreach ($t in "com","org","de") { "$t -> $(Base $t)" }
+
+foreach ($d in @(@("com","d_example_com"), @("org","d_example_org"))) {
+  $r = Collect $d[1] "$(Base $d[0])domain/example.$($d[0])"
+  $reg = $r.entities | Where-Object { $_.roles -contains "registrar" }
+  $fn  = ($reg.vcardArray[1] | Where-Object { $_[0] -eq "fn" })[3]
+  $when = ($r.events | Where-Object { $_.eventAction -eq "registration" }).eventDate
+  "$($r.ldhName) | registered $when | registrar $($reg.handle) $fn"
+}
+(Get-Content evidence\\d_example_org.json -Raw | ConvertFrom-Json).redacted |
+  ForEach-Object { "REDACTED: $($_.name.type) at $($_.prePath) by $($_.method)" }
+
+$ip = Collect ip_192_0_2_1 "https://rdap.arin.net/registry/ip/192.0.2.1"
+"$($ip.handle) $($ip.startAddress)-$($ip.endAddress) $($ip.name)"
+$as = Collect as_64496 "https://rdap.arin.net/registry/autnum/64496"
+"$($as.handle) $($as.startAutnum)-$($as.endAutnum) $($as.name)"
+Get-Content collection_log.tsv`,
+      linux: `# Identical to macOS with one substitution:
+#   sha256sum   instead of   shasum -a 256
+# jq and curl behave the same. Install jq with your package manager if it is missing
+# (apt install jq / dnf install jq).`,
+      expected: {
+        mac: `\`\`\`text
+bootstrap published: 2026-09-16T19:00:03Z
+com -> https://rdap.verisign.com/com/v1/
+org -> https://rdap.publicinterestregistry.org/rdap/
+de -> NOT IN FILE
+EXAMPLE.COM | registered 1995-08-14 | registrar 376 RESERVED-Internet Assigned Numbers Authority
+example.org | registered 1995-08-31 | registrar 376 ICANN
+["rdap_level_0","icann_rdap_response_profile_1","icann_rdap_technical_implementation_guide_1","redacted"]
+REDACTED: Registry Domain ID at $.handle by removal
+NET-192-0-2-0-1 192.0.2.0-192.0.2.255 TEST-NET-1 registrant=IANA
+AS64496: NOT IN FILE
+AS64496 64496-64511 IANA-RSVD: Reserved for use in documentation and sample code [RFC5398]
+boot_dns       2026-09-24T07:57:15Z d26bbc0af59c...
+d_example_com  2026-09-24T07:57:15Z b63d8508ad6f...
+d_example_org  2026-09-24T07:57:16Z ca51a52f67e8...
+boot_ipv4      2026-09-24T07:57:17Z f6ad30d1ebbd...
+ip_192_0_2_1   2026-09-24T07:57:17Z 9d2de70a6767...
+boot_asn       2026-09-24T07:57:18Z 80a0659f933b...
+as_64496       2026-09-24T07:57:19Z 62bac26d6f67...
+\`\`\`
+
+Your bootstrap date, timestamps and hashes will differ. What to read in each block:
+
+- **Three bootstrap lookups, three answers.** \`.com\` goes to Verisign, \`.org\` to Public Interest Registry, and \`.de\` is not in the file at all. You now know *why* you asked each server. The file is in your evidence folder to prove it.
+- **The two domain lines.** Same registrar ID (376), two different names. The ID is the join key.
+- **The redaction lines.** \`redacted\` in the conformance list announces an RFC 9537 list, and the next line reads it: one field removed, and exactly where it would have been.
+- **The two number lines.** 192.0.2.1 goes to ARIN through the \`192.0.0.0/8\` entry. AS64496 is in no RIR's range, yet ARIN still answers with IANA's reservation. A missing bootstrap entry means "nobody is listed", not "nobody knows".
+- **The log.** Seven items, each with a time and a fingerprint. As in S1.1, the domain-record hashes change whenever the registry refreshes the update timestamp inside the record. The bootstrap hashes change when IANA republishes the file.`
+      }
+    },
+    caseStudy: {
+      title: "WannaCry, May 2017 — a name that was not registered",
+      body: `On 12 May 2017 the WannaCry ransomware spread across the world, and the UK's National Health Service was among the organisations it hit. The same day a 22-year-old researcher, Marcus Hutchins (who blogged as MalwareTech), was taking the malware apart. He found that it contacted a long, meaningless \`.com\` domain before doing anything else, and that nobody had registered that domain.
+
+As part of his routine malware tracking he registered it (for about $10.69) so he could watch the traffic. He did not know what would happen. The domain turned out to be a kill switch: when WannaCry reached a live server at that name, it stopped before encrypting anything. Copies kept spreading, but they stopped doing damage. Later variants used different kill-switch domains, and researchers registered those as well.
+
+The lessons for a Scout:
+
+- **An absence is a finding.** "No record exists" (an RDAP \`404 Not Found\`, RFC 7480 §5.3) is a real answer. Here it was the most important fact of the day. Record it, with its time, like any other result.
+- **Reading is passive; registering is not.** Looking up the domain touched no one. Registering it changed what the malware did, for the better this time, and Hutchins did not know in advance that it would. Researchers who register malware domains ("sinkholing") do it under their employer's authority and with experience. In this course you read registries and never register, report or change anything.
+- **A registry is a witness with a clock.** Once the name was registered, the registry held a creation date that neither the researcher nor the attacker could quietly change. That is the value of a registry record: a third party vouches for the time. It is also why a record is worth collecting properly the moment you need it.`
+    },
+    challenges: [{
+      q: `A colleague looks up a .com domain and says: "Registered in 2003, so the company we're investigating has owned it for over twenty years." What is wrong with that reasoning, and what would you look at instead?`,
+      a: `The registration event is when the domain object was *created* in the registry (EPP \`crDate\`, RFC 5731). It is not when the current holder got it. A domain can be transferred between registrars, or change registrant, without that date moving. Look for a \`transfer\` event (EPP \`trDate\`) in the record, and remember that a change of registrant need not create one at all. The defensible sentence is: "The registry records the name as created on [date]. This record does not show when the current holder acquired it." Anything stronger needs a second, independent source.`
+    }, {
+      q: `You need RDAP data for a domain ending in \`.io\`, and the IANA bootstrap file has no entry for \`io\`. A classmate concludes that .io domains have no registration data. What is the correct conclusion, and what goes in your collection log?`,
+      a: `"Not in the bootstrap file" means that registry has not listed an RDAP server with IANA, nothing more. (On 24 September 2026, 236 of the 1,438 TLDs in the root list were missing, including \`.de\`, \`.jp\` and \`.io\`.) The data very likely exists and is served another way, usually the registry's own website or WHOIS service. Your log should record the bootstrap file you checked (with its hash and publication date), the fact that \`io\` was absent, and exactly which fallback source you used instead, with its URL, time and hash. The next reader must be able to see *why* you trusted that source.`
+    }, {
+      q: `One domain record names its registrar "RESERVED-Internet Assigned Numbers Authority"; another names "ICANN". Should your report say the two domains have different registrars?`,
+      a: `Compare the **IDs**, not the names. Both records carry registrar handle **376** (the IANA Registrar ID), so yes, they share one. The two registries simply label it differently. The reverse error is just as easy: two registrars with similar names are different registrars if their IDs differ. Write it as "Both records name IANA Registrar ID 376 (labelled '…' by Verisign and 'ICANN' by PIR)." Then the reader can check your join.`
+    }],
+    quiz: ["Name the three things RDAP added that WHOIS never had, and the RFC for each.", "What is an IANA bootstrap file, and what does it mean when your TLD is not in it?", "Since what date are gTLD registries and registrars no longer required to run WHOIS, and which three TLDs are the exception?", "In an RDAP `status` value, what does a \"client\" prefix tell you compared with a \"server\" prefix?", "What does an RFC 9537 `redacted` entry tell you, and name the four redaction methods.", "An IP address's RDAP record names a hosting company. What does that prove about who used the address, and what does it not prove?"],
+    workbench: `> **What this trains.** The lab walked you through four lookups. Here you do the method without a script: pick the right server, read the fields that matter, and write sentences that claim no more than the record supports.
+
+#### 🟢 Drill 1 — which server? ~6 min
+
+**Goal.** Using only the bootstrap files already in \`~/scouts-case/s1_2/evidence/\`, write the RDAP base URL (or "not in file") for each key. Use the \`base\` function from the lab, or \`jq\` directly.
+
+1. \`org\` 2. \`uk\` 3. \`jp\` 4. \`fr\` 5. the IPv4 block \`198.0.0.0/8\` 6. AS number \`64496\`
+
+**Done when.** You have six answers, and for each "not in file" you have written what you would try next.
+
+<details><summary>Walkthrough</summary>
+
+1. \`https://rdap.publicinterestregistry.org/rdap/\`
+2. \`https://rdap.nominet.uk/uk/\`
+3. not in file. Try the registry's own site or WHOIS, and log which you used.
+4. \`https://rdap.nic.fr/\`
+5. \`https://rdap.arin.net/registry/\`. \`198.51.100.0/24\` sits inside it. Look it up: RFC 5737 calls that block **TEST-NET-2**, but ARIN's record (\`NET-198-51-100-0-1\`, checked 24 September 2026) names it **TEST-NET-1**. The name field is a label someone typed; the handle and the address range are what identify the block.
+6. not in file. It is IANA-reserved, and ARIN answers anyway (as in the lab).
+
+Your answers for 1–5 may change if IANA republishes the file. That is why the file you used is in your evidence folder.
+</details>
+
+#### 🟡 Drill 2 — read a record without the script ~10 min
+
+**Goal.** From \`evidence/d_example_com.json\` alone, answer with a \`jq\` command each:
+
+1. Every \`status\` value, and whether each was set by the registrar or the registry.
+2. The \`expiration\` date.
+3. The name servers.
+4. Whether the delegation is DNSSEC-signed.
+
+**Done when.** Four commands and four answers. For question 1, each answer cites the prefix rule.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+jq -r '.status[]' evidence/d_example_com.json
+jq -r '.events[] | select(.eventAction=="expiration") | .eventDate' evidence/d_example_com.json
+jq -r '.nameservers[].ldhName' evidence/d_example_com.json
+jq '.secureDNS.delegationSigned' evidence/d_example_com.json
+\`\`\`
+
+\`\`\`text
+client delete prohibited
+client transfer prohibited
+client update prohibited
+2027-08-13T04:00:00Z
+ELLIOTT.NS.CLOUDFLARE.COM
+HERA.NS.CLOUDFLARE.COM
+true
+\`\`\`
+
+On 24 September 2026: three statuses, \`client delete prohibited\`, \`client transfer prohibited\` and \`client update prohibited\`. All start with "client", so the **registrar** set them (RFC 5731). Expiration \`2027-08-13T04:00:00Z\`. Two Cloudflare name servers. \`delegationSigned\` is \`true\`. Your values may differ if the record has changed since. That is fine as long as your commands are right.
+</details>
+
+#### 🔴 Drill 3 — write only what the record proves ~12 min
+
+**Goal.** Rewrite each overclaiming sentence so it states only what the collected records support. Name the item ID from your log that supports each one.
+
+1. "example.org has belonged to ICANN since 1995."
+2. "192.0.2.1 is IANA's server."
+3. "PIR hid the owner of example.org."
+4. "AS64496 does not exist because it is not in IANA's file."
+
+**Done when.** Four sentences, each with an item ID, none claiming more than its record.
+
+<details><summary>Walkthrough</summary>
+
+1. "PIR's record (d_example_org) shows example.org created on 1995-08-31, with registrar ID 376, labelled 'ICANN'." A registrar is not the holder, and the creation date is not an acquisition date.
+2. "ARIN's record (ip_192_0_2_1) shows 192.0.2.0/24, TEST-NET-1, registered to IANA and reserved for documentation (RFC 5737)." An address block's registrant is not a server, and documentation addresses should never be in use at all.
+3. "PIR's record (d_example_org) lists one RFC 9537 redaction: Registry Domain ID, removed from $.handle." That is the registry ID, not a person, and the record says exactly what was withheld.
+4. "AS64496 is absent from IANA's ASN bootstrap file (boot_asn), and ARIN's record (as_64496) shows 64496–64511 reserved by IANA for documentation (RFC 5398)." Not being in the file meant "no RIR is listed", not "does not exist".
+</details>`,
+    tracker: ["Can name the three things RDAP added over WHOIS", "Found the authoritative server for a domain, an IP and an AS number from IANA's bootstrap files", "Kept each bootstrap file as evidence alongside the record it led to", "Can read status, events, entities, nameservers and redacted from a raw RDAP response", "Joined records on registrar ID rather than registrar name", "Can state what a registration record does not prove: identity, acquisition date, address use"]
   }]
 };
 

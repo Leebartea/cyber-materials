@@ -1141,6 +1141,9 @@ TOPIC_ANCHORS = {
         "hiq": ["S1.1"],
         "berkeley protocol": ["S1.1"],
         "collection record": ["S1.1"],
+        "rdap": ["S1.2"],
+        "bootstrap file": ["S1.2"],
+        "registration data policy": ["S1.2"],
     },
 }
 
@@ -1315,7 +1318,11 @@ def check_urls(sources):
                 urls.add(u)
 
     def probe(u):
-        req = urllib.request.Request(u, headers={"User-Agent": "cyber-materials-guardrail"})
+        # An RDAP base URL (https://rdap.verisign.com/com/v1/) is a prefix: bare, it
+        # answers 400/404 by design. RFC 9082 §3.1.6 defines "help" under every base,
+        # so probe that instead — still a real liveness check, not an exemption.
+        target = u + "help" if re.match(r"https://rdap\.[^/]+/(?:.*/)?$", u) else u
+        req = urllib.request.Request(target, headers={"User-Agent": "cyber-materials-guardrail"})
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
                 return u, r.status
