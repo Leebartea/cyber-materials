@@ -1147,6 +1147,11 @@ TOPIC_ANCHORS = {
         "certificate transparency": ["S1.3"],
         "precertificate": ["S1.3"],
         "crt.sh": ["S1.3"],
+        "gleif": ["S1.4"],
+        "legal entity identifier": ["S1.4"],
+        "registered agent": ["S1.4"],
+        "identity resolution": ["S1.4"],
+        "role record": ["S1.4"],
     },
 }
 

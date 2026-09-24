@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.3 + 1 roadmap)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.4 + 1 roadmap)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-24 (Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-24 (Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -96,6 +96,28 @@ source named in the row.
 | 51 | S1.3 Drill 3 | 4 of the 9 serials issued by "Cloudflare TLS Issuing ECC/RSA CA 3", issuer O=**SSL Corporation** | `EXECUTED` | jq over the collected crt.sh JSON | volatile with row 43 |
 | 52 | S1.3 lab | macOS `/usr/bin/openssl` is LibreSSL 3.3.6 and prints the CT OIDs without names or SCT decoding; Homebrew `openssl@3` decodes both and is a dependency of `python@3.12` (in the shared setup file); `brew --prefix` (no formula) is offline. Windows variant **not run** (stated in the lab) | `EXECUTED` | Both binaries run on the same PEMs; homebrew-core `Formula/p/python@3.12.rb` line 30 `depends_on "openssl@3"` | on macOS / formula change |
 
+## Batch 4 — S1.4 People and Organisations
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 53 | S1.4 | An LEI is a 20-character code defined by ISO 17442; GLEIF publishes LEI data free of charge | `SOURCED` | gleif.org "ISO 17442: The Global Standard" / "Introducing the LEI" pages, 2026-09-24 | stable |
+| 54 | S1.4 | SEC fair access: declare a User-Agent in the form "Sample Company Name AdminContact@<sample company domain>.com"; max 10 requests/second | `SOURCED` | sec.gov "Accessing EDGAR Data", read 2026-09-24 | 6 months |
+| 55 | S1.4 | GDPR Art. 5(1)(c): "adequate, relevant and limited to what is necessary in relation to the purposes for which they are processed ('data minimisation')"; UK GDPR same text | `SOURCED` | legislation.gov.uk/eur/2016/679/article/5, read 2026-09-24 | stable |
+| 56 | S1.4 Step 1, Drill 1 | GLEIF legal-name search "Apple Inc.": 24 records, 15 jurisdictions, exactly one with that legal name (`HWUPKR0MPOU8FGXBT394`); LEI ISSUED 6 / LAPSED 18; entity status ACTIVE 24; the four names quoted are in the result | `EXECUTED` | lab + Drill 1 run 3×, 2026-09-24 | volatile |
+| 57 | S1.4 Step 2 | LEI record: legal address "C/O C T Corporation System, 330 N. Brand Blvd, Suite 700, Glendale"; HQ "One Apple Park Way, Cupertino"; registeredAt `RA000598` as `806592`; `FULLY_CORROBORATED`, validatedAt `RA000598`; created 1977-01-03. `RA000598` = Secretary of State (California), "Business Entity Records" | `EXECUTED` | lab; GLEIF `/registration-authorities/RA000598` | volatile |
+| 58 | S1.4 Step 3 | 20 ultimate children, all relationships `IS_ULTIMATELY_CONSOLIDATED_BY` and `ENTITY_SUPPLIED_ONLY`; RR-CDF 2.1 definition quoted verbatim ("significant reliance on the information that a submitter provided due to the unavailability of corroborating information"); the type means full accounting consolidation | `SOURCED` | lab; gleif.org Level 2 RR-CDF 2.1 format page, read 2026-09-24 | volatile (counts) |
+| 59 | S1.4 Step 3 | Ultimate-parent exception reason `NATURAL_PERSONS`; ExceptionReason = "a single reason provided by the legal entity"; NATURAL_PERSONS = "the entity is controlled by a natural person(s) without any intermediate legal entity" | `SOURCED` | lab; gleif.org Level 2 Reporting Exceptions 2.1 format page, read 2026-09-24 | volatile (reason) |
+| 60 | S1.4 Step 4 | SEC CIK 0000320193: "Apple Inc.", stateOfIncorporation CA, business address ONE APPLE PARK WAY, CUPERTINO; formerNames APPLE INC (2007-01-10→2019-08-05), APPLE COMPUTER INC (1994-01-26→2007-01-04), APPLE COMPUTER INC/ FA | `EXECUTED` | data.sec.gov submissions JSON, lab | volatile |
+| 61 | S1.4 Step 4 | Reg S-K Item 601(b)(21)(i) requires the subsidiaries list; (ii) omission text quoted verbatim | `SOURCED` | eCFR versioner, 17 CFR 229.601 as of 2026-08-01 | stable |
+| 62 | S1.4 Step 4 | 10-K accession 0000320193-25-000079, filed 2025-10-31; Exhibit 21.1 names 19 subsidiaries and invokes 601(b)(21)(ii); 9 of 19 match GLEIF ultimate children by exact normalised string; `애플코리아 유한회사` has transliterated name APPLE KOREA LIMITED | `EXECUTED` | lab | stable (filing) · volatile (GLEIF side) |
+| 63 | S1.4 Step 5 | Exhibit 31 = "Rule 13a-14(a)/15d-14(a) Certifications" (Item 601(b)(31)); Exhibit 31.1 opens "I, Timothy D. Cook, certify" and is signed "Date: October 31, 2025 … Chief Executive Officer" | `SOURCED` | eCFR 229.601; exhibit text extracted by the lab | stable |
+| 64 | S1.4 | ATT&CK T1591 Gather Victim Org Information (.002 Business Relationships, .004 Identify Roles), T1589 Gather Victim Identity Information (.003 Employee Names), all reconnaissance | `SOURCED` | mitre/cti attack-pattern objects at the v19.2 tip, 2026-09-24; added to `tools/attack_ids_verified.json` | each ATT&CK release |
+| 65 | S1.4 case | Brewer: John Vincent Cable Services Ltd (2013), "former Business Secretary Vince Cable MP", dissolved by Companies House; Cleverly Clogs Ltd (2016) naming Baroness Neville-Rolfe, James Cleverly MP, invented "Ibrahim Aman"; s.1112 Companies Act 2006; guilty plea, Redditch Magistrates' Court, 15 March 2018; £1,602 fine, £10,462.50 costs, £160 surcharge; announced 23 March 2018 as the first such prosecution | `SOURCED` | gov.uk press release "UK's first ever successful prosecution for false company information", read 2026-09-24 | stable |
+| 66 | S1.4 case | ECCT Act 2023: identity verification a legal requirement for directors and PSCs from 18 November 2025, 12-month transition for existing directors | `SOURCED` | gov.uk news 5 August 2025, read 2026-09-24 | stable |
+| 67 | S1.4 Drill 1 | LAPSED = "An LEI registration that has not been renewed by the NextRenewalDate and is not known by public sources to have ceased operation" (course quotes the first clause) | `SOURCED` | gleif.org LEI-CDF 3.1 format page, read 2026-09-24 | stable |
+| 68 | S1.4 Drill 2 | With `transliteratedOtherNames`, 11 of 19 match; 8 unmatched; Apple Japan合同会社 / "Apple Japan LLC", form 7QQ0, `RA000412` `0111-03-003992`; 19 + 20 − 11 = 28 (27 if Japan is one entity) | `EXECUTED` | Drill 2 extracted from the built HTML and run | volatile |
+| 69 | S1.4 lab | Both exhibit hashes (`2a65f37b1dc3…`, `a80ced0d3b73…`) identical across 3 runs; an EDGAR amendment is a new submission with its own accession number, and SEC post-acceptance corrections exist (hence "should not", not "will not"). Windows variant **not run** (stated in the lab) | `EXECUTED` | three lab runs; sec.gov EDGAR PDS dissemination spec (search) | stable |
+
 ## Defects caught before publication
 
 - **Draft theory showed an invented hash output** with a "do not trust this" note
@@ -135,3 +157,26 @@ source named in the row.
   and "any single name under" (now RFC 9525's one-label rule, row 47).
 - **S1.3 Drill 2 shipped commands without output** — the coverage gate caught it
   (scouts_theory 4/5); the real output is now in the walkthrough.
+- **S1.4 Step 1 draft characterised search hits** ("a restaurant franchisee, a
+  Montessori school, a real-estate trust") from their names alone. Now it quotes
+  the legal names and says no more.
+- **S1.4 theory said the LEI issuer "checked" the entity record against its
+  register.** The record shows `validatedAt RA000598`; the course now says exactly
+  that.
+- **S1.4 case study draft carried three details from secondary coverage**: a letter
+  to Vince Cable, a Companies House warning, and Brewer's motive. None is in the
+  gov.uk release. All three removed (row 65).
+- **S1.4 case-study lesson "two real ministers"** — James Cleverly's 2016 office was
+  not checked. Now "three real politicians".
+- **S1.4 lab: certification date never printed.** EDGAR encodes the colon as
+  `&#58;`, so `Date:` never matched. Found by running the lab, not by reading it.
+- **S1.4 Windows lab used `$args`**, a PowerShell automatic variable, as a splat
+  name; and `"$G?filter"` would parse as a variable named `G?`. Renamed to `$p`
+  and braced as `${G}`.
+- **Gate FAIL: 3 ATT&CK ids not in the verified table.** Verified from mitre/cti
+  (row 64) and added. The gate did its job.
+- **Gate FAIL: `https://api.gleif.org/api/v1` DEAD (404).** A bare base URL in the
+  lab. The base is now `…/api/v1/lei-records`, a real endpoint (200), and the lab was
+  re-run from the built HTML with identical output and hashes.
+- **Pronouns for the named officer** in a challenge and Drill 3 replaced with
+  neutral wording or the name.

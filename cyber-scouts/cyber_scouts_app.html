@@ -801,7 +801,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 | S1.1 | Lawful by design: scope, law and the collection record | ✅ available |
 | S1.2 | Registration data: reading RDAP for domains, addresses and networks | ✅ available |
 | S1.3 | Certificate transparency: finding names in the public certificate logs | ✅ available |
-| — | People and organisations | planned |
+| S1.4 | People and organisations: official registers, identity and the minimum necessary | ✅ available |
 | — | Breach exposure: checking without handling stolen data | planned |
 | — | Geospatial: where a photo was taken | planned |
 | — | Capstone: an investigation report | planned |
@@ -1703,6 +1703,367 @@ retired 2026-02-28T00:00:00Z
 4. "Certificate crt_22853418213 is valid from 2 December 2025 to 2 December 2026, and three logs signed SCTs for it on 2 December 2025." A certificate's start date says nothing about when a site launched. S1.2's registry record (d_example_com) dates the name to 1995.
 </details>`,
     tracker: ["Can explain what CT is for and what RFC 6962 says it does not do", "Searched crt.sh with retries and logged the result, or the failure, with a hash", "Counted serial numbers, not entries, and can tell a precertificate from its certificate", "Read the full name list from the certificate itself, not only the search index", "Matched each SCT to its log and operator using Chrome's log list, kept as evidence", "Can state what a CT entry does not prove: that a name is live, who hosts it, or that the list is complete"]
+  }, {
+    id: "s1_4",
+    level: 1,
+    num: "S1.4",
+    title: "People and Organisations — Official Registers, Identity and the Minimum Necessary",
+    objective: `Research an organisation through the registers it is required to file with; join records on identifiers instead of names; read how each record was checked; compare two independent lists and report a floor, not a total; and record a person only as a role, a filing and a date.`,
+    theory: `#### Define the words first
+
+- **Legal entity** — a company, partnership, charity or other body the law treats as able to own property, sign contracts and be sued. It is not the same as a brand: one brand is usually many legal entities.
+- **Register** — an official list of legal entities kept by a public body, such as a US state's Secretary of State or the UK's Companies House. A **registration authority** is the body that keeps it.
+- **LEI (Legal Entity Identifier)** — a 20-character code, defined by ISO 17442, that names exactly one legal entity. **GLEIF**, the Global Legal Entity Identifier Foundation, publishes every LEI record free of charge.
+- **CIK** — the number the US Securities and Exchange Commission (SEC) gives each company that files with it. **EDGAR** is the SEC's public archive of those filings.
+- **Registered agent** — a firm whose address a company uses to receive official legal papers. It is often nowhere near where the company works.
+- **Subsidiary** — a company another company controls. **Consolidation** means the parent includes the subsidiary in its own accounts.
+- **Identity resolution** — deciding whether two records describe the same entity or person. It is the step where most people-and-organisation mistakes are made.
+- **Role record** — an entry that names a person *because of a position they hold*: a director on a register, an officer who signs a filing. It is dated and it belongs to the role.
+
+#### Whose log? GLEIF's and the SEC's.
+
+The lab sends requests to two places: GLEIF's API and the SEC's EDGAR archive. It sends nothing to the company's own servers.
+
+The SEC asks every automated client to say who it is. Its fair-access rules ask for a User-Agent header in the form "Sample Company Name AdminContact@<sample company domain>.com", and a rate of no more than 10 requests a second. So your contact address lands in the SEC's logs. That is a fair price for the data, but notice that it is a disclosure you make. The lab sends it to the SEC and not to GLEIF, which does not ask for it. Minimisation applies to what you give away as well as to what you collect.
+
+#### Organisations first; people only through their roles
+
+This module's subject is an organisation, and that is deliberate. A company publishes register entries because the law requires it. A person appears in them only because of a role they hold.
+
+As in S1.1, a person's name is personal data even when it is published, and collecting it is processing. The principle that matters most here is **data minimisation**. GDPR Article 5(1)(c) (the UK GDPR has the same words) requires personal data to be "adequate, relevant and limited to what is necessary in relation to the purposes for which they are processed". For a person found in a register, that means you record the role, the filing and the date. The rest of their life stays out of your case file.
+
+This fits the course rule that real people are never practice targets. The lab's target is a listed company, researched through public registries. The one person it names appears because a statutory filing names them in their role, and the lab collects that entry and nothing else.
+
+#### Step 1 — a name is a search term, not an identifier
+
+Search GLEIF for the legal name "Apple Inc." and you get back **24 records from 15 jurisdictions**, in the run on 24 September 2026. Only one of them has that exact legal name. The rest include APPLE CANADA INC., APPLE TEXAS RESTAURANTS, INC., Apple Tree Montessori Inc and Apple Hospitality REIT, Inc. GLEIF's name filter is a text search, so "Apple Inc." matches any name containing those words.
+
+The one exact match is LEI \`HWUPKR0MPOU8FGXBT394\`. From here on, you join records on that code, not on the name. It is the same rule as S1.2, where you joined RDAP records on handles and ranges rather than names. Names repeat. Identifiers are assigned to be unique.
+
+#### Step 2 — read the record: two addresses and a register
+
+The LEI record gives the company two addresses:
+
+| Field | Value |
+|---|---|
+| Legal address | C/O C T Corporation System, 330 N. Brand Blvd, Suite 700, Glendale |
+| Headquarters address | One Apple Park Way, Cupertino |
+
+The legal address is a registered agent's office. It is where official papers are served, and it tells you nothing about where the company works. Reporting "Apple is based in Glendale" would be a real mistake, and an easy one to make.
+
+The record also names the register behind it: \`RA000598\`, which GLEIF's own list identifies as California's Secretary of State (Business Entity Records), with entity number \`806592\`. That is where you would go to check the record at its source. The entity data is marked \`FULLY_CORROBORATED\`, and the record says it was validated at that same register.
+
+#### Step 3 — "who owns whom" is really "who consolidates whom"
+
+GLEIF also publishes relationships between entities. For this LEI it lists **20 ultimate children**. Read the relationship type before you use the list. It is \`IS_ULTIMATELY_CONSOLIDATED_BY\`: the parent includes these companies in its consolidated accounts. That is an accounting relationship, not a share register.
+
+Then read how the list was checked. All 20 relationships are marked \`ENTITY_SUPPLIED_ONLY\`. GLEIF's relationship-record format defines that as information with "significant reliance on the information that a submitter provided due to the unavailability of corroborating information". The entity record was fully checked; the family tree is the company's own account of itself.
+
+The same applies to the top of the tree. Apple Inc. reports no ultimate parent and gives the reason \`NATURAL_PERSONS\`. GLEIF's format calls an exception reason "a single reason provided by the legal entity", and defines this one as "the entity is controlled by a natural person(s) without any intermediate legal entity". It is the company's statement. Whether it is the best fit for a widely held listed company is a separate question, and one that needs a separate source.
+
+#### Step 4 — a second source that does not copy the first
+
+The SEC's record for CIK \`0000320193\` agrees on the basics: the name Apple Inc., incorporated in California, business address One Apple Park Way, Cupertino. It adds something GLEIF does not have: **earlier names**. The company filed as APPLE COMPUTER INC until January 2007. A search for the current name alone would miss those older filings.
+
+The annual report (Form 10-K, filed 31 October 2025) includes **Exhibit 21.1, Subsidiaries of Apple Inc.** SEC rules (Regulation S-K, Item 601(b)(21)) require a registrant to list its subsidiaries, but they also allow omissions: "names of particular subsidiaries may be omitted if the unnamed subsidiaries, considered in the aggregate as a single subsidiary, would not constitute a significant subsidiary". Apple's exhibit says it uses that rule.
+
+So you now have two lists of subsidiaries:
+
+- **GLEIF: 20 names.** Only companies that have an LEI and reported the relationship.
+- **Exhibit 21.1: 19 names.** Only the significant ones, by the SEC's definition.
+
+Compare them by exact name and only **9 of the 19** match. Some of the gaps are real differences. Others exist only because GLEIF holds the legal name in the local script: \`애플코리아 유한회사\`, which GLEIF also records in Latin script as APPLE KOREA LIMITED. Workbench Drill 2 resolves them properly. Neither list is complete, and together they still give you a floor, not a total.
+
+#### Step 5 — a person in a role
+
+Exhibit 31.1 is the chief executive's certification under SEC Rule 13a-14(a). It opens "I, Timothy D. Cook, certify" and is signed "Date: October 31, 2025 … Chief Executive Officer". This is a role record, and you record it as one: **the role, the filing and the date**.
+
+Three things follow from that:
+
+- **It is dated.** It shows who certified the report on 31 October 2025. It does not show who holds the role today. Roles change, and a record of one is evidence of that date only.
+- **It is enough.** The investigation question was about the organisation. The certification tells you who signed for it, and that answers the question. A search for the person's address, family or social accounts would not serve that question, and minimisation rules it out.
+- **It was published for a purpose.** The certification is part of the annual report, and in it the officer vouches for that report. Using the name for something unrelated to that needs its own justification.
+
+#### What a register entry proves — and what it does not
+
+A register entry, collected and hashed the S1.1 way, proves that **this record said this, at this time, held by this authority**. It does not prove any of the following:
+
+- **That the address is where the organisation works.** A legal address may be a registered agent's.
+- **That a list of relationships is complete.** GLEIF holds only entities with LEIs, and Exhibit 21.1 may omit smaller subsidiaries.
+- **That the filer told the truth.** Self-reported data is marked as such. Read the corroboration level.
+- **That a person named in it agreed to be named, or even exists.** See the case study.
+- **That it is still true.** Every record describes a moment. Log when you read it.
+
+Attackers read these registers too. MITRE ATT&CK lists **T1591 Gather Victim Org Information**, with sub-techniques **T1591.002 Business Relationships** and **T1591.004 Identify Roles**, and **T1589.003 Employee Names** under T1589 Gather Victim Identity Information, all under **TA0043 Reconnaissance**. A defender reads their own organisation's filings the same way, to see what a stranger can learn about its structure and people from records it is obliged to publish.`,
+    lab: {
+      mac: `# LAB: map an organisation from the registers it must file with - no person is the target (Apple Silicon)
+# ETHICS: every request goes to GLEIF's public LEI API or the SEC's EDGAR archive. The subject is a
+# listed company, read only through records the law requires it to publish. One person appears, in a
+# statutory role, in a signed filing; nothing else about them is collected.
+ANALYST=analyst01
+CONTACT="you@example.com"   # the SEC asks every client to identify itself: put your own address here
+mkdir -p ~/scouts-case/s1_4/evidence && cd ~/scouts-case/s1_4
+
+cat > scope.txt <<'SCOPE'
+case:        S1.4 practice
+authorised:  self (public register and filing data about a listed company)
+in scope:    Apple Inc.'s LEI records (GLEIF); its SEC submissions and FY2025 10-K exhibits
+out of scope: any person beyond the role a filing names; staff; social media; any home address
+SCOPE
+
+# collect ID URL EXT - as S1.3. Your contact goes to the SEC only, because only the SEC asks for it.
+collect() {
+  local T H UA=()
+  case "$2" in *sec.gov*) UA=(-A "Cyber Scouts lab $ANALYST $CONTACT") ;; esac
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  curl -sfL --retry 3 --retry-all-errors "\${UA[@]}" -o "evidence/$1.$3" "$2" || { echo "FAILED: $1"; return 1; }
+  H=$(shasum -a 256 "evidence/$1.$3" | cut -d' ' -f1)
+  printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$1" "$T" "$ANALYST" "$2" "$H" >> collection_log.tsv
+  sleep 1   # well under the SEC's 10 requests a second
+}
+G=https://api.gleif.org/api/v1/lei-records
+LEI=HWUPKR0MPOU8FGXBT394
+F=https://www.sec.gov/Archives/edgar/data/320193/000032019325000079
+
+# 1. Search by name. The filter is a text search, not an identity check.
+collect lei_search "$G?filter%5Bentity.legalName%5D=Apple%20Inc.&page%5Bsize%5D=100" json
+jq -r '"name search \\"Apple Inc.\\": \\(.meta.pagination.total) records; exact legal name: \\([.data[] | select(.attributes.entity.legalName.name == "Apple Inc.") | .id] | join(", "))"' evidence/lei_search.json
+
+# 2. The record for that LEI: two addresses, the register behind it, and who checked what.
+collect lei_record "$G/$LEI" json
+jq -r '.data.attributes | .entity as $e | .registration as $r |
+  "legal address:  \\($e.legalAddress.addressLines | join(", ")), \\($e.legalAddress.city)",
+  "headquarters:   \\($e.headquartersAddress.addressLines | join(", ")), \\($e.headquartersAddress.city)",
+  "registered at:  \\($e.registeredAt.id) as \\($e.registeredAs)   created: \\($e.creationDate[0:10])",
+  "entity data:    \\($r.corroborationLevel)"' evidence/lei_record.json
+collect lei_parent_exc "$G/$LEI/ultimate-parent-reporting-exception" json
+jq -r '.data.attributes | "no parent:      \\(.reason) (\\(.category))"' evidence/lei_parent_exc.json
+
+# 3. The companies it consolidates, and how that list was checked.
+collect lei_children "$G/$LEI/ultimate-children?page%5Bsize%5D=100" json
+collect lei_child_rels "$G/$LEI/ultimate-child-relationships?page%5Bsize%5D=100" json
+jq -r '"ultimate children in GLEIF: \\(.meta.pagination.total)"' evidence/lei_children.json
+jq -r '[.data[].attributes.registration.corroborationLevel] | group_by(.)[] | "  relationships \\(.[0]): \\(length)"' evidence/lei_child_rels.json
+
+# 4. The same company as the SEC holds it.
+collect sec_submissions https://data.sec.gov/submissions/CIK0000320193.json json
+jq -r '"SEC: \\(.name) | incorporated \\(.stateOfIncorporation) | business address \\(.addresses.business.street1), \\(.addresses.business.city)",
+  "  earlier names: \\([.formerNames[].name] | join("; "))"' evidence/sec_submissions.json
+
+# 5. The subsidiaries the 10-K names (Exhibit 21.1), matched to GLEIF by name string.
+collect sec_ex21 "$F/a10-kexhibit21109272025.htm" htm
+perl -0pe 's/\\n/ /g; s/<\\/tr>/\\n/g' evidence/sec_ex21.htm | sed -e 's/<[^>]*>/|/g; s/&#160;/ /g' |
+  tr -s '| ' | sed 's/^[| ]*//' | grep -E '^[^|]+\\|[^|]+\\|$' | grep -v '^Jurisdiction' | cut -d'|' -f1 > ex21_names.txt
+norm() { tr '[:lower:]' '[:upper:]' | tr -d '.,()' | tr -s ' ' | sed 's/ *$//'; }
+jq -r '.data[].attributes.entity.legalName.name' evidence/lei_children.json | norm | sort > gleif_norm.txt
+norm < ex21_names.txt | sort > ex21_norm.txt
+echo "Exhibit 21.1 names: $(wc -l < ex21_norm.txt | tr -d ' ')   same string in GLEIF: $(comm -12 ex21_norm.txt gleif_norm.txt | wc -l | tr -d ' ')"
+comm -23 ex21_norm.txt gleif_norm.txt | sed 's/^/  not matched: /'
+
+# 6. A person in a role: who certified the report, and when.
+collect sec_ex31 "$F/a10-kexhibit31109272025.htm" htm
+sed -e 's/<[^>]*>/ /g; s/&#58;/:/g; s/&#160;/ /g; s/&#47;/\\//g' evidence/sec_ex31.htm | tr -s ' \\n' |
+  grep -oE 'I, [^,]+, certify|Date: .*'
+
+# 7. The case file.
+awk -F'\\t' '{printf "%-16s %s %s...\\n", $1, $2, substr($5,1,12)}' collection_log.tsv`,
+      windows: `# PowerShell 7 - the same case, native cmdlets (not run on Windows by the author; the
+# macOS version is the tested reference). Same ETHICS as above: GLEIF and the SEC only.
+$Analyst = "analyst01"
+$Contact = "you@example.com"   # the SEC asks every client to identify itself: put your own address here
+New-Item -ItemType Directory -Force -Path "$HOME\\scouts-case\\s1_4\\evidence" | Out-Null
+Set-Location "$HOME\\scouts-case\\s1_4"
+
+function Collect($Id, $Url, $Ext) {
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $p = @{ Uri = $Url; OutFile = "evidence\\$Id.$Ext"; MaximumRetryCount = 3; RetryIntervalSec = 5 }
+  if ($Url -like "*sec.gov*") { $p.UserAgent = "Cyber Scouts lab $Analyst $Contact" }
+  Invoke-WebRequest @p
+  $H = (Get-FileHash "evidence\\$Id.$Ext" -Algorithm SHA256).Hash.ToLower()
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+  Start-Sleep -Seconds 1
+}
+$G = "https://api.gleif.org/api/v1/lei-records"; $Lei = "HWUPKR0MPOU8FGXBT394"
+$F = "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079"
+
+Collect lei_search "\${G}?filter%5Bentity.legalName%5D=Apple%20Inc.&page%5Bsize%5D=100" json
+$s = Get-Content evidence\\lei_search.json -Raw | ConvertFrom-Json
+"name search: $($s.meta.pagination.total) records; exact: $(($s.data | Where-Object { $_.attributes.entity.legalName.name -ceq 'Apple Inc.' }).id)"
+
+Collect lei_record "$G/$Lei" json
+$e = (Get-Content evidence\\lei_record.json -Raw | ConvertFrom-Json).data.attributes.entity
+"legal address: $($e.legalAddress.addressLines -join ', '), $($e.legalAddress.city)"
+"headquarters:  $($e.headquartersAddress.addressLines -join ', '), $($e.headquartersAddress.city)"
+Collect lei_parent_exc "$G/$Lei/ultimate-parent-reporting-exception" json
+Collect lei_children "$G/$Lei/ultimate-children?page%5Bsize%5D=100" json
+Collect lei_child_rels "$G/$Lei/ultimate-child-relationships?page%5Bsize%5D=100" json
+(Get-Content evidence\\lei_child_rels.json -Raw | ConvertFrom-Json).data.attributes.registration.corroborationLevel | Group-Object | ForEach-Object { "relationships $($_.Name): $($_.Count)" }
+
+Collect sec_submissions "https://data.sec.gov/submissions/CIK0000320193.json" json
+Collect sec_ex21 "$F/a10-kexhibit21109272025.htm" htm
+Collect sec_ex31 "$F/a10-kexhibit31109272025.htm" htm
+$t = [System.Net.WebUtility]::HtmlDecode(((Get-Content evidence\\sec_ex31.htm -Raw) -replace '<[^>]+>', ' ')) -replace '\\s+', ' '
+([regex]'I, [^,]+, certify|Date: .*').Matches($t).Value
+# Step 5 (matching Exhibit 21.1 to GLEIF) is easiest with the macOS/Linux version, e.g. under WSL.
+Get-Content collection_log.tsv`,
+      linux: `# Identical to macOS with one substitution:
+#   sha256sum   instead of   shasum -a 256
+# jq, curl, perl, comm and sed behave the same. The Exhibit 21.1 parser uses perl,
+# which most distributions install by default (check: perl -v).`,
+      expected: {
+        mac: `\`\`\`text
+name search "Apple Inc.": 24 records; exact legal name: HWUPKR0MPOU8FGXBT394
+legal address:  C/O C T Corporation System, 330 N. Brand Blvd, Suite 700, Glendale
+headquarters:   One Apple Park Way, Cupertino
+registered at:  RA000598 as 806592   created: 1977-01-03
+entity data:    FULLY_CORROBORATED
+no parent:      NATURAL_PERSONS (ULTIMATE_ACCOUNTING_CONSOLIDATION_PARENT)
+ultimate children in GLEIF: 20
+  relationships ENTITY_SUPPLIED_ONLY: 20
+SEC: Apple Inc. | incorporated CA | business address ONE APPLE PARK WAY, CUPERTINO
+  earlier names: APPLE INC; APPLE COMPUTER INC; APPLE COMPUTER INC/ FA
+Exhibit 21.1 names: 19   same string in GLEIF: 9
+  not matched: APPLE ASIA LIMITED
+  not matched: APPLE ASIA LLC
+  not matched: APPLE COMPUTER TRADING SHANGHAI CO LTD
+  not matched: APPLE INSURANCE COMPANY INC
+  not matched: APPLE JAPAN INC
+  not matched: APPLE KOREA LIMITED
+  not matched: APPLE SERVICES PTE LTD
+  not matched: APPLE SOUTH ASIA THAILAND LIMITED
+  not matched: APPLE VIETNAM LIMITED LIABILITY COMPANY
+  not matched: ITUNES KK
+I, Timothy D. Cook, certify
+Date: October 31, 2025 By: /s/ Timothy D. Cook Timothy D. Cook Chief Executive Officer
+lei_search       2026-09-24T12:44:18Z 447e5e21b629...
+lei_record       2026-09-24T12:44:20Z 0ce39dc9b66a...
+lei_parent_exc   2026-09-24T12:44:22Z 5c8f92f4bd53...
+lei_children     2026-09-24T12:44:24Z 48e42a378e02...
+lei_child_rels   2026-09-24T12:44:26Z 173abc690d75...
+sec_submissions  2026-09-24T12:44:28Z 37b3434b1e0d...
+sec_ex21         2026-09-24T12:44:30Z 2a65f37b1dc3...
+sec_ex31         2026-09-24T12:44:32Z a80ced0d3b73...
+\`\`\`
+
+Your timestamps will differ, and so may the first five hashes and the SEC submissions hash: GLEIF records and the SEC's company summary change whenever the company files. The two exhibit hashes (\`2a65f37b1dc3…\` and \`a80ced0d3b73…\`) should not: they are files inside a filing that has already been accepted, and they matched in every run made for this module. A correction to a filing arrives as a new filing, with its own accession number. What to read in each block:
+
+- **The first line.** 24 records for one name. The exact match is one LEI, and from here on that LEI is the key.
+- **The two addresses.** A registered agent in Glendale and a headquarters in Cupertino. Only one of them is where the company works.
+- **\`FULLY_CORROBORATED\` beside \`ENTITY_SUPPLIED_ONLY\`.** The entity record was checked against its register. The 20 relationships are the company's own account.
+- **The SEC block.** It agrees with GLEIF on name, state and headquarters, and it adds the earlier names you would need to search older filings.
+- **The subsidiary match.** 9 of 19 by exact string. Some gaps are real and some are spelling; Workbench Drill 2 separates them.
+- **The certification.** One person, one role, one date. That is all the case file holds about them.
+- **The log.** Eight items. If a line says \`FAILED\`, run it again, and log the failure rather than the silence.`
+      }
+    },
+    caseStudy: {
+      title: "Companies House, March 2018 — a minister on the register who never agreed",
+      body: `On 23 March 2018 the UK government announced the first successful prosecution for filing false information on the company register. Kevin Brewer had incorporated John Vincent Cable Services Ltd in 2013, making the former Business Secretary Vince Cable MP a director and shareholder without his knowledge. Companies House dissolved the company and took it off the register.
+
+In 2016 Brewer formed a second company, Cleverly Clogs Ltd. It named Baroness Neville-Rolfe (the minister responsible for Companies House), James Cleverly MP and an invented Israeli national, "Ibrahim Aman", as directors and shareholders, again without their knowledge. He pleaded guilty under section 1112 of the Companies Act 2006 at Redditch Magistrates' Court on 15 March 2018, and was fined £1,602, with £10,462.50 costs and a £160 victim surcharge.
+
+The register has since changed. The Economic Crime and Corporate Transparency Act 2023 made identity verification a legal requirement for directors and people with significant control from 18 November 2025, with a 12-month transition for those already on the register.
+
+The lessons for a Scout:
+
+- **A register records what was filed.** Brewer's entries showed only that someone had filed them. For every register you use, find out what the registrar actually checks. GLEIF tells you, in the corroboration level. Most sources don't say.
+- **A name on a register is not consent, and not a person.** Three real politicians and one person who did not exist appeared on the register as directors. Before you attach a register entry to a real person, you need a second, independent source that ties the two together.
+- **Record the date as well as the entry.** An entry filed before November 2025 went through different checks from one filed after it. Whoever reads your report needs the date to know which rules applied.`
+    },
+    challenges: [{
+      q: `In the lab's Exhibit 31.1 you find the chief executive's name. A classmate says: "Let's find their home address and their family's social accounts to round out the profile — it's all public." What do you say?`,
+      a: `No. The case is about an organisation, and the certification already answers the only question about a person that the case asks: who signed for the report, in what role, on what date. A home address or a family's accounts serves no purpose in this case, so data minimisation (GDPR Art. 5(1)(c)) rules them out. As in S1.1, "public" is not a lawful basis, and family members are not even in the filing. The scope file says it too: out of scope is "any person beyond the role a filing names". Record the role, the filing and the date, and stop there.`
+    }, {
+      q: `A draft report says: "Apple's registered address is 330 N. Brand Blvd, Glendale. We should check whether anyone is working there." What is wrong with the sentence, and with the plan?`,
+      a: `The sentence mixes two addresses. The LEI record's *legal* address is care of C T Corporation System, a registered agent, and its *headquarters* address is in Cupertino. The plan goes wrong the same way. Checking a building is collection in the physical world, not a records search. It is outside \`scope.txt\`, and the building belongs to a third party that has nothing to do with the case. Report both addresses, labelled with the field each came from.`
+    }, {
+      q: `Your GLEIF name search returns 24 records. A colleague picks the one whose name is closest, copies its address into the report and moves on. What should they have done?`,
+      a: `They treated a search result as an identification. Twenty-four records came back from fifteen jurisdictions, and a closer name is not a better match. Pick the candidate, note its identifier (the LEI), then corroborate it with attributes from an independent source. Here, the LEI record's headquarters address and California registration agree with the SEC record's business address and state of incorporation. From then on, join on the LEI and not the name. Log the search itself too, so a reader can see how many candidates there were.`
+    }],
+    quiz: ["Why is a legal name a poor key for joining two records, and what should you join on instead?", "What is the difference between an LEI record's legal address and its headquarters address, and why does it matter?", "What does `ENTITY_SUPPLIED_ONLY` tell you about a GLEIF relationship, and how should that change what you write?", "Exhibit 21.1 and GLEIF list different subsidiaries. Why can neither list be complete, and what do you report?", "What three things do you record about a person named in a filing, and why only those?", "What did the Brewer prosecution show about what a company register proves?"],
+    workbench: `> **What this trains.** The lab collected the records for you. Here you do the judging yourself: tell one name from many entities, match records on identity rather than spelling, and write sentences about an organisation and a person that claim no more than the records support.
+
+#### 🟢 Drill 1 — one name, many entities ~6 min
+
+**Goal.** From \`evidence/lei_search.json\` alone, write one \`jq\` command that prints how many records the name search returned, how many jurisdictions they span, and how the records split by LEI status and by entity status. Then explain what \`LAPSED\` does and does not tell you.
+
+**Done when.** One command, its output, and two sentences about \`LAPSED\`.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+jq -r '"records: \\(.data|length)  jurisdictions: \\([.data[].attributes.entity.jurisdiction]|unique|length)",
+  ([.data[].attributes.registration.status] | group_by(.)[] | "  LEI \\(.[0]): \\(length)"),
+  ([.data[].attributes.entity.status] | group_by(.)[] | "  entity \\(.[0]): \\(length)")' evidence/lei_search.json
+\`\`\`
+
+\`\`\`text
+records: 24  jurisdictions: 15
+  LEI ISSUED: 6
+  LEI LAPSED: 18
+  entity ACTIVE: 24
+\`\`\`
+
+That is the run on 24 September 2026; yours may differ as LEIs are issued and renewed. One search, 24 different legal entities in 15 jurisdictions, and only one of them is the company you meant.
+
+GLEIF defines a \`LAPSED\` registration as one that "has not been renewed by the NextRenewalDate". It is about the *LEI*, not the company. All 24 entities are still \`ACTIVE\`. A lapsed LEI means the data has not been re-checked recently, so trust it less. It does not mean the company has closed.
+</details>
+
+#### 🟡 Drill 2 — match on identity, not spelling ~10 min
+
+**Goal.** The lab matched Exhibit 21.1 to GLEIF by exact name and found 9 of 19. Improve the match without guessing: also compare against the names GLEIF records in Latin script (\`transliteratedOtherNames\`). Then deal with every name that still does not match, and give the smallest honest count of Apple subsidiaries the two sources support.
+
+**Done when.** The new match count, a decision for each unmatched name, and one count with its reasoning.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+norm() { tr '[:lower:]' '[:upper:]' | tr -d '.,()' | tr -s ' ' | sed 's/ *$//'; }
+jq -r '.data[].attributes.entity | .legalName.name, (.transliteratedOtherNames[]?.name)' evidence/lei_children.json | norm | sort -u > gleif_all.txt
+echo "matched: $(comm -12 ex21_norm.txt gleif_all.txt | wc -l | tr -d ' ')"
+comm -23 ex21_norm.txt gleif_all.txt
+jq -r '.data[] | select(.attributes.entity.jurisdiction == "JP") | .attributes.entity |
+  "\\(.legalName.name) | \\(.transliteratedOtherNames[0].name) | form \\(.legalForm.id) | \\(.registeredAt.id) \\(.registeredAs)"' evidence/lei_children.json
+\`\`\`
+
+\`\`\`text
+matched: 11
+APPLE ASIA LIMITED
+APPLE ASIA LLC
+APPLE INSURANCE COMPANY INC
+APPLE JAPAN INC
+APPLE SERVICES PTE LTD
+APPLE SOUTH ASIA THAILAND LIMITED
+APPLE VIETNAM LIMITED LIABILITY COMPANY
+ITUNES KK
+Apple Japan合同会社 | Apple Japan LLC | form 7QQ0 | RA000412 0111-03-003992
+\`\`\`
+
+1. **Two more matches.** Apple Computer Trading (Shanghai) and Apple Korea were in GLEIF all along, under their Chinese and Korean legal names. A string match missed them. The transliterated name found them.
+2. **One candidate, not a match.** Exhibit 21.1 says "Apple Japan, Inc."; GLEIF says "Apple Japan LLC" (合同会社). The names are close, but the legal forms differ. Record it as a candidate, and settle it from the Japanese register entry GLEIF points to (\`RA000412\`, \`0111-03-003992\`), not from the spelling.
+3. **Seven names only in Exhibit 21.1.** They have no LEI with a reported relationship. That is a gap in GLEIF's data, not evidence that the companies do not exist.
+4. **The count.** 19 + 20 − 11 = **28 distinct names**, or 27 if Apple Japan turns out to be one entity. Exhibit 21.1 openly omits smaller subsidiaries, so the true number is higher still. Write "at least 27", say which two sources it comes from, and date it.
+</details>
+
+#### 🔴 Drill 3 — write only what the record proves ~12 min
+
+**Goal.** Rewrite each overclaiming sentence so it states only what your collected items support. Name the item ID from your log for each one.
+
+1. "Apple Inc. is based in Glendale, California."
+2. "Apple has 20 subsidiaries."
+3. "Apple is controlled by individuals, according to GLEIF."
+4. "Tim Cook is Apple's CEO."
+
+**Done when.** Four sentences, each with an item ID, none claiming more than its record.
+
+<details><summary>Walkthrough</summary>
+
+1. "Apple Inc.'s LEI record (lei_record) gives a legal address care of C T Corporation System in Glendale, and a headquarters address of One Apple Park Way, Cupertino. The SEC record (sec_submissions) gives the same Cupertino business address." The legal address is a registered agent's, and it is the wrong one to report as where the company works.
+2. "GLEIF (lei_children) lists 20 entities ultimately consolidated by Apple Inc., all reported by the company and not corroborated (lei_child_rels). The FY2025 10-K's Exhibit 21.1 (sec_ex21) names 19 subsidiaries and states that smaller ones are omitted. Together they name at least 27 distinct entities." A number without its sources and its limits is a guess.
+3. "Apple Inc. reports no ultimate accounting-consolidation parent, giving the reason NATURAL_PERSONS (lei_parent_exc)." That is the company's own reason, given for not naming a parent. Who controls a company is a separate question, and it needs a separate source.
+4. "Exhibit 31.1 to Apple's 10-K filed on 31 October 2025 (sec_ex31) is a certification signed by Timothy D. Cook as Chief Executive Officer, dated October 31, 2025." That records a role at a date. Whether Timothy D. Cook holds it today is not in your evidence.
+</details>`,
+    tracker: ["Can explain why a name search is not an identification, and joined records on an LEI", "Collected GLEIF and SEC records with hashes, and sent my contact to the SEC only", "Told a registered agent's address from a headquarters address", "Read the corroboration level before using a relationship list", "Compared two subsidiary lists, matched on identity, and reported a floor with its sources", "Recorded a person only as a role, a filing and a date"]
   }]
 };
 
