@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 COURSES = {
     "guardians": ROOT / "cyber-guardians" / "cyber_guardians_app.html",
     "appsec": ROOT / "cyber-full stack" / "full_stack_appsec_app.html",
+    "scouts": ROOT / "cyber-scouts" / "cyber_scouts_app.html",
 }
 
 # Fields of a module object whose prose can carry a claim. Mirrors the search

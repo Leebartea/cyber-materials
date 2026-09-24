@@ -33,17 +33,19 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COURSES = {
     "appsec": os.path.join(REPO, "cyber-full stack", "full_stack_appsec_app.html"),
     "guardians": os.path.join(REPO, "cyber-guardians", "cyber_guardians_app.html"),
+    "scouts": os.path.join(REPO, "cyber-scouts", "cyber_scouts_app.html"),
 }
 # One claim ledger per course — what a source lookup settled, and when.
 CLAIMS = {
     "appsec": os.path.join(REPO, "cyber-full stack", "CLAIMS.md"),
     "guardians": os.path.join(REPO, "cyber-guardians", "CLAIMS.md"),
+    "scouts": os.path.join(REPO, "cyber-scouts", "CLAIMS.md"),
 }
 
 # ── thresholds ────────────────────────────────────────────────────────────────
 # Ratchet: the expected-output coverage floor. Raise this as the backfill lands
 # so coverage can never regress. Set to the current measured value.
-COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 100, "guardians_lab": 100}
+COVERAGE_FLOOR = {"appsec": 95, "guardians_theory": 100, "guardians_lab": 100, "scouts_theory": 100, "scouts_lab": 100}
 COVERAGE_TARGET = 95  # what "production grade" ultimately means for this gate
 
 RESULT = {"pass": [], "fail": [], "warn": []}
@@ -378,7 +380,10 @@ def check_coverage(name, cur):
     for label, md in module_texts(name, cur):
         if not md.strip():
             continue
-        key = "guardians_lab" if label.endswith("/lab") else ("guardians_theory" if name == "guardians" else "appsec")
+        # AppSec has one bucket; the module-shaped courses split theory from lab.
+        # Keyed by course name — a lab in Scouts must never be graded against the
+        # Guardians floor, or one course's regression hides behind the other's.
+        key = "appsec" if name == "appsec" else f"{name}_{'lab' if label.endswith('/lab') else 'theory'}"
         counts, sil = coverage(md)
         b = buckets.setdefault(key, {"worst": [], **{k: 0 for k in SHOWN + EXEMPT + ("silent",)}})
         for k, v in counts.items():
@@ -1089,6 +1094,10 @@ def check_counts(name, src, cur):
 MODULE_REF = {
     "guardians": re.compile(r"\b(?:M|Modules?\s+)(\d+(?:\.\d+)*)\b"),
     "appsec": re.compile(r"\bModules?\s+(\d+(?:\.\d+)*)\b"),
+    # Scouts numbers S1.1 and always writes the dot, so "AWS S3" or "Level 1" can
+    # never read as a pointer. Guardians modules are named "Cyber Guardians M11.7",
+    # which this pattern does not match — a cross-course mention is not a pointer.
+    "scouts": re.compile(r"\b(?:S|Modules?\s+S?)(\d+\.\d+(?:\.\d+)*)\b"),
 }
 
 TOPIC_ANCHORS = {
@@ -1123,6 +1132,16 @@ TOPIC_ANCHORS = {
         "oauth": ["6.4"],
         "secrets management": ["8.1"],
     },
+    "scouts": {
+        # OSINT is the whole course; S1.1 is where the term is defined. Guardians
+        # keeps its own "osint" -> M11.7 anchor: shared topic, one owner per course.
+        "osint": ["S1.1"],
+        "computer misuse act": ["S1.1"],
+        "van buren": ["S1.1"],
+        "hiq": ["S1.1"],
+        "berkeley protocol": ["S1.1"],
+        "collection record": ["S1.1"],
+    },
 }
 
 # Sentence-ish. Split only on terminal punctuation FOLLOWED BY SPACE, so that the "."
@@ -1154,7 +1173,7 @@ def module_numbers(cur):
     """
     nums = set()
     for m in cur.get("modules", []):
-        n = (m.get("num") or "").lstrip("Mm")
+        n = (m.get("num") or "").lstrip("MmSs")
         if re.fullmatch(r"\d+(\.\d+)*", n):
             nums.add(n)
         i = str(m.get("id", ""))
@@ -1165,10 +1184,10 @@ def module_numbers(cur):
 
 def check_crossrefs(name, cur):
     valid = module_numbers(cur)
-    anchors = {t: [o.lstrip("Mm") for o in owners] for t, owners in TOPIC_ANCHORS.get(name, {}).items()}
+    anchors = {t: [o.lstrip("MmSs") for o in owners] for t, owners in TOPIC_ANCHORS.get(name, {}).items()}
     bag = {}
     for m in cur.get("modules", []):
-        num = (m.get("num") or "").lstrip("Mm")
+        num = (m.get("num") or "").lstrip("MmSs")
         lab = m.get("lab") or {}
         bag[num] = (" ".join(
             str(m.get(k) or "") for k in ("title", "objective", "theory", "workbench")
