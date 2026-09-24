@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.4 + 1 roadmap)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.5 + 1 roadmap)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-24 (Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-24 (Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -180,3 +180,45 @@ source named in the row.
   re-run from the built HTML with identical output and hashes.
 - **Pronouns for the named officer** in a challenge and Drill 3 replaced with
   neutral wording or the name.
+
+## Batch 5 — S1.5 Breach Exposure
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 70 | S1.5 | DPA 2018 s.170(1): offence to "knowingly or recklessly" obtain or disclose personal data without the controller's consent, or retain it after so obtaining; s.170(2)–(3) defences (crime, enactment/court, public interest, reasonable belief, special purposes/journalism) | `SOURCED` | legislation.gov.uk s.170 XML, read 2026-09-24 | stable |
+| 71 | S1.5 | Using a leaked credential to log in is unauthorised access under CMA 1990 s.1 (back-pointer to S1.1's statement of s.1) | `SOURCED` | S1.1 row set (Batch 1); course text line "Section 1 of the Computer Misuse Act 1990" | stable |
+| 72 | S1.5 | HIBP API v3: User-Agent required, missing one → HTTP 403; email search (`breachedAccount`) needs an `hibp-api-key`; domain search needs verified control ("organisations must first add the domain to their dashboard and verify that they control it"), unverified → 403; verification by DNS or email; Pwned Passwords needs no authorisation | `SOURCED` | haveibeenpwned.com/API/v3, read 2026-09-24 | 6 months |
+| 73 | S1.5 | Breach-model definitions quoted for IsVerified, IsFabricated (incl. "still contains legitimate email addresses"), IsSpamList, IsSensitive, BreachDate ("not always accurate … Use this attribute as a guide only"); the IsVerified entry reads "Indicates that the breach is considered unverified" (a documentation slip; data shows true = verified: Adobe true, Zoosk false) | `SOURCED` | haveibeenpwned.com/API/v3 breach model, read 2026-09-24; lab data | 6 months |
+| 74 | S1.5 Step 1 | Catalogue 1038 breaches; not verified 42, fabricated 3, spam lists 16, malware 9, stealer logs 6, sensitive 94; fabricated = JustDate, Paytm, Zoosk with dates and counts as printed | `EXECUTED` | lab, 4 runs (bash, zsh, built-HTML extract) | volatile |
+| 75 | S1.5 Step 1 | Paytm: IsFabricated true **and** IsVerified true; description "did not originate from Paytm"; 3,395,101 addresses; flag combinations 40/2/16/1 (Drill 1) | `EXECUTED` | breaches.json; Drill 1 run from the built HTML | volatile |
+| 76 | S1.5 Step 2 | Adobe: BreachDate 2013-10-04, AddedDate 2013-12-04, PwnCount 152445165, classes Email addresses/Password hints/Passwords/Usernames, verified; description "disclosed much about the passwords" | `EXECUTED` | `/breach/Adobe`, lab | stable |
+| 77 | S1.5 Step 2 · Drill 2 | Gap AddedDate−BreachDate: 168 ≤ 7 days, median 134, 362 > 1 year, max 5201 (RSBoards 2011-12-26 → 2026-03-23); 42 breach dates on 1 January (≈15× the ≈2.8 expected by chance) | `EXECUTED` | Drill 2 run from the built HTML | volatile |
+| 78 | S1.5 Step 3 | `?Domain=adobe.com` returns 1 breach (Adobe) | `EXECUTED` | lab | volatile |
+| 79 | S1.5 Step 4 | Range API: first 5 chars of SHA-1 (or NTLM) hash, not case-sensitive; SHA-1(`P@ssw0rd`) = 21BD12DC183F740EE76F27B78EB39C8AD972A757; prefix 21BD1 held 1925 real suffixes; suffix count 6,421,042; 16⁵ = 1,048,576 prefixes; other ranges 00000/FFFFF/5BAA6 held ~2509/2047/1978 lines | `EXECUTED` | lab + direct probes 2026-09-24; API v3 docs | volatile (counts) · stable (hash) |
+| 80 | S1.5 Step 4 | Padding: `Add-Padding: true` adds random zero-count rows ("Padded entries always have a password count of 0"); docs still say "between 800 and 1,000"; live: 51–193 padding rows, totals 1976–2118 over 7 requests; Hunt 2020-03-04 post: example ranges 523/528 rows, numbers chosen to give "a heap of buffer to expand the total volume" | `SOURCED` + `EXECUTED` | API v3 docs; troyhunt.com "Enhancing Pwned Passwords Privacy with Padding" (datePublished 2020-03-04); 7 live requests | 6 months |
+| 81 | S1.5 | ATT&CK T1589.001 Credentials (reconnaissance), T1110.004 Credential Stuffing (credential access); neither revoked nor deprecated | `SOURCED` | mitre/cti attack-pattern objects at the v19.2 tip (`8543c5b05b`), 2026-09-24; added to `tools/attack_ids_verified.json` | each ATT&CK release |
+| 82 | S1.5 case | Hunt, "Here's how I verify data breaches", 6 May 2016: 57,554,881 rows email:password; "makes it very hard to verify"; 88k "badoo" vs 6.4k "zoosk" addresses; 93k `$HEX[...]` passwords, "yet another anomaly"; subscribers "approaching 400k verified", those denying membership also denied the password; Zoosk: "None of the full user records in the sample data set was a direct match to a Zoosk user"; ZDNet story "One of the biggest hacks happened last year, but nobody noticed" the same day | `SOURCED` | troyhunt.com post, raw HTML read 2026-09-24 | stable |
+| 83 | S1.5 case | `$HEX[73c5826f6e65637a6e696b69]` decodes to "słoneczniki" (ł is non-ASCII). The draft's claim that this is "how password-cracking tools write out" such passwords was **removed**: its source (hashcat FAQ) could not be read from this connection | `EXECUTED` | `xxd -r -p` | stable |
+| 84 | S1.5 case | HIBP Zoosk record: fabricated, not verified, BreachDate 2011-01-01, AddedDate 2017-02-08, 52,578,183 addresses, "In approximately 2011"; "during extensive verification in May 2016 no evidence could be found" | `EXECUTED` | breaches.json | stable |
+| 85 | S1.5 Drill 3 | `pwcheck` works identically in bash and zsh; empty input refused; failed request (dead proxy) → UNKNOWN, exit 2; `P@ssw0rd` → seen 6421042 times; non-breached test string → not found | `EXECUTED` | Drill 3 block run exactly as written, both shells | stable |
+| 86 | S1.5 | "The only address you should ever check is your own" and "no dumps, no pastes, no combolists, no forums" are course rules, not law | `CONVENTION` | course rule (S1.1 practice targets) | — |
+| 87 | S1.5 lab | Lab run 4× (bash, zsh, built-HTML extract); SHA-1, prefix, Adobe record and fabricated list identical each time; `range` evidence hash differs every run by design (padding). Windows variant **not run** (stated in the lab) | `EXECUTED` | four lab runs | stable |
+
+Defects caught in the S1.5 build pass (none shipped):
+
+- **Draft Drill 3 checked the empty string in bash.** The zsh-style `read "PW?…"` fell
+  back to bash's form only after consuming the line, so SHA-1("") (`DA39A…`) was
+  looked up and a count printed. Found by running it; fixed with a shell test and an
+  empty-input guard.
+- **Draft Drill 3 printed the count twice** (`${N:+…}${N:-…}` both expand when N is set).
+- **Draft Drill 3 had no failure path**: a failed `curl` read as "not found". Now UNKNOWN.
+- **A scratch catalogue count was wrong** (`A|length, (B|length)` without grouping); the
+  lab's own figures were right. It never reached the course.
+- **Case draft attributed `$HEX[...]` to cracking tools** without a readable source. Removed (row 83).
+- **"57,554,881 rows became 52,578,183 addresses"** implied a derivation nobody showed.
+  Now two separately attributed counts.
+- **Challenge used `example-client.com`**, a registrable name. Now `client.example` (RFC 2606).
+- **Gate FAIL: `https://api.pwnedpasswords.com/range/` DEAD (400).** Not a dead link: the
+  gate skipped `…/$VAR` templates but not the escaped `…/\${…}` form a template literal
+  stores. The gate now treats `\$` as a placeholder too; only that one prefix left the probe set (85 → 84).
+- **Theory's padding quote cut Hunt's sentence mid-clause.** Replaced with a complete quoted phrase.

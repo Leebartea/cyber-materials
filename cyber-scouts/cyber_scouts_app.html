@@ -802,7 +802,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 | S1.2 | Registration data: reading RDAP for domains, addresses and networks | ✅ available |
 | S1.3 | Certificate transparency: finding names in the public certificate logs | ✅ available |
 | S1.4 | People and organisations: official registers, identity and the minimum necessary | ✅ available |
-| — | Breach exposure: checking without handling stolen data | planned |
+| S1.5 | Breach exposure: checking without handling stolen data | ✅ available |
 | — | Geospatial: where a photo was taken | planned |
 | — | Capstone: an investigation report | planned |
 
@@ -2064,6 +2064,377 @@ Apple Japan合同会社 | Apple Japan LLC | form 7QQ0 | RA000412 0111-03-003992
 4. "Exhibit 31.1 to Apple's 10-K filed on 31 October 2025 (sec_ex31) is a certification signed by Timothy D. Cook as Chief Executive Officer, dated October 31, 2025." That records a role at a date. Whether Timothy D. Cook holds it today is not in your evidence.
 </details>`,
     tracker: ["Can explain why a name search is not an identification, and joined records on an LEI", "Collected GLEIF and SEC records with hashes, and sent my contact to the SEC only", "Told a registered agent's address from a headquarters address", "Read the corroboration level before using a relationship list", "Compared two subsidiary lists, matched on identity, and reported a floor with its sources", "Recorded a person only as a role, a filing and a date"]
+  }, {
+    id: "s1_5",
+    level: 1,
+    num: "S1.5",
+    title: "Breach Exposure — Checking Without Handling Stolen Data",
+    objective: `Assess breach exposure from records about breaches, never from the breached data; read every flag before calling something a breach; treat breach dates and counts as the approximations they are; separate an organisation's own breaches from its people's exposure; and check a password with only five characters of its hash leaving your machine.`,
+    theory: `#### Define the words first
+
+- **Breach** — an incident in which data leaves an organisation's control without authorisation. The data that leaks is often called a **dump**.
+- **Combolist** — a file of email-and-password pairs, often merged from many breaches and sometimes partly invented. It does not come from any single source.
+- **Credential stuffing** — trying leaked email-and-password pairs on *other* sites, betting that people reuse passwords.
+- **Stealer log** — data taken from an infected computer by malware: saved passwords, cookies, the sites they belong to.
+- **Data class** — a kind of data a breach contained: email addresses, passwords, dates of birth, and so on. The data classes decide what the harm is.
+- **Hash (SHA-1)** — a fixed-length fingerprint of some input. The same input always gives the same hash; the hash does not let you read the input back.
+- **k-anonymity** — a privacy property: your query looks the same as at least *k* others', so the service cannot tell which one was yours.
+- **Have I Been Pwned (HIBP)** — a breach-notification service run by Troy Hunt. It publishes a catalogue of the breaches it has loaded, and **Pwned Passwords**, a free service for checking passwords seen in breaches.
+
+#### The line this module never crosses
+
+Breach exposure is the one OSINT topic where the evidence itself is stolen. A dump of someone else's customers is personal data that its controller never agreed to release. So this module works only with **records about breaches**, never with the breach data itself.
+
+In the UK, section 170 of the Data Protection Act 2018 makes it an offence to "knowingly or recklessly … obtain or disclose personal data without the consent of the controller", and to keep it after obtaining it that way. There are defences, for example crime prevention or journalism in the public interest. But a defence is something *you* have to prove in court. It does not give you permission in advance. Using a leaked password to log in anywhere is unauthorised access: section 1 of the Computer Misuse Act, as in S1.1, whoever the password belongs to.
+
+So, as a rule for this course: **no dumps, no pastes, no combolists, no forums, no logging in with anything you found.** None of that is needed to answer the questions below.
+
+#### Whose log? HIBP's, and what each request tells it
+
+Every request in the lab goes to HIBP, and each one tells it something different:
+
+| Request | What HIBP learns |
+|---|---|
+| The breach catalogue, or one breach by name | That someone read public records about breaches |
+| A Pwned Passwords range | Your IP address and **five hexadecimal characters** of a password's hash |
+| An email-address search (not in this lab) | The address you asked about, and that *you* were curious about it |
+
+The third row is why this course does not look up email addresses. Searching for someone else's address tells a third party that you are investigating that person. HIBP requires a paid API key for that search, and its domain search goes further: "organisations must first add the domain to their dashboard and verify that they control it". The only address you should ever check is your own, on HIBP's website.
+
+HIBP also requires every API request to carry a User-Agent header naming the app. A missing one gets an HTTP 403. It does not ask who you are, so, unlike the SEC in S1.4, the lab sends no contact address.
+
+#### Step 1 — a breach catalogue is a list of claims
+
+The catalogue held **1038 breaches** in the run on 24 September 2026. Before you use any of them, read the flags. HIBP's field list defines them:
+
+| Flag | HIBP's definition (quoted) | In the run |
+|---|---|---|
+| \`IsVerified\` false | "may not have been hacked from the indicated website" | 42 |
+| \`IsFabricated\` | "unlikely to have been hacked from the indicated website and usually contains a large amount of manufactured data" | 3 |
+| \`IsSpamList\` | "the data has not come as a result of a security compromise" | 16 |
+| \`IsSensitive\` | "The public API will not return any email addresses for a breach flagged as sensitive" | 94 |
+
+Two details matter. First, a fabricated breach "still contains legitimate email addresses". The named company was probably not breached, but real people's data is still in it. Second, **the flags are independent**. Paytm is flagged fabricated *and* verified at the same time. A report that checked only \`IsVerified\` would call it a real Paytm breach. Read every flag.
+
+A small warning about the documentation itself: HIBP's field list describes \`IsVerified\` with the words "Indicates that the breach is considered unverified". Read literally, that is backwards. The data settles it: Adobe is \`true\`, and Zoosk, flagged fabricated, is \`false\`. When a document and the data disagree, check against records whose status you already know.
+
+#### Step 2 — read one breach as a record
+
+The Adobe record says: breach date 2013-10-04, added to HIBP 2013-12-04, **152445165 addresses**, data classes *Email addresses, Password hints, Passwords, Usernames*. Each of those fields needs care:
+
+- **\`BreachDate\` is approximate.** HIBP says so itself: "This is not always accurate … Use this attribute as a guide only." In the run, **42 breaches** had a breach date of 1 January, about fifteen times what chance alone would give. A date like that usually means "some time that year".
+- **\`AddedDate\` is when HIBP learned of it**, not when the breach happened. Across the catalogue the median gap between the two was 134 days (Workbench Drill 2).
+- **\`PwnCount\` counts email addresses, not people.** One person may have several addresses. And rows in a file are not addresses either: the case study's file had 57,554,881 rows, but HIBP records 52,578,183 addresses.
+- **Data classes decide the harm.** Adobe's included *password hints*, stored in plain text. HIBP's description says the hints "disclosed much about the passwords". A breach of email addresses alone is a different kind of problem from one with passwords or dates of birth.
+
+#### Step 3 — two questions about an organisation, only one of them yours
+
+"How exposed is this organisation?" can mean two different things:
+
+1. **Was the organisation's own service breached?** That is public-record research. The catalogue can be filtered by domain, and for \`adobe.com\` it returns one breach: Adobe. Anyone may read that.
+2. **Do its staff's addresses appear in other breaches?** That question is about people. HIBP answers it only for a domain you can prove you control, and without that proof its API returns HTTP 403. The question belongs to the organisation itself, or to someone it has authorised in writing.
+
+An OSINT report can answer the first. It should say plainly that the second is out of scope, and why.
+
+#### Step 4 — checking a password without sending it
+
+Pwned Passwords holds hashes of passwords seen in breaches. You never send it a password, and you never send it a whole hash either:
+
+1. Compute the SHA-1 of the password **on your own machine**. For \`P@ssw0rd\` it is \`21BD12DC183F740EE76F27B78EB39C8AD972A757\`.
+2. Send only the first five characters, \`21BD1\`.
+3. The API returns every hash suffix it holds that starts with that prefix, with a count for each. In the run it held 1925 real suffixes for \`21BD1\`.
+4. Look for your suffix **on your own machine**. For \`P@ssw0rd\` the count was 6,421,042.
+
+Five hex characters allow 16⁵ = 1,048,576 possible prefixes, and a prefix never identifies a password: about two thousand known passwords share each one, and countless unknown ones do too. That is the k-anonymity.
+
+There was one gap. The prefixes return different numbers of rows, so someone watching your encrypted traffic could guess the prefix from the size of the response. HIBP's answer is **padding**: send the header \`Add-Padding: true\`, and it adds a random number of fake rows with a count of 0. In the lab's two runs, 51 and 142 rows were padding.
+
+The documentation says padding makes every response "between 800 and 1,000" rows. That was true when padding was introduced. In Troy Hunt's March 2020 post announcing it, the example ranges held 523 and 528 rows. In our runs a range held about 1,900 to 2,500 real rows, before any padding. Hunt wrote then that the numbers gave "a heap of buffer to expand the total volume of Pwned Passwords in the future". The volume has outgrown the buffer. **A documented number is a claim with a date.** Measure it again before you teach it.
+
+Two cautions:
+
+- **Never type a password you use into a command line.** The shell saves it to its history file. The lab uses a famous weak example. Workbench Drill 3 shows how to check your own password safely.
+- **SHA-1 here is a lookup key, not protection.** It is too fast to protect stored passwords, and this module does not say otherwise. It works here because only five characters of it leave your machine.
+
+#### What a breach record proves — and what it does not
+
+A breach record, collected and hashed the S1.1 way, proves that **HIBP described a dataset this way, with these flags, at this time**. It does not prove any of the following:
+
+- **That the named organisation was breached.** Check \`IsFabricated\`, \`IsVerified\` and \`IsSpamList\`, all three.
+- **That a particular person was in it.** You did not search for anyone, and you should not.
+- **When it happened.** \`BreachDate\` is a guide only.
+- **How many people were affected.** It counts addresses, not people.
+- **That a password is in use today.** A count says how often a password appeared in breaches, not who uses it now.
+
+Attackers use breach data directly. MITRE ATT&CK lists **T1589.001 Credentials** under T1589 Gather Victim Identity Information (reconnaissance), and **T1110.004 Credential Stuffing** under T1110 Brute Force (credential access). A defender's use is different in kind: metadata about breaches, and checks on your own passwords that never reveal them.`,
+    lab: {
+      mac: `# LAB: measure breach exposure without touching a single stolen record (Apple Silicon)
+# ETHICS: every request goes to Have I Been Pwned's free, documented, keyless APIs. Nothing is
+# downloaded from a breach, a paste site or a forum, and no email address is looked up. The one
+# password is a famous weak example, not anyone's; only five characters of its hash leave the Mac.
+ANALYST=analyst01
+mkdir -p ~/scouts-case/s1_5/evidence && cd ~/scouts-case/s1_5
+
+cat > scope.txt <<'SCOPE'
+case:        S1.5 practice
+authorised:  self (HIBP's published breach catalogue; one well-known example password)
+in scope:    breach metadata - who, when, which data classes, how verified;
+             the Pwned Passwords range for the example password's hash prefix
+out of scope: any email address or person; breach files, pastes, combolists, forums;
+             logging in anywhere with any credential; any password you actually use
+SCOPE
+
+# collect ID URL EXT [extra curl options] - as S1.4. HIBP requires a User-Agent naming the app;
+# it does not ask who you are, so no contact address is sent.
+collect() {
+  local T H id=$1 url=$2 ext=$3; shift 3
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  curl -sfL --retry 3 --retry-all-errors -A "Cyber Scouts lab" "$@" -o "evidence/$id.$ext" "$url" || { echo "FAILED: $id"; return 1; }
+  H=$(shasum -a 256 "evidence/$id.$ext" | cut -d' ' -f1)
+  printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$id" "$T" "$ANALYST" "$url" "$H" >> collection_log.tsv
+  sleep 1
+}
+B=https://haveibeenpwned.com/api/v3
+
+# 1. The whole catalogue, and how much of it is flagged as something other than a clean breach.
+collect breaches "$B/breaches" json
+jq -r '"breaches in the catalogue: \\(length)",
+  "  not verified: \\(map(select(.IsVerified | not)) | length)   fabricated: \\(map(select(.IsFabricated)) | length)   spam lists: \\(map(select(.IsSpamList)) | length)",
+  "  from malware: \\(map(select(.IsMalware)) | length)   stealer logs: \\(map(select(.IsStealerLog)) | length)   sensitive: \\(map(select(.IsSensitive)) | length)",
+  (.[] | select(.IsFabricated) | "  fabricated: \\(.Name)  breach date \\(.BreachDate)  added \\(.AddedDate[0:10])  \\(.PwnCount) addresses")' evidence/breaches.json
+
+# 2. One breach, read as a record: when it happened, when it became known here, what was taken.
+collect adobe "$B/breach/Adobe" json
+jq -r '"\\(.Title) (\\(.Domain)): breach date \\(.BreachDate), added \\(.AddedDate[0:10]), verified \\(.IsVerified)",
+  "  \\(.PwnCount) addresses | data classes: \\(.DataClasses | join(", "))"' evidence/adobe.json
+
+# 3. An organisation's exposure as a service: the breaches recorded against its domain.
+collect by_domain "$B/breaches?Domain=adobe.com" json
+jq -r '"breaches recorded against adobe.com: \\(length) (\\(map(.Name) | join(", ")))"' evidence/by_domain.json
+
+# 4. A password check that never sends the password. Never type a password you use into a
+#    command line: it stays in your shell history. The example below is famous for being weak.
+PW='P@ssw0rd'
+H=$(printf %s "$PW" | shasum -a 1 | cut -d' ' -f1 | tr a-f A-F)
+echo "SHA-1, computed on this Mac: $H"
+echo "all that is sent to the API: \${H:0:5}"
+collect range "https://api.pwnedpasswords.com/range/\${H:0:5}" txt -H "Add-Padding: true"
+tr -d '\\r' < evidence/range.txt | awk -F: -v s="\${H:5}" '{n++} $2 == 0 {z++} $1 == s {hit = $2}
+  END {printf "rows returned: %d, of which padding (count 0): %d\\nthis suffix: %s\\n", n, z,
+       hit ? "seen " hit " times" : "not in the response"}'
+
+# 5. The case file.
+awk -F'\\t' '{printf "%-10s %s %s...\\n", $1, $2, substr($5,1,12)}' collection_log.tsv`,
+      windows: `# PowerShell 7 - the same case, native cmdlets (not run on Windows by the author; the
+# macOS version is the tested reference). Same ETHICS as above: HIBP's keyless APIs only.
+$Analyst = "analyst01"
+New-Item -ItemType Directory -Force -Path "$HOME\\scouts-case\\s1_5\\evidence" | Out-Null
+Set-Location "$HOME\\scouts-case\\s1_5"
+
+function Collect($Id, $Url, $Ext, $Headers = @{}) {
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  Invoke-WebRequest -Uri $Url -OutFile "evidence\\$Id.$Ext" -UserAgent "Cyber Scouts lab" -Headers $Headers -MaximumRetryCount 3 -RetryIntervalSec 5
+  $H = (Get-FileHash "evidence\\$Id.$Ext" -Algorithm SHA256).Hash.ToLower()
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+  Start-Sleep -Seconds 1
+}
+$B = "https://haveibeenpwned.com/api/v3"
+
+Collect breaches "$B/breaches" json
+$all = Get-Content evidence\\breaches.json -Raw | ConvertFrom-Json
+"breaches in the catalogue: $($all.Count)"
+"  not verified: $(@($all | Where-Object { -not $_.IsVerified }).Count)   fabricated: $(@($all | Where-Object IsFabricated).Count)   spam lists: $(@($all | Where-Object IsSpamList).Count)"
+$all | Where-Object IsFabricated | ForEach-Object { "  fabricated: $($_.Name)  breach date $($_.BreachDate)  $($_.PwnCount) addresses" }
+
+Collect adobe "$B/breach/Adobe" json
+$a = Get-Content evidence\\adobe.json -Raw | ConvertFrom-Json
+"$($a.Title) ($($a.Domain)): breach date $($a.BreachDate), verified $($a.IsVerified)"
+"  $($a.PwnCount) addresses | data classes: $($a.DataClasses -join ', ')"
+
+Collect by_domain "\${B}/breaches?Domain=adobe.com" json
+"breaches recorded against adobe.com: $(@(Get-Content evidence\\by_domain.json -Raw | ConvertFrom-Json).Count)"
+
+# Never type a password you use into a console: PSReadLine keeps a history file.
+$Pw = 'P@ssw0rd'
+$H = -join ([Security.Cryptography.SHA1]::HashData([Text.Encoding]::UTF8.GetBytes($Pw)) | ForEach-Object { $_.ToString("X2") })
+"SHA-1, computed here:        $H"
+"all that is sent to the API: $($H.Substring(0,5))"
+Collect range "https://api.pwnedpasswords.com/range/$($H.Substring(0,5))" txt @{ "Add-Padding" = "true" }
+$rows = Get-Content evidence\\range.txt | ForEach-Object { $k, $n = $_.Split(':'); [pscustomobject]@{ Suffix = $k; Seen = [long]$n } }
+"rows returned: $($rows.Count), of which padding (count 0): $(@($rows | Where-Object Seen -eq 0).Count)"
+$hit = $rows | Where-Object Suffix -eq $H.Substring(5)
+"this suffix: $(if ($hit) { "seen $($hit.Seen) times" } else { 'not in the response' })"
+
+Import-Csv collection_log.tsv -Delimiter "\`t" -Header Id, Time, Analyst, Url, Sha256 | Format-Table Id, Time, Sha256`,
+      linux: `# Identical to macOS with two substitutions:
+#   sha256sum   instead of   shasum -a 256
+#   sha1sum     instead of   shasum -a 1
+# jq, curl, awk and tr behave the same. \${H:0:5} is a bash expansion: run the lab
+# with bash, not sh (on Debian and Ubuntu, sh is dash and does not support it).`,
+      expected: {
+        mac: `\`\`\`text
+breaches in the catalogue: 1038
+  not verified: 42   fabricated: 3   spam lists: 16
+  from malware: 9   stealer logs: 6   sensitive: 94
+  fabricated: JustDate  breach date 2016-09-29  added 2017-02-07  24451312 addresses
+  fabricated: Paytm  breach date 2020-08-30  added 2022-07-26  3395101 addresses
+  fabricated: Zoosk  breach date 2011-01-01  added 2017-02-08  52578183 addresses
+Adobe (adobe.com): breach date 2013-10-04, added 2013-12-04, verified true
+  152445165 addresses | data classes: Email addresses, Password hints, Passwords, Usernames
+breaches recorded against adobe.com: 1 (Adobe)
+SHA-1, computed on this Mac: 21BD12DC183F740EE76F27B78EB39C8AD972A757
+all that is sent to the API: 21BD1
+rows returned: 1976, of which padding (count 0): 51
+this suffix: seen 6421042 times
+breaches   2026-09-24T17:07:29Z 768afe524d7e...
+adobe      2026-09-24T17:07:32Z 3e16695c608e...
+by_domain  2026-09-24T17:07:34Z ff625765e82f...
+range      2026-09-24T17:07:36Z 8fba1a7ab54e...
+\`\`\`
+
+That is the run on 24 September 2026. Four lines should match yours exactly: the SHA-1, the five characters sent, the Adobe record and the three fabricated entries (unless HIBP has flagged another since). The others will differ, and each for a reason:
+
+- **The catalogue counts** grow as HIBP loads new breaches.
+- **"rows returned" and "padding"** change on *every* run, even a minute apart. Padding adds a random number of zero-count rows, which is its whole purpose (Step 4). A second run here gave 2067 rows, 142 of them padding.
+- **The suffix count** only goes up as new breaches are added to Pwned Passwords.
+- **The hashes** in the case file differ from these, and the \`range\` hash differs from your own previous run. Live responses change; the log records *what you received and when*, not a fixed truth.
+
+If \`this suffix\` says "not in the response", check that you did not change the password line. \`P@ssw0rd\` has been in Pwned Passwords for years.`
+      }
+    },
+    caseStudy: {
+      title: "Zoosk, May 2016 — 57 million rows and a breach that wasn't",
+      body: `In May 2016 a ZDNet reporter brought Troy Hunt a file said to come from the dating site Zoosk. Hunt described how he tested that claim in a post on 6 May 2016, "Here's how I verify data breaches". The same day ZDNet published a story titled "One of the biggest hacks happened last year, but nobody noticed".
+
+**The file.** It had 57,554,881 rows, each an email address and a plain-text password separated by a colon. Hunt's first point was that this shape "makes it very hard to verify". An email and a password could have come from anywhere. For contrast, he had another dataset that week, from a different site, that held whole database records with internal IDs and timestamps. A site can check records like those against its own and be sure.
+
+**The anomalies.** The Zoosk file had 88k email addresses containing the word "badoo", another dating site, and only 6.4k containing "zoosk". About 93k passwords were written in a hex-wrapped form such as \`$HEX[73c5826f6e65637a6e696b69]\`. Decoded, that one is the Polish word "słoneczniki", and its letter ł is not ASCII. Hunt called it "yet another anomaly". Neither finding proves anything alone, but each made the claim less likely.
+
+**The people.** Hunt wrote to HIBP subscribers found in the data: people who had entered their own address on HIBP's notification page and confirmed it through a link emailed to them. Some said they had joined Zoosk. Those who denied being members also denied ever using the password listed next to their address.
+
+**The company.** Zoosk, contacted through the journalists, inspected the data and concluded: "None of the full user records in the sample data set was a direct match to a Zoosk user."
+
+**The record today.** HIBP loaded it, flagged as fabricated. The lab prints it: breach date 2011-01-01, added 2017-02-08, 52,578,183 addresses. The description says "In approximately 2011 …", so the date means "some time in 2011". HIBP's definition applies: many of the addresses are real, but the data was almost certainly not taken from Zoosk.
+
+**The lessons for an OSINT report.**
+
+- **"X was breached" is a claim, and the file is not the proof.** An email-and-password file cannot show where it came from. Say what the record says, including its flags.
+- **Verification belongs to people who can do it lawfully.** Hunt contacted subscribers who had signed up to his own service, and Zoosk checked its own data. Neither step is open to you. Testing addresses on a site's password-reset page would send emails to real people who never agreed to be part of your case.
+- **Rows are not people.** Hunt counted 57,554,881 rows; HIBP's record counts 52,578,183 addresses. Neither number is a count of people.`
+    },
+    challenges: [{
+      q: `A classmate finds a forum post offering "the full Zoosk database" as a free download. They say: "It's already public, so downloading it for our report is fine, and we can check whether our teacher is in it." What do you say?`,
+      a: `No, on every count. Downloading a dump is obtaining personal data without the controller's consent, which section 170 of the Data Protection Act 2018 makes an offence when done knowingly or recklessly. Its defences are things you would have to prove in court, not permissions. "Public" is not a lawful basis either, as in S1.1. Looking up the teacher makes a real person the target, which this course never does. And the file would not even answer the question: HIBP flags that data as fabricated, so it would not show that anyone had a Zoosk account. The report needs the HIBP record, flags included, and nothing more.`
+    }, {
+      q: `A draft report says: "Paytm suffered a breach of 3.4 million customers in August 2020 (HIBP, verified)." What is wrong with it?`,
+      a: `Almost everything. The record is flagged \`IsFabricated: true\`. HIBP's description says the data "did not originate from Paytm". The writer read \`IsVerified\` and stopped. The flags are independent, so read all of them. And 3,395,101 counts email addresses, not customers. A defensible sentence: "HIBP lists a dataset attributed to Paytm (breach date 2020-08-30) and flags it as fabricated: the data is not believed to come from Paytm." That is all the record supports.`
+    }, {
+      q: `A client asks: "Are our staff's email addresses in any breaches? Our domain is client.example. Just run it through HIBP." What do you need before you touch it, and what can you do without it?`,
+      a: `Staff exposure is a question about people, and HIBP answers it only for a domain whose owner has proved control, by DNS or by email. Without that proof its domain search returns HTTP 403, and it should. So you need written authorisation from the client, and the client's own verification of the domain on HIBP. Better still, have the client run the search and share the results with you under the engagement. Without any of that, you can answer the other question, whether the client's own service has been breached: filter the public catalogue by the domain. Say in the report which question you answered and why the other one is out of scope.`
+    }],
+    quiz: ["Why does this course never download a breach dump, even one that is freely available?", "What exactly leaves your machine when you check a password with the Pwned Passwords range API, and what stays on it?", "What does padding protect against, and why did HIBP's documented \"800 to 1,000\" stop describing real responses?", "Paytm is flagged both verified and fabricated. What does that teach you about reading a breach record?", "A breach's BreachDate is 1 January. What should your report say about when it happened?", "Why could the Zoosk file not prove where it came from, when another dataset that week could?"],
+    workbench: `> **What this trains.** The lab collected the records for you. Here you do the judging yourself: read every flag instead of one, treat dates as the approximations they are, and check your own password without leaving it anywhere.
+
+#### 🟢 Drill 1 — read every flag ~6 min
+
+**Goal.** From \`evidence/breaches.json\` alone, write one \`jq\` command that groups every breach that is unverified, fabricated or a spam list by its *combination* of those three flags, and counts each group.
+
+**Done when.** One command, its output, and one sentence about the group with only one member.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+jq -r 'map(select(.IsFabricated or (.IsVerified | not) or .IsSpamList))
+  | group_by([.IsVerified, .IsFabricated, .IsSpamList])[]
+  | "verified=\\(.[0].IsVerified) fabricated=\\(.[0].IsFabricated) spam=\\(.[0].IsSpamList): \\(length)"' evidence/breaches.json
+\`\`\`
+
+\`\`\`text
+verified=false fabricated=false spam=false: 40
+verified=false fabricated=true spam=false: 2
+verified=true fabricated=false spam=true: 16
+verified=true fabricated=true spam=false: 1
+\`\`\`
+
+That is the run on 24 September 2026; yours may differ as HIBP adds and re-flags breaches. The last line is Paytm, verified *and* fabricated. A query for "unverified breaches" misses it, and a query for "verified breaches" includes it. Neither flag alone says whether the named company was the source.
+
+The 16 spam lists are all verified too. Verified there means the data is real, not that anyone was hacked.
+</details>
+
+#### 🟡 Drill 2 — how far can you trust a date? ~10 min
+
+**Goal.** For every breach, work out the number of days between \`BreachDate\` and \`AddedDate\`. Report how many were added within a week, the median gap, how many took over a year, and the longest. Then count the breach dates that fall on 1 January.
+
+**Done when.** Five numbers, and two sentences: one about what \`AddedDate\` can support in a report, and one about what a 1 January \`BreachDate\` can.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+jq -r 'def d: strptime("%Y-%m-%d") | mktime;
+  map((.AddedDate[0:10] | d) - (.BreachDate | d) | . / 86400 | floor) | sort
+  | "breaches: \\(length)   added the same week or sooner: \\(map(select(. <= 7)) | length)",
+    "median gap: \\(.[length / 2 | floor]) days   over a year: \\(map(select(. > 365)) | length)   longest: \\(.[-1]) days"' evidence/breaches.json
+jq -r '"breach dates on 1 January: \\(map(select(.BreachDate | endswith("-01-01"))) | length)"' evidence/breaches.json
+\`\`\`
+
+\`\`\`text
+breaches: 1038   added the same week or sooner: 168
+median gap: 134 days   over a year: 362   longest: 5201 days
+breach dates on 1 January: 42
+\`\`\`
+
+Over a third of the catalogue (362 of 1038) reached HIBP more than a year after its breach date. So \`AddedDate\` supports "HIBP knew of this by …", and nothing about when the breach was found by anyone else. The longest gap, 5201 days, is RSBoards: breach date 2011-12-26, added in March 2026.
+
+If breach dates were spread evenly, about 3 of 1038 would fall on 1 January. There are 42. Zoosk is one of them, and its description says "In approximately 2011". Report a 1 January breach date as "in 2011, according to HIBP", never as a day.
+</details>
+
+#### 🔴 Drill 3 — check your own password, and leave nothing behind ~12 min
+
+**Goal.** Write a shell function \`pwcheck\` that asks for a password without echoing it, checks it against Pwned Passwords with padding, and prints only the five characters sent and the result. It must work in both zsh and bash. It must leave the password in no history file and no variable. And it must never report "not found" when the request actually failed.
+
+**Done when.** The function works in both shells, and you have tested three inputs: \`P@ssw0rd\` (found), an empty line (refused), and a run with the network broken (UNKNOWN, not "not found"). Then use it on a password of your own, if you like. Nobody sees the result but you.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+pwcheck() {
+  local PW H R N
+  if [ -n "$ZSH_VERSION" ]; then read -rs "PW?Password (not echoed, not saved): "
+  else read -rsp "Password (not echoed, not saved): " PW; fi
+  echo
+  [ -n "$PW" ] || { echo "nothing entered - nothing checked"; return 1; }
+  H=$(printf %s "$PW" | shasum -a 1 | cut -d' ' -f1 | tr a-f A-F); unset PW
+  if ! R=$(curl -sf -A "Cyber Scouts lab" -H "Add-Padding: true" "https://api.pwnedpasswords.com/range/\${H:0:5}"); then
+    echo "prefix sent: \${H:0:5}   result: UNKNOWN (the request failed; this is not a clean bill)"; return 2
+  fi
+  N=$(printf %s "$R" | tr -d '\\r' | awk -F: -v s="\${H:5}" '$1 == s && $2 > 0 {print $2}')
+  if [ -n "$N" ]; then echo "prefix sent: \${H:0:5}   result: seen $N times"
+  else echo "prefix sent: \${H:0:5}   result: not found in Pwned Passwords"; fi
+  unset H R N
+}
+pwcheck                                        # type P@ssw0rd at the prompt
+pwcheck                                        # press Enter only
+https_proxy=http://127.0.0.1:9 pwcheck         # P@ssw0rd again, through a proxy that is not there
+\`\`\`
+
+\`\`\`text
+prefix sent: 21BD1   result: seen 6421042 times
+nothing entered - nothing checked
+prefix sent: 21BD1   result: UNKNOWN (the request failed; this is not a clean bill)
+\`\`\`
+
+That is the run on 24 September 2026, identical in zsh and bash. Your count for \`P@ssw0rd\` may be higher.
+
+Each line of the function guards against a real failure:
+
+- **\`read\` differs between the shells.** zsh writes the prompt as \`read "VAR?prompt"\`; bash uses \`read -p\`. The first draft tried the zsh form and fell back to bash's if it failed. In bash that form failed only *after* it had already read your line, so the function silently checked the **empty string** (prefix \`DA39A\`) and printed a count. The empty-input guard now catches that whole class of mistake.
+- **\`$2 > 0\`** skips padding rows. HIBP's documentation says "Padded entries always have a password count of 0", so a zero is never a result.
+- **The \`curl\` exit status** is checked before anything is parsed. Without that check, a failed request produces an empty response, the suffix is "not found", and you are told a weak password is fine. The S1.3 lab's certificate classifier has the same guard: a check with two outcomes needs a third for "could not tell".
+- **\`unset\`** clears the password and its hash as soon as they have been used. \`read -s\` keeps the password off the screen, and typing it at a prompt rather than as part of the command keeps it out of your history.
+
+"Not found" does not make a password strong. It means only that this exact password is not among those HIBP has collected from breaches.
+</details>`,
+    tracker: ["Can explain why breach data itself is out of bounds, and what s.170 DPA 2018 covers", "Read every breach flag, and can explain why Paytm is verified and fabricated at once", "Treated BreachDate as a guide and PwnCount as addresses, not people", "Told an organisation's own breaches from its staff's exposure, and knew which one needs authorisation", "Checked a password with k-anonymity and padding, sending only five characters", "Built a password check that refuses empty input and reports UNKNOWN when the request fails"]
   }]
 };
 

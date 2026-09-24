@@ -1152,6 +1152,10 @@ TOPIC_ANCHORS = {
         "registered agent": ["S1.4"],
         "identity resolution": ["S1.4"],
         "role record": ["S1.4"],
+        "have i been pwned": ["S1.5"],
+        "pwned passwords": ["S1.5"],
+        "k-anonymity": ["S1.5"],
+        "fabricated breach": ["S1.5"],
     },
 }
 
@@ -1320,7 +1324,9 @@ def check_urls(sources):
             u = m.group(0).rstrip(".,;:)]\\`'\"")
             # A URL immediately followed by a placeholder ("/host/<your-ip>", ".../$MY_IP")
             # is a template prefix, not a page. Probing the bare prefix is meaningless.
-            if src[m.end() : m.end() + 1] in ("<", "$"):
+            # Inside a template literal "${" is stored escaped as "\${", so the course
+            # source shows ".../range/\${H:0:5}": the same placeholder, one byte later.
+            if src[m.end() : m.end() + 1] in ("<", "$") or src[m.end() : m.end() + 2] == "\\$":
                 continue
             if is_probeable(u) and u.count("/") >= 2:
                 urls.add(u)
