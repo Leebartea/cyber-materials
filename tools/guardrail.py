@@ -1144,6 +1144,9 @@ TOPIC_ANCHORS = {
         "rdap": ["S1.2"],
         "bootstrap file": ["S1.2"],
         "registration data policy": ["S1.2"],
+        "certificate transparency": ["S1.3"],
+        "precertificate": ["S1.3"],
+        "crt.sh": ["S1.3"],
     },
 }
 

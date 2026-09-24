@@ -2,7 +2,7 @@
  "_source": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json",
  "_why": "attack.mitre.org resolves to GitHub Pages, which is unreachable from the authoring connection; the STIX bundle is the same data from a reachable host.",
  "_verified": "2026-09-23",
- "_note": "Every id below resolved to a live attack-pattern with no deprecation or revocation on the verified date. First verified 2026-09-11 (CLAIMS.md row 35); all ids re-verified 2026-09-23 against ATT&CK v19.2 (2026-08-05), when T1070.004, T1547.001 and T1553.001 were added for M22.5 (CLAIMS.md row 96).",
+ "_note": "Every id below resolved to a live attack-pattern with no deprecation or revocation on the verified date. First verified 2026-09-11 (CLAIMS.md row 35); all ids re-verified 2026-09-23 against ATT&CK v19.2 (2026-08-05), when T1070.004, T1547.001 and T1553.001 were added for M22.5 (CLAIMS.md row 96). T1596.003 added 2026-09-24 for Scouts S1.3 (scouts CLAIMS.md row 49): read from mitre/cti attack-pattern--0979abf9-4e26-43ec-9b6e-54efc4e70fca (tip = ATT&CK v19.2, same release as the bundle), not revoked or deprecated.",
  "techniques": {
   "T1003": "OS Credential Dumping",
   "T1003.001": "LSASS Memory",
@@ -37,6 +37,7 @@
   "T1594": "Search Victim-Owned Websites",
   "T1595": "Active Scanning",
   "T1596": "Search Open Technical Databases",
+  "T1596.003": "Digital Certificates",
   "T1597": "Search Closed Sources",
   "T1598": "Phishing for Information"
  }

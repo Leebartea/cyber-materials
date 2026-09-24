@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.2 + 1 roadmap)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.3 + 1 roadmap)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-24 (Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-24 (Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -74,6 +74,28 @@ source named in the row.
 | 34 | S1.2 | ATT&CK T1596 Search Open Technical Databases; TA0043 | `SOURCED` | `tools/attack_ids_verified.json` (T1596 present; sub-technique T1596.002 **not** in the verified file, so the course cites only T1596) | per ATT&CK release |
 | 35 | S1.2 | Case study: WannaCry 12 May 2017, NHS among victims; Hutchins (MalwareTech, 22) found an unregistered kill-switch domain, registered it (~$10.69) as routine tracking **without knowing** it was a kill switch; later variants' domains also sinkholed | `SOURCED` | TechCrunch 2019-07-08 ("would often take control of unregistered domains"); Cloudflare Learning + SecurityWeek ($10.69); Wikipedia "WannaCry ransomware attack" (began Fri 12 May 2017; NHS England/Scotland; cites "a 22yo who blocked"; 14 May variant with second kill switch registered by Matt Suiche). Arrest/prosecution deliberately omitted (not relevant to the lesson) | stable |
 
+## Batch 3 — S1.3 Certificate Transparency
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 36 | S1.3 | RFC 6962 (June 2013) and RFC 9162 (December 2021, obsoletes 6962) are both **Experimental**; quote "The logs do not themselves prevent misissue, but they ensure that interested parties (particularly those named in certificates) can detect such misissuance." | `SOURCED` | rfc-editor.org .txt of both, headers + RFC 6962 §1 read 2026-09-24 | stable |
+| 37 | S1.3 | Precertificate poison extension OID `1.3.6.1.4.1.11129.2.4.3` (critical); embedded SCT list OID `1.3.6.1.4.1.11129.2.4.2`; log ID = SHA-256 hash of the log's public key | `SOURCED` | RFC 6962 §3.1 and §3.2 text | stable |
+| 38 | S1.3 | Chrome requires all publicly-trusted TLS certificates issued after **30 April 2018** to support CT to be recognised as valid | `SOURCED` | GoogleChrome/CertificateTransparency README.md (raw.githubusercontent.com; github.io unreachable from this network) | on Chrome policy change |
+| 39 | S1.3 | Chrome embedded-SCT policy: ≤180 days → 2 SCTs, >180 days → 3, from distinct logs; ≥2 distinct operators; ≥1 log Qualified/Usable/ReadOnly at check; Retired-log SCT counts only if issued before the Retired timestamp | `SOURCED` | GoogleChrome/CertificateTransparency `ct_policy.md` "CT Compliant Certificates" section, read 2026-09-24 | on Chrome policy change |
+| 40 | S1.3 | A certificate from an organisation's internal CA "has no reason to be in any log" | `CONVENTION` | Inference from row 39's scope ("all publicly-trusted TLS certificates"); no policy obliges a private CA to log. Worded as "no reason", not "never" | stable |
+| 41 | S1.3 | crt.sh is run by Sectigo and is a search index over the logs, not a log | `SOURCED` | crt.sh footer "© Sectigo Limited 2015-2026"; github.com/crtsh org contact rob@sectigo.com (gh api, 2026-09-24); absent from Chrome's log list (row 45) | on ownership change |
+| 42 | S1.3 lab | crt.sh answered **502** on the first request of the build and 200 on retry; `curl -f --retry 5 --retry-all-errors` turns a 502 into a retry | `EXECUTED` | Build runs 2026-09-24 (one 502 on `?q=`, one 502 then 404 on the homepage) | volatile by nature |
+| 43 | S1.3 lab | `?q=example.com&output=json&exclude=expired`: 16 entries, 9 distinct serials (7 pairs, 2 singletons: serial `1000` from "AS207960 Test CA", and an issuer crt.sh reports as not found); 5 unique name strings (2 hostnames, 1 wildcard, 1 email, 1 non-hostname) | `EXECUTED` | Lab run 2026-09-24 12:13Z; file hash 41564f884e2f… stable across three runs within the hour | **volatile** — changes as certs issue/expire; course says so |
+| 44 | S1.3 lab | crt.sh 22853391369 = precertificate (poison), 22853418213 = certificate (SCTs), both serial `531E16F0F28235B65CC7CD35A5F0710B`, 8 SANs (example.com/.edu/.net/.org ± www); crt.sh `name_value` showed only example.com + www.example.com; PEM hashes d893f69033dd… / 9c036575ad32… | `EXECUTED` | Lab run ×3, identical hashes each time; learner output must match exactly | stable (logged certs are immutable) |
+| 45 | S1.3 lab | Final cert's SCTs → Google 'Argon2026h2' (usable), Sectigo 'Elephant2026h2' (usable), Let's Encrypt 'Oak2026h2' (**retired 2026-02-28T00:00:00Z**), all 2 Dec 2025 ~01:32:36 GMT; log list v92.1 published 2026-09-23T13:36:59Z | `EXECUTED` | Log IDs decoded by OpenSSL 3.6.3, base64-matched against gstatic `log_list.json` | on log list change |
+| 46 | S1.3 | A log's `temporal_interval` is a window on certificate **expiry** ("certificates that expire (have a NotAfter date) between these dates"); hence "2026h2" names | `SOURCED` | gstatic `log_list_schema.json` description text | stable |
+| 47 | S1.3 | A wildcard matches exactly one label (`mail.example.com`, not `a.b.example.com`); RFC 9525 (Nov 2023) obsoletes RFC 6125 | `SOURCED` | RFC 9525 §6.3 "can only match one label"; header "Obsoletes: 6125" | stable |
+| 48 | S1.3 | Case study: 14 Sep 2015 ~19:20 GMT Thawte (Symantec) EV precert for google.com + www.google.com, not requested; found via CT (required for EV since 1 Jan 2015); in Google- and DigiCert-operated logs; valid one day; internal testing; announced 18 Sep. Symantec reported 23 test certs / 5 orgs; Google "a few minutes of work"; shared 6 Oct; 12 Oct Symantec +164 over 76 domains + 2,458 for never-registered domains; 28 Oct: CT required for Symantec from 1 Jun 2016 | `SOURCED` | security.googleblog.com 2015/09 "Improved Digital Certificate Security" and 2015/10 "Sustaining Digital Certificate Security", both read in full | stable |
+| 49 | S1.3 | ATT&CK **T1596.003 Digital Certificates**, sub-technique of T1596, tactic TA0043 Reconnaissance | `SOURCED` | mitre/cti STIX object attack-pattern--0979abf9…, repo tip = v19.2 (2026-08-05, same release as `attack-stix-data`); not revoked/deprecated; added to `tools/attack_ids_verified.json` | per ATT&CK release |
+| 50 | S1.3 Drill 2 | Cert 22853418213 valid 2 Dec 2025 00:00:00 → 2 Dec 2026 23:59:59 GMT (>180 days → 3 SCTs); 3 logs, 3 operators; Oak SCT predates its retirement → compliant | `EXECUTED` | `openssl x509 -startdate -enddate` + log-list `state`, run 2026-09-24, output in the drill | stable |
+| 51 | S1.3 Drill 3 | 4 of the 9 serials issued by "Cloudflare TLS Issuing ECC/RSA CA 3", issuer O=**SSL Corporation** | `EXECUTED` | jq over the collected crt.sh JSON | volatile with row 43 |
+| 52 | S1.3 lab | macOS `/usr/bin/openssl` is LibreSSL 3.3.6 and prints the CT OIDs without names or SCT decoding; Homebrew `openssl@3` decodes both and is a dependency of `python@3.12` (in the shared setup file); `brew --prefix` (no formula) is offline. Windows variant **not run** (stated in the lab) | `EXECUTED` | Both binaries run on the same PEMs; homebrew-core `Formula/p/python@3.12.rb` line 30 `depends_on "openssl@3"` | on macOS / formula change |
+
 ## Defects caught before publication
 
 - **Draft theory showed an invented hash output** with a "do not trust this" note
@@ -94,3 +116,22 @@ source named in the row.
   second instance of "join on handles and ranges, not names" (row 27).
 - **Gate false-fail on RDAP base URLs** (400/404 bare, by design). The URL check now
   probes `<base>help` (RFC 9082 §3.1.6) — a real liveness check, not an exemption.
+- **S1.3 lab: `brew --prefix openssl@3` hits the network.** On a connection that
+  cannot reach formulae.brew.sh it failed, left `$OSSL` empty, and the two-way
+  classifier then labelled **both** entries "CERTIFICATE (carries SCTs)", a
+  confident wrong answer. Now `$(brew --prefix)/opt/openssl@3` (offline), a
+  missing-binary warning, and a three-way classifier whose fallback is `UNKNOWN`.
+- **S1.3 lab: awk `/Timestamp/` also matched "Signed Certificate Timestamp:"** and
+  printed junk SCT rows. Anchored to `^ *Timestamp :`.
+- **S1.3 lab: an `exit` guard** would have closed the learner's Terminal when pasted.
+  Replaced by a warning.
+- **S1.3 case study: a search summary said Symantec admitted "187 test
+  certificates".** Google's post gives 23, then 164 more. The course uses the post's
+  figures (row 48).
+- **S1.3 draft overclaims, caught on re-read:** a singleton entry called "not a
+  public CA's certificate" (unverified; now "open it before counting it"); "the
+  domain had certificates long before this one" (not in collected evidence; now
+  cites S1.2's 1995 registry date); "a wildcard tells you subdomains are in use"
+  and "any single name under" (now RFC 9525's one-label rule, row 47).
+- **S1.3 Drill 2 shipped commands without output** — the coverage gate caught it
+  (scouts_theory 4/5); the real output is now in the walkthrough.

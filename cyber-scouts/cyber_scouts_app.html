@@ -800,7 +800,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 |---|---|---|
 | S1.1 | Lawful by design: scope, law and the collection record | ✅ available |
 | S1.2 | Registration data: reading RDAP for domains, addresses and networks | ✅ available |
-| — | Certificate transparency and subdomains | planned |
+| S1.3 | Certificate transparency: finding names in the public certificate logs | ✅ available |
 | — | People and organisations | planned |
 | — | Breach exposure: checking without handling stolen data | planned |
 | — | Geospatial: where a photo was taken | planned |
@@ -1389,6 +1389,320 @@ On 24 September 2026: three statuses, \`client delete prohibited\`, \`client tra
 4. "AS64496 is absent from IANA's ASN bootstrap file (boot_asn), and ARIN's record (as_64496) shows 64496–64511 reserved by IANA for documentation (RFC 5398)." Not being in the file meant "no RIR is listed", not "does not exist".
 </details>`,
     tracker: ["Can name the three things RDAP added over WHOIS", "Found the authoritative server for a domain, an IP and an AS number from IANA's bootstrap files", "Kept each bootstrap file as evidence alongside the record it led to", "Can read status, events, entities, nameservers and redacted from a raw RDAP response", "Joined records on registrar ID rather than registrar name", "Can state what a registration record does not prove: identity, acquisition date, address use"]
+  }, {
+    id: "s1_3",
+    level: 1,
+    num: "S1.3",
+    title: "Certificate Transparency — Finding Names in the Public Certificate Logs",
+    objective: `Find every certificate the public logs hold for a name without sending its servers a packet; tell a precertificate from a certificate; read the full name list from the certificate itself rather than the search index; and say precisely what a CT entry proves about a subdomain and what it does not.`,
+    theory: `#### Define the words first
+
+- **Certificate** — the signed file a website presents when you connect over HTTPS. It binds a public key to one or more names, and your browser checks it before trusting the connection.
+- **Certificate authority (CA)** — an organisation that browsers trust to issue certificates.
+- **Subject Alternative Name (SAN)** — the part of a certificate that lists every name it is valid for. One certificate can cover many names, even names in different domains.
+- **Certificate Transparency (CT)** — a system of public, append-only logs of issued certificates. It is defined in RFC 6962 (June 2013) and revised as RFC 9162 (December 2021). Both are Experimental RFCs.
+- **Precertificate** — a copy of a certificate that the CA sends to logs *before* issuing it. It carries a critical "poison" extension (OID \`1.3.6.1.4.1.11129.2.4.3\`) so that no browser can ever use it.
+- **SCT (Signed Certificate Timestamp)** — a log's signed promise that it will add an entry. The CA embeds the SCTs in the final certificate (extension \`1.3.6.1.4.1.11129.2.4.2\`).
+- **Search index** — a service that reads the logs and lets you search them. **crt.sh** is the best known, and Sectigo runs it. It is not a log itself.
+- **Subdomain** — a name under a domain, such as \`www.example.com\` under \`example.com\`.
+
+#### Whose log? The index's, and nobody at the target's.
+
+The lab sends requests to two places only: crt.sh (so your queries land in Sectigo's logs) and Google's published list of CT logs. The target's servers see nothing. The certificates were published by the CAs when they were issued, not by you.
+
+The boundary comes *after* the lab. CT hands you a list of names, and the obvious next step is to look them up. Remember S1.1's Drill 1: a DNS lookup lands in your resolver's log, and the resolver may then ask the domain's own name servers, as itself. That is a question about a name few other people ever ask about, sent to servers the target runs. Connecting to the name is plainly active. Whether either step is in scope is a decision you write in \`scope.txt\` before you take it. This lab stops at the list.
+
+#### Why the logs exist, and why they are nearly complete
+
+RFC 6962 puts the purpose in one sentence: "The logs do not themselves prevent misissue, but they ensure that interested parties (particularly those named in certificates) can detect such misissuance." CT does not stop a CA issuing a certificate it should not. It makes sure the issuance cannot stay secret.
+
+The logs are nearly complete for the public web because browsers enforce them. **Chrome requires every publicly-trusted TLS certificate issued after 30 April 2018 to support CT**, or it will not accept it. Its policy says how many SCTs a certificate needs:
+
+| Certificate lifetime | SCTs needed, from distinct logs |
+|---|---|
+| 180 days or less | 2 |
+| more than 180 days | 3 |
+
+On top of that, at least two of those SCTs must come from **different log operators**, and at least one must come from a log Chrome still counts as *Qualified*, *Usable* or *ReadOnly*. An SCT from a log that has since been *Retired* still counts, but only if it was issued before the log's retirement date.
+
+What this does *not* cover: the policy applies to publicly-trusted certificates. A certificate from an organisation's own internal CA, trusted only on its own machines, has no reason to be in any log.
+
+#### Step 1 — ask the index
+
+crt.sh answers \`?q=example.com&output=json\` with one JSON object per log entry. The fields that matter are \`id\` (crt.sh's own ID), \`serial_number\`, \`issuer_name\`, \`not_before\`, \`not_after\` and \`name_value\`. Add \`&exclude=expired\` to drop expired certificates.
+
+crt.sh is busy, and it often answers **502** when overloaded. On the first try for this module it did exactly that. An error is not an answer. Retry it, and if it still fails, log the failure. Never write "no certificates" on the strength of an error page.
+
+Two findings from the run on 24 September 2026:
+
+- **16 entries, 9 serial numbers.** Seven serial numbers appear twice. Each pair is a precertificate and the final certificate made from it: the same serial number, logged twice. Count serial numbers, not rows.
+- **Not every name is a hostname.** The index returned \`example.com\`, \`www.example.com\`, a wildcard \`*.example.com\`, an email address \`user@example.com\`, and a test CA's name that merely contains the text "example.com".
+
+#### Step 2 — read the certificate, not just the index
+
+Open one pair, crt.sh IDs \`22853391369\` and \`22853418213\`. Both have serial \`531E16F0F28235B65CC7CD35A5F0710B\`. The first carries the poison extension, so it is the precertificate. The second carries three SCTs, so it is the certificate that was issued.
+
+Now the finding that matters most. crt.sh's \`name_value\` for this entry listed two names: \`example.com\` and \`www.example.com\`. **The certificate itself lists eight**: \`example.com\`, \`example.edu\`, \`example.net\` and \`example.org\`, each with and without \`www.\`. The index showed only the names that matched your search. The certificate shows every name that shares it, and that is how one certificate leads you to sibling domains.
+
+A **wildcard** (\`*.example.com\`) works the other way. It matches any name exactly one label below \`example.com\`: \`mail.example.com\`, but not \`a.b.example.com\` (RFC 9525, which replaced RFC 6125 in 2023). It shows someone wanted to cover names like that. It does not show which ones exist.
+
+#### Step 3 — which logs vouched for it?
+
+Each SCT carries a log ID: the SHA-256 hash of that log's public key. Google publishes the list of logs Chrome recognises at \`https://www.gstatic.com/ct/log_list/v3/log_list.json\`. Match the IDs against it. The three SCTs in the lab certificate came from **Google 'Argon2026h2'**, **Sectigo 'Elephant2026h2'** and **Let's Encrypt 'Oak2026h2'**, all timestamped 2 December 2025.
+
+Two things to notice:
+
+- **Log names describe expiry dates.** "2026h2" means the log accepts certificates that *expire* in (roughly) the second half of 2026. The list gives each log's exact window. This certificate expires on 2 December 2026.
+- **Logs change state.** Oak2026h2 is now *retired* (since 28 February 2026). The SCT still counts because it was issued before that date. Like S1.2's bootstrap file, the log list is evidence: it shows what the logs' status was when you checked.
+
+#### What a CT entry proves — and what it does not
+
+A CT entry, collected and hashed the S1.1 way, proves that **a CA issued (or, for a precertificate, prepared to issue) a certificate for these names, and a log recorded it**. It does not prove any of the following:
+
+- **That a name is in use.** It does not show that the name resolves today, or that anything answers on it.
+- **Who runs the site.** The issuer field names the CA. An issuer whose name mentions a hosting company is a lead to check, not a finding.
+- **That you have every subdomain.** Wildcards hide names. Internal CAs are not logged. A name that never went into a public certificate never shows up here.
+- **That the domain owner asked for it.** Catching certificates the owner never asked for is what CT was built for. See the case study.
+
+Attackers read these logs too. MITRE ATT&CK lists this as **T1596.003 Digital Certificates**, a sub-technique of T1596 Search Open Technical Databases, under **TA0043 Reconnaissance**. A defender searches their own domains the same way: to catch certificates they did not request, and to see which internal-sounding names their own certificates have already made public.`,
+    lab: {
+      mac: `# LAB: read the public certificate logs for a name - without touching its servers (Apple Silicon)
+# ETHICS: every request goes to crt.sh (Sectigo's search index over the CT logs) or to
+# Google's published CT log list. The target is example.com, reserved for documentation
+# (RFC 2606). No DNS lookup, no connection to any host a name in the results points at.
+ANALYST=analyst01
+mkdir -p ~/scouts-case/s1_3/evidence && cd ~/scouts-case/s1_3
+# Homebrew's OpenSSL 3 (installed with python@3.12) decodes CT fields; macOS's LibreSSL does not.
+OSSL="$(brew --prefix)/opt/openssl@3/bin/openssl"
+[ -x "$OSSL" ] || echo "OpenSSL 3 not found at $OSSL - run: brew install openssl@3"
+
+cat > scope.txt <<'SCOPE'
+case:        S1.3 practice
+authorised:  self (public certificate transparency data about a reserved name)
+in scope:    CT entries for example.com via crt.sh; Chrome's CT log list
+out of scope: resolving, connecting to or probing any name found; any person
+SCOPE
+
+# collect ID URL EXT - as S1.2, plus retries: crt.sh often answers 502 when busy.
+collect() {
+  local T H
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  curl -sfL --retry 5 --retry-all-errors --retry-delay 10 -o "evidence/$1.$3" "$2" || { echo "FAILED: $1"; return 1; }
+  H=$(shasum -a 256 "evidence/$1.$3" | cut -d' ' -f1)
+  printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$1" "$T" "$ANALYST" "$2" "$H" >> collection_log.tsv
+}
+
+# 1. Ask the index: every unexpired certificate logged for example.com.
+collect ct_example_com "https://crt.sh/?q=example.com&output=json&exclude=expired" json
+jq -r '"entries: \\(length)   distinct serial numbers: \\([.[].serial_number] | unique | length)"' evidence/ct_example_com.json
+
+# 2. The names the index matched - not all of them are hostnames.
+jq -r '[.[].name_value | split("\\n")[]] | unique[]' evidence/ct_example_com.json |
+  while read -r n; do
+    case "$n" in
+      *@*)    k="email address" ;;
+      \\*.*)   k="wildcard - hides the real names" ;;
+      *\\ *)   k="not a hostname" ;;
+      *)      k="hostname" ;;
+    esac
+    printf "  %-40s %s\\n" "$n" "$k"
+  done
+
+# 3. Two entries, one serial number: read the certificates themselves.
+for id in 22853391369 22853418213; do
+  collect "crt_$id" "https://crt.sh/?d=$id" pem
+  f="evidence/crt_$id.pem"
+  txt=$("$OSSL" x509 -in "$f" -noout -text)
+  case "$txt" in
+    *"CT Precertificate Poison"*) kind="PRECERTIFICATE (poison extension)" ;;
+    *"CT Precertificate SCTs"*)   kind="CERTIFICATE (carries SCTs)" ;;
+    *)                            kind="UNKNOWN - read it by hand" ;;
+  esac
+  echo "crt.sh $id  serial $("$OSSL" x509 -in "$f" -noout -serial | cut -d= -f2)  $kind"
+  echo "  names: $("$OSSL" x509 -in "$f" -noout -ext subjectAltName | tail -n +2 | sed 's/^ *//; s/DNS://g')"
+done
+
+# 4. Which logs vouched for the final certificate? Match each SCT's log ID to Chrome's list.
+collect ct_log_list https://www.gstatic.com/ct/log_list/v3/log_list.json json
+jq -r '"log list published: " + .log_list_timestamp' evidence/ct_log_list.json
+"$OSSL" x509 -in evidence/crt_22853418213.pem -noout -text |
+  awk '/Log ID/ {id=$4; getline; id=id $1} /^ *Timestamp :/ {sub(/^ *Timestamp : /,""); print id, $0}' |
+  while read -r hex ts; do
+    b64=$(echo "$hex" | tr -d ':' | xxd -r -p | base64)
+    jq -r --arg b "$b64" --arg ts "$ts" '.operators[] | .name as $o | (.logs[]?, .tiled_logs[]?) |
+      select(.log_id == $b) | "  SCT \\($ts) | \\($o) | \\(.description) | now: \\(.state | keys[0])"' evidence/ct_log_list.json
+  done
+
+# 5. The case file.
+awk -F'\\t' '{printf "%-16s %s %s...\\n", $1, $2, substr($5,1,12)}' collection_log.tsv`,
+      windows: `# PowerShell 7 - the same case, native cmdlets (not run on Windows by the author; the
+# macOS version is the tested reference). Same ETHICS as above: crt.sh and Google's log list only.
+$Analyst = "analyst01"
+New-Item -ItemType Directory -Force -Path "$HOME\\scouts-case\\s1_3\\evidence" | Out-Null
+Set-Location "$HOME\\scouts-case\\s1_3"
+
+function Collect($Id, $Url, $Ext) {
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  Invoke-WebRequest -Uri $Url -OutFile "evidence\\$Id.$Ext" -MaximumRetryCount 5 -RetryIntervalSec 10
+  $H = (Get-FileHash "evidence\\$Id.$Ext" -Algorithm SHA256).Hash.ToLower()
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+}
+
+Collect ct_example_com "https://crt.sh/?q=example.com&output=json&exclude=expired" json
+$ct = Get-Content evidence\\ct_example_com.json -Raw | ConvertFrom-Json
+"entries: $($ct.Count)   distinct serial numbers: $(($ct.serial_number | Sort-Object -Unique).Count)"
+$ct.name_value -split "\`n" | Sort-Object -Unique
+
+foreach ($id in 22853391369, 22853418213) {
+  Collect "crt_$id" "https://crt.sh/?d=$id" pem
+  $c = [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPemFile("$PWD\\evidence\\crt_$id.pem")
+  $oids = $c.Extensions.Oid.Value
+  $kind = if ($oids -contains "1.3.6.1.4.1.11129.2.4.3") { "PRECERTIFICATE (poison extension)" }
+          elseif ($oids -contains "1.3.6.1.4.1.11129.2.4.2") { "CERTIFICATE (carries SCTs)" }
+          else { "UNKNOWN - read it by hand" }
+  "crt.sh $id  serial $($c.SerialNumber)  $kind"
+  $san = $c.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" }
+  "  names: $($san.Format($false))"
+}
+Collect ct_log_list "https://www.gstatic.com/ct/log_list/v3/log_list.json" json
+# Step 4 (decoding each SCT's log ID) needs a parser .NET does not ship; run the
+# macOS/Linux version for it, e.g. under WSL.
+Get-Content collection_log.tsv`,
+      linux: `# Identical to macOS with three substitutions:
+#   sha256sum   instead of   shasum -a 256
+#   OSSL=openssl             (your distribution's OpenSSL 3 decodes CT fields; check: openssl version)
+#   xxd may need installing  (apt install xxd / dnf install vim-common)
+# jq, curl and base64 behave the same.`,
+      expected: {
+        mac: `\`\`\`text
+entries: 16   distinct serial numbers: 9
+  *.example.com                            wildcard - hides the real names
+  AS207960 Test Intermediate - example.com not a hostname
+  example.com                              hostname
+  user@example.com                         email address
+  www.example.com                          hostname
+crt.sh 22853391369  serial 531E16F0F28235B65CC7CD35A5F0710B  PRECERTIFICATE (poison extension)
+  names: example.com, example.edu, example.net, example.org, www.example.com, www.example.edu, www.example.net, www.example.org
+crt.sh 22853418213  serial 531E16F0F28235B65CC7CD35A5F0710B  CERTIFICATE (carries SCTs)
+  names: example.com, example.edu, example.net, example.org, www.example.com, www.example.edu, www.example.net, www.example.org
+log list published: 2026-09-23T13:36:59Z
+  SCT Dec  2 01:32:36.725 2025 GMT | Google | Google 'Argon2026h2' log | now: usable
+  SCT Dec  2 01:32:36.937 2025 GMT | Sectigo | Sectigo 'Elephant2026h2' | now: usable
+  SCT Dec  2 01:32:36.716 2025 GMT | Let's Encrypt | Let's Encrypt 'Oak2026h2' | now: retired
+ct_example_com   2026-09-24T12:13:40Z 41564f884e2f...
+crt_22853391369  2026-09-24T12:13:51Z d893f69033dd...
+crt_22853418213  2026-09-24T12:14:00Z 9c036575ad32...
+ct_log_list      2026-09-24T12:14:15Z f207d6c07b6a...
+\`\`\`
+
+Your entry counts, log-list date, timestamps and the first and last hashes will differ. The two certificate hashes (\`d893f69033dd…\` and \`9c036575ad32…\`) will not: a logged certificate never changes. What to read in each block:
+
+- **The first line.** More entries than serial numbers means pairs: a precertificate and its final certificate. New certificates appear and old ones expire, so your numbers move; the gap between the two numbers is the lesson.
+- **The name list.** Five strings, only two of them hostnames. Classify before you count.
+- **The two certificate blocks.** One serial number, two entries: the poison extension marks the precertificate, and the SCTs mark the certificate that was issued. Both list eight names, where the index showed two.
+- **The SCT lines.** Three logs, three different operators, all within a second of each other. Oak2026h2 is retired now; its SCT still counts because it predates the retirement.
+- **The log.** Four items. If a line says \`FAILED\`, crt.sh stayed busy through every retry. Run the line again later, and log the failure rather than the silence.`
+      }
+    },
+    caseStudy: {
+      title: "Symantec, September 2015 — the log caught the CA",
+      body: `On 14 September 2015, around 19:20 GMT, Symantec's Thawte-branded CA issued an Extended Validation pre-certificate for \`google.com\` and \`www.google.com\`. Google had not asked for it. Google found it in the Certificate Transparency logs. Chrome had required CT for EV certificates since 1 January that year, and the precertificate was recorded in both Google-operated and DigiCert-operated logs. It was valid for one day, and it came from an internal Symantec testing process. Google announced it on 18 September.
+
+Symantec then reported 23 test certificates issued without the domain owners' knowledge, covering five organisations. Google wrote that it "was still able to find several more questionable certificates using only the Certificate Transparency logs and a few minutes of work", and shared the results with other root store operators on 6 October. On 12 October Symantec announced a further 164 certificates over 76 domains, plus 2,458 certificates issued for domains that were never registered. On 28 October Google required that from 1 June 2016 every certificate Symantec issued support CT.
+
+The lessons for a Scout:
+
+- **The log is a witness the subject does not control.** Symantec's first account of its own mistake was 23 certificates. The public log held many more. When the party you are checking is also the one reporting, check a record it cannot edit.
+- **A precertificate is evidence, even if nobody used it.** This one was a precertificate, valid for a day, and it was enough to start the whole inquiry. Once a log had signed an SCT for it, it could not quietly disappear.
+- **Anyone can do this.** Google's "few minutes of work" is the method in this module. The same search that lets an attacker map an organisation lets its defenders see what has been issued in their name.`
+    },
+    challenges: [{
+      q: `crt.sh answers \`502 Bad Gateway\` three times in a row. A colleague writes in the report: "No certificates have been issued for this domain." What is wrong, and what should the report and the log say?`,
+      a: `An error is not an answer. A 502 means the service failed to reply, not that it searched and found nothing. Compare S1.2, where an RDAP \`404 Not Found\` *was* a real answer about the record. The log should record each attempt, its time and the status code, with no hash, because there is nothing to hash. The report should say "crt.sh was unavailable at [times]; the CT search was not completed." Then retry later, or use a second index, and log which one you used and why.`
+    }, {
+      q: `From a certificate's name list you find \`vpn-legacy.corp.example.com\`. A classmate wants to ping it "just to see if it's still live". What do you say?`,
+      a: `Finding the name was passive: the certificate was public and the request went to crt.sh. Pinging it sends packets to a host the target runs, which lands in the target's logs. That is active collection, and \`scope.txt\` does not allow it. Even resolving the name may send a query to the target's own name servers (S1.1, Drill 1). Record the name, the certificate it came from and the crt.sh ID. If the investigation needs to know whether the host is live, that is a scope decision for whoever authorised the case. And a name in a certificate proves only that a certificate was issued for it, not that anything answers on it today.`
+    }, {
+      q: `A draft report says: "The CT logs show 16 certificates for example.com." The crt.sh results you collected have 16 entries. Is the sentence right?`,
+      a: `No. Sixteen *entries* is not sixteen *certificates*. Seven serial numbers appear twice, because a precertificate and its final certificate are logged separately. The 16 entries hold 9 distinct serial numbers. Two of those are single entries: one from a CA calling itself 'AS207960 Test CA', whose name only *contains* the text "example.com", and one whose issuer crt.sh could not identify. Open both before counting them. Count serial numbers, open anything odd, and say what you counted: "crt.sh returned 16 unexpired entries (9 distinct serial numbers) matching example.com on [date]."`
+    }],
+    quiz: ["What problem does Certificate Transparency solve, and what does RFC 6962 say the logs do *not* do?", "How do you tell a precertificate from the certificate issued from it, and what do the two share?", "Why can a certificate list more names than crt.sh's `name_value` field shows for it?", "What does a wildcard entry such as `*.example.com` tell you, and what does it hide?", "Under Chrome's CT policy, how many SCTs does a one-year certificate need, and from how many distinct log operators?", "You have a list of subdomains from CT. Why does resolving them change the kind of collection you are doing?"],
+    workbench: `> **What this trains.** The lab walked you through one search and one certificate. Here you do the reading yourself: count properly, check a certificate against the policy that made it public, and write sentences that claim no more than a log entry supports.
+
+#### 🟢 Drill 1 — pair them up ~6 min
+
+**Goal.** From \`evidence/ct_example_com.json\` alone, write one \`jq\` command that prints, for each distinct serial number, how many entries it has, its \`not_before\` date and its issuer's CN. Then explain every serial number that appears only once.
+
+**Done when.** One command, its output, and a sentence for each single entry.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+jq -r 'group_by(.serial_number)[] | "\\(length)  \\(.[0].serial_number)  \\(.[0].not_before[0:10])  \\(.[0].issuer_name | split("CN=")[1])"' evidence/ct_example_com.json
+\`\`\`
+
+\`\`\`text
+2  009de10580fa26441939f38af4afb1cb40  2025-11-20  Sectigo Public Server Authentication CA OV R36
+2  0624d0ab311558780b7d5213b9631831  2026-07-29  Cloudflare TLS Issuing ECC CA 3
+2  0f8f7abde735d78baa0bd4053f39021c  2025-11-21  Sectigo Public Server Authentication CA OV R36
+1  1000  2021-08-31  AS207960 Test CA
+1  1ac1e693c87d36563a92ca145c87bbc26fd49f4c  2023-01-27  null
+2  33f0f429d5622a91a1c3d5b6729e11e5  2026-07-29  Cloudflare TLS Issuing ECC CA 3
+2  49c9a73c64f9bda07dd9d469432b505f  2026-07-29  Cloudflare TLS Issuing RSA CA 3
+2  531e16f0f28235b65cc7cd35a5f0710b  2025-12-02  Sectigo Public Server Authentication CA OV R36
+2  62546d11b12882adbce18f65f9372286  2026-07-29  Cloudflare TLS Issuing RSA CA 3
+\`\`\`
+
+That is the run on 24 September 2026. Your list will differ as certificates are issued and expire. Seven pairs are precertificate plus certificate. The two single entries are the odd ones out. One was issued by a CA calling itself "AS207960 Test CA", with serial number \`1000\`. The other has no issuer name at all (\`null\`: crt.sh shows "Issuer Not Found"). Neither comes from the public CAs behind the seven pairs, and neither belongs in a count of example.com's certificates until you have opened it and can say what it is.
+</details>
+
+#### 🟡 Drill 2 — would Chrome accept it? ~10 min
+
+**Goal.** Using only \`evidence/crt_22853418213.pem\` and \`evidence/ct_log_list.json\`, decide whether this certificate meets Chrome's embedded-SCT policy. Work out four things: its lifetime, how many SCTs that lifetime needs, how many distinct operators signed them, and whether the retired log's SCT still counts.
+
+**Done when.** Four facts, each with the command or field it came from, and a yes or no.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+OSSL="$(brew --prefix)/opt/openssl@3/bin/openssl"
+"$OSSL" x509 -in evidence/crt_22853418213.pem -noout -startdate -enddate
+jq -r '.operators[].logs[] | select(.description | test("Oak2026h2")) | .state | to_entries[0] | "\\(.key) \\(.value.timestamp)"' evidence/ct_log_list.json
+\`\`\`
+
+\`\`\`text
+notBefore=Dec  2 00:00:00 2025 GMT
+notAfter=Dec  2 23:59:59 2026 GMT
+retired 2026-02-28T00:00:00Z
+\`\`\`
+
+1. **Lifetime.** \`notBefore=Dec  2 00:00:00 2025 GMT\` to \`notAfter=Dec  2 23:59:59 2026 GMT\`: a year, well over 180 days.
+2. **SCTs needed.** Three, from distinct logs. It has three: Argon2026h2, Elephant2026h2 and Oak2026h2 (from the lab).
+3. **Operators.** Google, Sectigo and Let's Encrypt: three, where the policy needs two. At least one log (Argon or Elephant) is *Usable*.
+4. **The retired log.** Oak2026h2 retired at \`2026-02-28T00:00:00Z\`. Its SCT is dated 2 December 2025, before that, so it still counts.
+
+**Yes.** And notice what made this checkable: every input is a file in your evidence folder, with a hash in your log.
+</details>
+
+#### 🔴 Drill 3 — write only what the log proves ~12 min
+
+**Goal.** Rewrite each overclaiming sentence so it states only what your collected items support. Name the item ID from your log for each one.
+
+1. "www.example.edu is a live website run by the same people as example.com."
+2. "example.com has exactly two subdomains."
+3. "Cloudflare hosts example.com."
+4. "The example.com certificate was issued on 2 December 2025, so the site launched then."
+
+**Done when.** Four sentences, each with an item ID, none claiming more than its record.
+
+<details><summary>Walkthrough</summary>
+
+1. "Certificate crt_22853418213 (serial 531E16F0…) lists www.example.edu among eight names, alongside example.com." Sharing a certificate shows that someone obtained one certificate for all eight names. It does not show that any of them is live, or who runs them.
+2. "crt.sh (ct_example_com) returned two hostnames under example.com, example.com and www.example.com, plus a wildcard, *.example.com." The wildcard means other names may be in use, and certificates from internal CAs are not logged at all. CT gives you a floor, never a total.
+3. "Four of the nine serial numbers in ct_example_com were issued by CAs named 'Cloudflare TLS Issuing … CA 3' (issuer organisation: SSL Corporation)." An issuer is a CA. A hosting relationship is a separate claim that needs its own source.
+4. "Certificate crt_22853418213 is valid from 2 December 2025 to 2 December 2026, and three logs signed SCTs for it on 2 December 2025." A certificate's start date says nothing about when a site launched. S1.2's registry record (d_example_com) dates the name to 1995.
+</details>`,
+    tracker: ["Can explain what CT is for and what RFC 6962 says it does not do", "Searched crt.sh with retries and logged the result, or the failure, with a hash", "Counted serial numbers, not entries, and can tell a precertificate from its certificate", "Read the full name list from the certificate itself, not only the search index", "Matched each SCT to its log and operator using Chrome's log list, kept as evidence", "Can state what a CT entry does not prove: that a name is live, who hosts it, or that the list is complete"]
   }]
 };
 
