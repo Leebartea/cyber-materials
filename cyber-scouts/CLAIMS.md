@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.6 + 1 roadmap)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + 1 roadmap)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-24 (Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-25 (Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -269,3 +269,46 @@ Defects caught in the S1.6 build pass (none shipped):
   Neither was in a page read; and a resort named *from* the coordinates is not independent of them.
 - **Draft Challenge 1 said "practising once is not a crime"**, which leans on the course-of-conduct
   threshold in s.7 — not read this pass. Removed.
+
+## Batch 7 — S1.7 Capstone: the investigation report
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 106 | S1.7 | Berkeley Protocol ch. VII "Reporting on findings": para 210 six sections "unless there is a justifiable and articulated reason not to" — investigative objectives ("well-defined, articulable research questions"), methodology ("to enable replicability"), performed activities, underlying data and sources, gaps or uncertainties, results and recommendations; para 208 (a) accuracy incl. "an explanation of any redactions or gaps", (b) attribution "clearly distinguish" public content from investigators' judgement, (c) completeness "an indication of the completeness of the underlying data", (e) neutral language; footnote 168 recommends peer review | `SOURCED` | OHCHR PDF (`ohchr.org/sites/default/files/2024-01/OHCHR_BerkeleyProtocol.pdf`), text extracted with pdftotext and read, 2026-09-25 | stable |
+| 107 | S1.7 | ICD 203 *Analytic Standards*: signed 2 January 2015 (Clapper), technical amendments since (one cites a 2022 DNI memo); tradecraft standards (1) source quality, (2) uncertainty incl. confidence based on "the quantity and quality of source material", (3) "clearly distinguish statements that convey underlying intelligence information" from "assumptions or judgments"; likelihood table 7 bands 01–05 / 05–20 / 20–45 / 45–55 / 55–80 / 80–95 / 95–99 % with the two rows of terms as taught; "strongly encouraged not to mix terms from different rows" without a disclaimer; "must not combine a confidence level and a degree of likelihood … in the same sentence" | `SOURCED` | `archive.dni.gov/files/documents/ICD/ICD-203.pdf` (dni.gov and odni.gov 301 there), text extracted and read, 2026-09-25 | on ODNI revision |
+| 108 | S1.7 | PHIA *Explaining Uncertainty in UK Intelligence Assessment*, GOV.UK, published 24 March 2025: Remote Chance >0–≈5 %, Highly Unlikely ≈10–≈20, Unlikely ≈25–≈35, Realistic Possibility ≈40–<50, Likely or Probable ≈55–≈75, Highly Likely ≈80–≈90, Almost Certain ≈95–<100; analytical confidence "reflects the soundness and stability of the foundations on which the assessment of likelihood has been made"; High, Moderate or Low | `SOURCED` | raw GOV.UK HTML fetched with curl and decoded, 2026-09-25 (a summariser's reading was re-checked against it) | yearly |
+| 109 | S1.7 | PHIA bands have gaps (nothing covers ≈5 % to ≈10 %); "likely" differs: ICD 55–80 % vs PHIA ≈55–≈75 % | `SOURCED` | follows arithmetically from rows 107–108. A search summary's "deliberately leave gaps" was **not** found in a page read, so the word "deliberate" was removed | with 107/108 |
+| 110 | S1.7 | HIBP `?Domain=` "Filters the result set to only breaches against the domain specified"; searching addresses at a domain needs verified control (back-pointer row 72) | `SOURCED` | haveibeenpwned.com/API/v3, curl 2026-09-25 | 6 months |
+| 111 | S1.7 lab | IANA "Example Domains" page: example.com "maintained for documentation purposes" (RFC 2606, RFC 6761), "not available for registration or transfer", "Last revised 2017-05-13"; footer: IANA functions "provided by Public Technical Identifiers, an affiliate of ICANN"; 6,639 bytes, SHA-256 `6fde51fc02d6…` identical across all runs | `EXECUTED` | item003, lab runs 2026-09-25 | stable |
+| 112 | S1.7 lab | Verisign RDAP example.com: registration 1995-08-14T04:00:00Z; one entity, role `registrar`, handle 376, fn "RESERVED-Internet Assigned Numbers Authority"; nameservers ELLIOTT.NS.CLOUDFLARE.COM, HERA.NS.CLOUDFLARE.COM; 2,440 bytes; hash differs between runs (RDAP database timestamp, row 12) | `EXECUTED` | item001, lab + Drill 3 | volatile (nameservers, hash) |
+| 113 | S1.7 lab | IANA registrar-ID CSV line `376,RESERVED-Internet Assigned Numbers Authority,Reserved,` (header `ID,Registrar Name,Status,RDAP Base URL`); 280,510 bytes | `EXECUTED` | item002 | volatile (file) · stable (row 376) |
+| 114 | S1.7 lab | GLEIF exact legal name "Internet Corporation for Assigned Names and Numbers" → LEI 2549008HATEG8EESS568, ISSUED, jurisdiction US-CA; exact name "Public Technical Identifiers" → 0 records (a fuzzy-completion probe also returned none); the course draws no conclusion from the zero | `EXECUTED` | items 004–005 + one fuzzycompletions probe, 2026-09-25 | volatile |
+| 115 | S1.7 lab | HIBP `breaches?Domain=example.com` → `[]`, SHA-256 `4f53cda18c2b…` (the two bytes `[]`) | `EXECUTED` | item006 | volatile |
+| 116 | S1.7 | F2's two sources "agree" but are not independent: the registry repeats IANA's own registrar-ID assignment | `CONVENTION` | reasoning: item002 is IANA's registry of the IDs the registry cites, and the name strings are identical; stated as the course's reading, not a sourced fact | — |
+| 117 | S1.7 | Nameservers show who answers DNS for a name, not who controls it | `CONVENTION` | DNS delegation vs registration are separate records (item001 lists both as separate fields); stated as course reasoning | — |
+| 118 | S1.7 | Report Assessment "almost certain … (F1-F5)" + "Analytical confidence: high" with reasons | `CONVENTION` | analyst judgement on PHIA's scale, taught as a worked example of the two-sentence form (row 107) | — |
+| 119 | S1.7 case | SSCI review of the October 2002 NIE *Iraq's Continuing Programs for Weapons of Mass Destruction*, published July 2004: Conclusion 1 quote incl. "a series of failures, particularly in analytic trade craft"; "has chemical and biological weapons" overstated, narrower support as taught; "did not have enough information to state with certainty that Iraq 'has' these weapons"; Conclusion 2 "portrayed what intelligence analysts thought and assessed as what they knew…"; Kent 1964 quote; Conclusion 4 "layering", tanker truck → transshipment → "as much as 500 metric tons of chemical agent"; mobile BW "largely from a single source to whom the Intelligence Community did not have direct access"; ballistic-missile assessments "reasonable" | `SOURCED` | globalsecurity.org mirror of the conclusions (`…/2004_rpt/iraq-wmd_intell_09jul2004_conclusions.htm`), raw HTML read 2026-09-25. Mirror, not senate.gov: re-check against the committee's own PDF | stable |
+| 120 | S1.7 lab | Lab run 5× (3 bash, 2 zsh) plus the lab extracted from the built HTML, run in zsh from an empty HOME: six items, no FAILED, 7 findings / 9 citation checks PASS, seal verifies, all six evidence files OK. Wording guard tested with a changed role value. Windows variant **not run** (no PowerShell on this Mac; stated in the lab) | `EXECUTED` | lab runs + built-HTML round-trip (lab, windows, workbench, theory, linux, case, expected all MATCH) | stable |
+| 121 | S1.7 Drills | D1: 3 FIX + sentence 4 passes by design; D2: no citation / not in log / hash differs / `UNKNOWN` exit 2; D3: item001 bytes CHANGED, items 002–006 same, facts behind F1–F4 SAME. Each drill run in bash and zsh with identical output | `EXECUTED` | drill runs 2026-09-25 | volatile (D3) |
+
+Defects caught in the S1.7 build pass (none shipped):
+
+- **The draft lab quoted IANA's page in F5 while its own check printed `0` matches.** The page wraps
+  "They are not / available…" across lines and puts `<a>` tags inside the PTI sentence, so `grep -c`
+  on raw HTML saw nothing, and the report quoted the page regardless. The lab now strips tags,
+  joins lines, tests all three phrases, and stops if any is missing. Guard A99.
+- **The draft report's hand-typed wording was unguarded.** "It names no registrant", the status
+  "Reserved" and the ICANN LEI sentence would have stayed true-sounding if a source changed. One
+  guard now stops the lab if any assumption fails. Tested by changing the role value.
+- **The GLEIF shell variable ended in `…legalName%5D=`**, and the URL gate probed it as a URL (HTTP
+  400, gate FAIL). It is now the real endpoint `…/lei-records`, and the filter is on each call.
+- **The draft lab's `rm -f evidence/item*` would abort under zsh** (`nomatch`) on a first run with no
+  evidence yet. Caught in review before the first run; the lab now removes and recreates the folder.
+- **The draft verification step piped through `tail -3`**, hiding three of the six evidence checks.
+- **Draft theory said "one claim per finding"** while F2 and F6 each carry two facts; called absence
+  and agreement "the commonest overclaims" (unsourced); said addresses @example.com "belong to
+  people" (overclaim); and called PHIA's gaps "deliberate" (from a search summary, row 109).
+- **The draft case study said "every failure it named"** has a counterpart here. The committee's
+  Conclusion 3 (group think) does not, so it now says "each failure described here".
+- **Draft Challenge 2 compared F2 to "layering"**, which is about uncertainty not carried forward.
+  F2's problem is single-source dependence, which the committee also found (mobile BW units).

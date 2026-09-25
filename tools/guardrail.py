@@ -899,6 +899,10 @@ BANNED = [
     (r"-gps:all evidence/stripped",
      "Checking only the EXIF GPS group cannot see a position kept in XMP; count "
      "every *gps* tag in any group (Scouts ledger S1.6 defects)", "A98"),
+    (r"grep -c '[^'\n]+' evidence/item003\.html",
+     "Grepping raw HTML for a quoted sentence finds nothing when the page wraps it "
+     "across lines or puts a link inside it, and a report that quotes the page anyway "
+     "is unguarded; strip tags and join lines first (Scouts ledger S1.7 defects)", "A99"),
 ]
 
 

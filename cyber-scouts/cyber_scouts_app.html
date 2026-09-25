@@ -804,7 +804,7 @@ Level 1 builds the working method first, then applies it one source family at a 
 | S1.4 | People and organisations: official registers, identity and the minimum necessary | ✅ available |
 | S1.5 | Breach exposure: checking without handling stolen data | ✅ available |
 | S1.6 | Geospatial: where a photo was taken | ✅ available |
-| — | Capstone: an investigation report | planned |
+| S1.7 | Capstone: an investigation report | ✅ available |
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -2837,6 +2837,527 @@ The exit status is the answer: 0 is safe to share, 1 has a location, and 2 means
 Two earlier versions of this function were wrong, and running them is how that came out. The first said \`NO GPS\` about a text file, a confident answer about something it never checked. The MIME-type test fixes that. The second asked for \`Composite:GPSLatitude\` and said \`NO GPS\` about the XMP-only copy, because that Composite tag is built only from the EXIF GPS block. \`GPSPosition\` falls back to XMP. With \`exiftool\` missing, the function prints \`UNKNOWN … exiftool is not installed\` instead of a clean bill of health.
 </details>`,
     tracker: ["Can explain why photos of people and homes are out of bounds, and which Act lists 'watching or spying' as stalking", "Checked the downloaded photo's SHA-1 against the Commons record before reading it", "Converted DMS to decimal by hand, sign included, and matched the Composite value", "Reported a position with the precision its stated error supports, and 'WGS 84 assumed'", "Derived the time zone from the two clocks and checked it against the time-zone database", "Built a photo check that finds XMP-only locations and reports UNKNOWN when it cannot check"]
+  }, {
+    id: "s1_7",
+    level: 1,
+    num: "S1.7",
+    title: "Capstone — An Investigation Report Someone Else Can Check",
+    objective: `Answer one scoped question about a lawful target from six public sources; log every request, including failures; write findings that say only what a cited item records; state gaps and zero results without overclaiming; give likelihood and confidence on named scales, never in the same sentence; then check every citation against the evidence and seal the case.`,
+    theory: `#### What a report is for
+
+Everything in Level 1 so far has produced *material*: a registry record, a certificate list, a filing, a breach entry, a photo's metadata. None of it is an answer yet. A **report** turns material into an answer that someone else can rely on without redoing your work, and it is the only part of an investigation most people ever see.
+
+So a report has two readers. The first wants the answer. The second is the person who has to check it: a supervisor, a lawyer on the other side, or you in six months. This module builds a report for both, around one question about one lawful target, from sources you already know. Nothing new is collected that Level 1 has not already taught you how to read. What is new is the discipline of saying *only* what the evidence supports, and making every sentence checkable.
+
+#### The standards this module follows
+
+Three published standards shape every report in this course. They come from different worlds and agree on the essentials.
+
+- **The Berkeley Protocol**, chapter VII ("Reporting on findings"), para 210. A written report should include six sections "unless there is a justifiable and articulated reason not to": investigative objectives (with "well-defined, articulable research questions"), methodology ("to enable replicability"), performed activities, underlying data and sources, gaps or uncertainties, and results and recommendations. Para 208 adds that reports should be accurate, include "an explanation of any redactions or gaps", "clearly distinguish" public content from the investigators' own judgement, give "an indication of the completeness of the underlying data", and use neutral language. A footnote recommends peer review.
+- **US Intelligence Community Directive 203**, *Analytic Standards*, signed 2 January 2015 and since amended. Its tradecraft standards ask a product to describe the quality of its sources, to express and explain uncertainty, and to "clearly distinguish statements that convey underlying intelligence information" from "assumptions or judgments".
+- **The UK Professional Head of Intelligence Assessment (PHIA) guidance**, *Explaining Uncertainty in UK Intelligence Assessment* (GOV.UK, 24 March 2025): the Probability Yardstick and Analytical Confidence Ratings, covered in Step 6.
+
+The lab's report follows para 210 section by section: Objective, Method, Findings, Gaps and limits, Assessment. The Findings section carries the "performed activities" and "underlying data and sources" together, because every finding names its items.
+
+#### Step 1 — the question comes before the first request
+
+The lab's question has three parts: *who is responsible for example.com, since when has it been registered, and does a public breach catalogue list a breach of it?* It is written into \`scope.txt\` before anything is fetched, along with what is out of scope. That order matters for the same reason as in S1.1: the scope is what lets you say no. Certificate logs would tell you more about example.com, and they are deliberately not collected, because the question does not need them. A report that answers questions nobody asked is harder to check and gathers data it has no reason to hold.
+
+The target is lawful for the reason given in the intro: example.com is reserved for documentation by RFC 2606. All six requests go to registries and catalogues whose job is to answer lookups, and none goes to example.com itself.
+
+#### Step 2 — collect everything through one door
+
+Every request goes through one function, \`collect\`, which writes one line to the collection log whether or not the request works. A failed request is logged as \`FAILED\`, and the lab stops before writing anything. The alternative, quietly retrying until everything works, produces a log that makes the collection look cleaner than it was. Berkeley para 208 asks for an explanation of gaps, and you cannot explain a gap your log hides.
+
+The six items, and what each is for:
+
+| Item | Source | Why it is in scope |
+|---|---|---|
+| item001 | Verisign RDAP, the .com registry | registration date, registrar, entities, nameservers |
+| item002 | IANA registrar-ID list | what registrar ID 376 means, from the body that assigns it |
+| item003 | IANA "Example Domains" page | the operator's own statement of what the domain is for |
+| item004 | GLEIF, exact name "Internet Corporation for Assigned Names and Numbers" | ICANN's legal-entity record |
+| item005 | GLEIF, exact name "Public Technical Identifiers" | the IANA page names PTI; is it in the register? |
+| item006 | HIBP, \`breaches?Domain=example.com\` | the breach part of the question |
+
+#### Step 3 — read for the question, and check the wording still fits
+
+The lab reads each item once, into named values (\`REG\`, \`RID\`, \`NS\` and so on), and the report is written from those values. Nothing factual in the report is typed by hand. That removes transcription errors, but it leaves a subtler one: the *words around* the values are typed by hand. F3 says "It names no registrant". That is true only while the record's entity list is just the registrar. So the lab checks each assumption its wording makes, and stops if one no longer holds.
+
+This check was added because the first draft needed it. It quoted IANA's page in F5 without checking, and the check, once written, printed \`0\` matches. The page wraps its sentences across lines and puts a link inside the sentence about PTI, so a plain \`grep\` could not see the phrases. The report would have gone on quoting a page that, as far as the lab could tell, did not say those things. Now the lab strips the HTML tags, joins the lines, and looks for all three phrases before F5 is written.
+
+#### Step 4 — a finding says what the record says
+
+A **finding** is one sentence about what a source records, with the items it rests on in brackets: \`F1 [item001] The .com registry records a registration event for example.com at 1995-08-14T04:00:00Z.\` Three habits keep findings honest.
+
+- **Attribute, don't absorb.** "The registry records a registration event at…", not "example.com was registered on…". The first is exactly what item001 shows. The second presumes the registry is right, which is usually true and never yours to assert.
+- **Date anything that can change.** F4 says "*At collection*, the registry listed the nameservers…". Nameservers change, and a report without the date turns a snapshot into a permanent claim. F7 carries its own collection time for the same reason.
+- **Keep findings small.** F2 and F6 each cite two items because each joins two facts about one subject. Splitting them would be tidier, and you may. A finding that cites two items must be true of both, and the reader should be able to see which item supports which half.
+
+Berkeley para 208(b) asks reports to separate public content from the investigators' own judgement. Findings hold the first. Judgement lives only in the Assessment, and it cites the findings it rests on, not the raw items.
+
+#### Step 5 — absence and agreement: two easy overclaims
+
+**Absence.** F6 and F7 are both *zero* results, and zero is the easiest result to overstate.
+
+- GLEIF returned no record for the exact name "Public Technical Identifiers". That is not evidence that PTI has no LEI. It might be registered under a different form of its name, or it might have none. The finding says what was searched and what came back, nothing more.
+- HIBP's \`?Domain=\` filter returns "breaches against the domain specified", in HIBP's documentation's words: breaches *of a site* at that domain (S1.5). An empty list says no such breach is in HIBP's catalogue at the time of the request. It says nothing about addresses ending @example.com in other breaches. Checking that would need the domain-search API, which requires proving you control the domain, and this investigation would not do it anyway: an email address is personal data about whoever uses it, and the scope excludes email addresses.
+
+The honest form is always the same: *what was searched, where, when, and what came back*. "example.com has never been breached" fails all four.
+
+**Agreement.** F2 has two sources that agree: the registry says the registrar is ID 376, "RESERVED-Internet Assigned Numbers Authority", and IANA's list says ID 376 is Reserved. That looks like corroboration. It is not independent corroboration, because the registry is repeating IANA's own assignment. S1.6 made the same point about a place name that had been looked up *from* the coordinates it seemed to confirm. The report says so in its Gaps section, because a reader counting sources would otherwise count two.
+
+#### Step 6 — say how likely, and separately, how sure
+
+The Assessment is the one place the report gives a judgement, and it uses two scales that answer different questions.
+
+**Likelihood**: how probable is it that the judgement is true? Both ICD 203 and PHIA fix the words to numbers, so "likely" means the same thing to every reader.
+
+| ICD 203 (either row) | ICD 203 range | PHIA Probability Yardstick | PHIA range |
+|---|---|---|---|
+| almost no chance / remote | 01–05% | remote chance | >0% – ≈5% |
+| very unlikely / highly improbable | 05–20% | highly unlikely | ≈10% – ≈20% |
+| unlikely / improbable | 20–45% | unlikely | ≈25% – ≈35% |
+| roughly even chance / roughly even odds | 45–55% | realistic possibility | ≈40% – <50% |
+| likely / probable | 55–80% | likely or probable | ≈55% – ≈75% |
+| very likely / highly probable | 80–95% | highly likely | ≈80% – ≈90% |
+| almost certain(ly) / nearly certain | 95–99% | almost certain | ≈95% – <100% |
+
+The two scales line up row by row, but the bands are not the same. "Likely" is 55–80% under ICD 203 and ≈55–≈75% under PHIA, and PHIA's bands have gaps between them: nothing covers ≈5% to ≈10%, for example. Pick one scale per report and name it. ICD 203 also asks you not to mix its two rows of terms without a disclaimer. The lab's report uses PHIA's terms.
+
+**Confidence**: how solid is the ground the judgement stands on? PHIA defines analytical confidence as reflecting "the soundness and stability of the foundations on which the assessment of likelihood has been made", rated High, Moderate or Low. ICD 203 says confidence may rest on "the quantity and quality of source material".
+
+ICD 203 has one hard rule about the two: a product "must not combine a confidence level and a degree of likelihood … in the same sentence". Hence the lab's two separate sentences:
+
+> It is almost certain that example.com is held by IANA as a reserved documentation domain, not by a private registrant (F1-F5).
+> Analytical confidence: high. The registry of record and the assigning authority agree, and the registry names no registrant, but both trace to IANA's own assignment (see Gaps).
+
+"We assess with high confidence that it is almost certain…" packs both into one sentence, and the reader cannot tell which word carries which meaning. Note too that the confidence sentence *explains itself*, including the weakness from Step 5. A confidence rating without its reasons is just a second opinion.
+
+#### Step 7 — check the report, then seal the case
+
+\`check_report.sh\` reads every line that starts with a finding number and tests four things for each cited item: it is in the log, its collection did not fail, its file exists, and the file's hash still matches the log. A finding with no citation fails outright. If the report or the log is missing, the checker says \`UNKNOWN\` and exits 2. It never says PASS about something it could not check. That is the same rule as S1.3's classifier and S1.6's photo check: a missing input is not a clean result.
+
+Then the seal: one SHA-256 over the scope, the log, the evidence hash list, the report and the checker. S1.1 showed that a hash proves a file has not changed. The seal applies that to the whole case at once, provided the seal hash is written down somewhere you do not control. A hash kept only inside the folder it protects proves nothing, because anyone who can change the folder can recompute it.
+
+#### What the check proves — and what it does not
+
+A PASS proves the report is **traceable**: every finding points at something collected, logged and unchanged. It does not prove a single finding is **true**, and it cannot catch a finding that cites the right item and draws the wrong conclusion from it. "Cloudflare controls example.com [item001]" would pass. item001 does list Cloudflare nameservers, and the sentence is still wrong: nameservers show who answers DNS for a name, not who controls it. Drill 1 shows that a word-level check misses it too.
+
+That is why the report has a Gaps section written by a person, and why Berkeley recommends peer review. Traceability makes a report *checkable*. Only someone actually checking it makes it *right*.
+
+#### Your own capstone
+
+When the lab works, run the method again on a question of your own. Keep to the three practice targets from the intro: yourself, the reserved domains, and public registries. Good questions look like this one, narrow and answerable from records: *which registrar holds example.net, and do its certificates name any other domains?* (That one brings S1.3's certificate logs into scope, so the scope must say so.) Keep the same scope file, one-door collection, cited findings, separate likelihood and confidence, and a seal. Then give the folder and the seal hash to someone else and ask them to break it.`,
+    lab: {
+      mac: `# LAB: answer one question from public records, in a report every sentence of which can be checked (Apple Silicon)
+# ETHICS: six requests, all to public registries and catalogues whose job is to answer
+# lookups: Verisign (.com registry), IANA, GLEIF and Have I Been Pwned. None goes to
+# example.com, which IANA reserves for documentation (RFC 2606). No person, no email address.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s1_7 && cd ~/scouts-case/s1_7 || exit 1
+rm -rf evidence collection_log.tsv report.md SEAL.sha256 && mkdir evidence     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S1.7 capstone
+question:     Who is responsible for example.com, since when has it been registered,
+              and does a public breach catalogue list a breach of it?
+authorised:   self (public registry data about an IANA-reserved domain)
+in scope:     .com registry RDAP; IANA registrar IDs and example-domains page;
+              GLEIF legal-entity records; HIBP breach catalogue (keyless endpoint)
+out of scope: any request to example.com's own servers; certificate logs; photos;
+              any person; any email address
+SCOPE
+
+# 2. Collect. One function, one log line per request - and a failure is logged, not hidden.
+collect() {  # id extension url
+  local f="evidence/$1.$2" T H
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  if curl -sf --retry 2 -m 60 -A "$UA" -o "$f" "$3"; then
+    H=$(shasum -a 256 "$f" | cut -d' ' -f1)
+  else
+    H=FAILED; rm -f "$f"
+  fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$H" >> collection_log.tsv
+}
+GLEIF="https://api.gleif.org/api/v1/lei-records"
+collect item001 json "https://rdap.verisign.com/com/v1/domain/example.com"
+collect item002 csv  "https://www.iana.org/assignments/registrar-ids/registrar-ids-1.csv"
+collect item003 html "https://www.iana.org/help/example-domains"
+collect item004 json "\${GLEIF}?filter%5Bentity.legalName%5D=Internet%20Corporation%20for%20Assigned%20Names%20and%20Numbers"
+collect item005 json "\${GLEIF}?filter%5Bentity.legalName%5D=Public%20Technical%20Identifiers"
+collect item006 json "https://haveibeenpwned.com/api/v3/breaches?Domain=example.com"
+(cd evidence && shasum -a 256 item0* > SHA256SUMS)
+awk -F'\\t' '{print $1, $2, substr($5, 1, 12)}' collection_log.tsv
+grep -q FAILED collection_log.tsv && { echo "STOP: a request failed - it is in the log; retry before writing"; exit 1; }
+
+# 3. Read each item for the facts the question needs - nothing more.
+REG=$(jq -r '.events[] | select(.eventAction == "registration") | .eventDate' evidence/item001.json)
+RID=$(jq -r '.entities[] | select(.roles | index("registrar")) | .handle' evidence/item001.json)
+RNAME=$(jq -r '.entities[] | select(.roles | index("registrar")) | .vcardArray[1][] | select(.[0] == "fn") | .[3]' evidence/item001.json)
+ROLES=$(jq -r '[.entities[].roles[]] | join(",")' evidence/item001.json)
+NS=$(jq -r '[.nameservers[].ldhName] | join(" and ")' evidence/item001.json)
+IANA376=$(grep "^$RID," evidence/item002.csv | cut -d, -f3)
+PAGE=$(sed 's/<[^>]*>//g' evidence/item003.html | tr -s ' \\n\\t' ' ')     # the page's text, one line
+says() { case "$PAGE" in *"$1"*) echo yes ;; *) echo NO ;; esac; }
+DOC=$(says "maintained for documentation purposes")
+NOREG=$(says "not available for registration or transfer")
+PTI=$(says "provided by Public Technical Identifiers, an affiliate of ICANN")
+LEI=$(jq -r '.data[0] | "\\(.id) (status \\(.attributes.registration.status), jurisdiction \\(.attributes.entity.jurisdiction))"' evidence/item004.json)
+NPTI=$(jq '.data | length' evidence/item005.json)
+NBR=$(jq 'length' evidence/item006.json)
+T6=$(awk -F'\\t' '$1 == "item006" {print $2}' collection_log.tsv)
+printf '%s\\n' "registered: $REG" "registrar: $RID $RNAME | IANA list: $IANA376" \\
+  "entity roles in record: $ROLES" "nameservers: $NS" "IANA page says documentation/no registration/PTI: $DOC/$NOREG/$PTI" \\
+  "ICANN LEI: $LEI" "PTI exact-name records: $NPTI" "HIBP breaches against domain: $NBR"
+[ "$DOC$NOREG$PTI" = yesyesyes ] || { echo "STOP: item003 no longer says what F5 quotes - read it, then rewrite F5"; exit 1; }
+[ -n "$REG" ] && [ "$ROLES" = registrar ] && [ "$IANA376" = Reserved ] && [ "\${LEI%% *}" != null ] ||
+  { echo "STOP: a source no longer says what the report's wording assumes - read the items, then rewrite"; exit 1; }
+
+# 4. Write the report. Berkeley Protocol para 210 sections; every finding cites its items.
+cat > report.md <<REPORT
+# S1.7 - example.com: who is responsible, since when, and any listed breach
+Analyst: $ANALYST. Collection log: collection_log.tsv. Evidence hashes: evidence/SHA256SUMS.
+
+## Objective
+$(awk '/^question:/ {sub(/^question: */, ""); q = $0; getline; sub(/^ */, ""); print q, $0}' scope.txt)
+
+## Method
+Six requests to public registries and catalogues, logged with UTC time and SHA-256 (see
+scope.txt). No request to example.com; no person or email address was searched.
+
+## Findings
+F1 [item001] The .com registry records a registration event for example.com at $REG.
+F2 [item001][item002] The registrar of record is IANA Registrar ID $RID, "$RNAME"; IANA's registrar-ID list gives ID $RID the status "$IANA376".
+F3 [item001] The registry record contains one entity, with the role "$ROLES". It names no registrant.
+F4 [item001] At collection, the registry listed the nameservers $NS.
+F5 [item003] IANA states that example.com is "maintained for documentation purposes", "not available for registration or transfer", and that the IANA functions are provided by Public Technical Identifiers, an affiliate of ICANN.
+F6 [item004][item005] GLEIF holds LEI $LEI for ICANN. An exact-name search for "Public Technical Identifiers" returned $NPTI records.
+F7 [item006] At $T6, HIBP's catalogue listed $NBR breaches against the domain example.com.
+
+## Gaps and limits
+- F2 is agreement, not independent corroboration: the registry repeats IANA's own assignment.
+- F4 names the servers that answer DNS for the name. It does not show who controls the domain.
+- F6: zero records from an exact-name search is not evidence that no LEI exists.
+- F7 covers breaches of a site at that domain. It says nothing about addresses @example.com
+  in other breaches, which this investigation did not and would not check.
+- Out of scope, not collected: certificate logs, example.com's own servers, any person.
+
+## Assessment
+It is almost certain that example.com is held by IANA as a reserved documentation domain, not
+by a private registrant (F1-F5).
+Analytical confidence: high. The registry of record and the assigning authority agree, and the
+registry names no registrant, but both trace to IANA's own assignment (see Gaps).
+REPORT
+
+# 5. Check the report: every finding cites items, every cited item is logged and still verifies.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}; bad=0; n=0
+[ -f "$R" ] && [ -f collection_log.tsv ] || { echo "UNKNOWN: $R or collection_log.tsv missing"; exit 2; }
+while read -r F rest; do
+  n=$((n + 1))
+  ids=$(printf '%s\\n' "$rest" | grep -o '\\[item[0-9][0-9]*\\]' | tr -d '[]')
+  [ -z "$ids" ] && { echo "$F FAIL no citation"; bad=$((bad + 1)); continue; }
+  for id in $ids; do
+    h=$(awk -F'\\t' -v i="$id" '$1 == i {print $5}' collection_log.tsv)
+    f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+    if [ -z "$h" ]; then echo "$F FAIL $id not in log"; bad=$((bad + 1))
+    elif [ "$h" = FAILED ]; then echo "$F FAIL $id collection failed"; bad=$((bad + 1))
+    elif [ -z "$f" ]; then echo "$F FAIL $id file missing"; bad=$((bad + 1))
+    elif [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "$F FAIL $id hash differs from log"; bad=$((bad + 1))
+    else echo "$F ok   $id"; fi
+  done
+done < <(grep -E '^F[0-9]+ ' "$R")
+[ "$n" -eq 0 ] && { echo "UNKNOWN: no findings in $R"; exit 2; }
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n findings)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh
+
+# 6. Seal the case, then prove the seal holds.
+shasum -a 256 scope.txt collection_log.tsv evidence/SHA256SUMS report.md check_report.sh > SEAL.sha256
+shasum -a 256 SEAL.sha256
+shasum -a 256 -c SEAL.sha256 && (cd evidence && shasum -a 256 -c SHA256SUMS)`,
+      windows: `# PowerShell 7 - the same case, collection, report check and seal with native cmdlets.
+# ETHICS: six requests to Verisign (.com registry), IANA, GLEIF and HIBP. None to example.com.
+# Not run on Windows when this module was written: compare your output with the macOS one.
+$Analyst = "analyst01"; $UA = "CyberScoutsLab/1.0"
+$Case = "$HOME\\scouts-case\\s1_7"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, collection_log.tsv, report.md, SEAL.sha256 -ErrorAction SilentlyContinue
+New-Item -ItemType Directory evidence | Out-Null
+
+@"
+case:         S1.7 capstone
+question:     Who is responsible for example.com, since when has it been registered,
+              and does a public breach catalogue list a breach of it?
+authorised:   self (public registry data about an IANA-reserved domain)
+in scope:     .com registry RDAP; IANA registrar IDs and example-domains page;
+              GLEIF legal-entity records; HIBP breach catalogue (keyless endpoint)
+out of scope: any request to example.com's own servers; certificate logs; photos;
+              any person; any email address
+"@ | Set-Content scope.txt
+
+function Get-Sha256($Path) { (Get-FileHash $Path -Algorithm SHA256).Hash.ToLower() }
+function Collect($Id, $Ext, $Url) {
+  $f = "evidence\\$Id.$Ext"; $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  try { Invoke-WebRequest -Uri $Url -UserAgent $UA -OutFile $f -TimeoutSec 60 -MaximumRetryCount 2; $H = Get-Sha256 $f }
+  catch { $H = "FAILED"; Remove-Item $f -ErrorAction SilentlyContinue }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$H" | Add-Content collection_log.tsv
+}
+$Gleif = "https://api.gleif.org/api/v1/lei-records"
+Collect item001 json "https://rdap.verisign.com/com/v1/domain/example.com"
+Collect item002 csv  "https://www.iana.org/assignments/registrar-ids/registrar-ids-1.csv"
+Collect item003 html "https://www.iana.org/help/example-domains"
+Collect item004 json "\${Gleif}?filter%5Bentity.legalName%5D=Internet%20Corporation%20for%20Assigned%20Names%20and%20Numbers"
+Collect item005 json "\${Gleif}?filter%5Bentity.legalName%5D=Public%20Technical%20Identifiers"
+Collect item006 json "https://haveibeenpwned.com/api/v3/breaches?Domain=example.com"
+Get-ChildItem evidence\\item0* | ForEach-Object { "$(Get-Sha256 $_.FullName)  $($_.Name)" } | Set-Content evidence\\SHA256SUMS
+$Log = Import-Csv collection_log.tsv -Delimiter "\`t" -Header id, t, who, url, h
+$Log | ForEach-Object { "$($_.id) $($_.t) $($_.h.Substring(0, [Math]::Min(12, $_.h.Length)))" }
+if ($Log.h -contains "FAILED") { "STOP: a request failed - it is in the log; retry before writing"; return }
+
+$Rdap  = Get-Content evidence\\item001.json -Raw | ConvertFrom-Json
+$Reg   = ($Rdap.events | Where-Object eventAction -eq "registration").eventDate
+$Rar   = $Rdap.entities | Where-Object { $_.roles -contains "registrar" }
+$Rid   = $Rar.handle
+$RName = ($Rar.vcardArray[1] | Where-Object { $_[0] -eq "fn" })[3]
+$Roles = ($Rdap.entities.roles) -join ","
+$NS    = ($Rdap.nameservers.ldhName) -join " and "
+$Iana  = ((Get-Content evidence\\item002.csv | Where-Object { $_ -like "$Rid,*" }) -split ",")[2]
+$Page  = ((Get-Content evidence\\item003.html -Raw) -replace '<[^>]*>', '') -replace '\\s+', ' '
+$Says  = "maintained for documentation purposes", "not available for registration or transfer",
+         "provided by Public Technical Identifiers, an affiliate of ICANN" | ForEach-Object { $Page.Contains($_) }
+$L     = (Get-Content evidence\\item004.json -Raw | ConvertFrom-Json).data[0]
+$Lei   = "$($L.id) (status $($L.attributes.registration.status), jurisdiction $($L.attributes.entity.jurisdiction))"
+$NPti  = @((Get-Content evidence\\item005.json -Raw | ConvertFrom-Json).data).Count
+$NBr   = @(Get-Content evidence\\item006.json -Raw | ConvertFrom-Json).Count
+$T6    = ($Log | Where-Object id -eq "item006").t
+if ($Says -contains $false) { "STOP: item003 no longer says what F5 quotes - read it, then rewrite F5"; return }
+if (-not $Reg -or $Roles -ne "registrar" -or $Iana -ne "Reserved" -or -not $L) { "STOP: a source no longer says what the report's wording assumes"; return }
+
+@"
+# S1.7 - example.com: who is responsible, since when, and any listed breach
+Analyst: $Analyst. Collection log: collection_log.tsv. Evidence hashes: evidence/SHA256SUMS.
+
+## Findings
+F1 [item001] The .com registry records a registration event for example.com at $Reg.
+F2 [item001][item002] The registrar of record is IANA Registrar ID $Rid, "$RName"; IANA's registrar-ID list gives ID $Rid the status "$Iana".
+F3 [item001] The registry record contains one entity, with the role "$Roles". It names no registrant.
+F4 [item001] At collection, the registry listed the nameservers $NS.
+F5 [item003] IANA states that example.com is "maintained for documentation purposes", "not available for registration or transfer", and that the IANA functions are provided by Public Technical Identifiers, an affiliate of ICANN.
+F6 [item004][item005] GLEIF holds LEI $Lei for ICANN. An exact-name search for "Public Technical Identifiers" returned $NPti records.
+F7 [item006] At $T6, HIBP's catalogue listed $NBr breaches against the domain example.com.
+"@ | Set-Content report.md
+# Copy the Objective, Method, Gaps and Assessment sections from the macOS report text into report.md.
+
+# Check: every finding cites items; every cited item is logged, collected and unchanged.
+$bad = 0; $Findings = Select-String -Path report.md -Pattern '^F\\d+ ' | ForEach-Object Line
+foreach ($F in $Findings) {
+  $Ids = [regex]::Matches($F, '\\[(item\\d+)\\]') | ForEach-Object { $_.Groups[1].Value }
+  if (-not $Ids) { "$($F.Split(' ')[0]) FAIL no citation"; $bad++; continue }
+  foreach ($Id in $Ids) {
+    $Row = $Log | Where-Object id -eq $Id; $File = Get-ChildItem "evidence\\$Id.*" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $Row) { "$Id not in log"; $bad++ } elseif (-not $File) { "$Id file missing"; $bad++ }
+    elseif ((Get-Sha256 $File.FullName) -ne $Row.h) { "$Id hash differs from log"; $bad++ } else { "$($F.Split(' ')[0]) ok   $Id" }
+  }
+}
+if ($bad -eq 0) { "report check: PASS ($($Findings.Count) findings)" } else { "report check: FAIL - problems: $bad" }
+
+# Seal.
+"scope.txt", "collection_log.tsv", "evidence\\SHA256SUMS", "report.md" |
+  ForEach-Object { "$(Get-Sha256 $_)  $_" } | Set-Content SEAL.sha256
+Get-Sha256 SEAL.sha256`,
+      linux: `# Identical to macOS with one substitution, in the lab and in check_report.sh:
+#   sha256sum            instead of  shasum -a 256
+# Everything else (curl, jq, awk, sed, mktemp) behaves the same. Install jq with your
+# package manager if it is missing: sudo apt install jq  /  sudo dnf install jq`,
+      expected: {
+        mac: `\`\`\`text
+item001 2026-09-25T07:01:35Z a9b27f598dcc
+item002 2026-09-25T07:01:36Z d2edeb6785ff
+item003 2026-09-25T07:01:37Z 6fde51fc02d6
+item004 2026-09-25T07:01:37Z d69283455ef3
+item005 2026-09-25T07:01:38Z 3e7c97188d1a
+item006 2026-09-25T07:01:39Z 4f53cda18c2b
+registered: 1995-08-14T04:00:00Z
+registrar: 376 RESERVED-Internet Assigned Numbers Authority | IANA list: Reserved
+entity roles in record: registrar
+nameservers: ELLIOTT.NS.CLOUDFLARE.COM and HERA.NS.CLOUDFLARE.COM
+IANA page says documentation/no registration/PTI: yes/yes/yes
+ICANN LEI: 2549008HATEG8EESS568 (status ISSUED, jurisdiction US-CA)
+PTI exact-name records: 0
+HIBP breaches against domain: 0
+F1 ok   item001
+F2 ok   item001
+F2 ok   item002
+F3 ok   item001
+F4 ok   item001
+F5 ok   item003
+F6 ok   item004
+F6 ok   item005
+F7 ok   item006
+report check: PASS (7 findings)
+14d0533940db7b416e424e89686dc5afeed14cec4ccb94513ba2bd86795bc868  SEAL.sha256
+scope.txt: OK
+collection_log.tsv: OK
+evidence/SHA256SUMS: OK
+report.md: OK
+check_report.sh: OK
+item001.json: OK
+item002.csv: OK
+item003.html: OK
+item004.json: OK
+item005.json: OK
+item006.json: OK
+\`\`\`
+
+Your times, the \`item001\` hash and the seal hash will differ. Work through it block by block:
+
+- **Six log lines, no \`FAILED\`.** Each request is logged when it is made, *before* anyone knows whether it will be useful. If one had failed, the log would say \`FAILED\` and the lab would stop before writing a report on a gap it had not declared. \`item006\` is always \`4f53cda18c2b…\`: that is the SHA-256 of the two bytes \`[]\`, an empty list.
+- **\`item001\` changes from run to run.** As in S1.1, Verisign's RDAP response embeds a *"last update of RDAP database"* time. The other five were byte-identical across every run made for this module. Do not rely on that: IANA's registrar list and GLEIF's records are live registers, and a new hash on your run means the file is different, not that anything is wrong.
+- **The facts block.** This is the only place the lab reads the evidence. Every value in the report comes from here, and nothing in the report is typed in by hand except the wording around it. The \`yes/yes/yes\` line is a check that the page still says the three things F5 quotes. The first draft of this lab quoted them without checking, and the check printed \`0\` matches while the report went on quoting. The page wraps sentences across lines and puts a link inside the PTI sentence. The lab now strips tags and joins lines before it looks, and stops if any phrase is missing.
+- **\`report check: PASS (7 findings)\`.** Nine citation checks for seven findings: F2 and F6 each cite two items. PASS means every finding cites something, and everything cited was collected and is unchanged. It does **not** mean the findings are right. That is what the Gaps section and Drill 1 are for.
+- **The seal.** One hash that covers the scope, the log, the evidence list, the report and the checker. Write it down somewhere you do not control, such as an email to your supervisor or a ticket. Anyone holding that hash can later prove none of those five files was changed, and the evidence hashes inside \`SHA256SUMS\` extend the proof to every item.
+
+Open \`report.md\` and read it. The next section explains each part.`
+      }
+    },
+    caseStudy: {
+      title: "Iraq, 2002–2004 — what analysts thought, reported as what they knew",
+      body: `In October 2002 the US Intelligence Community issued a National Intelligence Estimate, *Iraq's Continuing Programs for Weapons of Mass Destruction*. In July 2004 the Senate Select Committee on Intelligence published its review of the intelligence behind it. Its first conclusion was that "most of the major key judgments" in the Estimate "either overstated, or were not supported by, the underlying intelligence reporting", and that "a series of failures, particularly in analytic trade craft, led to the mischaracterization of the intelligence." The Estimate had said Iraq "has chemical and biological weapons". The committee found the reporting supported something narrower: such weapons were within Iraq's technical capability, Iraq was trying to buy dual-use materials, and it was uncertain whether pre-1991 stocks had all been destroyed. Analysts "did not have enough information to state with certainty that Iraq 'has' these weapons." Its second conclusion was that the Estimate "portrayed what intelligence analysts thought and assessed as what they knew and failed to explain the large gaps in the information." The committee quoted Sherman Kent, writing in 1964, on the need to make clear "what is certain knowledge and what is reasoned judgment". Its fourth conclusion named a failure it called "layering": building assessments on earlier assessments "without carrying forward the uncertainties". One chain ran from a specific tanker truck, judged a *possible* indicator of chemical or biological activity, to an assessment of chemical-weapons transshipment, to an assessment that Iraq had stockpiled "as much as 500 metric tons of chemical agent". The judgement that Iraq had mobile biological-weapons production units rested largely on "a single source to whom the Intelligence Community did not have direct access". Not every judgement failed: the committee found the assessments of prohibited ballistic missiles "reasonable". Each failure described here has a counterpart in this module. A finding says what the record says, and the assessment is kept apart from it. The Gaps section carries uncertainty forward instead of dropping it. Agreement is not counted as independence when every report traces back to one source. The same discipline that keeps a registry lookup honest applies at every scale.`
+    },
+    challenges: [{
+      q: `A draft finding reads: "F9 [item006] example.com has never suffered a data breach." The citation check passes. Should the finding stay?`,
+      a: `No. The check only proves item006 exists and is unchanged. It says nothing about whether the sentence is true to it. item006 is HIBP's answer to \`?Domain=example.com\`: the breaches *of a site* at that domain that HIBP's catalogue listed at one moment. The sentence turns that into a permanent fact about every breach anywhere. A defensible version gives what was searched, where, when and what came back: "At <the time in the log>, HIBP's catalogue listed 0 breaches against the domain example.com [item006]." It also needs a Gaps line saying what that does not cover.`
+    }, {
+      q: `Your report cites the registry and IANA's registrar list for F2 and calls it "confirmed by two independent sources". A reviewer objects. Who is right?`,
+      a: `The reviewer. The two items agree, but they are not independent: the registry's registrar ID and name are IANA's own assignment, repeated. If IANA's assignment were wrong, both would be wrong together. That is the same trap as S1.6's place name looked up from the very coordinates it seemed to confirm, and the single-source dependence the Senate committee found in 2004. Say "agree", say why they are not independent, and let the confidence rating carry that weakness.`
+    }, {
+      q: `A colleague asks you to "just fix the date" in a sealed report because a registry record changed after you collected it. What do you do?`,
+      a: `Leave the sealed report alone. Editing it breaks the seal, and it should: the seal exists to show the report is what was issued. The report was right about what the source said *at collection*, and it says so. If the report needs to reflect the new state, re-collect as new items with new log lines, re-read, write a new report that notes what changed since the first, and seal that. Both seals stay valid, and anyone can see the history. Drill 3 shows the quick way to find out which findings are affected before you start.`
+    }],
+    quiz: ["Name the six sections Berkeley Protocol para 210 asks a written report to include, and say which part of the lab's report carries each.", "Why does the lab's collect function log a failed request instead of retrying until it works?", "What is wrong with 'We assess with high confidence that it is almost certain IANA holds example.com', according to ICD 203?", "Under PHIA, what range does 'realistic possibility' cover, and how does ICD 203's 'likely' band differ from PHIA's?", "GLEIF returned zero records for 'Public Technical Identifiers'. What may the report conclude, and what may it not?", "check_report.sh says PASS. Name one thing a PASS proves and one thing it cannot prove.", "Why must the seal hash be recorded somewhere outside the case folder?"],
+    workbench: `> **What this trains.** The lab built one clean report. Here you attack reports: catch overclaiming words, break the citation check on purpose four ways, and re-collect a week's worth of change in a minute to see which findings survive. Run every drill after the lab. Each one starts in \`~/scouts-case/s1_7\`, and Drill 2 works on a throwaway copy.
+
+#### 🟢 Drill 1 — find the overclaims ~8 min
+
+**Goal.** Run a five-sentence draft through a word-level check for four faults: absence stated as fact, "proves", likelihood and confidence in one sentence, and no citation. Then find the sentence the check lets through that is still wrong.
+
+**Done when.** Three sentences are flagged, you can rewrite each so it passes, and you can say what is wrong with sentence 4.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s1_7 || exit 1
+cat > draft.txt <<'DRAFT'
+example.com has never been breached.
+The registry record proves that IANA owns example.com.
+We assess with high confidence that it is almost certain IANA holds the domain.
+Cloudflare controls example.com [item001].
+At collection, HIBP's catalogue listed 0 breaches against the domain example.com [item006].
+DRAFT
+awk '{ s = tolower($0); why = "" }
+  s ~ /never|nobody|no one|none|not been/ { why = why " absence-as-fact" }
+  s ~ /prove/ { why = why " proof-word" }
+  s ~ /confidence/ && s ~ /almost certain|likely|realistic possibility|remote chance/ { why = why " likelihood+confidence" }
+  s !~ /\\[item[0-9]+\\]/ { why = why " uncited" }
+  { printf "%s %d: %s\\n", (why == "" ? "ok " : "FIX"), NR, $0; if (why != "") print "       ->" why }' draft.txt
+\`\`\`
+
+\`\`\`text
+FIX 1: example.com has never been breached.
+       -> absence-as-fact uncited
+FIX 2: The registry record proves that IANA owns example.com.
+       -> proof-word uncited
+FIX 3: We assess with high confidence that it is almost certain IANA holds the domain.
+       -> likelihood+confidence uncited
+ok  4: Cloudflare controls example.com [item001].
+ok  5: At collection, HIBP's catalogue listed 0 breaches against the domain example.com [item006].
+\`\`\`
+
+Rewrites that pass: (1) "At <time>, HIBP's catalogue listed 0 breaches against the domain example.com [item006]." That is sentence 5. (2) "The registry names IANA's reserved registrar, ID 376, as registrar of record [item001][item002]." (3) Two sentences: "It is almost certain that IANA holds the domain." and "Analytical confidence: high, because…".
+
+Sentence 4 passes, and it is wrong. item001 lists Cloudflare nameservers, but nameservers show who answers DNS for a name, not who controls it. The citation is real and the inference is not. A word check can only find words. That is why the report's Gaps section is written by a person, and why a real report gets a second reader.
+</details>
+
+#### 🟡 Drill 2 — break the citation check four ways ~10 min
+
+**Goal.** Prove \`check_report.sh\` catches each way a report can come loose from its evidence: a finding with no citation, a citation to an item that was never collected, evidence changed after collection, and a report that does not exist.
+
+**Done when.** Four different failures, each named correctly, and the last one says \`UNKNOWN\` with exit code 2 rather than PASS or FAIL.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s1_7 && D=$(mktemp -d) && cp -R . "$D" && cd "$D" || exit 1
+cp report.md r1.md; echo 'F8 Cloudflare controls example.com.' >> r1.md
+cp report.md r2.md; echo 'F8 [item009] A certificate names www.example.com.' >> r2.md
+./check_report.sh r1.md | tail -2
+./check_report.sh r2.md | tail -2
+echo ' ' >> evidence/item006.json          # same JSON meaning, one more byte
+./check_report.sh | grep -v ' ok '
+./check_report.sh nothing.md; echo "exit $?"
+rm -rf "$D"
+\`\`\`
+
+\`\`\`text
+F8 FAIL no citation
+report check: FAIL (1 problems)
+F8 FAIL item009 not in log
+report check: FAIL (1 problems)
+F7 FAIL item006 hash differs from log
+report check: FAIL (1 problems)
+UNKNOWN: nothing.md or collection_log.tsv missing
+exit 2
+\`\`\`
+
+The third case is the one to remember. Adding a single space to \`item006.json\` leaves it valid JSON with exactly the same meaning, an empty list. The checker still fails it, because it checks bytes, not meaning. That is the right design. "Same meaning" is a judgement someone would have to make and defend. "Same bytes" is a fact anyone can recompute. If a file has to change after collection, collect it again as a new item with a new log line. Never edit the old one.
+
+The copy is made with \`mktemp -d\` and deleted at the end, so your real case folder and its seal are untouched. Run \`./check_report.sh\` in \`~/scouts-case/s1_7\` afterwards to confirm it still passes.
+</details>
+
+#### 🔴 Drill 3 — re-collect and see which findings survive ~10 min
+
+**Goal.** Fetch every URL in the log again and compare the bytes with what you collected. Then, for the item that changed, compare only the facts the findings rest on.
+
+**Done when.** Each item is marked same, changed or UNKNOWN, and you can say whether F1–F4 would still stand if the report were re-issued today.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s1_7 && N=$(mktemp -d) || exit 1
+while IFS=$'\\t' read -r id t who url h; do
+  f=$(ls evidence/"$id".*); new="$N/\${f##*/}"
+  if ! curl -sf -m 60 -A "CyberScoutsLab/1.0" -o "$new" "$url"; then echo "$id UNKNOWN (re-fetch failed)"; continue; fi
+  [ "$(shasum -a 256 "$new" | cut -d' ' -f1)" = "$h" ] && echo "$id same bytes" || echo "$id bytes CHANGED"
+done < collection_log.tsv
+facts='[(.events[] | select(.eventAction == "registration") | .eventDate), (.entities[].handle), (.nameservers[].ldhName)] | join(" ")'
+OLD=$(jq -r "$facts" evidence/item001.json); NEW=$(jq -r "$facts" "$N/item001.json" 2>/dev/null)
+if [ -z "$NEW" ]; then echo "item001 facts: UNKNOWN (no fresh copy)"
+elif [ "$OLD" = "$NEW" ]; then echo "item001 facts behind F1-F4: SAME ($OLD)"
+else echo "item001 facts: CHANGED - re-read before re-issuing"; printf 'was: %s\\nnow: %s\\n' "$OLD" "$NEW"; fi
+rm -rf "$N"
+\`\`\`
+
+\`\`\`text
+item001 bytes CHANGED
+item002 same bytes
+item003 same bytes
+item004 same bytes
+item005 same bytes
+item006 same bytes
+item001 facts behind F1-F4: SAME (1995-08-14T04:00:00Z 376 ELLIOTT.NS.CLOUDFLARE.COM HERA.NS.CLOUDFLARE.COM)
+\`\`\`
+
+\`item001\` changes because Verisign refreshes its *"last update of RDAP database"* time, as in S1.1. The facts behind F1–F4 did not change. This is the difference between the two checks in this module. The seal answers "is this the evidence I collected?" and must never change. Re-collection answers "does the source still say this?", and its answer is allowed to change. A report records what a source said *at collection*. Re-issuing it later means re-collecting, re-reading and re-sealing, not editing dates.
+
+If a re-fetch fails, the drill says \`UNKNOWN\` for that item and moves on. It does not count a failed fetch as "changed", and it does not count it as "same".
+</details>`,
+    tracker: ["Wrote the question and scope before the first request, including what is deliberately not collected", "Collected six items through one logging function and checked none FAILED", "Read report.md and can say which item supports each half of F2 and F6", "Can explain why F2's two sources agree but are not independent", "Can give likelihood on one named scale and confidence in a separate sentence with its reasons", "Broke the citation check four ways and got four correct results, including UNKNOWN", "Recorded the seal hash outside the case folder"]
   }]
 };
 
