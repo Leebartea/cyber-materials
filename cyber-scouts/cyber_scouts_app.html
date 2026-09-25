@@ -746,6 +746,18 @@ const curriculum = {
       build: "A case folder with a written scope and a verifiable collection log (S1.1), growing into a full investigation report at the end of the level.",
       prereq: "Cyber Guardians M11.7 recommended; basic terminal use."
     }
+  }, {
+    id: 2,
+    name: "Tracker",
+    tagline: "Change over time — archives, infrastructure and pivots between sources",
+    colorVar: "--l2",
+    weeks: "Weeks 8–14",
+    roadmap: {
+      promise: "Level 2 adds time and connection. Level 1 read each public record as it stands today. Level 2 asks what a record said before, who runs the network behind it, and how to move from one source to the next without letting a weak link carry the conclusion.",
+      canDo: ["Date a change to a web page between two archived captures, and say what the archive cannot show", "Prove an archived copy is the one the archive's index describes, by recomputing its digest yourself", "Follow a name or an address to the records behind it, and a file back to what it records about itself", "Chain several sources into one finding and grade each link on its own"],
+      build: "A second case folder that grows one module at a time and ends in a multi-source pivot report (the Level 2 capstone).",
+      prereq: "Level 1, especially the collection record and the report form."
+    }
   }],
   modules: [
   {
@@ -805,6 +817,22 @@ Level 1 builds the working method first, then applies it one source family at a 
 | S1.5 | Breach exposure: checking without handling stolen data | ✅ available |
 | S1.6 | Geospatial: where a photo was taken | ✅ available |
 | S1.7 | Capstone: an investigation report | ✅ available |
+
+#### Level 2 — Tracker
+
+Level 2 adds time and connection: what a record said before, who runs the network behind it, and how to move from one source to the next.
+
+| # | Topic | Status |
+|---|---|---|
+| S2.1 | Web archives: page history, and what a capture proves | ✅ available |
+| — | Network ownership: address blocks, AS numbers and routing | planned |
+| — | Passive DNS: what a name used to resolve to | planned |
+| — | Document and file metadata | planned |
+| — | Image and video verification | planned |
+| — | Usernames and accounts, ethics first | planned |
+| — | Capstone: a multi-source pivot report | planned |
+
+Level 2 adds one tool, \`python3\`, which the Guardians setup already uses. \`python3 --version\` should print a version of 3.9 or later.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -3358,6 +3386,453 @@ item001 facts behind F1-F4: SAME (1995-08-14T04:00:00Z 376 ELLIOTT.NS.CLOUDFLARE
 If a re-fetch fails, the drill says \`UNKNOWN\` for that item and moves on. It does not count a failed fetch as "changed", and it does not count it as "same".
 </details>`,
     tracker: ["Wrote the question and scope before the first request, including what is deliberately not collected", "Collected six items through one logging function and checked none FAILED", "Read report.md and can say which item supports each half of F2 and F6", "Can explain why F2's two sources agree but are not independent", "Can give likelihood on one named scale and confidence in a separate sentence with its reasons", "Broke the citation check four ways and got four correct results, including UNKNOWN", "Recorded the seal hash outside the case folder"]
+  }, {
+    id: "l2_roadmap",
+    level: 2,
+    num: "L2",
+    title: "Level 2 Roadmap — Tracker",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first. The real modules begin next.",
+    isRoadmap: true
+  }, {
+    id: "s2_1",
+    level: 2,
+    num: "S2.1",
+    title: "Web Archives — Page History, and What a Capture Proves",
+    objective: `Query the Wayback Machine's CDX index instead of browsing; read each field for what it is (UTC timestamp, original URL, payload digest, compressed record length); fetch raw captures with id_ and prove each against its index digest; date a change as a window between two captures of the same URL; and say what an archive cannot show: absence, permanence, what others saw, and who wrote it.`,
+    theory: `#### Why page history matters
+
+Level 1 read public records as they stand today. But a page you need may have changed since, or been deleted, and the version that mattered is the old one: the price before it went up, the claim before it was edited, the post before someone took it down. A **web archive** keeps copies of pages as they were at a moment in the past. Used carefully, those copies let you say what a page said, and when.
+
+Used carelessly, they let you say much more than that, and be wrong. This module is about the difference.
+
+#### How a web archive works
+
+The **Wayback Machine**, run by the Internet Archive, is a public web archive. It works in three stages:
+
+1. **Crawl.** A crawler fetches a URL, as any browser would, and stores the whole HTTP response in an archive file: today a WARC (Web ARChive) file; the oldest captures sit in its predecessor, ARC.
+2. **Index.** Each stored response gets one line in an index called the **CDX**: which URL, when, what status, what type, and a fingerprint of the content.
+3. **Replay.** When you open an archived page, the Wayback Machine finds the capture in the index and serves it back, rewriting links so they point into the archive.
+
+Three words to use precisely:
+
+- A **capture** is one stored response for one URL at one moment.
+- A **memento** is the web standard's name for a capture served back to you. RFC 7089 (Memento) defines it, and says a server marks one with a \`Memento-Datetime\` header whose value "expresses the datetime of that state".
+- The **original** is the URL that was captured. A memento carries a \`Link\` header with \`rel="original"\` naming it.
+
+RFC 7089 also says that header is "a promise that the resource state reflected in the response will no longer change". The archive promises the copy is fixed. It promises nothing about whether the page was true.
+
+#### Step 1 — ask the index, not the calendar
+
+The Wayback Machine's calendar view is for browsing. For an investigation, query the **CDX index** directly: it returns one plain-text line per capture, which you can log, hash and count.
+
+\`\`\`text
+https://web.archive.org/cdx/search/cdx?url=example.com/&from=2002&to=2002&fl=timestamp,original,statuscode,mimetype,digest,length
+\`\`\`
+
+- **\`from\` / \`to\`** filter by timestamp. The CDX server's documentation says the ranges "are inclusive", in the same 1- to 14-digit \`yyyyMMddhhmmss\` format used for captures.
+- **\`fl\`** chooses the fields, in order.
+- **\`limit=N\`** returns the first N lines. **\`collapse=digest\`** drops repeated captures. But the documentation is explicit that "only adjacent digest are collapsed": the same content captured again later still appears.
+
+A 14-digit timestamp such as \`20020120142510\` is **UTC**: 20 January 2002, 14:25:10. The \`Memento-Datetime\` header on that capture says \`Sun, 20 Jan 2002 14:25:10 GMT\`. Keep it in UTC in your notes. When you must convert it to local time, use the offset that was in force *on that date*, not today's (see the drills).
+
+**The index merges hosts.** \`url=example.com/\` returned captures of both \`http://example.com:80/\` and \`http://www.example.com:80/\`. The index files them under one key. Look at the \`original\` field of every line before comparing any two.
+
+#### Step 2 — read the fields correctly
+
+| Field | What it is | What it is **not** |
+|---|---|---|
+| \`timestamp\` | when the capture was made, UTC | when the page was written or last changed |
+| \`original\` | the URL the crawler fetched | the same URL as the line above it |
+| \`statuscode\` | the HTTP status the site returned | proof there was content (a \`200\` can have an empty body) |
+| \`digest\` | the SHA-1 of the content, in base32 | a hash of the page as you see it in the Wayback Machine |
+| \`length\` | the size of the stored, compressed archive record | the size of the page |
+
+Two of those need explaining.
+
+**\`digest\`.** The WARC 1.1 standard defines a *payload digest*, with SHA-1 in base32 as its example. The payload of an HTTP response is its "entity-body" as RFC 2616 defines it: \`entity-body := Content-Encoding( Content-Type( data ) )\`. So if a site sent the page gzip-compressed, the digest is of the **compressed** bytes. The same page sent once plain and once gzipped has two digests. The Internet Archive's CDX-Writer tool copies the value straight from that WARC header into the index.
+
+**\`length\`.** CDX-Writer's field for this is labelled "compressed record size": how many bytes the stored record takes in the archive file, headers included. In the lab, a 339-byte page has index lengths of 481, 477 and 459 on different days. Never quote it as the page's size.
+
+#### Step 3 — fetch the raw capture, and prove it is the one indexed
+
+A normal Wayback link shows a *rewritten* page: the archive has changed its links, added a toolbar and loaded its own scripts. Those are not the bytes that were captured. Add \`id_\` straight after the timestamp and you get the capture as stored:
+
+\`\`\`text
+https://web.archive.org/web/20020120142510id_/http://example.com:80/
+\`\`\`
+
+\`id_\` has no formal Internet Archive documentation, only forum answers. So do not take it on trust. Test it: compute the SHA-1 of the bytes, encode it in base32, and compare it with the index's \`digest\`. If they match, the copy you hold is the one the index describes. The lab does this for every capture.
+
+Two traps:
+
+- Don't use \`curl --compressed\`. It decodes gzip for you, so you hash different bytes from the ones the digest covers.
+- Headers named \`x-archive-orig-…\` are the **site's** headers, stored with the capture. \`x-archive-orig-last-modified\` is what the site claimed. The archive did not check it.
+
+#### Step 4 — date a change as a window, never a moment
+
+An archive records only the moments its crawler visited. If one capture shows version A and the next capture *of the same URL* shows version B, the page changed at some point between them. You cannot say when.
+
+So state a change as a **bracket**: after the last capture of A, and by the first capture of B. In the lab, \`http://example.com/\` showed ICANN's "Reserved Domain Names" page on 20 January 2002. The next capture of that URL, on 4 June 2002, shows "Example Web Page". That is a window of four and a half months. Nothing in the archive narrows it.
+
+The tempting shortcut is to compare the first two lines of the index. That dates the change to 28 March, which is wrong: the 28 March line is a capture of \`www.example.com\`, a different URL. The two hosts may have served different pages at the same time.
+
+#### What a capture cannot tell you
+
+- **That something never existed.** The Wayback Machine's own help pages list why a page may be missing: the crawlers "were unaware of their existence", or the sites were "password protected, blocked by robots.txt, or otherwise inaccessible", or the owners "requested that their sites be excluded". An empty result is a statement about the archive, not the web.
+- **That it will stay.** Owners can ask for exclusion: the help centre says to email \`info@archive.org\` with the URLs and time periods, and that "We do not make any guarantees beforehand about the outcome". A capture you cite today may be hidden tomorrow, so keep your own hashed copy. Loss can be retroactive: in 2017 the Wayback Machine's director wrote that when a site shut down and its parked domain blocked search engines in \`robots.txt\`, this "has historically also removed the entire domain from view in the Wayback Machine", and that complaints about these "disappeared" sites arrived "almost daily".
+- **What other people saw.** The crawler saw one response, from one place, logged out, at one time. A page that varied by country, by login or by script may have looked different to everyone else.
+- **Who wrote it.** A capture fixes what a page said, and when. Authorship is a separate question with separate evidence, as the case study shows.
+
+#### Lawful and polite collection
+
+Everything in this module goes to the archive, never to the site. The target's servers receive nothing from you, which keeps the collection passive in the sense of S1.1.
+
+**Save Page Now** is different. It asks the archive to fetch the live page for you, now, and it saves "a specific page one time". Your request causes a request to the target, and the capture it makes goes into the public archive. That can be the right call (preserving evidence before it is deleted), but it is an active step. Scope it deliberately, and never use it in these labs.
+
+**Rate limits.** The Internet Archive publishes no official limit for the CDX API. The clearest statement is from Internet Archive staff, relayed in a public GitHub issue in November 2023: /cdx requests "are limited to an average of 60/min"; above that, the server sends HTTP 429; "If 429s are ignored for more than a minute we block the IP at the firewall … for 1 hour", doubling each time. The limit may have changed since. The lab waits five seconds between requests and **stops at the first 429**. It also treats \`503 Temporarily Offline\` as a failure to log, not a result to read. While this module was being built, the archive returned both.
+
+#### Your own page history
+
+For your own site, or a page about you, run the same method: the index first, one original URL at a time, \`id_\` copies checked against the digest, and changes stated as windows. Write every request to the collection log, including the ones that fail.`,
+    lab: {
+      mac: `# LAB: date a change to a web page from archived captures, and prove each copy is the one the index describes (Apple Silicon)
+# ETHICS: four requests, all to the Internet Archive's public Wayback Machine. None goes to
+# example.com itself, which IANA reserves for documentation (RFC 2606). No person is involved.
+# The archive rate-limits: the lab waits between requests and stops at the first HTTP 429.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+WB="https://web.archive.org"
+mkdir -p ~/scouts-case/s2_1 && cd ~/scouts-case/s2_1 || exit 1
+rm -rf evidence collection_log.tsv SHA256SUMS && mkdir evidence     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.1 web archives
+question:     When, as the Wayback Machine recorded it, did the page at http://example.com/
+              change during 2002 - and are the archived copies the ones the index describes?
+authorised:   self (a public archive's copies of an IANA-reserved domain)
+in scope:     the Wayback Machine's CDX index for example.com, 2002; three raw captures
+out of scope: any request to example.com itself; Save Page Now (it makes the archive fetch
+              the live site on your behalf); any year other than 2002
+SCOPE
+
+# 2. Collect through one door. Every request is logged with its HTTP status, success or not.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id extension url
+  local f="evidence/$1.$2" T C H
+  sleep 5                                            # pace: far below the archive's limit
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -m 170 -A "$UA" -D "evidence/$1.headers" -o "$f" -w '%{http_code}' "$3")
+  if [ "$C" = 200 ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=FAILED; rm -f "$f"; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$C" "$H" >> collection_log.tsv
+  echo "$1  HTTP $C  $(echo "$H" | cut -c1-12)"
+  if [ "$C" = 429 ]; then
+    echo "STOP: HTTP 429 - the archive is rate-limiting you. Send nothing to it for an hour."; exit 1
+  fi
+  [ "$C" = 200 ] || { echo "STOP: $1 failed (HTTP $C) - it is in the log; try again later"; exit 1; }
+}
+FIELDS="timestamp,original,statuscode,mimetype,digest,length"
+collect item001 txt "$WB/cdx/search/cdx?url=example.com/&from=2002&to=2002&fl=$FIELDS"
+IDX=evidence/item001.txt
+head -1 "$IDX" | grep -q '^2002[0-9]\\{10\\} ' || { echo "UNKNOWN: item001 is not a CDX index (an error page?)"; exit 2; }
+
+# 3. Read the index. One line per capture; runs of identical URL + digest are counted together.
+echo "captures in 2002: $(wc -l < "$IDX" | tr -d ' ')"
+awk '{print $2, $5}' "$IDX" | uniq -c
+
+# 4. Choose captures from the index - never by eye. Compare like with like: ONE original URL.
+U="http://example.com:80/"
+read -r TA x1 x2 x3 DA LA < <(awk -v u="$U" '$2 == u' "$IDX" | head -1)
+read -r TB x1 x2 x3 DB LB < <(awk -v u="$U" -v d="$DA" '$2 == u && $5 != d' "$IDX" | head -1)
+read -r TL x1 < <(awk -v u="$U" -v d="$DA" -v b="$TB" '$2 == u && $5 == d && $1 < b' "$IDX" | tail -1)
+read -r TW OW x2 x3 DW LW < <(awk '$2 != "'"$U"'"' "$IDX" | head -1)
+[ -n "$TA" ] && [ -n "$TB" ] && [ -n "$TL" ] && [ -n "$TW" ] || { echo "UNKNOWN: the index does not hold the captures this lab needs"; exit 2; }
+collect item002 html "$WB/web/\${TA}id_/$U"          # id_ = the bytes as captured, no rewriting
+collect item003 html "$WB/web/\${TB}id_/$U"
+collect item004 html "$WB/web/\${TW}id_/$OW"
+(cd evidence && shasum -a 256 item0* > ../SHA256SUMS)
+
+# 5. Prove each copy is the one the index describes: SHA-1 of the bytes, in base32, = digest.
+b32sha1() { python3 -c 'import hashlib,base64,sys; print(base64.b32encode(hashlib.sha1(open(sys.argv[1],"rb").read()).digest()).decode())' "$1"; }
+check() {  # item timestamp index-digest index-length
+  local got; got=$(b32sha1 "evidence/$1.html")
+  [ "$got" = "$3" ] && m=MATCH || m=DIFFERENT
+  printf '%s %s digest %s  bytes %s (index length %s)\\n' "$1" "$2" "$m" "$(wc -c < "evidence/$1.html" | tr -d ' ')" "$4"
+}
+check item002 "$TA" "$DA" "$LA"; check item003 "$TB" "$DB" "$LB"; check item004 "$TW" "$DW" "$LW"
+
+# 6. What each copy says about itself: its title, and the archive's Memento headers.
+title() { tr -s ' \\n\\t\\r' ' ' < "evidence/$1.html" | sed -n 's/.*<[Tt][Ii][Tt][Ll][Ee]> *\\([^<]*[^ <]\\) *<.*/\\1/p'; }
+for i in item002 item003 item004; do
+  printf '%s title: %s | %s\\n' "$i" "$(title $i)" \\
+    "$(grep -i '^memento-datetime:' evidence/$i.headers | tr -d '\\r' | cut -d' ' -f2-)"
+done
+
+# 7. The finding: a window, not a date, and only for the URL actually compared.
+fmt() { echo "$1" | sed 's/\\(....\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)/\\1-\\2-\\3T\\4:\\5:\\6Z/'; }
+echo "tempting: 'example.com changed between $(fmt "$TA") and $(fmt "$TW")' - WRONG: $TW is $OW"
+echo "finding:  $U changed after $(fmt "$TL") and by $(fmt "$TB"), as the archive captured it"`,
+      windows: `# PowerShell 7 - the same question, index, raw captures and digest proof with native cmdlets.
+# ETHICS: four requests, all to the Internet Archive's Wayback Machine. None to example.com.
+# Not run on Windows when this module was written: compare your output with the macOS one.
+# PowerShell 7's web cmdlets decode gzip automatically, which breaks digest checks on
+# gzip-encoded captures (Drill 1). For those, use curl.exe, which ships with Windows 10 and later.
+$Analyst = "analyst01"; $UA = "CyberScoutsLab/1.0"; $WB = "https://web.archive.org"
+$Case = "$HOME\\scouts-case\\s2_1"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory evidence | Out-Null
+
+@"
+case:         S2.1 web archives
+question:     When, as the Wayback Machine recorded it, did the page at http://example.com/
+              change during 2002 - and are the archived copies the ones the index describes?
+authorised:   self (a public archive's copies of an IANA-reserved domain)
+in scope:     the Wayback Machine's CDX index for example.com, 2002; three raw captures
+out of scope: any request to example.com itself; Save Page Now (it makes the archive fetch
+              the live site on your behalf); any year other than 2002
+"@ | Set-Content scope.txt
+
+function Get-Sha256($Path) { (Get-FileHash $Path -Algorithm SHA256).Hash.ToLower() }
+function Get-B32Sha1($Path) {       # SHA-1 of the bytes, base32 (RFC 4648), as in the CDX digest
+  $h = [System.Security.Cryptography.SHA1]::Create().ComputeHash([IO.File]::ReadAllBytes((Resolve-Path $Path)))
+  $a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; $v = 0; $n = 0; $o = ""
+  foreach ($b in $h) { $v = (($v -shl 8) -bor $b) -band 0xFFF; $n += 8
+    while ($n -ge 5) { $o += $a[($v -shr ($n - 5)) -band 31]; $n -= 5 } }
+  $o
+}
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content collection_log.tsv
+function Collect($Id, $Ext, $Url) {
+  $f = "evidence\\$Id.$Ext"; Start-Sleep -Seconds 5
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  try {
+    $r = Invoke-WebRequest -Uri $Url -UserAgent $UA -OutFile $f -PassThru -SkipHttpErrorCheck -TimeoutSec 170
+    $C = [int]$r.StatusCode
+    $r.Headers.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value -join ', ')" } | Set-Content "evidence\\$Id.headers"
+  } catch { $C = 0 }
+  if ($C -eq 200) { $H = Get-Sha256 $f } else { $H = "FAILED"; Remove-Item $f -ErrorAction SilentlyContinue }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$C\`t$H" | Add-Content collection_log.tsv
+  "$Id  HTTP $C  $($H.Substring(0, [Math]::Min(12, $H.Length)))"
+  if ($C -eq 429) { throw "STOP: HTTP 429 - the archive is rate-limiting you. Send nothing to it for an hour." }
+  if ($C -ne 200) { throw "STOP: $Id failed (HTTP $C) - it is in the log; try again later" }
+}
+$Fields = "timestamp,original,statuscode,mimetype,digest,length"
+Collect item001 txt "$WB/cdx/search/cdx?url=example.com/&from=2002&to=2002&fl=$Fields"
+$Idx = Get-Content evidence\\item001.txt | Where-Object { $_ } | ForEach-Object {
+  $p = $_ -split ' '; [pscustomobject]@{ ts = $p[0]; orig = $p[1]; digest = $p[4]; len = $p[5] } }
+if (-not ($Idx.Count -gt 0 -and $Idx[0].ts -match '^2002\\d{10}$')) { throw "UNKNOWN: item001 is not a CDX index (an error page?)" }
+"captures in 2002: $($Idx.Count)"
+
+$U = "http://example.com:80/"
+$A = $Idx | Where-Object orig -eq $U | Select-Object -First 1
+$B = $Idx | Where-Object { $_.orig -eq $U -and $_.digest -ne $A.digest } | Select-Object -First 1
+$L = $Idx | Where-Object { $_.orig -eq $U -and $_.digest -eq $A.digest -and $_.ts -lt $B.ts } | Select-Object -Last 1
+$W = $Idx | Where-Object orig -ne $U | Select-Object -First 1
+if (-not ($A -and $B -and $L -and $W)) { throw "UNKNOWN: the index does not hold the captures this lab needs" }
+Collect item002 html "$WB/web/$($A.ts)id_/$U"
+Collect item003 html "$WB/web/$($B.ts)id_/$U"
+Collect item004 html "$WB/web/$($W.ts)id_/$($W.orig)"
+Get-ChildItem evidence\\item0* | ForEach-Object { "$(Get-Sha256 $_.FullName)  $($_.Name)" } | Set-Content SHA256SUMS
+
+foreach ($x in @(@{ id = "item002"; c = $A }, @{ id = "item003"; c = $B }, @{ id = "item004"; c = $W })) {
+  $f = "evidence\\$($x.id).html"; $m = if ((Get-B32Sha1 $f) -eq $x.c.digest) { "MATCH" } else { "DIFFERENT" }
+  $t = if ((Get-Content $f -Raw) -match '(?is)<title>\\s*(.*?)\\s*</title>') { $Matches[1] -replace '\\s+', ' ' } else { "" }
+  "$($x.id) $($x.c.ts) digest $m  bytes $((Get-Item $f).Length) (index length $($x.c.len))  title: $t"
+}
+function Fmt($ts) { $ts -replace '^(....)(..)(..)(..)(..)(..)$', '$1-$2-$3T$4:$5:$6Z' }
+"tempting: 'example.com changed between $(Fmt $A.ts) and $(Fmt $W.ts)' - WRONG: $($W.ts) is $($W.orig)"
+"finding:  $U changed after $(Fmt $L.ts) and by $(Fmt $B.ts), as the archive captured it"`,
+      linux: `# Identical to macOS with one substitution, in the lab and in the drills:
+#   sha256sum            instead of  shasum -a 256
+# Everything else (curl, awk, sed, python3, gunzip) behaves the same. The drills need
+# python3 3.9 or later for zoneinfo; most current distributions ship it.`,
+      expected: {
+        mac: `\`\`\`text
+item001  HTTP 200  fb0f477a10e7
+captures in 2002: 51
+   1 http://example.com:80/ HT2DYGA5UKZCPBSFVCV3JOBXGW2G5UUA
+   4 http://www.example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+   3 http://example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+  35 http://www.example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+   2 http://example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+   3 http://www.example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+   2 http://example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+   1 http://www.example.com:80/ UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+item002  HTTP 200  8b3037f97e1d
+item003  HTTP 200  01f8f009f524
+item004  HTTP 200  01f8f009f524
+item002 20020120142510 digest MATCH  bytes 6814 (index length 1792)
+item003 20020604040806 digest MATCH  bytes 339 (index length 477)
+item004 20020328012821 digest MATCH  bytes 339 (index length 481)
+item002 title: Reserved Domain Names | Sun, 20 Jan 2002 14:25:10 GMT
+item003 title: Example Web Page | Tue, 04 Jun 2002 04:08:06 GMT
+item004 title: Example Web Page | Thu, 28 Mar 2002 01:28:21 GMT
+tempting: 'example.com changed between 2002-01-20T14:25:10Z and 2002-03-28T01:28:21Z' - WRONG: 20020328012821 is http://www.example.com:80/
+finding:  http://example.com:80/ changed after 2002-01-20T14:25:10Z and by 2002-06-04T04:08:06Z, as the archive captured it
+\`\`\`
+
+Your times will differ, and so may the \`item001\` hash if the archive adds or removes a 2002 capture. The raw captures should hash the same for everyone. Work through it block by block:
+
+- **Four log lines, each with \`HTTP 200\`.** Open \`collection_log.tsv\`: every request is logged with its UTC time and status as it is made. A \`429\` stops the lab at once, because repeated requests after a 429 can get your address blocked. A \`503\` from the archive's "Temporarily Offline" page is logged as a failure, not read as an index. The check after item001 makes sure the body really is an index before anything reads it.
+- **The run table.** Eight runs of URL + digest. Two original URLs are interleaved all year under one index key, and 50 of the 51 lines share one digest. That is why the lab picks captures by rule rather than by eye.
+- **Three \`MATCH\` lines.** Each copy's SHA-1, in base32, equals the digest the index holds for that timestamp. item003 and item004 have the same SHA-256 in the log: the same 339 bytes, captured from two hosts on different days. Their index lengths (477, 481) differ from each other and from 339, because \`length\` is the compressed record, not the page.
+- **Titles and \`Memento-Datetime\`.** Each header repeats its capture's 14-digit timestamp as an HTTP date in GMT.
+- **The two last lines.** The first is the claim you would make by comparing index lines 1 and 2, and why it is wrong. The second is the finding: a window of four and a half months, for one URL, stated as the archive captured it.`
+      }
+    },
+    caseStudy: {
+      title: "MH17, 17 July 2014 — a deleted post the archive kept, and what the copy can prove",
+      body: `On 17 July 2014, Malaysia Airlines flight MH17 broke up over eastern Ukraine. The Dutch Safety Board found that a warhead launched by a Buk surface-to-air missile system detonated beside the cockpit at 13.20 UTC. All 298 occupants were killed.
+
+That afternoon, "Dispatches from Igor Ivanovich Strelkov", a VKontakte group at \`vk.com/strelkov_info\` named after Igor Strelkov (Igor Girkin), carried a post saying that "In the area of Torez an AN-26 plane was just shot down" (Bellingcat's translation). According to Bellingcat, it "was taken down as soon as it was evident that a passenger plane, not an AN-26 transport plane, was shot down."
+
+The deletion did not remove it from the record. The Wayback Machine holds a capture of the group's page at \`20140717152222\`. Its index for that day lists earlier captures too, but all of them are \`302\` redirects with the empty-body digest \`3I42H3S6…\`. The 15:22:22 capture is the first with content. Fetched raw with \`id_\`, its SHA-1 matches its index digest, and it contains the post, headed "17.07.2014 17:50 (мск)". The page is encoded as windows-1251, so a search for the Cyrillic text in UTF-8 finds nothing until the bytes are decoded.
+
+**What the capture settles.** The page carried that text when the archive fetched it at 15:22:22 UTC. That was 19:22:22 in Moscow, which was then on UTC+4, and about two hours after the detonation. The post's own heading, if accurate, puts it at 13:50 UTC. The copy is fixed: it is the one the index describes, and anyone can fetch it and check.
+
+**What it does not settle.** Who wrote the post. In a reconstruction published on 16 July 2015, Bellingcat's Aric Toler concluded that Girkin "himself did not post this message; rather, some 'fans' of his posted the message from local information". The same day, Catherine A. Fitzpatrick of *The Interpreter* rejected the "fan group" reading: the group, she wrote, "was in fact authorized to release Strelkov's statements (which indeed it was)". She also searched the stream of the group's posts "shown in the Wayback Machine" for an earlier report. Both used the archive, and they read authorship differently. The archive fixed the words and the moment. Attribution needed other evidence.
+
+**The lesson for your own work.** Cite a capture by its full URL, timestamp included. Keep your own \`id_\` copy with its hash, because an exclusion request can hide the archive's. Give times in UTC, and convert with the offset in force on that date. Write authorship as a separate finding with its own sources, never as something the capture proves.`
+    },
+    challenges: [{
+      q: `A colleague's note reads: "The Wayback Machine has no capture of the supplier's 'terms' page before March 2021, so the clause did not exist before then." What is wrong, and what can the note say instead?`,
+      a: `It turns absence from the archive into absence from the web. The Wayback Machine's own help pages list reasons a page may be missing: the crawlers did not know about it, it was password-protected or blocked by robots.txt, or the owner asked for it to be excluded. A defensible note says what was searched, when, and what came back: "A CDX query for <url> on <date, UTC> returned no captures before 2021-03-…; the earliest capture, <timestamp>, contains the clause [itemNNN]." Then add a gap line: an earlier version of the page may have existed without being archived.`
+    }, {
+      q: `Two CDX lines for the same URL, a week apart, have different digests. Your draft says "the page was edited that week". What must you check before that sentence can stand?`,
+      a: `Three things. (1) The \`original\` field: the two lines may be different URLs filed under one key (\`www.\` or not, http or https). (2) The encoding: fetch both with \`id_\` (without \`--compressed\`) and check the headers. A gzip-encoded capture has a different digest from the same page sent plain. (3) The decoded content: compare it, and if the only differences are a timestamp or a session token the page generates on every request, say so. Only then say "changed", and say it as a window: after the earlier capture and by the later one.`
+    }, {
+      q: `A source sends you a Wayback link as proof that a company announced a recall on 3 May. The link opens a page with the right text, and the URL's timestamp is 20230503. List what you would record before relying on it.`,
+      a: `The full capture URL including the 14-digit timestamp, which is UTC. Convert it to the company's local time, using the offset in force on that date, before saying "3 May" in any other time zone. Fetch the \`id_\` copy, hash it, check the SHA-1 in base32 against the CDX line with the same timestamp *and* original URL, and keep your copy in case the capture is later excluded. Check that the original URL really is the company's page and not a look-alike. Then limit the finding: the archive shows the page carried that text at capture time. It does not show when the text was first published, and it does not show the announcement reached anyone.`
+    }],
+    quiz: ["What does a 14-digit Wayback timestamp record, and in which time zone?", "The CDX query url=example.com/ returned lines for two different original URLs. Why, and why does it matter when you compare captures?", "What exactly does a CDX digest hash, and why can the same page have two different digests?", "Why must you never quote the CDX length field as the size of a page?", "What does adding id_ after the timestamp change, and how does the lab test that it gives the captured bytes?", "Give three reasons, from the Internet Archive's own help pages, why a page may have no captures.", "Why is Save Page Now out of scope for this module's labs?", "What should your script do when the archive answers HTTP 429, and why?"],
+    workbench: `> **What this trains.** The lab proved three copies against the index. Here you meet the ways that proof goes wrong in practice: two digests for one page, a time converted with the wrong offset, and a checker that must say "I don't know" instead of guessing.
+
+#### 🟢 Drill 1 — two digests, one page ~8 min
+
+**Goal.** The 2024 index for example.com lists two captures 19 minutes apart, on 1 January 2024, with different digests: \`20240101000832 … JI6OR3QR4CI526JD6TMMNZNV4QPMPQCH\` and \`20240101002738 … WJM2KPM4GF3QK2BISVUH2ASX64NOUY7L\`. Did the page change? Fetch both raw captures (two requests, paced) and find out.
+
+**Done when.** You can say why the digests differ, and show that the page did not change.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_1 || exit 1
+UA="CyberScoutsLab/1.0"; WB="https://web.archive.org"
+b32sha1() { python3 -c 'import hashlib,base64,sys; print(base64.b32encode(hashlib.sha1(open(sys.argv[1],"rb").read()).digest()).decode())' "$1"; }
+for t in 20240101000832 20240101002738; do
+  sleep 5
+  curl -s -m 120 -A "$UA" -D "d1_$t.headers" -o "d1_$t.body" -w "$t HTTP %{http_code}\\n" "$WB/web/\${t}id_/http://example.com/"
+done
+for t in 20240101000832 20240101002738; do
+  enc=$(grep -i '^content-encoding:' "d1_$t.headers" | tr -d '\\r' | cut -d' ' -f2)
+  echo "$t $(b32sha1 "d1_$t.body") bytes $(wc -c < "d1_$t.body" | tr -d ' ') encoding \${enc:-none}"
+done
+gunzip -c d1_20240101002738.body > d1_decoded.body
+echo "decoded  $(b32sha1 d1_decoded.body) bytes $(wc -c < d1_decoded.body | tr -d ' ')"
+cmp -s d1_decoded.body d1_20240101000832.body && echo "same bytes: the page did not change"
+echo "empty    $(b32sha1 /dev/null)"
+\`\`\`
+
+\`\`\`text
+20240101000832 HTTP 200
+20240101002738 HTTP 200
+20240101000832 JI6OR3QR4CI526JD6TMMNZNV4QPMPQCH bytes 1256 encoding none
+20240101002738 WJM2KPM4GF3QK2BISVUH2ASX64NOUY7L bytes 648 encoding gzip
+decoded  JI6OR3QR4CI526JD6TMMNZNV4QPMPQCH bytes 1256
+same bytes: the page did not change
+empty    3I42H3S6NNFQ2MSVX7XZKYAYSCX5QBYJ
+\`\`\`
+
+Both digests match the index, so the archive's copies are sound. They differ because the site sent the second response gzip-compressed, and a payload digest covers the bytes as sent (RFC 2616's entity-body keeps its content-encoding). Decode it and you get the first capture byte for byte. Two digests do not prove two versions. Only a comparison of the decoded content can show a change.
+
+The last line is a bonus. \`3I42H3S6…\` is the SHA-1 of zero bytes. The 2024 index, filtered to status 200, still contains lines with that digest: the site answered "OK" and sent nothing. When an index line has that digest, you know the capture is empty before you fetch it.
+
+Had you fetched with \`curl --compressed\`, the second file would already be decoded and its digest would *not* match the index. You might then conclude the archive copy was altered. It wasn't; your tool altered it.
+</details>
+
+#### 🟡 Drill 2 — what time was it in Moscow? ~6 min
+
+**Goal.** The case study's capture is \`20140717152222\`, of \`vk.com/strelkov_info\`. Convert it to Moscow time twice: once with Moscow's offset today, once with the IANA time zone database. Then work out how long after the aircraft was hit the capture was made. No network needed.
+
+**Done when.** You have two Moscow times an hour apart, and you can say which is right and why.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+python3 - <<'PY'
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+ts = "20140717152222"                                  # Wayback timestamp: always UTC
+utc = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+print("UTC          ", utc.isoformat())
+print("today's +3   ", (utc + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"), "(wrong)")
+msk = utc.astimezone(ZoneInfo("Europe/Moscow"))
+print("tz database  ", msk.isoformat(), msk.tzname())
+hit = datetime(2014, 7, 17, 13, 20, tzinfo=timezone.utc)   # Dutch Safety Board: 13.20 UTC
+print("capture came ", utc - hit, "after the detonation")
+PY
+\`\`\`
+
+\`\`\`text
+UTC           2014-07-17T15:22:22+00:00
+today's +3    2014-07-17T18:22:22 (wrong)
+tz database   2014-07-17T19:22:22+04:00 MSK
+capture came  2:02:22 after the detonation
+\`\`\`
+
+In July 2014 Moscow was on UTC+4. The tz database records the move to +4 on 27 March 2011 and the move back to +3 at 02:00 local time on 26 October 2014. Using today's offset puts the capture an hour early, and in a timeline where a post's time and a deletion's time are both argued about, an hour decides what came first.
+
+Convert with a library that carries the tz database (Python's \`zoneinfo\`, 3.9 and later). Doing the arithmetic by hand is exactly where this error comes from.
+</details>
+
+#### 🔴 Drill 3 — break the digest check four ways ~10 min
+
+**Goal.** Build a checker, \`verify_capture.sh FILE DIGEST\`, that answers \`MATCH\`, \`DIFFERENT\` or \`UNKNOWN\`. Then feed it a tampered copy, the wrong index line, a missing file and an empty digest. A checker that says \`DIFFERENT\` when it could not check is as misleading as one that says \`MATCH\`.
+
+**Done when.** One \`MATCH\`, two \`DIFFERENT\`, two \`UNKNOWN\` with exit code 2, each for the right reason.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_1 || exit 1
+cat > verify_capture.sh <<'SH'
+#!/bin/bash
+# verify_capture.sh FILE DIGEST  ->  MATCH (0) | DIFFERENT (1) | UNKNOWN (2)
+f=$1; d=$2
+[ -f "$f" ] || { echo "UNKNOWN: no file '$f'"; exit 2; }
+echo "$d" | grep -q '^[A-Z2-7]\\{32\\}$' || { echo "UNKNOWN: '$d' is not a base32 SHA-1 digest"; exit 2; }
+got=$(python3 -c 'import hashlib,base64,sys; print(base64.b32encode(hashlib.sha1(open(sys.argv[1],"rb").read()).digest()).decode())' "$f") \\
+  || { echo "UNKNOWN: could not hash '$f'"; exit 2; }
+[ "$got" = "$d" ] && { echo "MATCH"; exit 0; }
+echo "DIFFERENT: file $got, index $d"; exit 1
+SH
+chmod +x verify_capture.sh
+idx() { awk -v t="$1" '$1 == t {print $5}' evidence/item001.txt; }
+D=$(idx 20020604040806)
+./verify_capture.sh evidence/item003.html "$D"; echo "exit $?"
+cp evidence/item003.html tampered.html && printf ' ' >> tampered.html
+./verify_capture.sh tampered.html "$D"; echo "exit $?"
+./verify_capture.sh evidence/item003.html "$(idx 20020120142510)"; echo "exit $?"
+./verify_capture.sh evidence/item009.html "$D"; echo "exit $?"
+./verify_capture.sh evidence/item003.html "$(idx 20020604040806x)"; echo "exit $?"
+\`\`\`
+
+\`\`\`text
+MATCH
+exit 0
+DIFFERENT: file 2U6SQA27M5ETEHV2YEEDMMMCAIXT56SN, index UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH
+exit 1
+DIFFERENT: file UY3I2DT2AMWAY6DECFCFYMT5ZOTFHUCH, index HT2DYGA5UKZCPBSFVCV3JOBXGW2G5UUA
+exit 1
+UNKNOWN: no file 'evidence/item009.html'
+exit 2
+UNKNOWN: '' is not a base32 SHA-1 digest
+exit 2
+\`\`\`
+
+One added space changes the whole digest. The third case is a real copy checked against the **wrong line**. \`DIFFERENT\` is correct there, and the mistake is yours, not the archive's: always look the digest up by timestamp *and* original URL. The last case is a typo in the timestamp. The lookup returns nothing, and a checker that compared an empty string would report \`DIFFERENT\`, blaming the evidence for a mistake in the question. \`UNKNOWN\` with exit code 2 says so honestly.
+</details>`,
+    tracker: ["Wrote the question and scope before the first request, including what is deliberately not collected", "Ran the lab: four requests logged with HTTP status, no failures, SHA256SUMS written", "Saw all three copies MATCH their index digests, and can say why the index length differs from the byte count", "Can explain why the 'tempting' date is wrong and state the change as a window for one original URL", "Showed two digests for one unchanged page (Drill 1) and converted a 2014 timestamp with the right offset (Drill 2)", "Built a checker that answers UNKNOWN instead of guessing (Drill 3)"]
   }]
 };
 

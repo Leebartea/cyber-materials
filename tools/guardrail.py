@@ -903,6 +903,12 @@ BANNED = [
      "Grepping raw HTML for a quoted sentence finds nothing when the page wraps it "
      "across lines or puts a link inside it, and a report that quotes the page anyway "
      "is unguarded; strip tags and join lines first (Scouts ledger S1.7 defects)", "A99"),
+    (r"curl[^\n]*--compressed[^\n]*id_/",
+     "curl --compressed decodes a gzip-encoded capture before it is saved, so its SHA-1 can "
+     "never match the archive's payload digest (Scouts ledger S2.1, row 131)", "A100"),
+    (r"Fitzpatrick[^\n]{0,400}banner",
+     "The Interpreter article reports the 'Strelkov reports' banner point as someone else's "
+     "('He also notes'), not Fitzpatrick's argument (Scouts ledger S2.1 defects, row 142)", "A101"),
 ]
 
 
@@ -1175,6 +1181,11 @@ TOPIC_ANCHORS = {
         "geolocation": ["S1.6"],
         "chronolocation": ["S1.6"],
         "gpsposition": ["S1.6"],
+        "wayback machine": ["S2.1"],
+        "cdx": ["S2.1"],
+        "memento": ["S2.1"],
+        "web archive": ["S2.1"],
+        "save page now": ["S2.1"],
     },
 }
 
