@@ -909,6 +909,14 @@ BANNED = [
     (r"Fitzpatrick[^\n]{0,400}banner",
      "The Interpreter article reports the 'Strelkov reports' banner point as someone else's "
      "('He also notes'), not Fitzpatrick's argument (Scouts ledger S2.1 defects, row 142)", "A101"),
+    (r"nr_updates",
+     "A zero from bgp-updates is only 'quiet' if a busy control prefix returned updates in the "
+     "same window: RIPEstat returned 0 for all of June 2024 despite declaring coverage "
+     "(Scouts ledger S2.2, Drill 3)", "A102", "CONTROL"),
+    (r'(?s)function Collect\([^)]*\) \{(?:(?!\n\}).)*\n  "\$Id  HTTP(?:(?!\n\}).)*ConvertFrom-Json',
+     "A PowerShell function's bare strings go to its output, so a Collect that prints a status "
+     "line and returns parsed JSON hands the caller an array: use Write-Host for the status "
+     "(Scouts ledger S2.2 defects)", "A103"),
 ]
 
 
@@ -1186,6 +1194,11 @@ TOPIC_ANCHORS = {
         "memento": ["S2.1"],
         "web archive": ["S2.1"],
         "save page now": ["S2.1"],
+        "bgp": ["S2.2"],
+        "rpki": ["S2.2"],
+        "ripestat": ["S2.2"],
+        "route collector": ["S2.2"],
+        "route origin validation": ["S2.2"],
     },
 }
 

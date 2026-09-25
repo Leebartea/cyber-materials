@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1 + 2 roadmaps)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.2 + 2 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-25 (Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-25 (Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -362,3 +362,59 @@ Defects caught in the S2.1 build pass (none shipped):
 - **`curl -f` keeps an earlier file when a retry fails** (a stale 503 page was read as a new
   result). The lab deletes any non-200 body and starts from an empty `evidence/`.
 - **The Windows comment said PowerShell "may" decode gzip.** The source says it always does (row 146).
+
+## Batch 9 — S2.2 Network ownership: who holds an address, who routes it, who authorised it
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 147 | S2.2 | RFC 1930: an AS is "a connected group of one or more IP prefixes run by one or more network operators which has a SINGLE and CLEARLY DEFINED routing policy" | `SOURCED` | rfc-editor.org/rfc/rfc1930.txt line 134, curl 2026-09-25 | stable |
+| 148 | S2.2 | AS path lists the newest hop first; the last AS is the origin | `SOURCED` | RFC 4271 §5.1.2: a speaker "prepends its own AS number as the last element of the sequence (put it in the leftmost position" (lines 1408–1409) | stable |
+| 149 | S2.2 | Longest prefix wins: RIPE NCC calls it "the longest prefix match rule"; Cloudflare explains 1.1.1.1/32 as the "longest match" | `SOURCED` | ripe.net YouTube case study (17 Mar 2008); blog.cloudflare.com 1.1.1.1 incident post, curl 2026-09-25 | stable |
+| 150 | S2.2 | RIS docs: "Currently dumps are created every 8 hours, and updates are created every 5 minutes"; archive URL `data.ris.ripe.net/rrcXX/YYYY.MM/TYPE.YYYYMMDD.HHmm.gz`; RRC00 Amsterdam listed as "multihop", scope "global" | `SOURCED` | ris.ripe.net/docs/mrt/ and /docs/route-collectors/, curl 2026-09-25 | yearly |
+| 151 | S2.2 | RIPEstat network-info "returns the containing prefix and announcing ASN of a given IP address, based on information from RIPE RIS" | `SOURCED` | stat.ripe.net/docs/data-api/api-endpoints/network-info, curl 2026-09-25 | yearly |
+| 152 | S2.2 | RIPEstat rules of usage: "No limit on the amount of requests but please register if you plan to regularly do more than 1000 requests/day"; "limits the usage to 8 concurrent … requests coming from one IP address"; `sourceapp` "alphanumeric values with no whitespace", hyphens and underscores allowed | `SOURCED` | stat.ripe.net/docs/data-api/ripestat-data-api, curl 2026-09-25 | yearly |
+| 153 | S2.2 | routing-history docs: `min_peers` default 10, "Excludes low-visibility/localized announcements"; `full_peers_seeing` = "number of RIS full-feed peers that saw this route"; `latest_max_ff_peers` = maximum full-table peers per IP version. `time_granularity` is **not** documented; the course reports it only as an observed field (row 163) | `SOURCED` | stat.ripe.net/docs/data-api/api-endpoints/routing-history, curl 2026-09-25 | yearly |
+| 154 | S2.2 | rpki-validation labels: `valid`; `invalid_asn` (covering ROA "but a different ASN"); `invalid_length` ("prefix length is greater than the ROA's maximum length"); `unknown` ("no ROA found") | `SOURCED` | stat.ripe.net/docs/data-api/api-endpoints/rpki-validation, curl 2026-09-25 | yearly |
+| 155 | S2.2 | RFC 6811 states: NotFound "No VRP Covers the Route Prefix"; Valid "At least one VRP Matches the Route Prefix"; Invalid "At least one VRP Covers the Route Prefix, but no VRP Matches it" | `SOURCED` | rfc-editor.org/rfc/rfc6811.txt lines 246–251 | stable |
+| 156 | S2.2 | RFC 9582 (May 2024, obsoletes 6482): maxLength "specifies the maximum length of the IP address prefix that the AS is authorized to advertise" | `SOURCED` | rfc-editor.org/rfc/rfc9582.txt line 286 | stable |
+| 157 | S2.2 | RFC 7908 (June 2016): "A route leak is the propagation of routing announcement(s) beyond their intended scope" | `SOURCED` | rfc-editor.org/rfc/rfc7908.txt line 143 | stable |
+| 158 | S2.2 | IANA: `001/8,APNIC,2010-01` (ALLOCATED); AS `13312-15359,Assigned by ARIN` | `SOURCED` | iana.org ipv4-address-space.csv and as-numbers-1.csv, curl 2026-09-25 | stable |
+| 159 | S2.2 lab | network-info 1.1.1.1 → prefix `1.1.1.0/24`, asns `["13335"]` | `EXECUTED` | lab item001, 2026-09-25 | volatile |
+| 160 | S2.2 lab | APNIC RDAP ip/1.1.1.1: `1.1.1.0-1.1.1.255`, name `APNIC-LABS`, registrant `APNIC Research and Development` (ORG-ARAD1-AP), remarks include "Routed globally by AS13335/Cloudflare" and "Research prefix for APNIC Labs", registration `2011-08-10T23:12:35Z` | `EXECUTED` | lab item002, 2026-09-25 | yearly |
+| 161 | S2.2 lab | ARIN RDAP autnum/13335: name `CLOUDFLARENET`, registrant `Cloudflare, Inc.`, registration `2010-07-14T18:35:57-04:00` (= 22:35:57 UTC) | `EXECUTED` | lab item003, 2026-09-25 | yearly |
+| 162 | S2.2 lab | rpki-validation AS13335 / 1.1.1.0/24 → `valid`, one ROA AS13335 1.1.1.0/24 max_length 24 | `EXECUTED` | lab item004, 2026-09-25 | volatile |
+| 163 | S2.2 lab | routing-history 1.1.1.0/24, 2000-08-01 → 2026-09-01: `time_granularity` 1036800 (12 days); other prefixes 0.0.0.0/1, 0.0.0.0/3, 1.0.0.0/8, 1.1.0.0/16, 1.1.1.0/30, 1.1.1.1/32; 33 origins of the exact /24 before AS13335's first bucket (2018-03-14T00:00:00), 14 of them in buckets starting before 2010-01-01; `latest_max_ff_peers` v4 330 | `EXECUTED` | lab item005 + jq, 2026-09-25 | stable (fixed window) |
+| 164 | S2.2 lab | Hashes differ run to run: RIPEstat replies carry `query_id`/`server_id`/`process_time`; APNIC and ARIN RDAP returned one entity's roles as `technical, administrative` then `administrative, technical` a minute apart | `EXECUTED` | `jq -S` diff of two runs' evidence, 2026-09-25 | volatile |
+| 165 | S2.2 lab | Lab run in bash and zsh (fresh HOMEs): identical output apart from hashes; five requests logged 200. Built HTML round trip: lab, windows, workbench, theory, linux, case, expected all MATCH; lab extracted from the HTML re-run in zsh: SAME. Windows variant **not run** (no PowerShell on this Mac) | `EXECUTED` | 2026-09-25 | — |
+| 166 | S2.2 lab (Windows) | `ConvertFrom-Json -DateKind` (values Default, Local, Utc, Offset, String) "was introduced in PowerShell 7.5" | `SOURCED` | MicrosoftDocs/PowerShell-Docs `reference/7.5/…/ConvertFrom-Json.md` lines 175–188, raw.githubusercontent.com 2026-09-25 | yearly |
+| 167 | S2.2 Drill 1 | routing-history 1.1.1.0/24, 2018-03-01 → 2018-04-30: `time_granularity` 28800 (8 h); AS13335 first bucket `2018-03-20T08:00:00`, full_peers_seeing 162.0; with `min_peers=0` AS28191 appears, bucket `2018-03-31T16:00:00`, 4 peers | `EXECUTED` | drill run in bash and zsh, identical, 2026-09-25 | stable |
+| 168 | S2.2 Drill 2 | routing-history 208.65.153.0/24, 2008-02-24 → 2008-02-25T12:00, `min_peers=0`: exact prefix only AS36561 from 2008-02-25T00:00:00, no AS17557 (also absent over 20–28 Feb). RRC00 `updates.20080224.1845.gz` 22,498 bytes, SHA-256 `cc893c9c3b9431c2…`: 27 announcements of the /24, 18:47:57–18:49:19, every path ending `3491 17557`. RRC00's `bview` files for that day are stamped 07:59, 15:59, 23:59; the course labels "a history built from snapshots can miss it" as inference | `EXECUTED` | drill run in bash and zsh; directory listing data.ris.ripe.net/rrc00/2008.02/, 2026-09-25 | stable |
+| 169 | S2.2 Drill 2 | RIPE NCC, "YouTube Hijacking: A RIPE NCC RIS case study", 17 Mar 2008: AS17557 starts announcing 208.65.153.0/24 at 18:47 UTC; YouTube /24 at 20:07, /25s at 20:18; AS3491 withdraws at 21:01; "When a routing event is still fresh, it's likely that the associated prefix announcement hasn't yet been included in an RIS RIB dump" | `SOURCED` | ripe.net/about-us/news/youtube-hijacking-a-ripe-ncc-ris-case-study/, curl 2026-09-25 | stable |
+| 170 | S2.2 Drill 2 | RFC 6396: BGP4MP is type 16; subtypes 1 BGP4MP_MESSAGE, 4 BGP4MP_MESSAGE_AS4 | `SOURCED` | rfc-editor.org/rfc/rfc6396.txt lines 314, 687–688 | stable |
+| 171 | S2.2 Drill 3 | bgp-updates `meta/availability` declares 2024-01-01 onward; yet 1.1.1.0/24 returns 0 for 12-hour windows on 2024-01-02, 06-01, 06-26, 06-27 and 06-28 (and 18:00–22:00 on 06-27), but 114 on 03-01, 88 on 07-01, 737 on 2026-09-01 00–12; 8.8.8.0/24 returns 0 on 2024-06-27 18–22 and 29 on 2026-09-01 00–12; 192.0.2.0/24 returns 0 on 2026-09-01 00–12. RRC00 `updates.20240627.1850.gz` exists (6,407,407 bytes). Checker: bad prefix → UNKNOWN exit 2; missing args → exit 64; runs under dash | `EXECUTED` | drill runs in bash, zsh, dash, 2026-09-25 | volatile |
+| 172 | S2.2 case | Cloudflare, "Cloudflare 1.1.1.1 incident on June 27, 2024", Bryton Herdes, Mingwei Zhang, Tanner Ryan, 4 July 2024: "a mix of BGP … hijacking and a route leak"; 18:51 AS267613 "begins announcing 1.1.1.1/32…"; 18:52 AS262504 leaks 1.1.1.0/24 to AS1031 with path "1031 262504 267613 13335"; 18:52 a tier 1 accepts the /32 as RTBH, "causing blackholed traffic for all the tier 1's customers"; 02:28 (28 June) AS262504 "fully resolves the route leak"; "over 300 networks in 70 countries", "less than 1% of users in the UK and Germany"; ROA "only signed for origin AS13335 (Cloudflare) with a maximum prefix length of /24"; AS398465 and AS13760 reported the /32 to route-views collectors; BMP data; "historically misappropriated"; "erroneously leaked"; "routes to the nearest data center via BGP anycast". No statement of intent for the hijack (text searched for intent/malicious/deliberate) | `SOURCED` | blog.cloudflare.com/cloudflare-1111-incident-on-june-27-2024/, curl 2026-09-25 | stable |
+| 173 | S2.2 case | rpki-validation today: AS267613 / 1.1.1.1/32 → `invalid_length`; AS13335 / 1.1.1.1/32 → `invalid_length`; AS13335 / 1.1.1.0/24 → `valid` | `EXECUTED` | three RIPEstat queries, 2026-09-25 | volatile |
+| 174 | S2.2 | 192.0.2.0/24 is TEST-NET-1 and 203.0.113.0/24 a documentation range (RFC 5737) | `SOURCED` | as Batch 2 (S1.2) | stable |
+| 175 | S2.2 | Any network can announce any prefix; BGP itself checks nothing, so an origin is a claim | `CONVENTION` | course reasoning; it is the problem RPKI/ROV exists to address (rows 155, 172) | — |
+| 176 | S2.2 | ping, traceroute and port scans send packets to the target and through networks in between, so they are active and out of scope | `CONVENTION` | S1.1's passive/active line applied | — |
+| 177 | S2.2 challenge | Hosting providers rent addresses to customers; an address may be a compromised machine or a proxy | `CONVENTION` | general practice, stated as reasoning, no statistic | — |
+
+Defects caught in the S2.2 build pass (none shipped):
+
+- **The first case-study plan could not work.** The YouTube 2008 hijack was to be shown from
+  RIPEstat, but `bgp-updates` only holds data from 2024, and `routing-history` does not show
+  AS17557 at all, even with `min_peers=0`. That absence became Drill 2's lesson, with the raw RIS file.
+- **The 2024 incident was to be shown from `bgp-updates`.** RIPEstat returns zero for all of June
+  2024 despite declaring coverage. That became Drill 3 and guard A102.
+- **Windows `Collect` printed its status line to the output stream** while also returning the
+  parsed JSON, so `$ni = Collect …` would have held an array. Fixed with `Write-Host` (guard A103).
+- **`ConvertFrom-Json` turns date strings into DateTime**, so the Windows lab would have printed
+  dates unlike the records. It now uses `-DateKind String` (PowerShell 7.5+, row 166).
+- **The MRT reader used a backslash inside an f-string**, a syntax error before Python 3.12 (this
+  Mac has 3.11). Rewritten with `%` formatting.
+- **Unsourced wording removed:** route collectors "announce nothing back"; RRC00 "peers with
+  networks anywhere"; the RIS archive "does not change old files".
+- **"14 origins before IANA allocated 1.0.0.0/8"** counted buckets, not dates, against a month-level
+  allocation date. Reworded to "buckets that began before January 2010".
+- **Case draft said Cloudflare "calls the leak 'erroneous'"** and "every window tried in June 2024"
+  for two prefixes. Now the exact phrase ("erroneously leaked"), and per-prefix counts (row 171).

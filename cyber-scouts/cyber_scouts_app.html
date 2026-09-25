@@ -825,7 +825,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | # | Topic | Status |
 |---|---|---|
 | S2.1 | Web archives: page history, and what a capture proves | ✅ available |
-| — | Network ownership: address blocks, AS numbers and routing | planned |
+| S2.2 | Network ownership: address blocks, AS numbers and routing | ✅ available |
 | — | Passive DNS: what a name used to resolve to | planned |
 | — | Document and file metadata | planned |
 | — | Image and video verification | planned |
@@ -3833,6 +3833,497 @@ exit 2
 One added space changes the whole digest. The third case is a real copy checked against the **wrong line**. \`DIFFERENT\` is correct there, and the mistake is yours, not the archive's: always look the digest up by timestamp *and* original URL. The last case is a typo in the timestamp. The lookup returns nothing, and a checker that compared an empty string would report \`DIFFERENT\`, blaming the evidence for a mistake in the question. \`UNKNOWN\` with exit code 2 says so honestly.
 </details>`,
     tracker: ["Wrote the question and scope before the first request, including what is deliberately not collected", "Ran the lab: four requests logged with HTTP status, no failures, SHA256SUMS written", "Saw all three copies MATCH their index digests, and can say why the index length differs from the byte count", "Can explain why the 'tempting' date is wrong and state the change as a window for one original URL", "Showed two digests for one unchanged page (Drill 1) and converted a 2014 timestamp with the right offset (Drill 2)", "Built a checker that answers UNKNOWN instead of guessing (Drill 3)"]
+  }, {
+    id: "s2_2",
+    level: 2,
+    num: "S2.2",
+    title: "Network Ownership — Who Holds an Address, Who Routes It, Who Authorised It",
+    objective: `Answer three questions about an IP address separately and from the record that answers each: who holds the block and the AS number (RDAP), which network announces the route (RIPEstat, from RIS route collectors), and whether that announcement is authorised (RPKI). Read a routing history as buckets, not dates. Find an event the summary missed in the raw update files. Refuse to read an empty answer as "nothing happened".`,
+    theory: `#### Why network ownership matters
+
+Sooner or later an investigation turns up an IP address: in a server log, an email header, or a report that a site "is hosted in" some country. The next question is always "whose is it?". That question has more than one right answer, and they often name different organisations. This module teaches you to ask each one separately, read the record that answers it, and never let one answer stand in for another.
+
+#### Three questions, three records
+
+| Question | Who answers it | The record |
+|---|---|---|
+| Who **holds** this address block, or this AS number? | the regional internet registry (RIR) | the registration record, read over RDAP (S1.2) |
+| Which network **announces** a route to it on the internet? | nobody centrally: networks tell each other | BGP announcements, as route collectors record them |
+| Is that announcement **authorised** by the holder? | the holder, if it has signed one | an RPKI Route Origin Authorisation (ROA) |
+
+A fourth question, "who runs the machine that answers?", is not answered by any of these. It needs other evidence, and sometimes there isn't any.
+
+The lab asks all three about one address, \`1.1.1.1\`, a public DNS resolver. The answers differ. The block is registered to APNIC Research and Development, the route is announced by Cloudflare's network, and the authorisation names Cloudflare's AS number.
+
+#### How routing works, just enough
+
+The internet is made of separately run networks. Each one that takes part in global routing has an **autonomous system (AS) number**. RFC 1930 defines an AS as "a connected group of one or more IP prefixes run by one or more network operators which has a SINGLE and CLEARLY DEFINED routing policy."
+
+Networks exchange routes using **BGP**. A route says, in effect, "send traffic for \`1.1.1.0/24\` this way", and carries an **AS path**: the list of networks it passed through, with the newest hop first. The last AS in the path is the **origin**, the network that first announced the route.
+
+Two rules matter for this module:
+
+- **Any network can announce any prefix.** BGP itself checks nothing. An origin AS is a claim, not proof of the right to make it.
+- **The most specific route wins.** A router sends traffic along the longest matching prefix: a route for \`1.1.1.1/32\` beats one for \`1.1.1.0/24\`. RIPE NCC's account of the 2008 YouTube hijack calls this "the longest prefix match rule". Drill 2 goes back to that event.
+
+#### Where routing data comes from
+
+Nobody sees the whole routing table. What exists are **route collectors**: routers that take in routes from many networks (their **peers**) and record what they receive. The RIPE NCC's **Routing Information Service (RIS)** runs collectors around the world. RRC00 in Amsterdam, for example, is listed as a "multihop" collector with global scope. Its documentation says full-table dumps "are created every 8 hours, and updates are created every 5 minutes". Every file goes into a public archive at \`data.ris.ripe.net\`.
+
+**RIPEstat** is the RIPE NCC's query service over that data and more. Its data API answers in JSON, one endpoint per question: \`https://stat.ripe.net/data/<endpoint>/data.json?resource=…\`. This module uses four endpoints:
+
+- **\`network-info\`**: "the containing prefix and announcing ASN of a given IP address, based on information from RIPE RIS".
+- **\`rpki-validation\`**: the RPKI state of one origin AS and one prefix.
+- **\`routing-history\`**: which origins announced a prefix, over which periods.
+- **\`bgp-updates\`**: individual BGP update messages (Drill 3).
+
+Every answer is "as RIS peers saw it". In the lab's history reply, \`latest_max_ff_peers\` was 330 for IPv4: 330 full-table peers. That is a large sample of the internet's routing, not the whole of it.
+
+#### Step 1 — routing: which route, which origin
+
+\`network-info\` for \`1.1.1.1\` returns \`1.1.1.0/24\` and one origin, \`13335\`. Write both down with the time you asked, because routing changes. If the reply lists two origins, say so, and check each one separately. Don't pick the one you expected.
+
+#### Step 2 — registration: who holds the block, who holds the AS
+
+As in S1.2, the IANA registries tell you which RIR to ask, and RDAP gives you the record. IANA lists \`1.0.0.0/8\` as APNIC's (allocated 2010-01), and the AS range 13312–15359 as ARIN's. The two RDAP records say:
+
+- \`1.1.1.0 - 1.1.1.255\`, name \`APNIC-LABS\`, registrant **APNIC Research and Development**, with the remark "Routed globally by AS13335/Cloudflare".
+- \`AS13335\`, name \`CLOUDFLARENET\`, registrant **Cloudflare, Inc.**
+
+So the holder of the addresses and the network that routes them are different organisations, and the registry says so in the record itself. Most records will not be that helpful. Read what the record says, and do not fill the gap by assuming.
+
+#### Step 3 — authorisation: RPKI and route origin validation
+
+**RPKI** lets the holder of an address block sign a **ROA**: "this AS may originate this prefix, up to this length". RFC 9582 defines \`maxLength\` as "the maximum length of the IP address prefix that the AS is authorized to advertise". Networks that check routes against ROAs are doing **route origin validation**. RFC 6811 gives a route exactly one of three states:
+
+- **Valid**: "At least one VRP Matches the Route Prefix." (A VRP is a validated ROA payload.)
+- **Invalid**: "At least one VRP Covers the Route Prefix, but no VRP Matches it."
+- **NotFound**: "No VRP Covers the Route Prefix."
+
+RIPEstat uses its own labels. Its documentation lists \`valid\`, \`invalid_asn\` (a ROA covers the prefix "but a different ASN"), \`invalid_length\` ("prefix length is greater than the ROA's maximum length") and \`unknown\` ("no ROA found"). Two traps:
+
+- RIPEstat's \`unknown\` is RFC 6811's **NotFound**: no ROA exists. It does not mean the check failed. In your notes, write the RFC state, and keep "unknown" for "I could not find out".
+- The sub-label gives one reason, not every reason. RIPEstat labels \`1.1.1.1/32\` from AS267613 \`invalid_length\`, the same label it gives the same /32 from Cloudflare's own AS13335. The wrong origin is not mentioned.
+
+For \`1.1.1.0/24\` from AS13335, the lab's answer is \`valid\`, against one ROA with maximum length 24.
+
+#### Step 4 — history: buckets, not dates
+
+\`routing-history\` summarises 26 years of RIS data into periods. Read three things before you quote it:
+
+- **The bucket size.** The reply's \`time_granularity\` field was 1,036,800 seconds, 12 days, for the lab's 26-year window. Each period starts and ends on a bucket boundary, so "AS13335 first appears in the bucket starting 2018-03-14" does **not** mean it started on 14 March. Ask about a shorter window and the buckets shrink: Drill 1 narrows it to eight hours.
+- **The filter.** The endpoint's \`min_peers\` parameter defaults to 10 and, in the documentation's words, "Excludes low-visibility/localized announcements". A route seen by only a few peers is left out unless you ask for it.
+- **The neighbours.** A query for \`1.1.1.0/24\` also returns less-specific routes (\`1.0.0.0/8\`, even \`0.0.0.0/1\`) and more-specific ones (\`1.1.1.1/32\`). Filter to the exact prefix before you count.
+
+In the lab, 33 other origins announced \`1.1.1.0/24\` before AS13335 did, 14 of them in buckets that began before January 2010, the month IANA allocated \`1.0.0.0/8\` to APNIC. Cloudflare itself calls 1.1.1.1 "such a recognizable and historically misappropriated address". Why each of those networks announced it is a separate question, and the routing record does not answer it.
+
+#### What routing records cannot tell you
+
+- **Who runs the machine, or where it is.** An origin AS is a network, not a building. 1.1.1.1 is anycast: Cloudflare writes that a request normally "routes to the nearest data center via BGP anycast". One address, many places.
+- **What everyone saw.** RIS records what its peers sent it. A route kept within one region may reach no RIS peer, and \`min_peers\` hides one that reached only a few.
+- **That a valid route took the right path.** Route origin validation checks the origin and the length. It does not check the path. RFC 7908 defines a route leak as "the propagation of routing announcement(s) beyond their intended scope". A leaked route still carries the right origin, so it can be RPKI-valid. The case study shows one.
+- **Intent.** A hijack and a misconfiguration can produce the same announcement. The routing data shows what was announced, not why.
+- **That nothing happened.** An empty answer may mean a quiet network, or a gap in the data. Drill 3 finds a month where RIPEstat returns nothing, and builds a checker that says UNKNOWN instead of "quiet".
+
+#### Lawful and polite collection
+
+Everything in this module goes to registries and to RIPEstat. Nothing goes to the address you are asking about. That keeps it passive in the S1.1 sense. \`ping\`, \`traceroute\` and port scans are different. They send packets to the target and through the networks in between, so they are active steps and out of scope here.
+
+RIPEstat's rules of usage say there is "No limit on the amount of requests", but ask you to register "if you plan to regularly do more than 1000 requests/day", and state that "The system limits the usage to 8 concurrent (at the same time) requests coming from one IP address". They also ask regular users to add a \`sourceapp\` parameter, "alphanumeric values with no whitespace", so they can help when something breaks. The lab sends one request at a time, pauses between them, and identifies itself as \`cyberscouts-lab\`.
+
+#### Your own network
+
+Run the same three questions on your own public address: the prefix and origin from \`network-info\`, the block's holder and the AS holder over RDAP, and the ROA state. The first two usually name your ISP, but not always the same company. Write each answer down with its record and time, and log the requests that fail as well as the ones that succeed.`,
+    lab: {
+      mac: `# LAB: who holds 1.1.1.1, who routes it, and is the route authorised? Three records, three answers (Apple Silicon)
+# ETHICS: five requests: three to RIPEstat (the RIPE NCC's public routing data) and one each to
+# the APNIC and ARIN RDAP services. Nothing is sent to 1.1.1.1 or to any network on the way to it.
+# No person is involved: 1.1.1.1 is a public DNS resolver, and contact records are not read.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+APP=cyberscouts-lab                    # RIPEstat's 'sourceapp' label: says who is asking
+mkdir -p ~/scouts-case/s2_2 && cd ~/scouts-case/s2_2 || exit 1
+rm -rf evidence collection_log.tsv SHA256SUMS && mkdir evidence     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.2 network ownership
+question:     Who holds the address 1.1.1.1, which network announces it, is that announcement
+              authorised - and since when, as the RIPE NCC's route collectors saw it?
+authorised:   self (public registry and routing records about a public DNS resolver)
+in scope:     APNIC and ARIN RDAP records; RIPEstat network-info, rpki-validation and
+              routing-history (fixed window 2000-08-01 to 2026-09-01, UTC)
+out of scope: any packet to 1.1.1.1 (ping, traceroute, DNS queries, port scans); the people
+              named in contact records
+SCOPE
+
+# 2. Collect through one door. Every request is logged with its HTTP status, success or not.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id url
+  local f="evidence/$1.json" T C H
+  sleep 2                                            # one request at a time, paced
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -m 120 -A "$UA" -o "$f" -w '%{http_code}' "$2")
+  if [ "$C" = 200 ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=FAILED; rm -f "$f"; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$2" "$C" "$H" >> collection_log.tsv
+  echo "$1  HTTP $C  $(echo "$H" | cut -c1-12)"
+  [ "$C" = 200 ] || { echo "STOP: $1 failed (HTTP $C) - it is in the log; try again later"; exit 1; }
+}
+ok() { [ "$(jq -r '.status' "evidence/$1.json" 2>/dev/null)" = ok ] || { echo "UNKNOWN: $1 is not a RIPEstat answer with status ok"; exit 2; }; }
+
+# 3. Routing: which prefix covers 1.1.1.1 in the global table, and which AS originates it?
+collect item001 "https://stat.ripe.net/data/network-info/data.json?resource=1.1.1.1&sourceapp=\${APP}"
+ok item001
+PFX=$(jq -r '.data.prefix // empty' evidence/item001.json)
+ORIG=$(jq -r '.data.asns | join(",")' evidence/item001.json)
+[ -n "$PFX" ] || { echo "UNKNOWN: RIS sees no route covering 1.1.1.1 - not the same as 'no owner'"; exit 2; }
+[ "$ORIG" = 13335 ] || { echo "UNKNOWN: origin is now '$ORIG'; this lab's registry choices assume AS13335"; exit 2; }
+echo "routed: 1.1.1.1 is inside $PFX, originated by AS$ORIG"
+
+# 4. Registration: who holds the address block, and who holds the AS number? (RDAP, as in S1.2)
+collect item002 "https://rdap.apnic.net/ip/1.1.1.1"                 # IANA lists 1.0.0.0/8 as APNIC's
+collect item003 "https://rdap.arin.net/registry/autnum/\${ORIG}"     # IANA gave 13312-15359 to ARIN
+fn() { jq -r '[.entities[]? | select(.roles | index("registrant")) | .vcardArray[1][] | select(.[0] == "fn") | .[3]] | first // "?"' "evidence/$1.json"; }
+reg() { jq -r '[.events[]? | select(.eventAction == "registration") | .eventDate] | first // "?"' "evidence/$1.json"; }
+echo "block:  $(jq -r '"\\(.startAddress)-\\(.endAddress) \\(.name)"' evidence/item002.json)  registrant: $(fn item002)  registered: $(reg item002)"
+echo "remark: $(jq -r '[.remarks[]?.description[]?] | map(select(test("Routed"))) | first // "(none)"' evidence/item002.json)"
+echo "AS:     AS$ORIG $(jq -r '.name' evidence/item003.json)  registrant: $(fn item003)  registered: $(reg item003)"
+
+# 5. Authorisation: does a signed ROA allow this origin to announce this prefix at this length?
+collect item004 "https://stat.ripe.net/data/rpki-validation/data.json?resource=AS\${ORIG}&prefix=\${PFX}&sourceapp=\${APP}"
+ok item004
+jq -r '"rpki:   \\(.data.status)  " + ([.data.validating_roas[] | "ROA AS\\(.origin) \\(.prefix) max length \\(.max_length)"] | join("; "))' evidence/item004.json
+
+# 6. History: which origins announced this exact prefix over 26 years? Fixed window = repeatable.
+collect item005 "https://stat.ripe.net/data/routing-history/data.json?resource=\${PFX}&starttime=2000-08-01T00:00:00&endtime=2026-09-01T00:00:00&sourceapp=\${APP}"
+ok item005
+(cd evidence && shasum -a 256 item0* > ../SHA256SUMS)
+jq -r --arg p "$PFX" --arg o "$ORIG" '
+  .data as $d
+  | [$d.by_origin[] | .origin as $a | .prefixes[] | select(.prefix == $p) | .timelines[] | {a: $a, s: .starttime}] as $t
+  | ([$t[] | select(.a == $o) | .s] | min) as $first
+  | "bucket: \\($d.time_granularity / 86400) days (time_granularity \\($d.time_granularity) s)",
+    "other prefixes in the reply (less or more specific): \\([$d.by_origin[].prefixes[].prefix | select(. != $p)] | unique | join(" "))",
+    "origins of \\($p) before AS\\($o) first appears: \\([$t[] | select(.s < $first) | .a] | unique | length)",
+    "AS\\($o) first appears in the bucket starting \\($first)"' evidence/item005.json
+
+# 7. The finding: three answers, each tied to its record - and two tempting sentences that are wrong.
+FIRST=$(jq -r --arg p "$PFX" --arg o "$ORIG" '[.data.by_origin[] | select(.origin == $o) | .prefixes[] | select(.prefix == $p) | .timelines[].starttime] | min' evidence/item005.json)
+echo "tempting: '1.1.1.1 is registered to Cloudflare' - WRONG: the registrant is $(fn item002)"
+echo "tempting: 'AS$ORIG began announcing $PFX on \${FIRST%%T*}' - WRONG: that is the start of a bucket"
+echo "finding:  held by $(fn item002) (APNIC); announced by AS$ORIG ($(fn item003)) as RIS saw it on $(date -u +%F);"
+echo "          the announcement is RPKI $(jq -r '.data.status' evidence/item004.json); first seen in the bucket from \${FIRST%%T*}"`,
+      windows: `# PowerShell 7.5 or later - the same three questions and the same history, with native cmdlets.
+# 7.5 adds ConvertFrom-Json -DateKind String, which keeps dates exactly as the records write them.
+# ETHICS: five requests: three to RIPEstat, one each to the APNIC and ARIN RDAP services.
+# Nothing is sent to 1.1.1.1. Not run on Windows when this module was written: compare your
+# output with the macOS one.
+$Analyst = "analyst01"; $UA = "CyberScoutsLab/1.0"; $App = "cyberscouts-lab"
+$Case = "$HOME\\scouts-case\\s2_2"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory evidence | Out-Null
+
+@"
+case:         S2.2 network ownership
+question:     Who holds the address 1.1.1.1, which network announces it, is that announcement
+              authorised - and since when, as the RIPE NCC's route collectors saw it?
+authorised:   self (public registry and routing records about a public DNS resolver)
+in scope:     APNIC and ARIN RDAP records; RIPEstat network-info, rpki-validation and
+              routing-history (fixed window 2000-08-01 to 2026-09-01, UTC)
+out of scope: any packet to 1.1.1.1 (ping, traceroute, DNS queries, port scans); the people
+              named in contact records
+"@ | Set-Content scope.txt
+
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content collection_log.tsv
+function Collect($Id, $Url) {
+  $f = "evidence\\$Id.json"; Start-Sleep -Seconds 2
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  try {
+    $r = Invoke-WebRequest -Uri $Url -UserAgent $UA -OutFile $f -PassThru -SkipHttpErrorCheck -TimeoutSec 120
+    $C = [int]$r.StatusCode
+  } catch { $C = 0 }
+  if ($C -eq 200) { $H = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower() } else { $H = "FAILED"; Remove-Item $f -ErrorAction SilentlyContinue }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$C\`t$H" | Add-Content collection_log.tsv
+  Write-Host "$Id  HTTP $C  $($H.Substring(0, [Math]::Min(12, $H.Length)))"   # to the screen, not the return value
+  if ($C -ne 200) { throw "STOP: $Id failed (HTTP $C) - it is in the log; try again later" }
+  Get-Content $f -Raw | ConvertFrom-Json -DateKind String
+}
+function Ok($J, $Id) { if ($J.status -ne "ok") { throw "UNKNOWN: $Id is not a RIPEstat answer with status ok" } }
+function Registrant($J) {
+  $e = $J.entities | Where-Object { $_.roles -contains "registrant" } | Select-Object -First 1
+  ($e.vcardArray[1] | Where-Object { $_[0] -eq "fn" } | Select-Object -First 1)[3]
+}
+function Registered($J) { ($J.events | Where-Object eventAction -eq "registration" | Select-Object -First 1).eventDate }
+
+# Routing
+$ni = Collect item001 "https://stat.ripe.net/data/network-info/data.json?resource=1.1.1.1&sourceapp=$App"
+Ok $ni item001
+$Pfx = $ni.data.prefix; $Orig = ($ni.data.asns -join ",")
+if (-not $Pfx) { throw "UNKNOWN: RIS sees no route covering 1.1.1.1 - not the same as 'no owner'" }
+if ($Orig -ne "13335") { throw "UNKNOWN: origin is now '$Orig'; this lab's registry choices assume AS13335" }
+"routed: 1.1.1.1 is inside $Pfx, originated by AS$Orig"
+
+# Registration (RDAP, as in S1.2)
+$ip = Collect item002 "https://rdap.apnic.net/ip/1.1.1.1"
+$as = Collect item003 "https://rdap.arin.net/registry/autnum/$Orig"
+"block:  $($ip.startAddress)-$($ip.endAddress) $($ip.name)  registrant: $(Registrant $ip)  registered: $(Registered $ip)"
+"remark: $(($ip.remarks.description | Where-Object { $_ -match 'Routed' } | Select-Object -First 1))"
+"AS:     AS$Orig $($as.name)  registrant: $(Registrant $as)  registered: $(Registered $as)"
+
+# Authorisation
+$rv = Collect item004 "https://stat.ripe.net/data/rpki-validation/data.json?resource=AS$Orig&prefix=$Pfx&sourceapp=$App"
+Ok $rv item004
+"rpki:   $($rv.data.status)  " + (($rv.data.validating_roas | ForEach-Object { "ROA AS$($_.origin) $($_.prefix) max length $($_.max_length)" }) -join "; ")
+
+# History, fixed window
+$rh = Collect item005 "https://stat.ripe.net/data/routing-history/data.json?resource=$Pfx&starttime=2000-08-01T00:00:00&endtime=2026-09-01T00:00:00&sourceapp=$App"
+Ok $rh item005
+Get-ChildItem evidence\\item0* | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content SHA256SUMS
+$t = foreach ($o in $rh.data.by_origin) { foreach ($p in $o.prefixes) { if ($p.prefix -eq $Pfx) {
+  foreach ($x in $p.timelines) { [pscustomobject]@{ a = $o.origin; s = $x.starttime } } } } }
+$First = ($t | Where-Object a -eq $Orig | Sort-Object s | Select-Object -First 1).s
+$others = $rh.data.by_origin.prefixes.prefix | Where-Object { $_ -ne $Pfx } | Sort-Object -Unique
+"bucket: $($rh.data.time_granularity / 86400) days (time_granularity $($rh.data.time_granularity) s)"
+"other prefixes in the reply (less or more specific): $($others -join ' ')"
+"origins of $Pfx before AS$Orig first appears: $(($t | Where-Object { $_.s -lt $First } | Select-Object -ExpandProperty a -Unique).Count)"
+"AS$Orig first appears in the bucket starting $First"
+
+$Day = $First.Substring(0, 10)
+"tempting: '1.1.1.1 is registered to Cloudflare' - WRONG: the registrant is $(Registrant $ip)"
+"tempting: 'AS$Orig began announcing $Pfx on $Day' - WRONG: that is the start of a bucket"
+"finding:  held by $(Registrant $ip) (APNIC); announced by AS$Orig ($(Registrant $as)) as RIS saw it on $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd'));"
+"          the announcement is RPKI $($rv.data.status); first seen in the bucket from $Day"`,
+      linux: `# Identical to macOS with one substitution, in the lab and in the drills:
+#   sha256sum            instead of  shasum -a 256
+# Everything else (curl, jq, python3, awk) behaves the same. Install jq from your
+# distribution's packages if it is missing (for example: sudo apt install jq).`,
+      expected: {
+        mac: `\`\`\`text
+item001  HTTP 200  736b9e4bfb8b
+routed: 1.1.1.1 is inside 1.1.1.0/24, originated by AS13335
+item002  HTTP 200  1eef2c6f511f
+item003  HTTP 200  db4844676dfa
+block:  1.1.1.0-1.1.1.255 APNIC-LABS  registrant: APNIC Research and Development  registered: 2011-08-10T23:12:35Z
+remark: Routed globally by AS13335/Cloudflare
+AS:     AS13335 CLOUDFLARENET  registrant: Cloudflare, Inc.  registered: 2010-07-14T18:35:57-04:00
+item004  HTTP 200  9b41dee8dce8
+rpki:   valid  ROA AS13335 1.1.1.0/24 max length 24
+item005  HTTP 200  39122f101899
+bucket: 12 days (time_granularity 1036800 s)
+other prefixes in the reply (less or more specific): 0.0.0.0/1 0.0.0.0/3 1.0.0.0/8 1.1.0.0/16 1.1.1.0/30 1.1.1.1/32
+origins of 1.1.1.0/24 before AS13335 first appears: 33
+AS13335 first appears in the bucket starting 2018-03-14T00:00:00
+tempting: '1.1.1.1 is registered to Cloudflare' - WRONG: the registrant is APNIC Research and Development
+tempting: 'AS13335 began announcing 1.1.1.0/24 on 2018-03-14' - WRONG: that is the start of a bucket
+finding:  held by APNIC Research and Development (APNIC); announced by AS13335 (Cloudflare, Inc.) as RIS saw it on 2026-09-25;
+          the announcement is RPKI valid; first seen in the bucket from 2018-03-14
+\`\`\`
+
+Your hashes will differ, and so will the date in the last line. Every RIPEstat reply carries its own \`query_id\` and \`server_id\`. Even the two RDAP records changed bytes between two runs a minute apart: both registries listed one contact's roles as \`technical, administrative\` in one reply and \`administrative, technical\` in the next. Same facts, different bytes. A hash proves which copy you hold, not that the registry's record stayed the same. Work through it block by block:
+
+- **Five log lines, each with \`HTTP 200\`.** Open \`collection_log.tsv\`: every request is logged as it is made. After each RIPEstat reply the lab checks \`"status": "ok"\`, because a service can answer 200 and still report an error in its body.
+- **\`routed:\`** RIS peers see \`1.1.1.0/24\`, the most specific route covering 1.1.1.1, and one origin, AS13335. If there were two origins, the lab would stop with UNKNOWN rather than pick one.
+- **\`block:\`, \`remark:\` and \`AS:\`.** Three facts from two registries. The address block is registered to **APNIC Research and Development**, not to Cloudflare. APNIC's own remark says who routes it. The AS number is registered to Cloudflare, Inc., at ARIN. ARIN writes its dates with a US Eastern offset: \`18:35:57-04:00\` is 22:35:57 UTC.
+- **\`rpki:\`** One ROA, for AS13335, \`1.1.1.0/24\`, maximum length 24. The route RIS sees matches it, so the origin is authorised. A /25 or a /32 from AS13335 would not be.
+- **The history block.** Buckets of 12 days, across 26 years. The reply also holds six other prefixes, from \`0.0.0.0/1\` down to \`1.1.1.1/32\`, so the lab reads only the exact prefix. Before AS13335 appears, 33 other origins announced \`1.1.1.0/24\`.
+- **The two \`tempting\` lines and the finding.** Each wrong sentence reads one record as if it answered another question. The finding keeps the three answers apart, and gives the history as a bucket, not a date.`
+      }
+    },
+    caseStudy: {
+      title: "1.1.1.1, 27 June 2024 — a hijack, a leak, and what each record could show",
+      body: `On 27 June 2024, 1.1.1.1 became unreachable or slow for some of its users. On 4 July 2024, Cloudflare published an account by three of its engineers, Bryton Herdes, Mingwei Zhang and Tanner Ryan. It describes "a mix of BGP (Border Gateway Protocol) hijacking and a route leak". All times below are UTC and come from that account.
+
+- **18:51** — AS267613 (Eletronet) "begins announcing 1.1.1.1/32 to peers, providers, and customers", with itself as the origin.
+- **18:52** — AS262504 (Nova) leaks \`1.1.1.0/24\`, which it had received from AS267613, to AS1031 (PEER 1 Global Internet Exchange), with the AS path \`1031 262504 267613 13335\`. The same minute, a tier 1 provider accepts the /32 as a blackhole route and discards traffic for 1.1.1.1 from all its customers.
+- **28 June, 02:28** — AS262504 "fully resolves the route leak".
+
+Cloudflare puts the reach at "over 300 networks in 70 countries", although, it adds, the share of users affected was "quite low (less than 1% of users in the UK and Germany, for example)".
+
+**Read it with this module's three questions.**
+
+- *Registration.* Nothing changed. The block was APNIC's and the AS number was Cloudflare's, before, during and after.
+- *Routing.* Two different failures. The /32 was a hijack: another network originated the address, and because a /32 is more specific than the /24, every router that accepted it sent 1.1.1.1's traffic there. The /24 was a leak. Its origin was still AS13335, but it travelled a path it should not have.
+- *Authorisation.* Cloudflare notes that the ROA "is only signed for origin AS13335 (Cloudflare) with a maximum prefix length of /24". Asked today, RIPEstat rates AS267613 announcing \`1.1.1.1/32\` as \`invalid_length\`, and AS13335 announcing \`1.1.1.0/24\` as \`valid\`. So route origin validation could have rejected the hijack. The leak was different: its origin was AS13335, so it passed. Nothing in the ROA describes the path.
+
+**What the public data shows, and what it does not.** Cloudflare's evidence came from the Route Views project's collectors, which recorded two networks receiving \`1.1.1.1/32\` from AS267613, and from Cloudflare's own monitoring. Ask RIPEstat's \`bgp-updates\` about \`1.1.1.0/24\` for that evening and it returns zero updates. It returns zero for Google's \`8.8.8.0/24\` as well. For \`1.1.1.0/24\`, every window tried in June 2024 came back empty. The service's own availability note claims coverage from 1 January 2024. The archive's raw file for 18:50 that evening exists. So the zero is a gap in the service's answer, not evidence that RIS saw nothing. Drill 3 turns that into a rule.
+
+**What it does not settle.** Why AS267613 announced the /32. Cloudflare describes 1.1.1.1 as "such a recognizable and historically misappropriated address that it tends to be more prone to accidental hijacks or leaks", and says the /24 was "erroneously leaked". It does not say the hijack was deliberate, and the routing data cannot. An origin AS in an announcement tells you what was announced, not who meant what.
+
+**The lesson for your own work.** Give each answer its own record and its own time: holder from the registry, origin from a named collector's view, authorisation from the ROA state with the date you asked. A valid ROA state does not mean the path was right. Before you write "no updates", check that the data exists for that window. And a victim's account, however detailed, is one side: for anything it alone asserts, write "Cloudflare reports".`
+    },
+    challenges: [{
+      q: `A colleague's draft reads: "The attacker's IP address, 203.0.113.45, belongs to Example Hosting Ltd, so Example Hosting carried out the attack." List every step that sentence skips.`,
+      a: `At least four. (1) Which record says "belongs to"? The RDAP registrant of the block, the origin AS of the route and the holder of that AS can be three different organisations. Name the one you mean. (2) When? Routing changes, and blocks are reassigned. The record must be from the time of the attack, not today. (3) A holder or origin network is not the person at the keyboard. Hosting providers rent addresses to customers, and the address may belong to a compromised machine or a proxy. (4) The address itself came from a log. Say whose log, and whether it could have been spoofed or relayed. A defensible note reads: "On <date> (UTC), RIS peers saw 203.0.113.0/24 originated by ASnnnn (RIPEstat network-info, item00N). The block is registered to <registrant> (RDAP, item00N). Who used the address at <time> is not established." (203.0.113.0/24 is a documentation range, so a real query would find nothing. That is the point of using it here.)`
+    }, {
+      q: `RIPEstat says a route is RPKI "valid". Your draft concludes: "so the traffic reached the legitimate network." What is wrong?`,
+      a: `Route origin validation checks two things: the origin AS, and the prefix length against the ROA's maximum. It does not check the path. A leaked route keeps its original origin, so it is still valid, as \`1.1.1.0/24\` was on 27 June 2024 when it travelled through AS262504 and AS1031. The state also belongs to the moment you asked, not the moment of the event, because ROAs can be created, changed and deleted. Write: "On <date>, RIPEstat's rpki-validation rated AS13335 / 1.1.1.0/24 valid against a ROA with max length 24." Leave the path as a separate question, answered from AS paths in a named collector's data.`
+    }, {
+      q: `You need to know whether a prefix was hijacked last Tuesday. RIPEstat's routing-history for that week shows only the legitimate origin. Can you write "no hijack occurred"?`,
+      a: `No. The history summarises the data into buckets, and by default drops routes seen by fewer than 10 full-feed peers (\`min_peers\`). An event shorter than a bucket, or seen by few peers, can be missing. Drill 2 shows a two-hour hijack from 2008 that the summary misses entirely. Ask again with \`min_peers=0\`, then check \`bgp-updates\` or the raw RIS update files for the window, with a control prefix, so an empty answer can be told apart from missing data. Even then, the finding is limited to what RIS peers saw: "No announcement of <prefix> by another origin was recorded by RIS between <start> and <end> (UTC)." A hijack confined to one region may not reach any collector.`
+    }],
+    quiz: ["Name the three questions this module asks about an IP address, and the record that answers each.", "Who is the RDAP registrant of 1.1.1.0/24, and which AS originates it in BGP? Why is it not a contradiction?", "What is an origin AS, and why is it a claim rather than proof?", "Give RFC 6811's three validation states. What does RIPEstat's label 'unknown' correspond to, and why should you not copy it into your notes as 'unknown'?", "Why can a leaked route be RPKI-valid?", "A routing-history reply says a route's first period starts on 14 March 2018. Why is 'the route started on 14 March 2018' wrong?", "What does routing-history's min_peers parameter default to, and what does that default hide?", "The bgp-updates query returns zero updates for your prefix. What must you check before writing 'no updates'?"],
+    workbench: `> **What this trains.** The lab read one answer from each record. Here you meet the ways those answers mislead: a bucket read as a date, a summary that missed a whole event, and an empty reply read as "nothing happened".
+
+#### 🟢 Drill 1 — narrow the bucket ~6 min
+
+**Goal.** The lab's history says AS13335 first appears in a 12-day bucket starting 14 March 2018. Ask again for March and April 2018 only, once with the default filter and once with \`min_peers=0\`. Two requests.
+
+**Done when.** You can say when AS13335's announcement first appears, to the nearest bucket, and what the default filter hid.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_2 || exit 1
+UA="CyberScoutsLab/1.0"; APP=cyberscouts-lab
+W="starttime=2018-03-01T00:00:00&endtime=2018-04-30T00:00:00"
+for mp in 10 0; do
+  sleep 2
+  curl -s -m 120 -A "$UA" -o "d1_mp$mp.json" -w "min_peers=$mp HTTP %{http_code}\\n" \\
+    "https://stat.ripe.net/data/routing-history/data.json?resource=1.1.1.0/24&\${W}&min_peers=\${mp}&sourceapp=\${APP}"
+  jq -r '"  bucket \\(.data.time_granularity / 3600) h",
+    (.data.by_origin[] | .origin as $o | .prefixes[] | select(.prefix == "1.1.1.0/24")
+     | "  AS\\($o) first bucket \\(.timelines[0].starttime) seen by \\(.timelines[0].full_peers_seeing) peers")' "d1_mp$mp.json"
+done
+\`\`\`
+
+\`\`\`text
+min_peers=10 HTTP 200
+  bucket 8 h
+  AS13335 first bucket 2018-03-20T08:00:00 seen by 162.0 peers
+min_peers=0 HTTP 200
+  bucket 8 h
+  AS13335 first bucket 2018-03-20T08:00:00 seen by 162.0 peers
+  AS28191 first bucket 2018-03-31T16:00:00 seen by 4 peers
+\`\`\`
+
+A two-month window gives eight-hour buckets. AS13335 first appears in the one starting at **08:00 UTC on 20 March 2018**, six days after the start of the bucket the lab printed. That is still a window, not a moment: the route was in the RIS view during that bucket, and it was not in the one before. To go finer you need the raw update files (Drill 2).
+
+\`full_peers_seeing\` comes back as \`162.0\`, not a whole number, because it is summarised over the bucket. The second request shows what the default hides. With \`min_peers=0\`, a second origin appears, AS28191, in one bucket on 31 March, seen by only 4 full-feed peers. The documentation says the default of 10 "Excludes low-visibility/localized announcements". Whether that route mattered is a question for other sources. What matters here is that the default view did not show it, and your notes should say which filter you used.
+</details>
+
+#### 🟡 Drill 2 — the event the summary missed ~10 min
+
+**Goal.** On 24 February 2008, Pakistan Telecom (AS17557) announced \`208.65.153.0/24\`, part of YouTube's address space. RIPE NCC's case study dates the start to 18:47 UTC and the end, when PCCW Global (AS3491) withdrew the route, to 21:01 UTC. Look for it in RIPEstat's history with no peer filter, then in the raw RIS file from RRC00 for 18:45–18:50 UTC. Two requests, one of them a 22 KB file.
+
+**Done when.** You can say why the summary shows no AS17557, and what the raw file shows instead.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_2 || exit 1
+UA="CyberScoutsLab/1.0"; APP=cyberscouts-lab; P=208.65.153.0/24
+# 1. The summary: every origin of the exact prefix, 24-25 Feb 2008, with no peer filter.
+curl -s -m 120 -A "$UA" -o d2_summary.json -w "summary HTTP %{http_code}\\n" \\
+  "https://stat.ripe.net/data/routing-history/data.json?resource=\${P}&starttime=2008-02-24T00:00:00&endtime=2008-02-25T12:00:00&min_peers=0&sourceapp=\${APP}"
+jq -r --arg p "$P" '.data.by_origin[] | .origin as $o | .prefixes[] | select(.prefix == $p)
+  | "  AS\\($o) from \\(.timelines[0].starttime)"' d2_summary.json
+# 2. The source: RRC00's raw update file for 18:45-18:50 UTC that evening (22 KB).
+sleep 2
+curl -s -m 120 -A "$UA" -o d2_updates.gz -w "raw file HTTP %{http_code}\\n" \\
+  "https://data.ris.ripe.net/rrc00/2008.02/updates.20080224.1845.gz"
+shasum -a 256 d2_updates.gz | cut -c1-16
+cat > mrt_origins.py <<'PY'
+# Read an MRT file of BGP updates (RFC 6396) and print every announcement of one prefix.
+import gzip, struct, sys, ipaddress, datetime
+def nlri(b, i, end):                               # a packed list of IPv4 prefixes
+    out = []
+    while i < end:
+        n = b[i]; k = (n + 7) // 8
+        out.append("%s/%d" % (ipaddress.IPv4Address(bytes(b[i+1:i+1+k]) + bytes(4 - k)), n)); i += 1 + k
+    return out
+data, want, i = gzip.open(sys.argv[1]).read(), sys.argv[2], 0
+while i < len(data):
+    ts, typ, sub, ln = struct.unpack("!IHHI", data[i:i+12]); rec = data[i+12:i+12+ln]; i += 12 + ln
+    if typ != 16 or sub not in (1, 4): continue    # BGP4MP_MESSAGE (2-byte AS) or _AS4
+    w = 4 if sub == 4 else 2                       # width of an AS number
+    if rec[2*w+2:2*w+4] != b"\\0\\1": continue       # IPv4 sessions only
+    j = 2*w + 4 + 8 + 16                           # skip ASes, ifindex, AFI, 2 addresses, marker
+    mlen, mtype = struct.unpack("!HB", rec[j:j+3]); m = rec[j+3:j+3+mlen-19]
+    if mtype != 2: continue                        # UPDATE messages only
+    wl = struct.unpack("!H", m[0:2])[0]; al = struct.unpack("!H", m[2+wl:4+wl])[0]
+    a, path = 4 + wl, []
+    while a < 4 + wl + al:                         # path attributes
+        flags, code = m[a], m[a+1]; ext = flags & 0x10
+        L = struct.unpack("!H", m[a+2:a+4])[0] if ext else m[a+2]; v = a + (4 if ext else 3)
+        if code == 2:                              # AS_PATH: segments of AS numbers
+            s = v
+            while s < v + L:
+                n = m[s+1]; path += [int.from_bytes(m[s+2+k*w:s+2+(k+1)*w], "big") for k in range(n)]; s += 2 + n*w
+        a = v + L
+    t = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%H:%M:%S")
+    if want in nlri(m, 4 + wl + al, len(m)): print(t, path[-1] if path else "-", " ".join(map(str, path)))
+PY
+python3 mrt_origins.py d2_updates.gz "$P" > d2_announcements.txt
+echo "announcements of $P in this 5-minute file, by origin AS:"
+awk '{print "  AS" $2}' d2_announcements.txt | sort | uniq -c
+echo "first: $(head -1 d2_announcements.txt)"
+echo "last:  $(tail -1 d2_announcements.txt)"
+\`\`\`
+
+\`\`\`text
+summary HTTP 200
+  AS36561 from 2008-02-25T00:00:00
+raw file HTTP 200
+cc893c9c3b9431c2
+announcements of 208.65.153.0/24 in this 5-minute file, by origin AS:
+  27   AS17557
+first: 18:47:57 17557 3333 12859 6461 3491 17557
+last:  18:49:19 17557 6881 29208 3491 17557
+\`\`\`
+
+The summary lists only YouTube's own AS36561, from midnight. Pakistan Telecom is missing, even with \`min_peers=0\`. The raw file holds 27 announcements of the prefix in five minutes, every one ending \`3491 17557\`: PCCW Global passing on Pakistan Telecom's route. The first reached RRC00 at 18:47:57. The file's SHA-256 should start \`cc893c9c3b9431c2\` for you too. It is an archived file from 2008, so if your hash differs, log that and find out why before you use it.
+
+Why does the summary miss it? RIS's full-table dumps are taken every 8 hours. The archive's dumps for that day are stamped 07:59, 15:59 and 23:59, and the hijack ran from 18:47 to 21:01, between two of them. RIPE NCC's own 2008 write-up warns that a fresh event may not yet be "included in an RIS RIB dump". So a history built from snapshots can miss a two-hour event entirely. The update files do not. They record every message the collector received. That reason is our inference from those two documented facts. The result does not depend on it: the summary did not show the hijack, and the raw file did.
+
+\`mrt_origins.py\` is a minimal reader for one kind of MRT record (RFC 6396, type 16, subtypes 1 and 4, IPv4 only). It is enough for this file. For real work use a maintained parser, such as those listed in the RIS documentation.
+</details>
+
+#### 🔴 Drill 3 — an empty answer is not an answer ~10 min
+
+**Goal.** Build \`updates_check.sh PREFIX START END\`, which answers \`SEEN\`, \`QUIET\` or \`UNKNOWN\`. It asks \`bgp-updates\` twice: once for the prefix, and once for a busy control prefix (Google Public DNS's \`8.8.8.0/24\`) in the same window. Try it on three windows, one of them the evening of the case study.
+
+**Done when.** One \`SEEN\`, one \`QUIET\`, one \`UNKNOWN\` with exit code 2, and you can say why the third is not \`QUIET\`.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_2 || exit 1
+cat > updates_check.sh <<'SH'
+#!/bin/sh
+# updates_check.sh PREFIX START END - did RIS record BGP updates for PREFIX in the window?
+# Answers SEEN, QUIET or UNKNOWN. Zero is only "quiet" if a busy control prefix was not zero too.
+UA="CyberScoutsLab/1.0"; APP=cyberscouts-lab; CONTROL=8.8.8.0/24
+[ $# -eq 3 ] || { echo "usage: $0 PREFIX START END"; exit 64; }
+count() {  # prefix -> number of updates, or nothing if the query failed
+  sleep 2
+  curl -s -m 120 -A "$UA" "https://stat.ripe.net/data/bgp-updates/data.json?resource=$1&starttime=$2&endtime=$3&sourceapp=\${APP}" \\
+    | jq -r 'select(.status == "ok") | .data.nr_updates // empty' 2>/dev/null
+}
+N=$(count "$1" "$2" "$3"); C=$(count "$CONTROL" "$2" "$3")
+if [ -z "$N" ] || [ -z "$C" ]; then echo "UNKNOWN  $1  a query failed - nothing can be concluded"; exit 2
+elif [ "$N" -gt 0 ]; then echo "SEEN     $1  $N updates ($2 to $3)"
+elif [ "$C" -gt 0 ]; then echo "QUIET    $1  0 updates; control $CONTROL had $C in the same window"
+else echo "UNKNOWN  $1  0 updates, and 0 for control $CONTROL too - no data, not no events"; exit 2
+fi
+SH
+chmod +x updates_check.sh
+curl -s -m 60 "https://stat.ripe.net/data/bgp-updates/meta/availability" | jq -r '"declared: " + (.availability.available_timelines[0].starttime) + " onward"'
+./updates_check.sh 1.1.1.0/24 2026-09-01T00:00:00 2026-09-01T12:00:00
+./updates_check.sh 192.0.2.0/24 2026-09-01T00:00:00 2026-09-01T12:00:00
+./updates_check.sh 1.1.1.0/24 2024-06-27T18:00:00 2024-06-27T22:00:00
+\`\`\`
+
+\`\`\`text
+declared: 2024-01-01T00:00:00 onward
+SEEN     1.1.1.0/24  737 updates (2026-09-01T00:00:00 to 2026-09-01T12:00:00)
+QUIET    192.0.2.0/24  0 updates; control 8.8.8.0/24 had 29 in the same window
+UNKNOWN  1.1.1.0/24  0 updates, and 0 for control 8.8.8.0/24 too - no data, not no events
+\`\`\`
+
+\`192.0.2.0/24\` is TEST-NET-1, reserved for documentation (RFC 5737), so nobody should announce it. Zero updates while the control had 29 supports "quiet", as far as RIS saw. The third window is the case study's evening, when Cloudflare reports a hijack and a leak affecting 1.1.1.1. RIPEstat returns zero for \`1.1.1.0/24\` *and* for the control. Its availability endpoint says \`bgp-updates\` has data from 2024-01-01, but while this module was being built, every window tried in June 2024 came back empty, including the same prefix that returned 737 updates in twelve hours in September 2026. The archive's raw file for 18:50 that evening exists (6.4 MB), so the gap is in the query service's answer, not necessarily in RIS. A checker that printed "quiet" here would have written a false fact into the case file.
+</details>`,
+    tracker: ["Wrote the question and scope before the first request, with every packet to the target out of scope", "Ran the lab: five requests logged with HTTP status, each RIPEstat reply checked for status ok, SHA256SUMS written", "Can state holder, origin and authorisation for 1.1.1.1 separately, each with its record, and say why both 'tempting' lines are wrong", "Narrowed a 12-day bucket to 8 hours and found the origin the default filter hid (Drill 1)", "Found the 2008 hijack in a raw RIS update file after the summary missed it (Drill 2)", "Built a checker that answers UNKNOWN when a control shows the data is missing (Drill 3)"]
   }]
 };
 
