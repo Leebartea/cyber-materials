@@ -827,7 +827,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | S2.1 | Web archives: page history, and what a capture proves | ✅ available |
 | S2.2 | Network ownership: address blocks, AS numbers and routing | ✅ available |
 | S2.3 | Passive DNS: what a name used to resolve to | ✅ available |
-| — | Document and file metadata | planned |
+| S2.4 | Document and file metadata | ✅ available |
 | — | Image and video verification | planned |
 | — | Usernames and accounts, ethics first | planned |
 | — | Capstone: a multi-source pivot report | planned |
@@ -4844,6 +4844,653 @@ The same 38 records, graded twice. From COF: 35 seen over time and three single 
 The tempting fix is to read \`createdTimestamp\` instead, since that field holds numbers. Don't. The documentation says it "always returns 0", so you would be relying on a field whose meaning nobody has written down. For 93.184.216.34, the JSON view's \`createdTimestamp\` falls almost three days after the COF \`time_first\` for the same record (248,397 seconds). Use the format whose fields are defined, and let the grader say UNKNOWN for the one whose are not.
 </details>`,
     tracker: ["Wrote the question and scope before the first request, with every packet to example.com's own servers out of scope", "Ran the lab: eight requests logged with HTTP status, requests paced within the provider's limit, SHA256SUMS written", "Can read the example.com history as windows, and say why both 'tempting' lines are wrong", "Found the one IPv6 address stored as two strings, and merged it (Drill 1)", "Showed a count is a ceiling, and wrote the honest lower bound (Drill 2)", "Built a grader that answers UNKNOWN for records without real times (Drill 3)"]
+  }, {
+    id: "s2_4",
+    level: 2,
+    num: "S2.4",
+    title: "Document Metadata — What a File Says About Who Made It, and What That Proves",
+    objective: `Read the metadata inside a Word file straight from its parts: who (creator, lastModifiedBy), which program (Application, AppVersion) and when (created, modified, and each part's zip time). Treat every field as what the saving program wrote, not as a fact about a person. Tell a zone-stated time from a zone-less one and from the DOS zero that means no time. Show that any field can be rewritten without trace, and test each file's clock against an independent-looking one without mistaking agreement for proof. Keep names out of your output with pseudonyms, and know when a pseudonym can be reversed.`,
+    theory: `#### Why document metadata matters
+
+A document carries more than its text. Word, LibreOffice and PDF tools write names, dates, program versions and edit counts into the file, usually without asking. S1.6 read the metadata inside photos. This module reads the metadata inside office documents: what it says, who wrote each field, and what it can prove.
+
+The difficulty runs both ways. Metadata has exposed real authors, as in this module's case study. It is also just text that any program, or any person with five lines of Python, can write. A date inside a file is a claim, and the program that wrote it is its only witness.
+
+#### What a .docx carries
+
+A \`.docx\` (also \`.xlsx\`, \`.pptx\`) is a zip archive of XML files, called *parts*. \`unzip -l\` lists them. The ones this module reads:
+
+| Part | What it holds |
+|---|---|
+| \`docProps/core.xml\` | who and when: \`dc:creator\`, \`cp:lastModifiedBy\`, \`cp:revision\`, \`dcterms:created\`, \`dcterms:modified\` |
+| \`docProps/app.xml\` | which program: \`Application\`, \`AppVersion\`, \`TotalTime\` ("Total Edit Time" in Microsoft's Open XML SDK), \`Company\`, \`Template\` |
+| \`word/document.xml\` | the text itself |
+| \`word/settings.xml\` | settings, including Word's \`w:rsid\` values ("Single Session Revision Save ID") |
+| \`docProps/thumbnail.jpeg\` | a preview picture, when the saving program made one |
+
+python-docx's documentation gives the definitions. \`creator\` is "an entity primarily responsible for making the content". \`lastModifiedBy\` is "the user who performed the last modification. The identification is environment-specific. Examples include a name, email address, or employee ID." And \`revision\` "might indicate the number of saves or revisions, provided the application updates it after each revision". Every one of these is what the software was set to, or chose to write. None of them is a check on who was at the keyboard.
+
+A preview picture can outlive the content it showed. In this lab, \`thumbnail.jpeg\` has the same bytes in all five versions of the file, while the document around it changed.
+
+#### What a PDF carries
+
+A PDF keeps an *information dictionary* with \`Title\`, \`Author\`, \`Subject\`, \`Creator\` (for a converted file, the program that made the original), \`Producer\` (the program that converted it to PDF), \`CreationDate\` and \`ModDate\`. The pypdf documentation lists these fields and warns: "All the following could be None!" Dates are written like \`D:20030205155337+00'00'\`: the offset, with its apostrophes, is part of the value. A PDF can also hold the same facts again in an XMP block (pypdf reads both), and nothing forces the two copies to agree.
+
+PDFs can also be edited by **incremental update**. pypdf describes it: "the original document is written first and new/modified content is appended." The earlier version, and its metadata, can still be inside the file after the change. Removing a name from the visible properties does not always remove it from the bytes.
+
+(This module's lab uses Word files only. What you learn about claims, clocks and pseudonyms applies to PDFs unchanged.)
+
+#### Three clocks, three rules
+
+One \`.docx\` can hold three kinds of time. Each one needs its own rule before you compare them:
+
+| Clock | Example | Rule |
+|---|---|---|
+| \`dcterms:created\`, \`dcterms:modified\` | \`2013-08-14T00:12:00Z\` | W3C date-time: the zone is written ("Z" is UTC, or \`+hh:mm\` / \`-hh:mm\`) |
+| zip entry time, one per part | \`2014-12-13 12:26:00\` | MS-DOS format, "2 second precision", years "relative to 1980" (ZIP APPNOTE 6.3.10 §4.4.6). No zone: Python's \`zipfile\` reads it as local time |
+| git commit dates | \`Sat, 13 Dec 2014 12:28:15 -0800\` | an author date and a committer date, each with the committer computer's offset |
+
+Two traps come with this table. First, a zip time of \`1980-01-01 00:00\` is the lowest value the format can hold. Read it as "no time recorded", not as a date in 1980. Second, git's dates are also written by the committer's own computer: \`git commit\` takes them from \`GIT_AUTHOR_DATE\` and \`GIT_COMMITTER_DATE\` when those are set. They are a second witness, not an independent one.
+
+#### The file in this lab
+
+\`python-docx\` is an open-source Python library for writing Word files. Its repository has shipped a template, \`default.docx\`, since 2013, and GitHub keeps every published version. That makes it a document whose history you can check. You read five versions of the same file, each at a fixed commit:
+
+- **v1 and v2 (2013):** \`dc:creator\` is not a personal name: it names an organisation, not a program. \`lastModifiedBy\` in v2 is a personal name. The lab prints both only as pseudonyms.
+- **v4 (December 2014):** a commit titled "tmpl: change core props author to python-docx" replaces the creator. The old value is still in every earlier version, one download away.
+- **v3 and v5:** parts change while \`modified\` stays at 2013-12-23.
+
+#### Step 1 — the history, as git saw it
+
+The GitHub API lists the eight commits that touched the file. Four lines show a committer date later than the author date, one by four months: the change was written into history again later, for example by a rebase. Use the author date as "when the change was made", and remember that it too came from the author's computer.
+
+#### Step 2 — the files, read from their parts
+
+The lab reads \`core.xml\` and \`app.xml\` itself with Python's standard library, not through a viewer. What a viewer shows is its own summary: another program's reading of the field.
+
+#### Step 3 — what anyone can write
+
+The lab copies v5 and changes two values in \`core.xml\`: the creator becomes "Ada Lovelace" and the creation date 1843. Every other part, and every zip time, is copied unchanged. The copy has a new SHA-256, as any changed file does, and nothing in it records the edit. A hash proves that a file is the one you collected. It says nothing about whether the fields inside are true.
+
+#### Step 4 — the file's clock against the commit's clock
+
+\`modified\` sits within a day of the commit for v1 and v2, then days and years before it for v3 to v5. That is the lesson of v3: its \`document.xml\` changed and its zip entry for that part carries a new time, but \`modified\` did not move. Only the program that saves a file decides whether to update \`modified\`, and whatever wrote v3 did not.
+
+#### What document metadata cannot tell you
+
+- **Who typed it.** \`creator\` and \`lastModifiedBy\` are settings in the saving program: a user name, a licence name, a default. An organisation can set them once for every machine it manages.
+- **When it happened.** Every clock above is a local computer's clock, and each can be wrong or set by hand. Agreement between clocks one person controls shows consistency, not truth.
+- **That nothing was removed.** A missing field is missing: it may never have been written, or someone may have cleaned it. Report UNKNOWN, not "no author".
+- **What a hash cannot:** it fixes the bytes you collected. It does not vouch for a single field inside them.
+
+#### Pseudonymise what you do not need
+
+The question in this lab is about the file, not the people behind the names in it. The lab therefore prints a name only as \`person#\` and the first 8 hex digits of its SHA-256. The same name always gives the same tag, so you can still say "v1's creator is v2's creator" without printing either. Drill 2 shows the limit: a plain hash can be tested by anyone who can guess the name, so a real case uses a keyed hash, with the key kept out of the report.
+
+#### Lawful and polite collection
+
+As in S1.1: public, published documents; a question written before the first request; one logged door (\`collect()\`); paced requests (GitHub allows 60 unauthenticated API requests an hour); and no looking up the people whose names turn up. The files come from an MIT-licensed public repository.
+
+#### Your own documents
+
+Check what you publish before others do. In Word for Windows, Microsoft's Document Inspector is under File → Info → Check for Issues → Inspect Document. Microsoft recommends running it "on a copy of your original document, because it is not always possible to restore the data that the Document Inspector removes", and notes there is "some information that the Document Inspector cannot remove". Then look at the result the way this lab does: unzip it and read \`docProps/\`.`,
+    lab: {
+      mac: `# LAB: what a Word file says about who made it and when, and what that can and cannot prove (Apple Silicon)
+# ETHICS: six requests, all to GitHub: one to its API (the public commit history of one file) and five
+# downloads of that file, python-docx's default template (MIT licence), at five pinned commits.
+# Personal names found inside the files are pseudonymised, never printed. Step 6 edits a copy on
+# your disk only; nothing is uploaded.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s2_4 && cd ~/scouts-case/s2_4 || exit 1
+rm -rf evidence work collection_log.tsv SHA256SUMS && mkdir evidence work     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.4 document metadata
+question:     What do five published versions of one Word template say about who made them, with
+              what software and when, and which of those statements does independent evidence support?
+authorised:   self (a public open-source repository and its public history)
+in scope:     GitHub API commit list for docx/templates/default.docx up to commit 80740f2c; the file
+              itself at five commits; a local copy edited to test what metadata can prove
+out of scope: the people behind any name found in the files (pseudonymised, not looked up); any
+              other repository; any upload
+SCOPE
+
+# 2. Collect through one door. GitHub allows 60 unauthenticated API requests an hour: pace 2 s.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id extension url
+  local f="evidence/$1.$2" T C H
+  sleep 2
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -L -m 120 -A "$UA" -o "$f" -w '%{http_code}' "$3")
+  if [ "$C" = 200 ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=FAILED; rm -f "$f"; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$C" "$H" >> collection_log.tsv
+  echo "$1  HTTP $C  $(echo "$H" | cut -c1-12)"
+  [ "$C" = 200 ] || { echo "STOP: $1 failed (HTTP $C) - it is in the log; if 403, wait an hour"; exit 1; }
+}
+
+# 3. The file's history as git recorded it. Git keeps two dates: author (when the change was made)
+#    and committer (when it was last written into history, for example by a rebase). Both are set
+#    by the committer's own computer.
+collect item001 json "https://api.github.com/repos/python-openxml/python-docx/commits?path=docx/templates/default.docx&sha=80740f2c858da8f89fc4f2d699a2cfbdfe85d7e0&per_page=100"
+jq -e 'type == "array" and length > 0 and all(.[]; .commit.author.date and .commit.committer.date)' \\
+  evidence/item001.json > /dev/null || { echo "UNKNOWN: item001 is not a list of commits with dates"; exit 2; }
+echo "commits touching the file: $(jq length evidence/item001.json)  (author date, oldest first, UTC)"
+jq -r 'reverse[] | [.sha[0:8], .commit.author.date[0:16],
+  (if .commit.author.date == .commit.committer.date then "" else "committed \\(.commit.committer.date[0:10])" end),
+  (.commit.message | split("\\n")[0] | .[0:44])] | @tsv' evidence/item001.json \\
+  | awk -F'\\t' '{printf "  %s  %s  %-21s %s\\n", $1, $2, $3, $4}'
+
+# 4. Five versions of the file. Full commit ids: a branch name would move, a commit id cannot.
+collect v1 docx "https://raw.githubusercontent.com/python-openxml/python-docx/e75d056afd27360c0a40294d7a6b2401f1fe6885/docx/templates/default.docx"
+collect v2 docx "https://raw.githubusercontent.com/python-openxml/python-docx/c0281d6133fe23b61b1f9482178c210aab682339/docx/templates/default.docx"
+collect v3 docx "https://raw.githubusercontent.com/python-openxml/python-docx/629cadb2e006c34fd20f92196e1c0871f7cae5f5/docx/templates/default.docx"
+collect v4 docx "https://raw.githubusercontent.com/python-openxml/python-docx/215ecebacc4086e9215483ca7aa0115225d73d16/docx/templates/default.docx"
+collect v5 docx "https://raw.githubusercontent.com/python-openxml/python-docx/90fc91c7570c24fd983e63daef1036ac01d03193/docx/templates/default.docx"
+(cd evidence && shasum -a 256 item0* v*.docx > ../SHA256SUMS)
+
+# 5. Read the metadata straight from the parts, not through a viewer. A .docx is a zip file:
+#    docProps/core.xml (who, when), docProps/app.xml (which program), and each part's zip time.
+cat > work/meta.py <<'PY'
+import hashlib, json, sys, zipfile
+import xml.etree.ElementTree as ET
+NS = {"cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
+      "dc": "http://purl.org/dc/elements/1.1/", "dcterms": "http://purl.org/dc/terms/",
+      "ap": "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"}
+def field(root, path):
+    if root is None: return None
+    e = root.find(path, NS)
+    return None if e is None else (e.text or "")
+LABELS = {"python-docx"}  # values you checked are a product's name, not a person's: printed as they are
+def person(v):  # a pseudonym: equal names give equal tags, but the name is not printed
+    if v is None: return "(absent)"
+    if v == "": return "(empty)"
+    if v in LABELS: return "label:" + v
+    return "person#" + hashlib.sha256(v.encode()).hexdigest()[:8]
+out = {}
+for f in sys.argv[1:]:
+    try:
+        z = zipfile.ZipFile(f)
+        names = z.namelist()
+        core = ET.fromstring(z.read("docProps/core.xml")) if "docProps/core.xml" in names else None
+        app = ET.fromstring(z.read("docProps/app.xml")) if "docProps/app.xml" in names else None
+        doc = z.read("word/document.xml")
+    except (zipfile.BadZipFile, KeyError, ET.ParseError) as e:
+        print(f"UNKNOWN: {f} is not a readable .docx ({e})"); sys.exit(2)
+    zt = sorted({"%04d-%02d-%02d %02d:%02d:%02d" % i.date_time for i in z.infolist()})
+    out[f] = {"creator": person(field(core, "dc:creator")),
+              "lastModifiedBy": person(field(core, "cp:lastModifiedBy")),
+              "revision": field(core, "cp:revision"),
+              "created": field(core, "dcterms:created"), "modified": field(core, "dcterms:modified"),
+              "application": field(app, "ap:Application"), "appVersion": field(app, "ap:AppVersion"),
+              "totalTime": field(app, "ap:TotalTime"),
+              "zipTimes": ["1980-01-01 00:00:00 (DOS zero: no time)" if t.startswith("1980-01-01 00:00") else t for t in zt],
+              "fileSha256": hashlib.sha256(open(f, "rb").read()).hexdigest(),
+              "documentXmlSha256": hashlib.sha256(doc).hexdigest()}
+json.dump(out, open("work/meta.json", "w"), indent=1)
+for f, m in out.items():
+    print(f"{f.split('/')[-1]}  file {m['fileSha256'][:12]}  document.xml {m['documentXmlSha256'][:12]}")
+    print(f"   creator {m['creator']}  lastModifiedBy {m['lastModifiedBy']}  revision {m['revision']}")
+    print(f"   created {m['created']}  modified {m['modified']}")
+    print(f"   application {m['application']} {m['appVersion']}  totalTime {m['totalTime']} min")
+    print(f"   zip times (local, no zone): {', '.join(m['zipTimes'])}")
+PY
+python3 work/meta.py evidence/v1.docx evidence/v2.docx evidence/v3.docx evidence/v4.docx evidence/v5.docx || exit 2
+
+# 6. What can anyone write? Copy v5 and change only core.xml: a new creator and a date in 1843.
+#    Every other part is copied byte for byte, zip times included.
+python3 - <<'PY'
+import zipfile
+src, dst = zipfile.ZipFile("evidence/v5.docx"), zipfile.ZipFile("work/forged.docx", "w", zipfile.ZIP_DEFLATED)
+for i in src.infolist():
+    data = src.read(i)
+    if i.filename == "docProps/core.xml":
+        data = (data.decode().replace("<dc:creator>python-docx</dc:creator>", "<dc:creator>Ada Lovelace</dc:creator>")
+                .replace("2013-12-23T23:15:00Z</dcterms:created>", "1843-07-01T09:00:00Z</dcterms:created>")).encode()
+    dst.writestr(i, data)
+dst.close()
+PY
+python3 work/meta.py evidence/v5.docx work/forged.docx > work/forged.txt || exit 2
+jq -r '. as $m | ($m["evidence/v5.docx"]) as $a | ($m["work/forged.docx"]) as $b
+  | "forged copy: created \\($b.created), creator \\($b.creator) (was \\($a.creator))",
+    "  file SHA-256 same as v5?          \\($a.fileSha256 == $b.fileSha256)",
+    "  document.xml SHA-256 same as v5?  \\($a.documentXmlSha256 == $b.documentXmlSha256)",
+    "  zip times same as v5?             \\($a.zipTimes == $b.zipTimes)"' work/meta.json
+
+# 7. Each file's own clock against the commit that published it (git author date, UTC).
+python3 work/meta.py evidence/v1.docx evidence/v2.docx evidence/v3.docx evidence/v4.docx evidence/v5.docx > /dev/null || exit 2
+jq -r --slurpfile m work/meta.json '
+  {"v1":"e75d056a","v2":"c0281d61","v3":"629cadb2","v4":"215eceba","v5":"90fc91c7"} as $ids
+  | (map({key: .sha[0:8], value: .commit.author.date}) | from_entries) as $c
+  | $ids | to_entries[] | .key as $v | ($c[.value]) as $when | $m[0]["evidence/\\($v).docx"] as $x
+  | "  \\($v)  committed \\($when[0:16])Z  modified \\($x.modified[0:16])Z  (\\((($when | fromdate) - ($x.modified | fromdate)) as $d | if $d < 172800 then "\\($d / 360 | floor / 10) hours" else "\\($d / 8640 | floor / 10) days" end) later)"' evidence/item001.json
+
+# 8. The finding - and three tempting sentences that the files do not support.
+m() { jq -r --arg f "evidence/$1.docx" --arg k "$2" '.[$f][$k] | if type == "array" then join(", ") else . end' work/meta.json; }
+echo "tempting: 'the template was created on $(m v2 created | cut -c1-10)' - WRONG: v1 says $(m v1 created | cut -c1-10); something rewrote 'created' in between"
+echo "tempting: 'v3 was last modified on $(m v3 modified | cut -c1-10)' - WRONG: its document.xml differs from v2's"
+echo "          (zip time $(m v3 zipTimes | tr ',' '\\n' | grep -v 'DOS zero' | head -1 | tr -d ' ' | cut -c1-10)) and 'modified' did not move"
+echo "tempting: '$(m v1 creator) wrote the template' - WRONG: 'creator' is whatever name the saving program was set to"
+echo "finding:  five versions, one file. $(m v1 creator) as creator in v1-v3 became $(m v4 creator) in v4, in the commit"
+echo "          '$(jq -r '.[] | select(.sha | startswith("215eceba")) | .commit.message | split("\\n")[0]' evidence/item001.json)'."
+echo "          Every version names $(m v5 application) $(m v5 appVersion) as the application, even v4 and v5,"
+echo "          whose zip times break the 1980 pattern of v1 and v2: app.xml was not rewritten either."
+echo "          Every time above, in the files and in git, was written by the committer's own computers:"
+echo "          they can agree with each other and still all be wrong."`,
+      windows: `# PowerShell 7.5 or later - the same five files, the same checks, with .NET's own zip and XML readers.
+# ETHICS: six requests, all to GitHub: one API call and five downloads of one MIT-licensed template.
+# Personal names are pseudonymised, never printed. Step 6 edits a local copy only. Not run on Windows
+# when this module was written: compare your output with the macOS one.
+$Analyst = "analyst01"; $UA = "CyberScoutsLab/1.0"
+$Case = "$HOME\\scouts-case\\s2_4"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, work, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path evidence, work | Out-Null
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+# 1. The question and the scope, written before the first request (same text as the macOS lab).
+@"
+case:         S2.4 document metadata
+question:     What do five published versions of one Word template say about who made them, with
+              what software and when, and which of those statements does independent evidence support?
+authorised:   self (a public open-source repository and its public history)
+in scope:     GitHub API commit list for docx/templates/default.docx up to commit 80740f2c; the file
+              itself at five commits; a local copy edited to test what metadata can prove
+out of scope: the people behind any name found in the files (pseudonymised, not looked up); any
+              other repository; any upload
+"@ | Set-Content scope.txt
+
+# 2. Collect through one door, paced 2 s. Status goes to Write-Host, so the function returns nothing else.
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content collection_log.tsv
+function Collect($Id, $Ext, $Url) {
+  $f = "evidence\\$Id.$Ext"; Start-Sleep -Seconds 2
+  $t = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  try { $r = Invoke-WebRequest -Uri $Url -UserAgent $UA -OutFile $f -PassThru -TimeoutSec 120; $c = [int]$r.StatusCode }
+  catch { $c = [int]$_.Exception.Response.StatusCode }
+  $h = if ($c -eq 200) { (Get-FileHash $f -Algorithm SHA256).Hash.ToLower() } else { "FAILED" }
+  "$Id\`t$t\`t$Analyst\`t$Url\`t$c\`t$h" | Add-Content collection_log.tsv
+  Write-Host ("{0}  HTTP {1}  {2}" -f $Id, $c, $h.Substring(0, [Math]::Min(12, $h.Length)))
+  if ($c -ne 200) { Write-Host "STOP: $Id failed (HTTP $c) - it is in the log; if 403, wait an hour"; exit 1 }
+}
+
+# 3. The file's history as git recorded it: author date and committer date, both from the committer's computer.
+Collect item001 json "https://api.github.com/repos/python-openxml/python-docx/commits?path=docx/templates/default.docx&sha=80740f2c858da8f89fc4f2d699a2cfbdfe85d7e0&per_page=100"
+$Commits = Get-Content evidence\\item001.json -Raw | ConvertFrom-Json -DateKind String
+if (-not $Commits -or ($Commits | Where-Object { -not $_.commit.author.date })) { Write-Host "UNKNOWN: item001 is not a list of commits with dates"; exit 2 }
+"commits touching the file: $($Commits.Count)  (author date, oldest first, UTC)"
+[array]::Reverse($Commits)
+foreach ($c in $Commits) {
+  $a = $c.commit.author.date; $d = $c.commit.committer.date
+  $re = if ($a -ne $d) { "committed $($d.Substring(0,10))" } else { "" }
+  $msg = ($c.commit.message -split "\`n")[0]; $msg = $msg.Substring(0, [Math]::Min(44, $msg.Length))
+  "  {0}  {1}  {2,-21} {3}" -f $c.sha.Substring(0,8), $a.Substring(0,16), $re, $msg
+}
+
+# 4. Five versions of the file, each at a full commit id.
+Collect v1 docx "https://raw.githubusercontent.com/python-openxml/python-docx/e75d056afd27360c0a40294d7a6b2401f1fe6885/docx/templates/default.docx"
+Collect v2 docx "https://raw.githubusercontent.com/python-openxml/python-docx/c0281d6133fe23b61b1f9482178c210aab682339/docx/templates/default.docx"
+Collect v3 docx "https://raw.githubusercontent.com/python-openxml/python-docx/629cadb2e006c34fd20f92196e1c0871f7cae5f5/docx/templates/default.docx"
+Collect v4 docx "https://raw.githubusercontent.com/python-openxml/python-docx/215ecebacc4086e9215483ca7aa0115225d73d16/docx/templates/default.docx"
+Collect v5 docx "https://raw.githubusercontent.com/python-openxml/python-docx/90fc91c7570c24fd983e63daef1036ac01d03193/docx/templates/default.docx"
+Get-ChildItem evidence | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content SHA256SUMS
+
+# 5. Read the parts directly. Zip times: .NET reads them as local time, as Python does; print them without a zone.
+$Labels = @("python-docx")   # values you checked are a product's name, not a person's
+function Get-Sha256([byte[]]$b) { ([System.Security.Cryptography.SHA256]::HashData($b) | ForEach-Object { $_.ToString("x2") }) -join "" }
+function Get-Person($v) {
+  if ($null -eq $v) { return "(absent)" }; if ($v -eq "") { return "(empty)" }
+  if ($Labels -contains $v) { return "label:$v" }
+  "person#" + (Get-Sha256 ([Text.Encoding]::UTF8.GetBytes($v))).Substring(0,8)
+}
+function Get-Part($zip, $name) {
+  $e = $zip.GetEntry($name); if (-not $e) { return $null }
+  $s = $e.Open(); $m = [IO.MemoryStream]::new(); $s.CopyTo($m); $s.Dispose(); ,$m.ToArray()
+}
+function Get-Meta($File) {
+  $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $File))
+  try {
+    $core = [xml][Text.Encoding]::UTF8.GetString((Get-Part $zip "docProps/core.xml"))
+    $app = [xml][Text.Encoding]::UTF8.GetString((Get-Part $zip "docProps/app.xml"))
+    $doc = Get-Part $zip "word/document.xml"
+    $times = $zip.Entries | ForEach-Object { $_.LastWriteTime.DateTime.ToString("yyyy-MM-dd HH:mm:ss") } | Sort-Object -Unique |
+      ForEach-Object { if ($_ -like "1980-01-01 00:00*") { "1980-01-01 00:00:00 (DOS zero: no time)" } else { $_ } }
+  } finally { $zip.Dispose() }
+  $cp = $core.coreProperties
+  [pscustomobject]@{
+    File = Split-Path $File -Leaf
+    Creator = Get-Person $cp.creator; LastModifiedBy = Get-Person $cp.lastModifiedBy; Revision = $cp.revision
+    Created = $cp.created.'#text'; Modified = $cp.modified.'#text'
+    Application = $app.Properties.Application; AppVersion = $app.Properties.AppVersion; TotalTime = $app.Properties.TotalTime
+    ZipTimes = @($times)
+    FileSha256 = (Get-FileHash $File -Algorithm SHA256).Hash.ToLower(); DocumentXmlSha256 = Get-Sha256 $doc
+  }
+}
+$Meta = @{}
+foreach ($v in "v1","v2","v3","v4","v5") {
+  $m = Get-Meta "evidence\\$v.docx"; $Meta[$v] = $m
+  "{0}  file {1}  document.xml {2}" -f $m.File, $m.FileSha256.Substring(0,12), $m.DocumentXmlSha256.Substring(0,12)
+  "   creator {0}  lastModifiedBy {1}  revision {2}" -f $m.Creator, $m.LastModifiedBy, $m.Revision
+  "   created {0}  modified {1}" -f $m.Created, $m.Modified
+  "   application {0} {1}  totalTime {2} min" -f $m.Application, $m.AppVersion, $m.TotalTime
+  "   zip times (local, no zone): {0}" -f ($m.ZipTimes -join ", ")
+}
+
+# 6. What can anyone write? Copy v5 and change only core.xml; keep every other part and every zip time.
+$src = [IO.Compression.ZipFile]::OpenRead((Resolve-Path evidence\\v5.docx))
+$dst = [IO.Compression.ZipFile]::Open("$Case\\work\\forged.docx", [IO.Compression.ZipArchiveMode]::Create)
+foreach ($e in $src.Entries) {
+  $data = Get-Part $src $e.FullName
+  if ($e.FullName -eq "docProps/core.xml") {
+    $txt = [Text.Encoding]::UTF8.GetString($data).Replace("<dc:creator>python-docx</dc:creator>", "<dc:creator>Ada Lovelace</dc:creator>").Replace("2013-12-23T23:15:00Z</dcterms:created>", "1843-07-01T09:00:00Z</dcterms:created>")
+    $data = [Text.Encoding]::UTF8.GetBytes($txt)
+  }
+  $n = $dst.CreateEntry($e.FullName); $n.LastWriteTime = $e.LastWriteTime
+  $w = $n.Open(); $w.Write($data, 0, $data.Length); $w.Dispose()
+}
+$dst.Dispose(); $src.Dispose()
+$f = Get-Meta "work\\forged.docx"; $a = $Meta["v5"]
+"forged copy: created $($f.Created), creator $($f.Creator) (was $($a.Creator))"
+"  file SHA-256 same as v5?          $($a.FileSha256 -eq $f.FileSha256)"
+"  document.xml SHA-256 same as v5?  $($a.DocumentXmlSha256 -eq $f.DocumentXmlSha256)"
+"  zip times same as v5?             $(($a.ZipTimes -join ',') -eq ($f.ZipTimes -join ','))"
+
+# 7. Each file's own clock against the commit that published it (git author date, UTC).
+$Ids = [ordered]@{ v1 = "e75d056a"; v2 = "c0281d61"; v3 = "629cadb2"; v4 = "215eceba"; v5 = "90fc91c7" }
+foreach ($v in $Ids.Keys) {
+  $when = ($Commits | Where-Object { $_.sha.StartsWith($Ids[$v]) }).commit.author.date
+  $gap = [DateTimeOffset]::Parse($when) - [DateTimeOffset]::Parse($Meta[$v].Modified)
+  $txt = if ($gap.TotalSeconds -lt 172800) { "{0} hours" -f ([Math]::Floor($gap.TotalHours * 10) / 10) } else { "{0} days" -f ([Math]::Floor($gap.TotalDays * 10) / 10) }
+  "  {0}  committed {1}Z  modified {2}Z  ({3} later)" -f $v, $when.Substring(0,16), $Meta[$v].Modified.Substring(0,16), $txt
+}
+
+# 8. The finding - and three tempting sentences that the files do not support.
+$v3zip = ($Meta["v3"].ZipTimes | Where-Object { $_ -notlike "*DOS zero*" } | Select-Object -First 1).Substring(0,10)
+$fix = ($Commits | Where-Object { $_.sha.StartsWith("215eceba") }).commit.message.Split("\`n")[0]
+"tempting: 'the template was created on $($Meta['v2'].Created.Substring(0,10))' - WRONG: v1 says $($Meta['v1'].Created.Substring(0,10)); something rewrote 'created' in between"
+"tempting: 'v3 was last modified on $($Meta['v3'].Modified.Substring(0,10))' - WRONG: its document.xml differs from v2's"
+"          (zip time $v3zip) and 'modified' did not move"
+"tempting: '$($Meta['v1'].Creator) wrote the template' - WRONG: 'creator' is whatever name the saving program was set to"
+"finding:  five versions, one file. $($Meta['v1'].Creator) as creator in v1-v3 became $($Meta['v4'].Creator) in v4, in the commit"
+"          '$fix'."
+"          Every version names $($Meta['v5'].Application) $($Meta['v5'].AppVersion) as the application, even v4 and v5,"
+"          whose zip times break the 1980 pattern of v1 and v2: app.xml was not rewritten either."
+"          Every time above, in the files and in git, was written by the committer's own computers:"
+"          they can agree with each other and still all be wrong."`,
+      linux: `# Identical to macOS with one substitution, in the lab and in the drills:
+#   sha256sum            instead of  shasum -a 256
+# Everything else (curl, jq, python3) behaves the same. Install jq from your
+# distribution's packages if it is missing (for example: sudo apt install jq).
+# Zip times print in the same form: Python prints the stored values without converting them.`,
+      expected: {
+        mac: `\`\`\`text
+item001  HTTP 200  456277414604
+commits touching the file: 8  (author date, oldest first, UTC)
+  e75d056a  2013-08-15T00:27  committed 2013-12-21  tmpl: add default.docx
+  c0281d61  2013-12-23T23:22                        tmpl: add table styles to default template
+  629cadb2  2014-01-02T05:58  committed 2014-01-02  docs: first pass at user guide
+  215eceba  2014-12-13T20:28                        tmpl: change core props author to python-doc
+  d563fa4a  2018-08-18T21:13                        fix: #254 Remove default zoom percentage
+  ada86c38  2019-01-06T22:57  committed 2019-01-06  rfctr: extract default .docx template to dir
+  90fc91c7  2019-01-09T07:12                        release: prepare v0.8.10 release
+  80740f2c  2023-09-25T05:41  committed 2023-10-01  build: move docx package under src/ director
+v1  HTTP 200  427b683d0250
+v2  HTTP 200  5dea404e245e
+v3  HTTP 200  d85abbca20ac
+v4  HTTP 200  f20e8fa8dac0
+v5  HTTP 200  2094b5bddffe
+v1.docx  file 427b683d0250  document.xml f50b1fa15860
+   creator person#e445b05d  lastModifiedBy person#e445b05d  revision 2
+   created 2013-08-14T00:12:00Z  modified 2013-08-14T00:12:00Z
+   application Microsoft Macintosh Word 14.0000  totalTime 1 min
+   zip times (local, no zone): 1980-01-01 00:00:00 (DOS zero: no time)
+v2.docx  file 5dea404e245e  document.xml 15a62f27448a
+   creator person#e445b05d  lastModifiedBy person#d2b90968  revision 2
+   created 2013-12-23T23:15:00Z  modified 2013-12-23T23:15:00Z
+   application Microsoft Macintosh Word 14.0000  totalTime 0 min
+   zip times (local, no zone): 1980-01-01 00:00:00 (DOS zero: no time)
+v3.docx  file d85abbca20ac  document.xml 87464ffb9127
+   creator person#e445b05d  lastModifiedBy person#d2b90968  revision 2
+   created 2013-12-23T23:15:00Z  modified 2013-12-23T23:15:00Z
+   application Microsoft Macintosh Word 14.0000  totalTime 0 min
+   zip times (local, no zone): 1980-01-01 00:00:00 (DOS zero: no time), 2013-12-31 23:26:02
+v4.docx  file f20e8fa8dac0  document.xml f5154b3c5dae
+   creator label:python-docx  lastModifiedBy (empty)  revision 1
+   created 2013-12-23T23:15:00Z  modified 2013-12-23T23:15:00Z
+   application Microsoft Macintosh Word 14.0000  totalTime 0 min
+   zip times (local, no zone): 2014-12-13 12:26:00
+v5.docx  file 2094b5bddffe  document.xml f5154b3c5dae
+   creator label:python-docx  lastModifiedBy (empty)  revision 1
+   created 2013-12-23T23:15:00Z  modified 2013-12-23T23:15:00Z
+   application Microsoft Macintosh Word 14.0000  totalTime 0 min
+   zip times (local, no zone): 2019-01-08 23:02:08
+forged copy: created 1843-07-01T09:00:00Z, creator person#76740216 (was label:python-docx)
+  file SHA-256 same as v5?          false
+  document.xml SHA-256 same as v5?  true
+  zip times same as v5?             true
+  v1  committed 2013-08-15T00:27Z  modified 2013-08-14T00:12Z  (24.2 hours later)
+  v2  committed 2013-12-23T23:22Z  modified 2013-12-23T23:15Z  (0.1 hours later)
+  v3  committed 2014-01-02T05:58Z  modified 2013-12-23T23:15Z  (9.2 days later)
+  v4  committed 2014-12-13T20:28Z  modified 2013-12-23T23:15Z  (354.8 days later)
+  v5  committed 2019-01-09T07:12Z  modified 2013-12-23T23:15Z  (1842.3 days later)
+tempting: 'the template was created on 2013-12-23' - WRONG: v1 says 2013-08-14; something rewrote 'created' in between
+tempting: 'v3 was last modified on 2013-12-23' - WRONG: its document.xml differs from v2's
+          (zip time 2013-12-31) and 'modified' did not move
+tempting: 'person#e445b05d wrote the template' - WRONG: 'creator' is whatever name the saving program was set to
+finding:  five versions, one file. person#e445b05d as creator in v1-v3 became label:python-docx in v4, in the commit
+          'tmpl: change core props author to python-docx'.
+          Every version names Microsoft Macintosh Word 14.0000 as the application, even v4 and v5,
+          whose zip times break the 1980 pattern of v1 and v2: app.xml was not rewritten either.
+          Every time above, in the files and in git, was written by the committer's own computers:
+          they can agree with each other and still all be wrong.
+\`\`\`
+
+Your output should match this line for line, except the first hash. The five \`.docx\` files are fixed by their commit ids, so their hashes (\`427b683d0250\` … \`2094b5bddffe\`) should be exactly these. \`item001\` is GitHub's API reply: it was byte-identical across three runs while this module was written, but it carries URLs and account details that GitHub can change, so its hash may differ. The commit list inside it cannot change without rewriting the repository's history.
+
+Read the output in this order:
+
+- **Eight commits, four rewritten.** \`e75d056a\` was made in August 2013 and written into history again in December; three others show the same gap on a smaller scale. When a report says "committed on", say which date.
+- **One file, three authorship stories.** v1–v3 name one creator (\`person#e445b05d\`); v2 and v3 add a different \`lastModifiedBy\`; v4 and v5 say \`label:python-docx\` and an empty \`lastModifiedBy\`. The commit message says why: someone changed it on purpose.
+- **\`created\` moved.** v1 was created on 2013-08-14; v2 onward say 2013-12-23. A creation date is not the moment the content first existed.
+- **v3's hidden change.** Its \`document.xml\` has a new hash and a new zip time (2013-12-31) while \`modified\` stays at 2013-12-23. Drill 1 shows it is the only part that changed.
+- **The forgery leaves no mark.** The forged copy has a new file hash, an identical \`document.xml\`, identical zip times, and a creator in 1843. Nothing inside it records the edit.
+- **Clocks against commits.** v1 and v2 were last modified within a day of their commits. v3 to v5 were published days to years after the time their \`modified\` shows, because nothing updated it.
+
+**Pseudonyms.** The tags are plain SHA-256 prefixes, so they are the same on every computer. Drill 2 shows why that is a weakness.`
+      }
+    },
+    caseStudy: {
+      title: "The Iraq dossier, 2003 — what the text proved, what the revision log added, and what neither could say",
+      body: `**What happened.** At the end of January 2003 the UK government published "Iraq – Its Infrastructure of Concealment, Deception and Intimidation" on the Downing Street website, as a Word file. On 5 February Glen Rangwala, a Cambridge lecturer, posted to a mailing list that "the bulk of the 19-page document (pp.6-16) is directly copied without acknowledgement" from a September 2002 journal article by a postgraduate student, Ibrahim al-Marashi, and from two other authors. He found it by reading. Even the article's mistakes had been carried over, such as a misplaced comma in "Saddam appointed, Sabir 'Abd al-'Aziz al-Duri as head".
+
+**What the metadata added.** Rangwala's post also listed four names shown as authors "in Word > Properties". Richard M. Smith, a privacy researcher, extracted the file's hidden revision log: ten saves, each with a user name and a file path. In his write-up of 30 June 2003 (read here from its Internet Archive capture of 3 July 2003) the log runs like this, with names replaced by roles:
+
+| Rev. | User name (as role) | File saved as |
+|---|---|---|
+| 1–3 | \`cic22\`, an account name | an AutoRecovery file in one official's profile |
+| 4–5 | a second official | \`C:\\TEMP\\Iraq - security.doc\`, then \`A:\\Iraq - security.doc\` |
+| 6–8 | a third official | a folder named after that user, then \`A:\\\` |
+| 9–10 | a fourth official | \`C:\\TEMP\\…\`, then a desktop copy named \`Iraq.doc\` |
+
+\`A:\` was a floppy-disk drive. Smith read revisions 4 and 5 as the document being copied to a floppy, and he wrote that this matched what came out at Parliament's hearings in the week of 23 June 2003: the dossier had been handed on, on a floppy disk.
+
+**What each piece of evidence could and could not show.**
+
+- **The copying** was proved by the text, not by metadata: identical sentences and identical errors, set side by side. That is evidence anyone can check with the two documents open.
+- **The revision log** showed which accounts saved the file, and where, in order. It could not show who wrote the words. On Rangwala's reading, most of them were not written by any of the four people named.
+- **The four names** came from Word's properties and from user names in the log. Turning them into people and jobs was done by a reporter, from other sources. Smith says so: "One reporter quickly identified the four individuals".
+- **\`cic22\`** names no person. Smith's gloss, "Communications Information Centre", is his reading of the name, not something the file states.
+
+**The claim that fails.** Near the end, Smith wrote: "PDF files do not contain revision logs or hidden author information." The first half fits the old Word format's log. The second does not: a PDF has an \`Author\` field of its own, and an incremental update can leave an earlier version inside the file. The analyst who found the leak overstated the cure. Check the expert as well as the evidence.
+
+**For your notes.** Report the log as what it is ("user name X saved the file as path Y"), keep the jump from user name to person as a separate claim with its own source, and keep text-based findings apart from metadata-based ones. They stand or fall on different evidence.
+
+*Sources: Rangwala, "[casi] Intelligence? the British dossier on Iraq's security infrastructure", 5 Feb 2003 (casi.org.uk mailing-list archive); R. M. Smith, "Microsoft Word bytes Tony Blair in the butt", 30 June 2003 (Internet Archive capture 20030703054403 of computerbytesman.com/privacy/blair.htm).*`
+    },
+    challenges: [{
+      q: `A leaked contract's properties say Author "J. Smith", Company "Acme Ltd", created 2 March 2021. Your editor wants the headline "Acme employee J. Smith drafted the deal in March 2021". What does the file support?`,
+      a: `Three field values, each written by whatever program last saved it: an author setting, a company setting, and a creation date on that computer's clock. None of them is a check on who typed the text, where they worked, or when. The author and company can be set once, when the software is set up, and copied onto every file that machine makes. "Created" can be reset by a later save (the lab's v1 and v2 show it moving). A defensible sentence: "The file's properties, as extracted on <date> from the copy with SHA-256 <hash>, name 'J. Smith' as author and 'Acme Ltd' as company, with a creation time of 2021-03-02T<time>Z. These are software settings and do not by themselves show who wrote the document." Then look for evidence that does not come from the file: who sent it, when it was first seen, and whether Acme's own published documents carry the same settings.`
+    }, {
+      q: `Two copies of the same report have different SHA-256 values. A colleague says "so one of them was tampered with". What do you check before agreeing?`,
+      a: `Whether anything that carries meaning differs. A .docx is a zip of parts: open both and hash each part. If only docProps/core.xml differs, compare the parsed values, not the bytes. Spacing, attribute order and <x></x> against <x/> change the bytes without changing the meaning (Drill 1's v4 to v5). If the values differ, you know which field changed, not who changed it or why: a save by different software rewrites whole parts. A different hash proves the files differ. "Tampered" is a claim about intent, and the hash does not make it.`
+    }, {
+      q: `A PDF's visible properties show no author. A client asks you to confirm that "the PDF contains no personal information". What do you say?`,
+      a: `That you can only report what you looked for. The information dictionary's Author may be empty while the same fact survives in the XMP block, in an earlier revision kept by an incremental update ("the original document is written first and new/modified content is appended", in pypdf's words), or in the text, images and attachments themselves. Say which of these you checked, with which tool and version, and answer UNKNOWN for the rest. "No author field in the current revision" is a finding. "No personal information" is a promise the evidence cannot keep.`
+    }],
+    quiz: ["A .docx is a zip file. Name the part that holds creator and modified, and the part that names the program.", "What does lastModifiedBy identify, according to its definition, and why is that not the same as a person?", "The lab's v1 says created 2013-08-14 and v2 says 2013-12-23. What does that tell you about the word 'created'?", "Why did v3's modified stay at 2013-12-23 when its text changed on 2013-12-31?", "A zip time reads 1980-01-01 00:00. What do you write, and why not 'packed in 1980'?", "What three things differ between a W3C date-time like 2013-08-14T00:12:00Z and a zip entry time?", "The forged copy has a new file hash and the same document.xml hash. What does each hash prove, and what does neither prove?", "Why can anyone who guesses a name test a person# tag made with plain SHA-256, and what does a keyed tag change?"],
+    workbench: `> **What this trains.** The lab read five versions of one file. Here you meet three ways that file misleads: bytes that differ while the meaning does not, a pseudonym that gives its name away, and clocks with no zone.
+
+#### 🟢 Drill 1 — which parts changed, and did the meaning? ~5 min
+
+**Goal.** The lab showed that v3 and v5 have new SHA-256 values while \`modified\` stayed the same. Find which parts changed from v2 to v3 and from v4 to v5, and whether each change is in the bytes only or in the values. No new requests.
+
+**Done when.** You can name the one part that changed in v3, and the part in v5 whose bytes changed while every value stayed the same.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_4 || exit 1
+# Which parts changed between two versions, and did any metadata field change with them?
+# A part can differ as bytes and still say the same thing: compare parsed values too.
+python3 - <<'PY'
+import hashlib, zipfile
+import xml.etree.ElementTree as ET
+def parts(f):
+    z = zipfile.ZipFile(f)
+    return {i.filename: z.read(i) for i in z.infolist()}
+def fields(xml):  # every element's tag, attributes and text; whitespace and <x></x> versus <x/> ignored
+    return sorted((e.tag, sorted(e.attrib.items()), (e.text or "").strip()) for e in ET.fromstring(xml).iter())
+for a, b in [("v2", "v3"), ("v4", "v5")]:
+    A, B = parts(f"evidence/{a}.docx"), parts(f"evidence/{b}.docx")
+    changed = [k for k in sorted(set(A) | set(B)) if A.get(k) != B.get(k)]
+    print(f"{a} -> {b}: {len(changed)} of {len(B)} parts differ as bytes")
+    for k in changed:
+        same = k.endswith(".xml") and k in A and k in B and fields(A[k]) == fields(B[k])
+        print(f"   {k:<22} {'same values, different bytes' if same else 'values differ'}")
+PY
+\`\`\`
+
+\`\`\`text
+v2 -> v3: 1 of 17 parts differ as bytes
+   word/document.xml      values differ
+v4 -> v5: 3 of 17 parts differ as bytes
+   docProps/core.xml      same values, different bytes
+   word/settings.xml      values differ
+   word/styles.xml        values differ
+\`\`\`
+
+v2 to v3 changed one part, \`word/document.xml\`: the text of the template. \`core.xml\` did not change at all, so \`modified\` still says 2013-12-23. That is why the lab's second "tempting" sentence is wrong.
+
+v4 to v5 is the opposite trap. \`core.xml\` has new bytes, so a byte comparison says "the metadata changed". Parsed, every value is the same: the namespaces moved onto one line and \`<cp:lastModifiedBy></cp:lastModifiedBy>\` became \`<cp:lastModifiedBy/>\`, which XML treats as the same thing. \`settings.xml\` did change a value: a zoom attribute, \`w:percent="203"\`, is gone. That fits the commit "fix: #254 Remove default zoom percentage" in the lab's history.
+
+Compare attributes as well as text. An earlier draft of this drill compared tags and text only, and reported \`settings.xml\` as "same values": it could not see a change that lives in an attribute. Compare what the format means, not how it is spelled, and make sure your comparison can see everything that carries meaning.
+</details>
+
+#### 🟡 Drill 2 — a pseudonym that gives its name away ~6 min
+
+**Goal.** The lab printed names as \`person#\` plus 8 hex digits of SHA-256. Show that anyone holding a guess can test such a tag, using the one name you already hold: the one you wrote into \`work/forged.docx\`. Then make a keyed tag that a guess cannot test.
+
+**Done when.** Your guess matches the plain tag, the keyed tag differs, and the key file is readable by you alone.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_4 || exit 1
+# The lab's tags are the first 8 hex digits of SHA-256(name). No key: anyone with a guess can test it.
+# Test only a name you already hold: the one you wrote into work/forged.docx yourself.
+python3 - <<'PY'
+import hashlib, hmac, os, re, secrets
+plain = lambda v: "person#" + hashlib.sha256(v.encode()).hexdigest()[:8]
+seen = re.search(r"creator (person#[0-9a-f]{8})", open("work/forged.txt").read().split("forged.docx")[1]).group(1)
+guess = "Ada Lovelace"
+print(f"forged.docx creator tag: {seen}")
+print(f"guess {guess!r}:     {plain(guess)}  -> {'MATCH: the tag gave the name away' if plain(guess) == seen else 'no match'}")
+# A keyed tag (HMAC) can only be tested by someone who holds the case key. Keep the key out of the report.
+if not os.path.exists("work/case.key"):
+    fd = os.open("work/case.key", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.write(fd, secrets.token_hex(32).encode()); os.close(fd)
+key = open("work/case.key", "rb").read()
+keyed = lambda v: "person#" + hmac.new(key, v.encode(), hashlib.sha256).hexdigest()[:8]
+print(f"keyed tag for the same name: {keyed(guess)}  (differs per case key; a guess without the key tests nothing)")
+print(f"key file mode: {oct(os.stat('work/case.key').st_mode & 0o777)}")
+PY
+\`\`\`
+
+\`\`\`text
+forged.docx creator tag: person#76740216
+guess 'Ada Lovelace':     person#76740216  -> MATCH: the tag gave the name away
+keyed tag for the same name: person#f90b3332  (differs per case key; a guess without the key tests nothing)
+key file mode: 0o600
+\`\`\`
+
+The first tag is a plain hash: no secret goes in, so anyone who can guess the name can compute the same tag and confirm it. That makes it a pseudonym for tidy reports, not a way of hiding a name from a reader who wants it. Test only names you are entitled to hold, as here. Guessing at the lab's other tags would be looking up the people this case put out of scope.
+
+The keyed tag uses HMAC-SHA-256 with a random 32-byte key made once per case. The same name still gives the same tag within the case, so you can still say "v1's creator is v2's creator". Without the key, a guess tests nothing. Your keyed tag will differ from the one above because your key does. Keep the key with the case file, never in the report, and destroy it when the case is closed if the names must never be recovered.
+</details>
+
+#### 🔴 Drill 3 — a zone for a clock that has none ~10 min
+
+**Goal.** Zip times are local clock readings with no zone. Git's commit headers carry the committer's UTC offset. Assume each file was packed in the committer's zone, and grade whether its zip time comes before its commit: CONSISTENT, INCONSISTENT, or UNKNOWN when there is no clock to test. Three requests, 2 seconds apart.
+
+**Done when.** v1 and v2 are UNKNOWN, v4 and v5 are CONSISTENT within minutes, and you can say why v3's result is weak.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_4 || exit 1
+# Zip times are local clock readings with no zone. Git records the committer's UTC offset.
+# If the zone is git's, how long before the commit was each file packed? Three requests, 2 s apart.
+for p in 629cadb2e006c34fd20f92196e1c0871f7cae5f5 215ecebacc4086e9215483ca7aa0115225d73d16 90fc91c7570c24fd983e63daef1036ac01d03193; do
+  sleep 2
+  C=$(curl -s -L -m 120 -A "CyberScoutsLab/1.0" -o "work/$p.patch" -w '%{http_code}' "https://github.com/python-openxml/python-docx/commit/$p.patch")
+  echo "patch \${p:0:8}  HTTP $C"
+done
+python3 - <<'PY'
+import json, os
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
+m = json.load(open("work/meta.json"))
+ids = {"v1": None, "v2": None, "v3": "629cadb2e006c34fd20f92196e1c0871f7cae5f5",
+       "v4": "215ecebacc4086e9215483ca7aa0115225d73d16", "v5": "90fc91c7570c24fd983e63daef1036ac01d03193"}
+for v, sha in ids.items():
+    zt = [t for t in m[f"evidence/{v}.docx"]["zipTimes"] if "DOS zero" not in t]
+    if not zt:
+        print(f"{v}  UNKNOWN: every zip time is the DOS zero - there is no clock to test"); continue
+    head = open(f"work/{sha}.patch", errors="replace").read(4000) if sha and os.path.exists(f"work/{sha}.patch") else ""
+    date = next((l[6:] for l in head.splitlines() if l.startswith("Date: ")), None)
+    if not date:
+        print(f"{v}  UNKNOWN: no commit Date header to compare with"); continue
+    commit = parsedate_to_datetime(date)                      # carries the committer's offset
+    packed = datetime.strptime(max(zt), "%Y-%m-%d %H:%M:%S").replace(tzinfo=commit.tzinfo)
+    gap = commit - packed
+    mins = gap.total_seconds() / 60
+    if mins < 0: verdict = "INCONSISTENT: in that zone it was packed after the commit"
+    elif mins <= 60: verdict = "CONSISTENT: packed minutes before the commit"
+    else: verdict = f"CONSISTENT but weak: {gap.days} days {gap.seconds // 3600} h earlier - says little"
+    print(f"{v}  zip {max(zt)}  commit {date}  -> {mins:.1f} min  {verdict}")
+PY
+\`\`\`
+
+\`\`\`text
+patch 629cadb2  HTTP 200
+patch 215eceba  HTTP 200
+patch 90fc91c7  HTTP 200
+v1  UNKNOWN: every zip time is the DOS zero - there is no clock to test
+v2  UNKNOWN: every zip time is the DOS zero - there is no clock to test
+v3  zip 2013-12-31 23:26:02  commit Wed, 1 Jan 2014 21:58:25 -0800  -> 1352.4 min  CONSISTENT but weak: 0 days 22 h earlier - says little
+v4  zip 2014-12-13 12:26:00  commit Sat, 13 Dec 2014 12:28:15 -0800  -> 2.2 min  CONSISTENT: packed minutes before the commit
+v5  zip 2019-01-08 23:02:08  commit Tue, 8 Jan 2019 23:12:12 -0800  -> 10.1 min  CONSISTENT: packed minutes before the commit
+\`\`\`
+
+v1 and v2 hold only the DOS zero, \`1980-01-01 00:00\`. There is no clock to test, so the grader says UNKNOWN and stops. A grader that parsed the zero as a real time would report both files as packed 33 years before their commits, a confident and meaningless answer.
+
+v4 and v5 were packed 2 and 10 minutes before their commits, if the zip clock ran in the committer's zone (\`-0800\`: US Pacific winter time is one zone with that offset). That is consistent: the same person, on the same computer, packed the file and then committed it. It is not proof. The zone is an assumption, and both clocks belong to one person.
+
+v3 has 22 hours between packing and commit. Almost any zone makes that CONSISTENT, so the verdict says little. Report it as consistent but weak rather than as a match.
+
+The offsets also show a pattern: \`-0800\` in December and January, \`-0700\` for the August 2013 and August 2018 commits (fetch the patches for \`e75d056a\` and \`d563fa4a\` the same way to see them). That fits a computer in a zone with summer time. It does not place the computer anywhere, and it is the committer's setting, not a location.
+</details>`,
+    tracker: ["Wrote the question and scope before the first request, with the people behind any name out of scope", "Ran the lab: six requests logged with HTTP status, five pinned versions hashed in SHA256SUMS", "Can say what each of the three 'tempting' sentences gets wrong", "Made a forged copy and showed which hashes change and which do not", "Found the part that changed in v3, and a part whose bytes changed but values did not (Drill 1)", "Showed a plain-hash pseudonym is testable and made a keyed one (Drill 2)", "Built a grader that answers UNKNOWN for the DOS zero and tests zip times against commit offsets (Drill 3)"]
   }]
 };
 

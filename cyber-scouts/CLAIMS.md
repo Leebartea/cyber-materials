@@ -11,7 +11,7 @@ no claim enters the course before its row exists.
 
 - **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.3 + 2 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-28 (Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-28 (Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -475,3 +475,61 @@ Defects caught in the S2.3 build pass (none shipped):
 - **Theory said old and new answers overlap "because cached answers live on until they expire".** The
   lab's overlap is about 90 minutes against 300-second TTLs, so caching alone cannot be asserted as the
   reason. Now names two possible causes and says the record does not tell you which.
+
+## Batch 11 — S2.4 Document metadata: what a file says about who made it, and what that proves
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 206 | S2.4 | A .docx is a zip of XML parts; `docProps/core.xml` holds creator, lastModifiedBy, revision, created, modified; `docProps/app.xml` holds Application, AppVersion, TotalTime, Company, Template | `EXECUTED` | lab steps 4–5 on five pinned versions, 2026-09-28 | stable |
+| 207 | S2.4 | creator = "an entity primarily responsible for making the content"; lastModifiedBy = "the user who performed the last modification. The identification is environment-specific. Examples include a name, email address, or employee ID." | `SOURCED` | python-docx docs, dev/analysis/features/coreprops (curl 2026-09-28) | stable |
+| 208 | S2.4 | revision "might indicate the number of saves or revisions, provided the application updates it after each revision" | `SOURCED` | python-docx coreprops page | stable |
+| 209 | S2.4 | TotalTime = "Total Edit Time Metadata Element"; w:rsid = "Single Session Revision Save ID" | `SOURCED` | learn.microsoft.com Open XML SDK class pages ExtendedProperties.TotalTime, Wordprocessing.Rsid | stable |
+| 210 | S2.4 | PDF information dictionary fields title, author, subject, creator, producer, creation date, modification date; "All the following could be None!" | `SOURCED` | pypdf 6.19.0 docs, user/metadata | stable |
+| 211 | S2.4 | PDF Creator = the program that made the original of a converted file; Producer = the program that converted it to PDF | `SOURCED` | pypdf docs, DocumentInformation.creator / .producer | stable |
+| 212 | S2.4 | PDF dates are written `D:YYYYMMDDHHmmSS` plus an offset with apostrophes, e.g. `-05'00'` | `SOURCED` | pypdf user/metadata "Writing metadata" example | stable |
+| 213 | S2.4, challenge | Incremental update: "the original document is written first and new/modified content is appended" | `SOURCED` | pypdf docs, PdfWriter `incremental` parameter. pdfa.org forensics pages 403 to scripts here: not used | stable |
+| 214 | S2.4 | A PDF can hold the same facts again in XMP, and nothing forces the two copies to agree | `CONVENTION` | pypdf reads both (row 210 page); agreement is not a format requirement stated anywhere read | — |
+| 215 | S2.4 | W3C date-time: TZD = "Z or +hh:mm or -hh:mm" | `SOURCED` | w3.org/TR/NOTE-datetime | stable |
+| 216 | S2.4 | ZIP entry time: "standard MS-DOS format", "year values relative to 1980 and 2 second precision" | `SOURCED` | PKWARE APPNOTE.TXT 6.3.10 (rev. 1 Nov 2022) §4.4.6 | stable |
+| 217 | S2.4 | Python zipfile: the central-directory timestamp is "interpreted as representing local time"; the format "does not support timestamps before 1980" | `SOURCED` | docs.python.org/3/library/zipfile | stable |
+| 218 | S2.4, Drill 3 | A zip time of 1980-01-01 00:00 is the format's lowest valid value: read it as "no time recorded" | `CONVENTION` | derived from row 216; Word-era v1 and v2 hold it for every part | — |
+| 219 | S2.4 | git takes author and committer dates from GIT_AUTHOR_DATE / GIT_COMMITTER_DATE when set | `SOURCED` | git-scm.com/docs/git-commit, COMMIT INFORMATION | stable |
+| 220 | S2.4 | python-docx is MIT-licensed; default.docx was first committed with author date 2013-08-15 | `SOURCED` | GitHub API repos/python-openxml/python-docx (license MIT); lab item001 | stable |
+| 221 | S2.4 | Eight commits touch docx/templates/default.docx up to 80740f2c; four show a committer date later than the author date; e75d056a authored 2013-08-15, committed 2013-12-21 | `EXECUTED` | lab step 3 | stable (pinned sha) |
+| 222 | S2.4 | v1–v3 share one creator (not a personal name, an organisation label), v2–v3 add a personal lastModifiedBy; v4 (commit 215ecebacc, "tmpl: change core props author to python-docx") sets creator python-docx and empties lastModifiedBy | `EXECUTED` | lab step 5; values printed only as pseudonyms/labels | stable |
+| 223 | S2.4 | created moves from 2013-08-14T00:12Z (v1) to 2013-12-23T23:15Z (v2 onward) | `EXECUTED` | lab step 5 | stable |
+| 224 | S2.4, Drill 1 | v2→v3: only word/document.xml differs (zip time 2013-12-31 23:26:02), modified unchanged; v4→v5: core.xml bytes differ with identical values, settings.xml loses `w:percent="203"` | `EXECUTED` | lab step 5, Drill 1 | stable |
+| 225 | S2.4 | docProps/thumbnail.jpeg has identical bytes in all five versions | `EXECUTED` | per-part SHA-256 96367138dc44… across v1–v5 | stable |
+| 226 | S2.4 | All five versions name Microsoft Macintosh Word 14.0000 in app.xml | `EXECUTED` | lab step 5 | stable |
+| 227 | S2.4 | The forged copy: new file SHA-256, identical document.xml SHA-256 and zip times | `EXECUTED` | lab step 6 | stable |
+| 228 | S2.4, Drill 3 | Commit Date headers: 629cadb2, 215eceba, 90fc91c7 at −0800; e75d056a, d563fa4a at −0700. In the committer's zone v4 and v5 were packed 2.2 and 10.1 min before commit; v3 22 h | `EXECUTED` | github.com/…/commit/<sha>.patch headers, Drill 3 | stable |
+| 229 | S2.4, Drill 2 | A plain-hash tag of a name can be confirmed by anyone who guesses the name; an HMAC tag cannot be tested without the key | `EXECUTED` | Drill 2 (guess = the name the lab itself wrote) | — |
+| 230 | S2.4 | GitHub primary rate limit for unauthenticated REST requests: 60 an hour | `SOURCED` | docs.github.com rate-limits-for-the-rest-api | 2027-03 |
+| 231 | S2.4 | Document Inspector: File → Info → Check for Issues → Inspect Document (Word for Windows); run it "on a copy of your original document, because it is not always possible to restore the data…"; "some information that the Document Inspector cannot remove" | `SOURCED` | support.microsoft.com "Remove hidden data and personal information by inspecting documents…" | 2027-03 |
+| 232 | S2.4 case | Rangwala (casi list, 5 Feb 2003): dossier "released last Thursday" (30 January 2003), downloadable Word version; "the bulk of the 19-page document (pp.6-16) is directly copied without acknowledgement" from al-Marashi's Sept 2002 MERIA article; the misplaced-comma example; Gause and Boyne also copied | `SOURCED` | casi.org.uk/discuss/2003/msg00457.html (raw HTML) | stable |
+| 233 | S2.4 case | Rangwala lists four names "in Word > Properties" | `SOURCED` | row 232 source | stable |
+| 234 | S2.4 case | Smith, 30 June 2003: ten-entry revision log (users and paths as tabled, names replaced by roles); `A:` saves; hearings in the week of 23 June 2003; "One reporter quickly identified the four individuals"; cic22 glossed as "Communications Information Centre" | `SOURCED` | Wayback 20030703054403id_ of computerbytesman.com/privacy/blair.htm (live page 404; dfir.com.br copy now empty) | stable |
+| 235 | S2.4 case | Smith: "PDF files do not contain revision logs or hidden author information" is quoted as a claim that fails | `SOURCED` | row 234 quote; contradicted by rows 210 and 213 | stable |
+| 236 | S2.4 | Officials in the case, and personal names in the lab files, appear as roles or pseudonyms only | `CONVENTION` | course practice since S1.4 | — |
+| 237 | S2.4 | Windows variant not run (no pwsh on the build Mac); it says so in its header | `CONVENTION` | as S1.7–S2.3 | — |
+
+Defects caught in the S2.4 build pass (none shipped):
+
+- **Drill 1's first comparison read tags and text only.** It scored v4→v5 `settings.xml` "same values"
+  though `w:percent="203"` was gone. Now compares attributes too; guard A106 blocks the attribute-blind form.
+- **The pseudonymiser hid the product name "python-docx"** along with personal names, so the finding read
+  "became person#…". Now an analyst-checked `LABELS` set prints product names; everything else stays a tag.
+- **The clock column floored to whole days**, printing "0 days later" for a 7-minute gap. Now hours under two days.
+- **"A later save rewrote 'created'"** and **"the Word-saved v1 and v2"** asserted mechanisms the files do
+  not show. Now "something rewrote 'created' in between" and "the 1980 pattern of v1 and v2".
+- **Theory said "two" commits had a later committer date** (four do), and that `modified` sat "hours" before
+  the commit for v1 and v2 (v2's gap is 7 minutes). A "usually leaves it alone" about zip editors had no source.
+- **Unsourced quantifiers** "many organisations", "many PDFs", "often set once, when the software is
+  installed" became statements of what can happen.
+- **Case draft called `cic22` a "machine account"/"shared account"**, credited the floppy link to the Foreign
+  Affairs Committee (Smith says "hearings"), and had Smith "ending" on the PDF claim (it is near the end).
+- **Workbench named −0800 as "US Pacific winter time"**: one zone with that offset, not a location.
+- **PowerShell `"{0}" -f x / 10`** parses as (string / 10). Parenthesised. (Windows variant still not run.)
+- Gate: OOXML namespace URIs (host has no DNS record) were probed as links; that one host is now skipped,
+  purl.org and w3.org namespace URIs are still probed. A `revision log` anchor was dropped: the term lives only
+  in the case study, which the stale-anchor check does not read.

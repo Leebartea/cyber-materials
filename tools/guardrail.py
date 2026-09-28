@@ -925,6 +925,10 @@ BANNED = [
      "Krebs (18 Feb 2019) paraphrases Netnod's CEO and PCH's Woodcock; those words are Krebs's, not "
      "quotes from them, and the warnings came from the US government, not several governments "
      "(Scouts ledger S2.3 defects)", "A105"),
+    (r"\(e\.tag,\s*\(e\.text",
+     "An XML comparison built from each element's tag and text alone cannot see attributes: it scored "
+     "v4->v5 settings.xml 'same values' while w:percent=\"203\" had been removed. Compare "
+     "sorted(e.attrib.items()) too (Scouts ledger S2.4 defects, Drill 1)", "A106"),
 ]
 
 
@@ -1210,6 +1214,10 @@ TOPIC_ANCHORS = {
         "passive dns": ["S2.3"],
         "common output format": ["S2.3"],
         "time_first": ["S2.3"],
+        "core.xml": ["S2.4"],
+        "lastmodifiedby": ["S2.4"],
+        "incremental update": ["S2.4"],
+        "document inspector": ["S2.4"],
     },
 }
 
@@ -1381,6 +1389,12 @@ def check_urls(sources):
             # Inside a template literal "${" is stored escaped as "\${", so the course
             # source shows ".../range/\${H:0:5}": the same placeholder, one byte later.
             if src[m.end() : m.end() + 1] in ("<", "$") or src[m.end() : m.end() + 2] == "\\$":
+                continue
+            # XML namespace names are identifiers, never fetched by a parser. The Office Open
+            # XML ones live on a host with no DNS record at all (checked 2026-09-28), so a
+            # probe can only ever say "unroutable". Only that host is skipped: namespace
+            # URIs on real hosts (purl.org, w3.org) are still probed.
+            if "://schemas.openxmlformats.org/" in u:
                 continue
             if is_probeable(u) and u.count("/") >= 2:
                 urls.add(u)
