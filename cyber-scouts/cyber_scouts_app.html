@@ -755,7 +755,7 @@ const curriculum = {
     roadmap: {
       promise: "Level 2 adds time and connection. Level 1 read each public record as it stands today. Level 2 asks what a record said before, who runs the network behind it, and how to move from one source to the next without letting a weak link carry the conclusion.",
       canDo: ["Date a change to a web page between two archived captures, and say what the archive cannot show", "Prove an archived copy is the one the archive's index describes, by recomputing its digest yourself", "Follow a name or an address to the records behind it, and a file back to what it records about itself", "Chain several sources into one finding and grade each link on its own"],
-      build: "A second case folder that grows one module at a time and ends in a multi-source pivot report (the Level 2 capstone).",
+      build: "One case folder per module, each with its scope, collection log and hashes, ending in a multi-source pivot report that grades every link (the Level 2 capstone).",
       prereq: "Level 1, especially the collection record and the report form."
     }
   }],
@@ -830,7 +830,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | S2.4 | Document and file metadata | ✅ available |
 | S2.5 | Image and video verification | ✅ available |
 | S2.6 | Usernames and accounts, ethics first | ✅ available |
-| — | Capstone: a multi-source pivot report | planned |
+| S2.7 | Capstone: a multi-source pivot report | ✅ available |
 
 Level 2 adds one tool, \`python3\`, which the Guardians setup already uses. \`python3 --version\` should print a version of 3.9 or later.
 
@@ -6877,6 +6877,609 @@ These are the lab's findings, now from code you can reuse. The Mastodon account 
 The \`UNKNOWN\` paths matter as much as the others. We ran this drill twice in a row. The second run hit GitHub's hourly limit, and the EFForg line came back \`UNKNOWN\`, not \`NONE\`. A grader without that path would have reported that EFF's own GitHub account does not claim eff.org. The same goes for DNS: if \`dig\` cannot reach a resolver, it exits non-zero, and "no answer" is not "no record".
 </details>`,
     tracker: ["Wrote the claim, the question and the scope before the first request, with every person out of scope", "Ran the lab: sixteen requests and one DNS lookup logged, two replies hashed and deleted", "Can say what each of the three 'tempting' sentences gets wrong", "Explained why the Mastodon rule found a name nobody holds, and why the GitHub rule missed one that is absent", "Classified GitHub replies by parsing them, in both layouts (Drill 1)", "Built an existence checker that trusts a site only when its control passes, and ran it on my own username (Drill 2)", "Built a link grader that answers TWO-WAY, ONE-WAY, NONE or UNKNOWN, and saw UNKNOWN when a limit was hit (Drill 3)"]
+  }, {
+    id: "s2_7",
+    level: 2,
+    num: "S2.7",
+    title: "Capstone 2 — A Multi-Source Pivot Report: How Strong Is Each Link?",
+    objective: `Pivot out from one domain through DNS, registry records, passive DNS, network ownership and page history, and grade every link before it enters the report: STRONG when both sides had to act, ONE-WAY when one side says so, LEAD for shared infrastructure, CONTEXT for dates. Test a delegation from both sides, with a control the nameserver must refuse. Log the leads you did not follow. Write a report whose checker fails any judgement that rests on no STRONG finding, then seal it.`,
+    theory: `#### What changes in the second capstone
+
+S1.7 answered one question from a handful of registries, and every finding pointed straight at a record. Level 2 added six new kinds of record: page history (S2.1), network ownership (S2.2), passive DNS (S2.3), file metadata (S2.4), pictures (S2.5) and accounts (S2.6). Real investigations join them together. You find one identifier in a record, use it to look up the next record, and follow the trail. Each step is a **pivot**.
+
+Pivots are where investigations go wrong. A single record rarely lies. The mistake is in the step *between* records: two names on the same address, the same registrar, the same account name. Each looks like a link. Most are not. This module is about grading every link before it enters a report, and about a report that refuses to reach a conclusion on weak links alone.
+
+The method from S1.7 still holds: question first, one door for collection, cited findings, likelihood and confidence in separate sentences, a check, and a seal. This module adds one thing to every finding: **how strong is the link it shows?**
+
+#### Four strengths of link
+
+Each finding in the lab carries one of four tags. They grow out of S2.6, where an account and a website could be linked by a shared name only, a one-way claim, or a two-way link.
+
+| Tag | What it means | Level 2 examples |
+|---|---|---|
+| **STRONG** | Both sides had to act for the link to exist | a rel=me link and the profile pointing back (S2.6); a nameserver that serves the zone the registry delegated to it (this module) |
+| **ONE-WAY** | One side says so; the other side did not have to agree | a website saying "a project of …"; a profile's website field before verification (S2.6); a file's author field (S2.4) |
+| **LEAD** | Shared infrastructure or a shared supplier; strangers share these too | two names on one address; the same registrar; the same hosting network (S2.2) |
+| **CONTEXT** | Dates or places the other findings; links nothing | a registration date; a first archived capture (S2.1); a passive DNS sighting (S2.3) |
+
+Two rules follow. A LEAD is a reason to look further, never a conclusion. And a chain of pivots is only as strong as its weakest link: two STRONG links joined by a LEAD make a LEAD.
+
+#### Step 1 — the scope names the candidates, and says what happens to new ones
+
+The lab starts from eff.org and asks about two other domains. It names them in the scope, before the first request. Pivoting throws up new names constantly: the lab's own passive DNS request returns eight. If every new name becomes a new line of enquiry, the question drifts and the scope stops meaning anything.
+
+So the scope has a rule for them: *logged as a lead, not followed*. The report lists every name found and not followed, so a reader can see what was left out and why. Following one later is a new question with its own scope.
+
+#### Step 2 — DNS answers are evidence too
+
+In S1.7 every item was a web request. Here three items are DNS lookups, saved to files and hashed like everything else. A DNS answer changes over time. If the report says "certbot.org pointed at this address", the answer that showed it must be in the evidence, with the time it was received.
+
+Two details matter:
+
+- \`dig\` returns a failure exit status when it gets no reply at all. The lab's \`collect_dns\` checks it and logs \`FAILED\` rather than hashing an empty file. This is the S2.6 rule: an unanswered lookup is not a negative answer.
+- A saved DNS reply includes a random query ID and a timing line, so the file's hash changes on every run even when the answer does not. The hash proves the file has not changed *since collection*. It cannot show that two runs agree.
+
+#### Step 3 — the shared-address pivot, and its control
+
+www.eff.org is an alias for a name at Fastly, a content delivery network (AS54113). The lab asks mnemonic's passive DNS (S2.3) which names its sensors have seen on one of those addresses. The answer is eight names: certbot.org and its .com, .net and .info twins, atlasofsurveillance.org, onlinecensorship.org, securityeducationcompanion.org, and Fastly's own name for the service.
+
+They look like a family, and it is tempting to write "EFF also runs these seven sites". That is a LEAD, for two reasons.
+
+- **Strangers share addresses.** The lab runs a control: the address example.com uses today, on Cloudflare's network. On the build run, mnemonic had seen 29 names there, under 14 registered domains. Only two of those names were example.com's. The same query that made eff.org's neighbours look related makes strangers look related.
+- **Passive DNS shows what sensors saw, not everything that is there.** Eight names means eight *sightings*, not "only eight sites use this address". S2.3 made the same point about gaps in the history.
+
+The control does not show that eff.org's neighbours are strangers. It shows that sharing an address cannot tell you either way. Something else has to.
+
+#### Step 4 — the delegation link: two sides of one link
+
+The .org registry (Public Interest Registry) lists the nameservers for each domain. For all three, it lists the same three names: ns1.eff.org, ns2.eff.org and ns4.eff.org. S1.7 warned that nameservers show who answers DNS for a name, not who controls the name. Here they show something more useful, but only once both sides are checked.
+
+- **The holder's side (F4, ONE-WAY).** Whoever holds certbot.org told the registry to send questions to ns1.eff.org. Nothing stops anyone listing any nameserver. A domain whose listed nameservers do not actually serve it is the old meaning of a *lame delegation*: in RFC 1912's words, quoted by RFC 9499, "a nameserver is delegated responsibility for providing nameservice for a zone (via NS records) but is not performing nameservice for that zone". RFC 9499 also notes that the term has since drifted to cover several other faults and "should be considered historic". So on its own, F4 is a one-way claim.
+- **The nameserver's side (F5, STRONG).** The lab asks ns1.eff.org directly, without recursion (\`+norec\`), for each domain's SOA record. For eff.org, certbot.org and atlasofsurveillance.org it answers with the \`aa\` flag set. RFC 1035 defines that flag: it "specifies that the responding name server is an authority for the domain name in question section". Whoever runs ns1.eff.org loaded those zones on purpose.
+- **The control.** The same server, asked about example.com, replies \`REFUSED\`: RFC 1035's "Refused - The name server refuses to perform the specified operation for policy reasons." Without this, an \`aa\` answer could come from a server that claims authority for everything. The control shows it does not.
+
+Put together, F4 and F5 are one two-way link. The holders pointed at eff.org's nameservers, and eff.org's nameserver operator agreed to serve them. That is much stronger than a shared address, and it is still precise about what it shows: *who operates the DNS*. It does not show who holds the registrations. For all three domains the registry record names only the registrar, not the registrant.
+
+The shared registrar (Gandi, IANA registrar ID 81) is a LEAD, like the shared address. A registrar has many unrelated customers.
+
+#### Step 5 — the site's own claim
+
+The atlasofsurveillance.org home page says it is "a project of the Electronic Frontier Foundation". That is ONE-WAY: anyone can write that sentence on any website. It becomes useful because it *fits* the delegation link. It does not add strength of its own. The lab does not fetch certbot.org's page. Its first archived captures are redirects (HTTP 301). A redirect is also one-way: any site can redirect to any other.
+
+#### Step 6 — time: when each record was true
+
+Three kinds of date appear, and none of them means "since" or "until" on its own.
+
+- **Registration** (RDAP): certbot.org 2016-03-16, atlasofsurveillance.org 2020-04-15. That is when the registry says this registration began. The holder can change without that date changing.
+- **First archived capture** (Wayback CDX, S2.1): 2017-05-20 and 2020-07-13. That is when the archive first visited, not when the site started.
+- **Passive DNS first and last seen** (S2.3): mnemonic last saw certbot.org on the Fastly address in September 2024. The lab's own DNS lookup, at collection time, still finds it there. "Last seen" is the last sighting by a sensor, not the day something stopped. F8 puts the two side by side so the report cannot mistake one for the other.
+
+eff.org's own history shows the same thing. Passive DNS lists five addresses for eff.org since 2012, with gaps between some of them. A gap is a period no sensor recorded, not a period when eff.org had no address.
+
+These are all CONTEXT findings. They date the links. They are not links themselves.
+
+#### Step 7 — the report, the check, and the seal
+
+The report keeps S1.7's sections. Each finding line now starts with its tag, and the Assessment names the findings it rests on. The likelihood words follow the PHIA Probability Yardstick from S1.7, and the report says so:
+
+> It is highly likely that certbot.org and atlasofsurveillance.org are run by the same organisation that runs eff.org's DNS (F4, F5, F6).
+> Analytical confidence: moderate. The DNS delegation and the authoritative answers need both sides to act, but they show who operates DNS, not who holds the registrations, and the only statement of ownership is the site's own (see Gaps).
+
+Why "highly likely" but only moderate confidence? The likelihood is high because the one STRONG link is hard to fake by accident. Confidence is moderate because the evidence answers a narrower question than people will read into it. It shows who runs the DNS, not who holds the registrations. And everything about ownership comes from one source: the organisation's own words.
+
+\`check_report.sh\` does everything S1.7's check did, plus two things:
+
+1. Every finding must carry one of the four tags. A finding without one fails.
+2. The Assessment must cite at least one STRONG finding. If it cites only LEAD, ONE-WAY or CONTEXT findings, it fails. A missing Assessment is \`UNKNOWN\`, exit 2, as before.
+
+Then the seal, exactly as in S1.7.
+
+#### What the check proves — and what it does not
+
+The check proves that every finding is **tagged and traceable**, and that the judgement names at least one finding tagged STRONG. It cannot tell whether a tag is *right*.
+
+This happened while the lab was being written. The first draft tagged F4 (the registry's nameserver list) as STRONG, and the check passed. It was wrong: F4 is only the holder's side, and anyone can list any nameserver. Only F5 shows the other side. A checker reads tags. A person has to read the evidence behind each tag. Drill 1 makes that concrete.
+
+#### Your own capstone 2
+
+When the lab works, run the method on a question of your own, inside the same practice limits as S1.7: yourself, the reserved domains, and organisations' public records. A good capstone-2 question starts from one identifier you own or an organisation publishes, names its candidates in advance, and asks how strongly they are linked. Examples: *is this organisation's status page on the same DNS operator as its main site?* or *which names does passive DNS show on my own website's address, and which of them are mine?* Tag every finding. Log the leads you did not follow. Do not let the Assessment rest on anything weaker than a two-way link. Then hand over the folder and the seal hash, and ask the reader to find a tag they would change.`,
+    lab: {
+      mac: `# LAB: pivot out from one domain across five kinds of record, grade every link, and write a report that cannot rest on a weak one (Apple Silicon)
+# ETHICS: three DNS lookups and eleven web requests about organisations, not people. Most go to
+# public registries and research services (Public Interest Registry, mnemonic, RIPE NCC, the
+# Internet Archive). Two kinds touch the subject's own systems, and the scope says so: DNS
+# questions to eff.org's nameservers, and one page from atlasofsurveillance.org. No person, no
+# email address, no account.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s2_7 && cd ~/scouts-case/s2_7 || exit 1
+rm -rf evidence collection_log.tsv report.md check_report.sh SEAL.sha256 && mkdir evidence
+
+# 1. The question, the candidates and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.7 capstone 2
+question:     Are certbot.org and atlasofsurveillance.org run by the same people who run
+              eff.org's DNS, and how strong is each link the public record offers?
+authorised:   self (public records about three organisational domains)
+in scope:     DNS (public resolver; eff.org's own nameservers); .org RDAP (Public Interest
+              Registry); mnemonic passive DNS; RIPEstat; Wayback CDX (3 rows per domain);
+              the home page of atlasofsurveillance.org
+out of scope: any person, email address or social account; every other name found on a
+              shared address (logged as a lead, not followed); logins; port scans
+SCOPE
+
+# 2. Collect through one door: every request and every DNS answer is a logged, hashed item.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+collect() {  # id extension url
+  local f="evidence/$1.$2" H=FAILED
+  if curl -sf --retry 2 -m 90 -A "$UA" -o "$f" "$3"; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else rm -f "$f"; fi
+  log "$1" "$3" "$H"
+}
+collect_dns() {  # id, then dig arguments
+  local id=$1 f="evidence/$1.txt" H=FAILED; shift
+  if dig +noall +question +comments +answer "$@" > "$f"; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else rm -f "$f"; fi
+  log "$id" "dns: $*" "$H"
+}
+collect_dns item001 eff.org A www.eff.org A certbot.org A www.atlasofsurveillance.org A
+collect_dns item002 example.com A
+collect_dns item003 @ns1.eff.org +norec eff.org SOA certbot.org SOA atlasofsurveillance.org SOA example.com SOA
+APEX=$(awk '$1 == "eff.org." && $4 == "A" {print $5; exit}' evidence/item001.txt)
+WWW=$(awk '$1 == "eff.map.fastly.net." && $4 == "A" {print $5}' evidence/item001.txt | sort -t. -n -k1,1 -k2,2 -k3,3 -k4,4 | head -1)
+CTRL=$(awk '$1 == "example.com." && $4 == "A" {print $5}' evidence/item002.txt | sort -t. -n -k1,1 -k2,2 -k3,3 -k4,4 | head -1)
+[ -n "$APEX" ] && [ -n "$WWW" ] && [ -n "$CTRL" ] || { echo "STOP: a DNS answer is missing - read evidence/item00[12].txt"; exit 1; }
+collect item004 json "https://rdap.publicinterestregistry.org/rdap/domain/eff.org"
+collect item005 json "https://rdap.publicinterestregistry.org/rdap/domain/certbot.org"
+collect item006 json "https://rdap.publicinterestregistry.org/rdap/domain/atlasofsurveillance.org"
+collect item007 json "https://api.mnemonic.no/pdns/v3/eff.org?rrType=a&limit=1000"; sleep 7   # 10 a minute
+collect item008 json "https://api.mnemonic.no/pdns/v3/\${WWW}?limit=1000"; sleep 7
+collect item009 json "https://api.mnemonic.no/pdns/v3/\${CTRL}?limit=1000"
+collect item010 json "https://stat.ripe.net/data/network-info/data.json?resource=\${APEX}"
+collect item011 json "https://stat.ripe.net/data/network-info/data.json?resource=\${WWW}"
+collect item012 txt  "https://web.archive.org/cdx/search/cdx?url=certbot.org&limit=3"; sleep 6
+collect item013 txt  "https://web.archive.org/cdx/search/cdx?url=atlasofsurveillance.org&limit=3"
+collect item014 html "https://www.atlasofsurveillance.org/"
+(cd evidence && shasum -a 256 item0* > SHA256SUMS)
+awk -F'\\t' '{print $1, $2, substr($5, 1, 12)}' collection_log.tsv
+grep -q FAILED collection_log.tsv && { echo "STOP: a request failed - it is in the log; retry before writing"; exit 1; }
+
+# 3. Read each item for what the question needs, and print the pivots as a table.
+ms() { jq -rn --argjson t "$1" '$t / 1000 | floor | todate[0:10]'; }   # mnemonic times are in ms
+regd() { jq -r '.events[] | select(.eventAction == "registration") | .eventDate[0:10]' "evidence/$1.json"; }
+rar()  { jq -r '.entities[] | select(.roles | index("registrar")) | .vcardArray[1][] | select(.[0] == "fn") | .[3]' "evidence/$1.json"; }
+nss()  { jq -r '[.nameservers[].ldhName | ascii_downcase] | sort | join(" ")' "evidence/$1.json"; }
+aa()   {  # dig prints each reply's header BEFORE its question line: remember the header, print at the question
+  awk -v z=";$1." '/->>HEADER<<-/ {s = $6} /^;; flags:/ {f = index($0, " aa") ? "aa" : "no-aa"} $1 == z {print s, f; exit}' \\
+    evidence/item003.txt | tr -d ','; }
+cdx1() { awk 'NR == 1 {print substr($2, 1, 4) "-" substr($2, 5, 2) "-" substr($2, 7, 2), "HTTP " $5}' "evidence/$1.txt"; }
+EFFNS=$(nss item004)
+printf 'eff.org       %s via %s | apex %s (AS%s) | www %s (AS%s)\\n' "$(regd item004)" "$(rar item004)" \\
+  "$APEX" "$(jq -r '.data.asns[0]' evidence/item010.json)" "$WWW" "$(jq -r '.data.asns[0]' evidence/item011.json)"
+echo "eff.org nameservers: $EFFNS"
+echo "passive DNS: eff.org's A records (first seen -> last seen)"
+jq -r '.data[] | "\\(.answer) \\(.firstSeenTimestamp) \\(.lastSeenTimestamp)"' evidence/item007.json | sort -k2n |
+  while read -r a f l; do printf '  %-16s %s -> %s\\n' "$a" "$(ms "$f")" "$(ms "$l")"; done
+CO=$(jq -r '[.data[].query | rtrimstr(".")] | unique | join(" ")' evidence/item008.json)
+echo "passive DNS: names seen on $WWW: $CO"
+NC=$(jq '.data | length' evidence/item009.json)
+NR=$(jq '[.data[].query | rtrimstr(".") | split(".") | .[-2:] | join(".")] | unique | length' evidence/item009.json)
+echo "control: names seen on example.com's address $CTRL: $NC, under $NR registered domains"
+echo "authoritative test at ns1.eff.org:"
+for z in eff.org certbot.org atlasofsurveillance.org example.com; do printf '  %-24s %s\\n' "$z" "$(aa $z)"; done
+ATLAS=$(sed 's/<[^>]*>//g' evidence/item014.html | tr -s ' \\n\\t' ' ')
+case "$ATLAS" in *"a project of the Electronic Frontier Foundation"*) CLAIM=yes ;; *) CLAIM=no ;; esac
+
+echo "candidate                shared addr  same registrar  same NS        ns1 aa  site says EFF  registered  first archived"
+row() {  # domain item cdx-item
+  local co=no rg=no ns=no a c=-; case " $CO " in *" $1 "*) co=yes ;; esac
+  [ "$(rar "$2")" = "$(rar item004)" ] && rg=yes
+  [ "$(nss "$2")" = "$EFFNS" ] && ns=yes
+  a=$(aa "$1"); [ "$1" = atlasofsurveillance.org ] && c=$CLAIM
+  printf '%-24s %-12s %-15s %-14s %-7s %-14s %-11s %s\\n' "$1" $co $rg $ns "\${a#* }" $c "$(regd "$2")" "$(cdx1 "$3")"
+}
+row certbot.org item005 item012
+row atlasofsurveillance.org item006 item013
+CB=$(jq -r '.data[] | select(.query | rtrimstr(".") == "certbot.org") | .lastSeenTimestamp' evidence/item008.json)
+LIVE=$(awk -v w="$WWW" '$1 == "certbot.org." && $5 == w' evidence/item001.txt | wc -l | tr -d ' ')
+echo "certbot.org on $WWW: passive DNS last saw it $(ms "$CB"); live DNS today lists it: $([ "$LIVE" = 1 ] && echo yes || echo no)"
+[ "$(aa example.com)" = "REFUSED no-aa" ] && [ "$(aa certbot.org)" = "NOERROR aa" ] && [ "$(aa atlasofsurveillance.org)" = "NOERROR aa" ] &&
+  [ "$(nss item005)" = "$EFFNS" ] && [ "$(nss item006)" = "$EFFNS" ] && [ "$CLAIM" = yes ] && [ "$NR" -gt 1 ] ||
+  { echo "STOP: the record no longer says what the report's wording assumes - read the items, then rewrite"; exit 1; }
+
+# 4. The report. Each finding carries its strength; the Assessment names the findings it rests on.
+LEADS=$(printf '%s\\n' "$CO" | tr ' ' '\\n' | grep -vxE 'certbot\\.org|atlasofsurveillance\\.org|.*\\.fastly\\.net' | tr '\\n' ' ')
+cat > report.md <<REPORT
+# S2.7 - certbot.org and atlasofsurveillance.org: linked to eff.org, and how strongly?
+Analyst: $ANALYST. Collection log: collection_log.tsv. Evidence hashes: evidence/SHA256SUMS.
+
+## Objective
+$(awk '/^question:/ {sub(/^question: */, ""); q = $0; getline; sub(/^ */, ""); print q, $0}' scope.txt)
+
+## Method
+Three DNS lookups and eleven web requests, logged with UTC time and SHA-256 (see scope.txt).
+Each finding is tagged with the strength of the link it shows: {STRONG} both sides of the link
+had to act, {ONE-WAY} one side says so, {LEAD} shared infrastructure or a shared supplier,
+{CONTEXT} a fact that dates or places the others but links nothing. Likelihood words follow
+the PHIA Probability Yardstick.
+
+## Findings
+F1 {LEAD} [item001][item008] www.eff.org resolves to $WWW, among others. mnemonic's sensors have seen these names on that address: $CO.
+F2 {LEAD} [item009] Control: example.com's address $CTRL has been seen with $NC names under $NR registered domains. Sharing an address does not, alone, link two names.
+F3 {LEAD} [item004][item005][item006] All three domains are registered through the same registrar, "$(rar item004)".
+F4 {ONE-WAY} [item004][item005][item006] The .org registry lists the same nameservers for all three domains: $EFFNS. That is the holders' side: anyone can list a nameserver.
+F5 {STRONG} [item003] Asked without recursion, ns1.eff.org answered certbot.org and atlasofsurveillance.org with the authoritative-answer flag set, and refused example.com. That is the other side of F4: the nameserver's operator chose to serve these zones.
+F6 {ONE-WAY} [item014] The home page of atlasofsurveillance.org says it is "a project of the Electronic Frontier Foundation".
+F7 {CONTEXT} [item005][item006][item012][item013] certbot.org was registered on $(regd item005), atlasofsurveillance.org on $(regd item006). The earliest archived captures are $(cdx1 item012) and $(cdx1 item013).
+F8 {CONTEXT} [item001][item008] Passive DNS last saw certbot.org on $WWW on $(ms "$CB"). Live DNS at collection still lists it there.
+
+## Gaps and limits
+- F1 and F3 are leads only. F2 shows why: an address or a registrar is shared by strangers.
+- F4 and F5 show who operates the DNS for these names: whoever runs eff.org's nameservers.
+  They do not show who holds the registrations. The registry shows no registrant for any of the three.
+- F6 is the site's own claim. Anyone can write that sentence; F4-F5 are what make it fit.
+- F8: "last seen" is the last time a sensor saw an answer, not the day it stopped.
+- Leads found and not followed (out of scope): $LEADS
+
+## Assessment
+It is highly likely that certbot.org and atlasofsurveillance.org are run by the same organisation that runs eff.org's DNS (F4, F5, F6).
+Analytical confidence: moderate. The DNS delegation and the authoritative answers need both sides to act, but they show who operates DNS, not who holds the registrations, and the only statement of ownership is the site's own (see Gaps).
+REPORT
+
+# 5. Check the report: citations verify, every finding has a strength, and no judgement rests on leads alone.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}; bad=0; n=0
+[ -f "$R" ] && [ -f collection_log.tsv ] || { echo "UNKNOWN: $R or collection_log.tsv missing"; exit 2; }
+while read -r F tag rest; do
+  n=$((n + 1))
+  case "$tag" in "{STRONG}"|"{ONE-WAY}"|"{LEAD}"|"{CONTEXT}") ;; *) echo "$F FAIL no strength tag"; bad=$((bad + 1)); continue ;; esac
+  ids=$(printf '%s\\n' "$rest" | grep -o '\\[item[0-9][0-9]*\\]' | tr -d '[]')
+  [ -z "$ids" ] && { echo "$F FAIL no citation"; bad=$((bad + 1)); continue; }
+  for id in $ids; do
+    h=$(awk -F'\\t' -v i="$id" '$1 == i {print $5}' collection_log.tsv)
+    f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+    if [ -z "$h" ]; then echo "$F FAIL $id not in log"; bad=$((bad + 1))
+    elif [ "$h" = FAILED ]; then echo "$F FAIL $id collection failed"; bad=$((bad + 1))
+    elif [ -z "$f" ]; then echo "$F FAIL $id file missing"; bad=$((bad + 1))
+    elif [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "$F FAIL $id hash differs from log"; bad=$((bad + 1))
+    fi
+  done
+  echo "$F $tag checked"
+done < <(grep -E '^F[0-9]+ ' "$R")
+[ "$n" -eq 0 ] && { echo "UNKNOWN: no findings in $R"; exit 2; }
+J=$(awk '/^## Assessment/ {a = 1; next} /^## / {a = 0} a && /^It is/' "$R")
+[ -z "$J" ] && { echo "UNKNOWN: no judgement found under ## Assessment"; exit 2; }
+cited=$(printf '%s\\n' "$J" | grep -o 'F[0-9][0-9]*' | sort -u)
+[ -z "$cited" ] && { echo "Assessment FAIL cites no findings"; bad=$((bad + 1)); }
+best=none
+for F in $cited; do
+  t=$(awk -v f="$F" '$1 == f {print $2}' "$R")
+  [ -z "$t" ] && { echo "Assessment FAIL cites $F, which is not a finding"; bad=$((bad + 1)); }
+  [ "$t" = "{STRONG}" ] && best=strong
+done
+[ -n "$cited" ] && [ "$best" != strong ] && { echo "Assessment FAIL rests on no {STRONG} finding"; bad=$((bad + 1)); }
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n findings; the Assessment rests on $(echo $cited))" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh
+
+# 6. Seal the case, then prove the seal holds.
+shasum -a 256 scope.txt collection_log.tsv evidence/SHA256SUMS report.md check_report.sh > SEAL.sha256
+shasum -a 256 SEAL.sha256
+shasum -a 256 -c SEAL.sha256 && (cd evidence && shasum -a 256 -c SHA256SUMS)`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab's central test (step 3, F5) reads the authoritative-answer (aa) flag from each DNS
+# reply and needs dig's +norec behaviour exactly as described. This module could not check how
+# Windows' own DNS tools (Resolve-DnsName, nslookup) report that flag, and a lab whose documented
+# result has not been seen to happen is not taught here. WSL gives you the same dig as Linux.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y dnsutils jq curl
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s2_7 inside Ubuntu. The drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in collect() and collect_dns(), inside the check_report.sh heredoc,
+# and in step 6. One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools, if missing - dig: Debian/Ubuntu  sudo apt install dnsutils   Fedora  sudo dnf install bind-utils
+#                    jq:  sudo apt install jq  /  sudo dnf install jq
+# Everything else (curl, awk, sed, sort, python3 for the drills) behaves the same. The date
+# conversion uses jq's todate rather than date(1), because GNU and BSD date disagree on -r.`,
+      expected: {
+        mac: `\`\`\`text
+item001 2026-09-28T14:44:59Z da8be750761e
+item002 2026-09-28T14:44:59Z 068bf79cb0f7
+item003 2026-09-28T14:45:01Z c469e43c7200
+…  (item004 to item013)
+item014 2026-09-28T14:46:43Z 01b734bcfa69
+eff.org       1990-10-10 via Gandi SAS | apex 173.239.79.200 (AS32354) | www 151.101.0.201 (AS54113)
+eff.org nameservers: ns1.eff.org ns2.eff.org ns4.eff.org
+passive DNS: eff.org's A records (first seen -> last seen)
+  69.50.232.52     2012-08-17 -> 2013-11-14
+  69.50.232.54     2016-04-30 -> 2018-04-25
+  198.100.177.181  2018-05-02 -> 2018-11-27
+  173.239.79.196   2018-11-28 -> 2025-06-10
+  173.239.79.200   2026-04-16 -> 2026-08-10
+passive DNS: names seen on 151.101.0.201: atlasofsurveillance.org certbot.com certbot.info certbot.net certbot.org eff.map.fastly.net onlinecensorship.org securityeducationcompanion.org
+control: names seen on example.com's address 104.20.23.154: 29, under 14 registered domains
+authoritative test at ns1.eff.org:
+  eff.org                  NOERROR aa
+  certbot.org              NOERROR aa
+  atlasofsurveillance.org  NOERROR aa
+  example.com              REFUSED no-aa
+candidate                shared addr  same registrar  same NS        ns1 aa  site says EFF  registered  first archived
+certbot.org              yes          yes             yes            aa      -              2016-03-16  2017-05-20 HTTP 301
+atlasofsurveillance.org  yes          yes             yes            aa      yes            2020-04-15  2020-07-13 HTTP 200
+certbot.org on 151.101.0.201: passive DNS last saw it 2024-09-24; live DNS today lists it: yes
+F1 {LEAD} checked
+F2 {LEAD} checked
+F3 {LEAD} checked
+F4 {ONE-WAY} checked
+F5 {STRONG} checked
+F6 {ONE-WAY} checked
+F7 {CONTEXT} checked
+F8 {CONTEXT} checked
+report check: PASS (8 findings; the Assessment rests on F4 F5 F6)
+dd8c36c2445417d8…  SEAL.sha256
+scope.txt: OK
+…  (every sealed file and all 14 evidence items: OK)
+\`\`\`
+
+That is the run on 28 September 2026. Some of it will differ on yours, and the differences are part of the lesson:
+
+- **Every hash, including the seal.** The three DNS items contain a random query ID and a timing line, so their hashes change on every run even when the answers do not. The hash proves a file has not changed since *you* collected it. It does not show that two runs agree.
+- **Passive DNS rows that are still open.** eff.org's latest address, the names seen on the Fastly address, and the control's count (29 names, 14 registered domains here) all move as mnemonic's sensors keep watching. Closed rows, like 69.50.232.52 in 2012–2013, should match.
+- **The addresses themselves.** The lab reads them from live DNS and picks the lowest, so a change at Fastly or Cloudflare changes the address it asks about.
+
+Three lines should not change in character: ns1.eff.org answers \`aa\` for the three EFF domains and \`REFUSED\` for example.com; the candidates' \`same NS\` column says \`yes\`; and \`report check: PASS\` names F4, F5 and F6. If any of those differ, the lab stops with a \`STOP\` line before writing the report. Read the items: the record has changed, and the report's wording has to change with it.`
+      }
+    },
+    caseStudy: {
+      title: "mooo.com, February 2011 — ten warrants, one shared parent domain, and 84,000 sites under a seizure banner",
+      body: `**What happened.** On 15 February 2011 the US Department of Homeland Security and the Department of Justice announced "the execution of seizure warrants against 10 domain names of websites engaged in the advertisement and distribution of child pornography", under a new joint operation called "Operation Protect Our Children". The release did not name the domains. It did not mention mooo.com either.
+
+mooo.com was a shared domain run by FreeDNS (afraid.org), a free DNS service. As Techdirt explained at the time, services like this let you use a subdomain such as *yourname*.mooo.com and "point it at whatever machine is actually hosting your content". TorrentFreak (16 February 2011) called it "the most popular shared domain at afraid.org". It reported that "a massive 84,000 subdomains were wrongfully seized", and that every one of them was redirected to a banner accusing it of child pornography offences. The report said most of those subdomains "are personal sites and sites of small businesses".
+
+**The timeline, from the reports.** NBC News, crediting TorrentFreak for the story, dates the seizure to "Late on Friday (Feb. 11)". TorrentFreak says that "on Sunday the domain seizure was reverted", and that because DNS entries have to propagate, "it took another 3 days before the images disappeared completely". The Register (18 February 2011) says mooo.com was "suspended at the registrar level" and restored "By Sunday evening". FreeDNS's statement, as TorrentFreak quoted it: "Freedns.afraid.org has never allowed this type of abuse of its DNS service."
+
+**The link, graded.** Put this in the terms of the lab. A subdomain and its parent domain share a supplier: the parent's DNS. That is a LEAD, exactly like F1 and F3. It tells you where to look, not who is responsible. mooo.com's 84,000 users shared a parent domain in the same way that the control address in the lab shares a network with strangers. Acting on the parent acts on every user of it.
+
+The lab's STRONG link needed *both* sides to act: the holder delegated to a nameserver, and the nameserver's operator agreed to serve the zone. A subdomain has no such two-sided link to the service it sits under. Nothing in the reports suggests FreeDNS chose what each user pointed a subdomain at, and its statement says it never allowed this abuse.
+
+**Read the reports as carefully as the records.** The coverage does not agree with itself on every detail.
+
+- *The mechanism.* TorrentFreak says ICE "contacted the domain registries to point the domains in question to a server that hosts the warning message". The Register says mooo.com was "suspended at the registrar level". A registry and a registrar are different organisations (S1.2), and neither report shows which it was. Neither report cites a document showing how it happened.
+- *The duration.* The Register says 84,000 websites were "silenced for 72 hours". Its own dates, Friday to Sunday evening, cover about two days. The 72 hours may include propagation, but the article does not say so. Quote a figure with its source, and check whether the source's own dates support it.
+- *The count.* TorrentFreak says 84,000 subdomains. The Register says "as many as 84,000". Neither says where the number came from, and NBC credits TorrentFreak. Three outlets printing one number may be one source repeated, not three agreeing (S1.7, Step 5).
+
+**What it does not settle.** *Why* mooo.com was on the list. TorrentFreak says only that "somewhere in this process a mistake was made". The public reports do not show whether the warrant named mooo.com itself, or only a subdomain, with the parent taken by mistake. This module could find no primary record either way. A later statement attributed to ICE is widely quoted, but it could not be pinned to a page that could actually be read, so it is left out here. The case shows what acting on a shared-infrastructure link costs. It does not show who made the link.`
+    },
+    challenges: [{
+      q: `A colleague finds that a suspicious domain resolves to the same IP address as a well-known charity's website, and drafts a line: "the domain is operated by the charity". What do you tell them, and what would you check before any link goes in the report?`,
+      a: `That a shared address is a LEAD, and on its own it cannot support that sentence. The lab's control showed why: example.com's address had been seen with 29 names under 14 registered domains, and only one of those domains was example.com. Content delivery networks and big hosts put many customers on one address. Before writing any link, test the delegation from both sides, as the lab did. Which nameservers does the registry list for the suspicious domain? Are they inside the charity's own domain? Do those servers answer it with the aa flag, and refuse a control? If the domain uses a big provider's nameservers, that is also only a shared supplier. The most the report can say is "resolved to the same address as the charity's site at [time] [item]", tagged LEAD, with the Assessment resting on something stronger or saying nothing.`
+    }, {
+      q: `Your report's Assessment reads: "It is almost certain that the two domains share an owner (F1, F3)." F1 is a shared address and F3 is a shared registrar. check_report.sh fails it. Your manager says the check is too strict, because two separate sources agree. Who is right?`,
+      a: `The check. Both findings are LEADs: strangers share addresses and registrars, so two LEADs agreeing still link nothing. Agreement adds weight only when each source could have shown something else, and a shared supplier cannot tell you who the customers are. The fix is not to rewrite the tags. Look for a link that needed both sides to act: a delegation the nameserver actually serves, a two-way rel=me (S2.6), or a record the owner published on their own domain. Then rest the Assessment on that. If no such link exists, the honest Assessment is narrower: "shared hosting and registrar only; no link established". Drill 1's auditor exists so that nobody can pass the check by retagging a LEAD as STRONG.`
+    }, {
+      q: `Passive DNS shows two domains on the same address, but one was last seen there in 2019 and the other first seen there in 2023. A report says "they share hosting". What is wrong, and how do you phrase it?`,
+      a: `Nothing shows they were ever there at the same time. Drill 3 found the same thing with atlasofsurveillance.org and the name behind www.eff.org: both sightings are real, and the windows never overlap. Also, "last seen" is only the last time a sensor saw an answer (S2.3), so the first domain may have stayed there longer, or not. Either state both windows and say they do not overlap, or find a record that shows both at one moment, such as a live lookup at collection time, and cite that: "at [time], both resolved to [address] [item]". The chain is a LEAD in either case, and a LEAD that was never true at a single moment is not even that.`
+    }],
+    quiz: ["Name the four tags the lab puts on a finding, and give the lab's example of each.", "Why is F4, the registry's list of nameservers, only ONE-WAY, and what does F5 add?", "What does the aa flag mean, according to RFC 1035, and why does the lab also ask ns1.eff.org about example.com?", "The lab's control found 29 names under 14 registered domains on example.com's address. What does that show, and what does it not show about eff.org's neighbours?", "Why does the lab log five co-sighted names as leads instead of following them?", "Why does the Assessment say \"highly likely\" but give only moderate confidence?", "What two things does this lab's check_report.sh test that S1.7's did not, and what can it still not catch?", "In Drill 3, why is atlasofsurveillance.org NEVER TOGETHER with eff.org on the shared address, when a live lookup shows both there today?"],
+    workbench: `> **What this trains.** The lab graded every link and refused a judgement built on leads. Here you catch a wrong tag that the report check lets through, test the two sides of a delegation yourself, and grade a chain of pivots by its weakest link and by *when* each link held.
+
+#### 🟢 Drill 1 — audit the tags, not just their presence ~4 min
+
+**Goal.** \`check_report.sh\` confirms every finding *has* a tag. It cannot tell whether the tag is right. The lab's first draft tagged F4 STRONG, and it passed. Write down what *kind* of evidence each finding is, then let a script enforce the rule for each kind. No new requests.
+
+**Done when.** The auditor passes the lab's report and fails the draft on F4, while \`check_report.sh\` passes both.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_7 || exit 1
+# Each finding's KIND is what a person decides by reading the evidence. The auditor only
+# enforces the rule "this kind of evidence can carry at most this tag".
+cat > kinds.tsv <<'KINDS'
+F1	shared_address
+F2	shared_address
+F3	shared_registrar
+F4	ns_listed
+F5	ns_serves
+F6	self_claim
+F7	date
+F8	sighting
+KINDS
+cat > audit_tags.py <<'PY'
+import re, sys
+TAG = {"shared_address": "LEAD", "shared_registrar": "LEAD", "ns_listed": "ONE-WAY",
+       "ns_serves": "STRONG", "self_claim": "ONE-WAY", "date": "CONTEXT", "sighting": "CONTEXT"}
+kinds = dict(l.rstrip("\\n").split("\\t") for l in open("kinds.tsv") if l.strip())
+bad = 0
+for line in open(sys.argv[1]):
+    m = re.match(r"(F\\d+) \\{([A-Z-]+)\\}", line)
+    if not m:
+        continue
+    f, tag = m.groups()
+    kind = kinds.get(f)
+    if kind not in TAG:
+        print(f"{f} UNKNOWN  no kind recorded - read the evidence and add one"); bad += 1
+    elif tag != TAG[kind]:
+        print(f"{f} WRONG    tagged {tag}, but {kind} evidence gives {TAG[kind]}"); bad += 1
+    else:
+        print(f"{f} ok       {tag:8} {kind}")
+print("tag audit:", "PASS" if bad == 0 else f"FAIL - {bad} to fix")
+sys.exit(1 if bad else 0)
+PY
+echo "== the lab's report"; python3 audit_tags.py report.md
+# The lab's first draft, rebuilt: F4 tagged STRONG. check_report.sh passes it; the auditor does not.
+sed 's/^F4 {ONE-WAY}/F4 {STRONG}/' report.md > draft.md
+echo "== the first draft";  ./check_report.sh draft.md | tail -1; python3 audit_tags.py draft.md | grep -v ' ok '
+rm -f draft.md
+\`\`\`
+
+\`\`\`text
+== the lab's report
+F1 ok       LEAD     shared_address
+F2 ok       LEAD     shared_address
+F3 ok       LEAD     shared_registrar
+F4 ok       ONE-WAY  ns_listed
+F5 ok       STRONG   ns_serves
+F6 ok       ONE-WAY  self_claim
+F7 ok       CONTEXT  date
+F8 ok       CONTEXT  sighting
+tag audit: PASS
+== the first draft
+report check: PASS (8 findings; the Assessment rests on F4 F5 F6)
+F4 WRONG    tagged STRONG, but ns_listed evidence gives ONE-WAY
+tag audit: FAIL - 1 to fix
+\`\`\`
+
+The script did not decide that F4 is \`ns_listed\`. You did, by reading item004–006 and seeing that they are the registry's list of nameservers: the holders' side only. The auditor's job is narrower. Once you have said what the evidence *is*, it stops a tag claiming more than that kind of evidence can show. Keep \`kinds.tsv\` in the case folder: it records a judgement a reviewer can disagree with.
+
+</details>
+
+#### 🟡 Drill 2 — test both sides of a delegation ~5 min
+
+**Goal.** Turn F4 + F5 into one function that answers \`TWO-WAY\`, \`ONE-WAY\`, \`NONE\` or \`UNKNOWN\`. Every listed nameserver must sit inside the origin's own domain, answer the candidate with \`aa\`, and refuse the control. A reply that never arrives is \`UNKNOWN\`, not \`NONE\`.
+
+**Done when.** Both candidates come back \`TWO-WAY\`, example.org \`NONE\`, and the forced TEST-NET query \`UNKNOWN\`.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_7 || exit 1
+# New requests: 4 RDAP lookups to the .org registry and 14 small DNS questions.
+# example.org is IANA's reserved domain: the NONE case. 192.0.2.1 is TEST-NET-1 (RFC 5737):
+# nothing answers there, so it proves the UNKNOWN path works.
+cat > two_sided.py <<'PY'
+import json, subprocess, sys, urllib.request
+RDAP = "https://rdap.publicinterestregistry.org/rdap/domain/<name>"
+def listed_ns(domain):                      # the holder's side: what the registry says
+    req = urllib.request.Request(RDAP.replace("<name>", domain), headers={"User-Agent": "CyberScoutsLab/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return sorted(n["ldhName"].lower() for n in json.load(r)["nameservers"])
+def ask(server, zone):                      # the nameserver's side: does it serve the zone?
+    p = subprocess.run(["dig", "@" + server, "+norec", "+time=3", "+tries=1", zone, "SOA"],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        return None                         # no reply is not a "no"
+    status = flags = ""
+    for line in p.stdout.splitlines():
+        if "->>HEADER<<-" in line:
+            status = line.split("status: ")[1].split(",")[0]
+        if line.startswith(";; flags:"):
+            flags = line.split(";")[2]
+    return status, " aa" in flags
+def two_sided(domain, origin, via=None):
+    try:
+        ns = listed_ns(domain)
+    except Exception as e:
+        return "UNKNOWN", f"registry lookup failed: {type(e).__name__}"
+    if not ns or not all(n == origin or n.endswith("." + origin) for n in ns):
+        return "NONE", f"listed {' '.join(ns)} - not {origin}'s own nameservers"
+    for n in ns:
+        server = via or n
+        yes, ctrl = ask(server, domain), ask(server, "example.com")
+        if yes is None or ctrl is None:
+            return "UNKNOWN", f"no reply from {server}"
+        if ctrl[1]:
+            return "UNKNOWN", f"{n} claims authority for the control too - its answers prove nothing"
+        if not (yes[0] == "NOERROR" and yes[1]):
+            return "ONE-WAY", f"listed, but {n} answers {yes[0]} without aa (a lame delegation)"
+    return "TWO-WAY", f"listed {' '.join(ns)}; each answers with aa; each refuses the control"
+for d in sys.argv[2:]:
+    grade, why = two_sided(d, sys.argv[1])
+    print(f"{d:24} {grade:8} {why}")
+grade, why = two_sided("certbot.org", sys.argv[1], via="192.0.2.1")
+print(f"{'certbot.org via TEST-NET':24} {grade:8} {why}")
+PY
+python3 two_sided.py eff.org certbot.org atlasofsurveillance.org example.org
+\`\`\`
+
+\`\`\`text
+certbot.org              TWO-WAY  listed ns1.eff.org ns2.eff.org ns4.eff.org; each answers with aa; each refuses the control
+atlasofsurveillance.org  TWO-WAY  listed ns1.eff.org ns2.eff.org ns4.eff.org; each answers with aa; each refuses the control
+example.org              NONE     listed katelyn.ns.cloudflare.com mitch.ns.cloudflare.com - not eff.org's own nameservers
+certbot.org via TEST-NET UNKNOWN  no reply from 192.0.2.1
+\`\`\`
+
+Three rules make this stricter than "same nameservers":
+
+- **Inside the origin's domain.** example.org uses Cloudflare's nameservers, and so does example.com (S1.7), along with many unrelated domains. Two domains that both list \`*.ns.cloudflare.com\` share a supplier, which is a LEAD. The check only counts nameservers whose names sit under eff.org, so whoever runs eff.org's zone controls them.
+- **The control, per server.** A server that claims authority for example.com as well proves nothing by claiming certbot.org. That answer is \`UNKNOWN\`, not \`TWO-WAY\`.
+- **No reply is not a no.** \`dig\` exits non-zero when nothing answers, and the function stops there. S2.6's Drill 3 rule, applied to DNS.
+
+If you run it on your own domain, the origin is your domain and the candidates are the other names you hold.
+
+</details>
+
+#### 🔴 Drill 3 — a chain is as strong as its weakest link, and only while every link holds ~6 min
+
+**Goal.** A pivot through a shared address is two links: eff.org to the address, and the address to the other name. Grade the chain by its weakest link, then check *when* both links held, using the passive DNS windows already saved in item008. No new requests.
+
+**Done when.** You can explain the \`NEVER TOGETHER\` line, and why example.com comes back \`UNKNOWN\` rather than \`NONE\`.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_7 || exit 1
+# No new requests: reads the lab's passive DNS item for the address www.eff.org uses.
+cat > chain.py <<'PY'
+import json, sys
+from datetime import datetime, timezone
+RANK = {"LEAD": 1, "ONE-WAY": 2, "STRONG": 3}
+day = lambda ms: datetime.fromtimestamp(ms / 1000, timezone.utc).date()
+rows = json.load(open("evidence/item008.json"))["data"]
+seen = {r["query"].rstrip("."): (day(r["firstSeenTimestamp"]), day(r["lastSeenTimestamp"])) for r in rows}
+def window(name):
+    return seen.get(name)                       # None: the sensors never saw it here
+def chain(edges):
+    """edges: (from, to, tag, window or None). Weakest tag wins; windows must overlap."""
+    tag = min((e[2] for e in edges), key=RANK.get)
+    ws = [e[3] for e in edges if e[3] is not None]
+    if any(e[3] is None and e[2] == "LEAD" for e in edges):
+        return tag, "UNKNOWN - a sighting this chain needs is not in the data"
+    if not ws:
+        return tag, "no time limits recorded"
+    lo, hi = max(w[0] for w in ws), min(w[1] for w in ws)
+    return tag, (f"true together {lo} to {hi}" if lo <= hi else f"NEVER TOGETHER - latest start {lo} is after earliest end {hi}")
+ADDR = "the www address"
+for name in ["onlinecensorship.org", "atlasofsurveillance.org", "securityeducationcompanion.org", "example.com"]:
+    edges = [("eff.org", ADDR, "LEAD", window("eff.map.fastly.net")),   # www.eff.org is an alias of this name
+             (ADDR, name, "LEAD", window(name))]
+    tag, when = chain(edges)
+    print(f"eff.org ~ {name:31} via shared address: {tag:7} {when}")
+# The lab's delegation link, for comparison: one STRONG edge, true at the moment it was asked.
+print(f"eff.org ~ {'atlasofsurveillance.org':31} via delegation:     {chain([('eff.org', 'atlasofsurveillance.org', 'STRONG', None)])[0]:7} checked at collection (F5)")
+PY
+python3 chain.py
+\`\`\`
+
+\`\`\`text
+eff.org ~ onlinecensorship.org            via shared address: LEAD    true together 2023-05-25 to 2024-03-20
+eff.org ~ atlasofsurveillance.org         via shared address: LEAD    NEVER TOGETHER - latest start 2026-09-03 is after earliest end 2024-10-25
+eff.org ~ securityeducationcompanion.org  via shared address: LEAD    true together 2024-03-18 to 2024-03-18
+eff.org ~ example.com                     via shared address: LEAD    UNKNOWN - a sighting this chain needs is not in the data
+eff.org ~ atlasofsurveillance.org         via delegation:     STRONG  checked at collection (F5)
+\`\`\`
+
+Your dates will differ: open rows move as the sensors keep watching (S2.3). Three things to read in the output:
+
+- **Every shared-address chain is a LEAD.** Two LEAD links make a LEAD. Nothing you add *after* a LEAD raises the chain above it.
+- **atlasofsurveillance.org: \`NEVER TOGETHER\`.** On the build run, mnemonic had seen Fastly's name for eff.org's service on that address until October 2024, and atlasofsurveillance.org only in September 2026. From passive DNS alone, they were never seen there at the same time. The lab's live DNS lookup shows both there today. So the claim "they share an address" is true *now* because of item001, not because of item008. Cite the item that supports the claim at the date you state.
+- **example.com: \`UNKNOWN\`.** The sensors never saw it on that address. That is an absence in one data set (S1.7, Step 5), not evidence that it was never there.
+
+The delegation line shows what the lab's STRONG finding is worth by comparison. It is one link, not a chain, and it was checked directly at collection time.
+
+</details>`,
+    tracker: ["Wrote the question, the two candidates and the rule for new leads into the scope before the first request", "Ran the lab: three DNS lookups and eleven requests logged and hashed, report PASS, seal verified", "Can explain why a shared address and a shared registrar are LEADs, using the control", "Can explain why a delegation needs both sides, and what the aa flag and the REFUSED control each prove", "Audited the tags and caught the draft's STRONG on F4 that the report check passed (Drill 1)", "Tested delegations from both sides, and saw UNKNOWN when no server answered (Drill 2)", "Graded pivot chains by their weakest link and by when each link held (Drill 3)"]
   }]
 };
 

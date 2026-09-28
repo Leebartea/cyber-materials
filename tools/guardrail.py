@@ -1241,6 +1241,8 @@ TOPIC_ANCHORS = {
         "username enumeration": ["S2.6"],
         "rel=me": ["S2.6"],
         "atproto": ["S2.6"],
+        "lame delegation": ["S2.7"],
+        "weakest link": ["S2.7"],
     },
 }
 

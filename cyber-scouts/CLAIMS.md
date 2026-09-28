@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.3 + 2 roadmaps)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.7 + 2 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-28 (Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-28 (Batch 14: S2.7 build pass, rows 292–318, 13 defects caught before publication, none shipped; Batch 13: S2.6 build pass, rows 264–291, 12 defects caught before publication, none shipped; Batch 12: S2.5 build pass, rows 238–263, 9 defects caught before publication, none shipped; Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -649,3 +649,67 @@ Defects caught in the S2.6 build pass (none shipped):
   now logs NONE as the hash and tells you to run the lab again. Two such drops happened in one build run.
 - **The URL gate probed Drill 2's `…/users/{}` template as a real URL** (Codeberg 404). The drill now uses
   `<name>` placeholders, which the gate already skips.
+
+## Batch 14 — S2.7 Capstone 2: a multi-source pivot report, and how strong each link is
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 292 | S2.7 | eff.org A 173.239.79.200; www.eff.org CNAME eff.map.fastly.net → 151.101.{0,64,128,192}.201; certbot.org and atlasofsurveillance.org (www CNAME apex) on the same four addresses | `EXECUTED` | lab item001, three runs 2026-09-28 | 2027-03 |
+| 293 | S2.7 | 173.239.79.200 in 173.239.64.0/20, AS32354 ("UNWIRED - Unwired"); 151.101.0.201 in AS54113 ("FASTLY - Fastly, Inc."); example.com's 104.20.23.154 in 104.20.16.0/20, AS13335 ("CLOUDFLARENET - Cloudflare, Inc.") | `EXECUTED` | lab items 010–011; RIPEstat network-info + as-overview (curl 2026-09-28) | 2027-03 |
+| 294 | S2.7 | Fastly is a content delivery network | `SOURCED` | fastly.com/products/cdn page title "Fastly CDN \| Content Delivery Network" (curl 2026-09-28) | stable |
+| 295 | S2.7 | Public Interest Registry operates .org | `SOURCED` | iana.org/domains/root/db/org.html (curl 2026-09-28) | stable |
+| 296 | S2.7 | PIR RDAP: eff.org registered 1990-10-10, certbot.org 2016-03-16, atlasofsurveillance.org 2020-04-15; all three list ns1/ns2/ns4.eff.org; each record's only entity is the registrar (handle 81), no registrant | `EXECUTED` | lab items 004–006; `jq '[.entities[] \| {roles, handle}]'` | 2027-03 |
+| 297 | S2.7 | IANA registrar ID 81 = "Gandi SAS", Accredited | `SOURCED` | iana.org registrar-ids-1.csv (curl 2026-09-28) | 2027-09 |
+| 298 | S2.7 | Asked with +norec, ns1.eff.org answers eff.org, certbot.org and atlasofsurveillance.org SOA with aa, and example.com with REFUSED (no aa); ns2 and ns4 behave the same (Drill 2) | `EXECUTED` | lab item003; Drill 2 run, bash and zsh | 2027-03 |
+| 299 | S2.7 | RFC 1035 §4.1.1: AA "specifies that the responding name server is an authority for the domain name in question section"; RCODE 5 "Refused - The name server refuses to perform the specified operation for policy reasons." | `SOURCED` | rfc-editor.org/rfc/rfc1035.txt (curl 2026-09-28) | stable |
+| 300 | S2.7 | RFC 9499 quotes RFC 1912 §2.8's lame-delegation definition ("…a nameserver is delegated responsibility for providing nameservice for a zone (via NS records) but is not performing nameservice for that zone…"), notes the term has drifted to other flaws, and says it "should be considered historic" | `SOURCED` | rfc-editor.org/rfc/rfc9499.txt (curl 2026-09-28) | stable |
+| 301 | S2.7 | mnemonic pDNS, eff.org A: 69.50.232.52 2012-08-17→2013-11-14, 69.50.232.54 2016-04-30→2018-04-25, 198.100.177.181 2018-05-02→2018-11-27, 173.239.79.196 2018-11-28→2025-06-10, 173.239.79.200 2026-04-16→(open) | `EXECUTED` | lab item007 | closed rows stable; open row moves |
+| 302 | S2.7 | mnemonic pDNS on 151.101.0.201: 8 names (certbot.org/.com/.net/.info, atlasofsurveillance.org, onlinecensorship.org, securityeducationcompanion.org, eff.map.fastly.net); same 8 on .128/.192.201; certbot.org last seen 2024-09-24; atlas only 2026-09-03; eff.map.fastly.net until 2024-10-25; onlinecensorship.org 2023-05-25→2024-03-20 | `EXECUTED` | lab item008; probes of the other three addresses | open rows move |
+| 303 | S2.7 | Control: example.com's 104.20.23.154 seen with 29 names under 14 registered domains, 2 of them example.com's | `EXECUTED` | lab item009 (build run) | moves |
+| 304 | S2.7 | Wayback CDX first captures: certbot.org 20170520113943 HTTP 301; atlasofsurveillance.org 20200713191852 HTTP 200 | `EXECUTED` | lab items 012–013 | stable (history) |
+| 305 | S2.7 | atlasofsurveillance.org home page: "Atlas of Surveillance is a project of the Electronic Frontier Foundation" | `EXECUTED` | lab item014 | 2027-03 |
+| 306 | S2.7 | certbot.org answers HTTP 301 → https://certbot.eff.org/ | `EXECUTED` | curl -w redirect_url 2026-09-28 (probe; not a lab item — the theory cites the archived 301s) | 2027-03 |
+| 307 | S2.7 | dig 9.10.6: exits 9 when no server replies (192.0.2.1); one @server applies to every query on the line; with +comments each reply's HEADER and flags lines come before its QUESTION line, and the EDNS line also contains "flags:" | `EXECUTED` | runs on the build Mac; the lab's aa() is written for this layout | stable |
+| 308 | S2.7 | GNU date: `-r file` = `--reference=file` ("Display the date and time of the last modification of file"); BSD/macOS date: `-r seconds`. The lab uses jq `todate` instead | `SOURCED` | gnu.org coreutils manual, Options for date; `man date` on macOS | stable |
+| 309 | S2.7 | PHIA "highly likely" ≈80–≈90 %; likelihood and confidence in separate sentences | `SOURCED` | follows rows 108–109 and 118 (S1.7) | per rows 108–109 |
+| 310 | S2.7 | WSL: `wsl --install` in an administrator PowerShell, then restart; installs Ubuntu by default; needs Windows 10 version 2004 (Build 19041) or later, or Windows 11 | `SOURCED` | learn.microsoft.com/en-us/windows/wsl/install (ms.date 2025-06-09, fetched 2026-09-28) | 2027-03 |
+| 311 | S2.7 | Case: DHS/DOJ release 15 Feb 2011 announced "the execution of seizure warrants against 10 domain names of websites engaged in the advertisement and distribution of child pornography" under "Operation Protect Our Children", "a new joint operation"; it names no domains and does not mention mooo.com | `SOURCED` | dhs.gov/news/2011/02/15/joint-dhs-doj-operation-protect-our-children-seizes-website-domains-involved (raw HTML, curl 2026-09-28; 0 hits for "mooo") | stable |
+| 312 | S2.7 | Case: TorrentFreak, 16 Feb 2011 (Ernesto Van der Sar): "the most popular shared domain at afraid.org"; "a massive 84,000 subdomains were wrongfully seized"; "contacted the domain registries to point the domains in question to a server that hosts the warning message"; "somewhere in this process a mistake was made"; FreeDNS: "Freedns.afraid.org has never allowed this type of abuse of its DNS service."; "on Sunday the domain seizure was reverted"; "it took another 3 days before the images disappeared completely"; "personal sites and sites of small businesses" | `SOURCED` | torrentfreak.com/u-s-government-shuts-down-84000-websites-by-mistake-110216/ (raw HTML) | stable |
+| 313 | S2.7 | Case: The Register, 18 Feb 2011 (Dan Goodin): "as many as 84,000"; "suspended at the registrar level"; "By Sunday evening, mooo.com was restored"; "silenced for 72 hours" | `SOURCED` | theregister.com/security/2011/02/18/unprecedented-domain-seizure-shutters-84000-sites/1038665 (raw HTML) | stable |
+| 314 | S2.7 | Case: NBC News credits TorrentFreak ("the TorrentFreak blog reported") and dates it "Late on Friday (Feb. 11)"; Techdirt, 16 Feb 2011: "point it at whatever machine is actually hosting your content" | `SOURCED` | nbcnews.com/id/wbna41649634; techdirt.com/2011/02/16/did-homeland-security-seize-then-unseize-dynamic-dns-domain/ (raw HTML) | stable |
+| 315 | S2.7 | ICE's later "inadvertently seized" statement is deliberately NOT taught: its source (Dark Reading) returns 403 to scripts and WebFetch, has no Wayback capture, and only Wikipedia repeats it | `CONVENTION` | the case says it is left out and why | re-try if Dark Reading becomes readable |
+| 316 | S2.7 | example.org lists Cloudflare nameservers (Drill 2's NONE case); example.com also uses Cloudflare nameservers (S1.7) | `EXECUTED` | Drill 2 run; `dig NS example.com` 2026-09-28 | 2027-03 |
+| 317 | S2.7 | Ethics conventions: organisations' domains only; no person, email address or account; officials by role only; journalists named only as authors of cited pieces; unfollowed leads listed, not queried | `CONVENTION` | module text and scope.txt | — |
+| 318 | S2.7 | Lab (3 DNS lookups + 11 requests) and all three drills run in bash and zsh with identical output; Linux variant (sha256sum) run on macOS via /sbin/sha256sum, identical; Windows = WSL route, not run natively (no pwsh, aa-flag reporting of Windows DNS tools unverified) and says so | `EXECUTED` / `CONVENTION` | out_bash / out_zsh / out_linux diffs | — |
+
+Defects caught in the S2.7 build pass (none shipped):
+
+- **The first draft tagged F4 (the registry's nameserver list) STRONG, and `check_report.sh` passed it.** Anyone
+  can list any nameserver; only F5 shows the server's side. Now F4 is ONE-WAY, the story is the module's "what
+  the check does not prove" lesson, and Drill 1 is a tag auditor that catches it. No gate guard can: the tag's
+  correctness is a reading of the evidence.
+- **The authoritative-answer parser read the wrong reply.** `dig +comments` prints each reply's header before
+  its question line, so an awk that started at the question took the *next* reply's status; the EDNS line
+  also contains "flags:". Now it remembers the last header and prints at the question.
+- **`case` inside `$( … )` broke bash** (an unbalanced `)`); the loop was also `for n in $CO`, which zsh does
+  not split. Replaced with `tr | grep -vxE`. A108 was not extended to `for x in $var`: that form is correct
+  inside the `#!/bin/bash` check_report.sh heredocs (S1.7, S2.7), so a regex would flag good code. The
+  bash-and-zsh double run is the check.
+- **`date -u -r SECONDS` is BSD-only**; on GNU `-r` names a reference file. The lab now uses jq `todate`, so
+  the Linux variant differs only by sha256sum.
+- **Drill 2's first rule required the candidate's nameservers to equal eff.org's set.** The rule is "every
+  listed nameserver sits inside the origin's domain"; fixed.
+- **Case draft attributed NBC's story "via TechNewsDaily"** — not on the page. NBC credits TorrentFreak.
+- **Case draft said the 84,000 figures "appear to trace back to FreeDNS"** — neither article says where the
+  number came from. Replaced with exactly that.
+- **ICE's "inadvertently seized" quote** could not be pinned to a readable page; left out, and the case says so.
+- **Theory draft called the control's 14 registered domains "unrelated"** (and a challenge said "nearly all
+  unrelated"); only the count was checked. Now counts only.
+- **Workbench draft said "millions of other domains" use Cloudflare's nameservers** — not checked. Now:
+  example.com does (S1.7), along with many unrelated domains.
+- **Theory draft said a domain "has been registered continuously since" its RDAP registration date** — the
+  record does not show continuity of holder. Now: when the registry says this registration began.
+- **Level 2's roadmap promised "a second case folder that grows one module at a time"**; every L2 module
+  uses its own `~/scouts-case/s2_N` folder. The line now says so.
+- **This ledger's header was stale since Batch 11** (course-file line said S2.1–S2.3; Last pass began at
+  Batch 11). Updated with Batches 12–14.
