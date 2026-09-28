@@ -826,7 +826,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 |---|---|---|
 | S2.1 | Web archives: page history, and what a capture proves | ✅ available |
 | S2.2 | Network ownership: address blocks, AS numbers and routing | ✅ available |
-| — | Passive DNS: what a name used to resolve to | planned |
+| S2.3 | Passive DNS: what a name used to resolve to | ✅ available |
 | — | Document and file metadata | planned |
 | — | Image and video verification | planned |
 | — | Usernames and accounts, ethics first | planned |
@@ -4324,6 +4324,526 @@ UNKNOWN  1.1.1.0/24  0 updates, and 0 for control 8.8.8.0/24 too - no data, not 
 \`192.0.2.0/24\` is TEST-NET-1, reserved for documentation (RFC 5737), so nobody should announce it. Zero updates while the control had 29 supports "quiet", as far as RIS saw. The third window is the case study's evening, when Cloudflare reports a hijack and a leak affecting 1.1.1.1. RIPEstat returns zero for \`1.1.1.0/24\` *and* for the control. Its availability endpoint says \`bgp-updates\` has data from 2024-01-01, but while this module was being built, every window tried in June 2024 came back empty, including the same prefix that returned 737 updates in twelve hours in September 2026. The archive's raw file for 18:50 that evening exists (6.4 MB), so the gap is in the query service's answer, not necessarily in RIS. A checker that printed "quiet" here would have written a false fact into the case file.
 </details>`,
     tracker: ["Wrote the question and scope before the first request, with every packet to the target out of scope", "Ran the lab: five requests logged with HTTP status, each RIPEstat reply checked for status ok, SHA256SUMS written", "Can state holder, origin and authorisation for 1.1.1.1 separately, each with its record, and say why both 'tempting' lines are wrong", "Narrowed a 12-day bucket to 8 hours and found the origin the default filter hid (Drill 1)", "Found the 2008 hijack in a raw RIS update file after the summary missed it (Drill 2)", "Built a checker that answers UNKNOWN when a control shows the data is missing (Drill 3)"]
+  }, {
+    id: "s2_3",
+    level: 2,
+    num: "S2.3",
+    title: "Passive DNS — What a Name Used to Resolve To, and What a Sighting Proves",
+    objective: `Read a name's DNS history from passive DNS as windows of sightings, not dates of change: time_first is when the sensors first saw an answer, not when it was created, and count measures answers fetched, not traffic. Tell a history from a single sighting, a total from a capped count, and two strings from two addresses. Check the provider's output against its documentation, and answer UNKNOWN when a record has no real times. Tie each address to its holder with RDAP, and say which date the holder is from.`,
+    theory: `#### Why passive DNS matters
+
+S2.2 asked who holds an address. The question usually arrives the other way round: a domain name in a phishing email, a log or a report, and you need to know where it pointed, not only today but on the day that mattered. DNS itself has no memory. Ask it now and it tells you now. **Passive DNS** is the memory other people kept: databases of DNS answers, recorded as they passed by, with the first and last time each one was seen.
+
+Used carefully, it answers "what did this name resolve to, and roughly when?". Used carelessly, it turns a sensor's view into a hosting history, a single odd answer into an event, and a capped count into a total. This module is about the difference.
+
+#### How passive DNS is collected
+
+The Common Output Format draft (below) credits the idea to Florian Weimer, "Passive DNS Replication", presented at the 17th FIRST conference in 2005. The draft describes the usual method:
+
+1. A **recursive resolver** (the server your computer asks) looks up a name it has not cached. It asks the domain's **authoritative** servers and gets an answer.
+2. A **sensor** beside the resolver records that answer: the "cache fill" response, in the draft's words.
+3. The database keeps one row per distinct answer, with the first and last time it was seen and how often.
+
+Two things follow, and the draft says both. Because the sensor sees the resolver's own queries, it never sees which user asked: the method is "intended to minimize the privacy implications to users". And because authoritative servers "may serve different answers to different query addresses", a database only holds the answers its own sensors were given.
+
+#### The record: one row per answer
+
+The **Common Output Format** (COF) is an Internet-Draft, \`draft-dulaunoy-dnsop-passive-dns-cof\`. Its revision 13 expired in 2025 and it never became an RFC, but several services use it, including the one in this lab. Its mandatory fields:
+
+| Field | Meaning in the draft |
+|---|---|
+| \`rrname\` | the name that was asked about |
+| \`rrtype\` | the record type: \`a\` (IPv4 address), \`aaaa\` (IPv6), \`cname\`, \`ptr\` and so on |
+| \`rdata\` | the answer: an address, or another name |
+| \`time_first\` | "the first time that the record / unique tuple (rrname, rrtype, rdata) has been seen by the passive DNS", in UTC seconds |
+| \`time_last\` | the last time the same tuple was seen |
+
+The optional \`count\` is "how many authoritative DNS answers were received at the Passive DNS server's collectors". Read all three numbers for what they measure:
+
+- **\`time_first\` is not a creation date.** It is when these sensors first saw that answer. The record may be years older.
+- **\`time_last\` is not a deletion date.** The answer may have been served long after, to resolvers this database does not watch.
+- **\`count\` is not popularity.** It counts answers fetched from authoritative servers, and a resolver fetches again each time its cached copy expires. A record with a five-minute lifetime (its **TTL**) is fetched far more often than a one-day record, whatever the traffic.
+
+The draft adds a warning that applies to every provider: each query gets "a snapshot-in-time answer", and you should not "assume that answers will be identical across multiple Passive DNS servers".
+
+#### Two directions
+
+- **Forward:** give a name, get the answers it resolved to. "What did \`example.com\` point to in 2020?"
+- **Reverse (by answer):** give an address or a name, get every name seen resolving to it. "What else was at this address?"
+
+The reverse direction is where most wrong conclusions come from. A content delivery network (CDN) or a shared host serves thousands of unrelated sites from one address. Anyone can also point a name of their own at an address, or at your name: in the counts Drill 2 reads, more than 1,500 \`cname\` and \`ptr\` records, almost all of them other people's, point at \`example.com\`. **Sharing an address is not a relationship, and pointing at a name is not owning it.**
+
+#### What goes wrong in the data
+
+- **Single sightings.** Resolvers that filter or misbehave hand out answers the real servers never gave, and some reach the database. A row seen once, or a handful of times, is a lead, not a history. The lab's history for \`example.com\` includes \`127.0.0.1\`, the computer's own loopback address.
+- **Gaps.** No row for a period means these sensors recorded nothing then. It does not mean the name did not resolve.
+- **Caps.** Public access is limited, and a count that stops at the limit is a lower bound.
+- **Two strings, one address.** IPv6 addresses can be written more than one way. RFC 5952 §4.1 says leading zeros "MUST be suppressed", but not every resolver or database obeys it. Compare addresses, not text.
+- **The provider's format.** Documentation and output can disagree. Check the fields you rely on before you rely on them.
+
+#### The provider in this lab: mnemonic
+
+mnemonic, a security company headquartered in Oslo, runs a passive DNS service with a public API. Its documentation sets the rules for use without a key: "10 requests per minute, and 1000 requests per day", public (TLP white) records only, at most 1000 results per query, and an HTTP \`402\` when you exceed a limit. The lab paces requests 7 seconds apart.
+
+It offers two formats: its own JSON, and COF at \`/pdns/v3/cof/\`. The documentation says each JSON record carries \`firstSeenTimestamp\` and \`lastSeenTimestamp\`, and that \`createdTimestamp\` and \`lastUpdatedTimestamp\` "always return 0". When this module was written, an unfiltered query returned the opposite. Most rows carried a flag, \`partialResult\`, that the documentation does not mention. Their first- and last-seen times were \`0\`, and IPv6 answers were typed \`a\`. The same records asked for by type, or in COF, came back complete. The lab shows this, and the drills make you handle it. **A zero where a date should be is a missing value, not 1 January 1970.**
+
+#### Step 1 — the history, one name
+
+Ask for the name's \`a\` and \`aaaa\` records, in COF. Sort by \`time_first\` and read the rows as overlapping windows, not a sequence of moves. A change of address shows up as one set's last sightings meeting the next set's first. The two can overlap: resolvers keep old answers until they expire, and during a move more than one set of servers may be answering. The record does not say which.
+
+#### Step 2 — today, from a resolver
+
+Ask a public resolver what the name resolves to now, and compare with the newest rows. If they match, the history is current to the day. If not, the database may be behind, or the answer may vary by location. Write down which you saw.
+
+#### Step 3 — who holds each address
+
+The history gives addresses. S2.2's tools say who holds them: RDAP for the block, routing records for the network announcing it. RDAP tells you the holder **today**. For an address seen years ago, check the registration date and say which date your holder is from.
+
+#### Step 4 — turn it round, carefully
+
+Ask what else was seen at an address. Count before you read names: a handful of names suggests a dedicated host, thousands suggest a shared one. Do not copy strangers' names into your notes unless your question needs them.
+
+#### What passive DNS cannot tell you
+
+- **Who changed a record, or why.** It shows that an answer changed, not who changed it.
+- **Exact times.** You get windows bounded by sensor sightings, not the moment of change.
+- **Everything.** Only answers its sensors saw, from where they sit.
+- **What happened at the address.** A name resolving to an address says nothing about what the server did.
+
+#### Lawful and polite collection
+
+Asking a passive DNS service sends nothing to the target. Asking a public resolver puts your question in the resolver's log, and the resolver, not you, asks the domain's servers. Querying a domain's own authoritative servers directly, with \`dig @ns…\`, lands in the log of whoever runs them. For a real target, that is a step to decide on, not a default. Keep to the provider's limits: they are the terms under which the data is free.
+
+Passive DNS also holds names that were never meant to be public: internal hostnames that leaked out to a public resolver. Treat them as you would any personal data you come across (S1.1).
+
+#### Your own domains
+
+Look up a domain you own or manage. You may find old hosting you had forgotten, names you never created pointing at yours, or internal names leaking out. A forgotten record that still points to an address you gave up is how subdomain takeovers begin.`,
+    lab: {
+      mac: `# LAB: what example.com used to resolve to, as passive DNS saw it, and what that can and cannot prove (Apple Silicon)
+# ETHICS: eight requests: four to mnemonic's public passive DNS API, one to Google Public DNS,
+# three to RDAP services (RIPE NCC, ARIN). Nothing is sent to example.com's own name servers or
+# web servers. example.com is reserved for documentation (RFC 2606). Names of third parties that
+# share an address with it are counted, never printed.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s2_3 && cd ~/scouts-case/s2_3 || exit 1
+rm -rf evidence collection_log.tsv SHA256SUMS && mkdir evidence     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.3 passive DNS
+question:     Which addresses has example.com resolved to, when did one set give way to the
+              next, and who holds each address block today?
+authorised:   self (public passive DNS, a public resolver and public registry records)
+in scope:     mnemonic public passive DNS (TLP white only) for example.com and two of its
+              past addresses; one live lookup through Google Public DNS; RDAP for three addresses
+out of scope: queries sent straight to example.com's own name servers; any packet to its web
+              servers; the names of third parties that share its addresses
+SCOPE
+
+# 2. Collect through one door. mnemonic allows 10 requests a minute without a key: pace 7 s.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id extension url
+  local f="evidence/$1.$2" T C H
+  sleep 7
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -L -m 120 -A "$UA" -o "$f" -w '%{http_code}' "$3")
+  if [ "$C" = 200 ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=FAILED; rm -f "$f"; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$C" "$H" >> collection_log.tsv
+  echo "$1  HTTP $C  $(echo "$H" | cut -c1-12)"
+  [ "$C" = 200 ] || { echo "STOP: $1 failed (HTTP $C) - it is in the log; if 402, wait a minute"; exit 1; }
+}
+
+# 3. The history, in the Common Output Format: one JSON object per line, times in UTC seconds.
+collect item001 ndjson "https://api.mnemonic.no/pdns/v3/cof/example.com?rrType=a&rrType=aaaa&limit=1000"
+jq -e -s 'length > 0 and all(.[]; has("time_first") and has("time_last") and has("rdata"))' \\
+  evidence/item001.ndjson > /dev/null || { echo "UNKNOWN: item001 is not COF records with times"; exit 2; }
+echo "COF records: $(jq -s 'length' evidence/item001.ndjson)  (A: $(jq -s 'map(select(.rrtype == "a")) | length' evidence/item001.ndjson))"
+echo "A records, oldest first (UTC):"
+jq -r -s 'map(select(.rrtype == "a")) | sort_by(.time_first, .rdata)[]
+  | [(.rdata | if type == "array" then join(",") else . end),
+     (.time_first | todate | .[0:16]), (.time_last | todate | .[0:16]), .count,
+     (if .count == 1 then "single sighting" else "" end)] | @tsv' evidence/item001.ndjson \\
+  | awk -F'\\t' '{printf "  %-16s %s -> %s  %7s  %s\\n", $1, $2, $3, $4, $5}'
+
+# 4. The same data in mnemonic's own JSON format, checked against its documentation.
+collect item002 json "https://api.mnemonic.no/pdns/v3/example.com?limit=1000"
+jq -r '"JSON: count \\(.count), rows \\(.data | length), flagged partialResult \\([.data[] | select(.flags | index("partialResult"))] | length)",
+  "partial rows with firstSeenTimestamp 0: \\([.data[] | select((.flags | index("partialResult")) and .firstSeenTimestamp == 0)] | length)",
+  "rows typed \\"a\\" whose answer is an IPv6 address: \\([.data[] | select(.rrtype == "a" and (.answer | test("^[0-9a-f]*:[0-9a-f:]*$")))] | length)"' evidence/item002.json
+jq -r '[.data[] | select(.answer | test("^[0-9a-f]*:[0-9a-f:]*$"))] | first // empty
+  | "  e.g. JSON \\(.answer) is typed \\"\\(.rrtype)\\", firstSeenTimestamp \\(.firstSeenTimestamp), flags \\(.flags)"' evidence/item002.json
+jq -r --slurpfile c evidence/item001.ndjson '[.data[] | select(.answer | test("^[0-9a-f]*:[0-9a-f:]*$"))] | first // empty
+  | .answer as $a | [$c[] | select(.rdata == $a)] | first // empty
+  | "  COF  \\(.rdata) is typed \\"\\(.rrtype)\\", time_first \\(.time_first)"' evidence/item002.json
+
+# 5. What a resolver says now, through Google Public DNS (the resolver asks example.com's servers, not you).
+collect item003 json "https://dns.google/resolve?name=example.com&type=A"
+[ "$(jq -r '.Status' evidence/item003.json)" = 0 ] || { echo "UNKNOWN: DNS status is not NOERROR"; exit 2; }
+LIVE=$(jq -r '[.Answer[]? | select(.type == 1) | .data] | sort | join(" ")' evidence/item003.json)
+NEWEST=$(jq -r -s 'map(select(.rrtype == "a")) | (map(.time_last) | max) as $m
+  | [.[] | select(.time_last > $m - 86400) | .rdata] | sort | join(" ")' evidence/item001.ndjson)
+echo "live A now:            $LIVE"
+echo "COF A seen in the last day of its data: $NEWEST"
+if [ -z "$LIVE" ] || [ -z "$NEWEST" ]; then echo "compare: UNKNOWN (one side is empty)"
+elif [ "$LIVE" = "$NEWEST" ]; then echo "compare: MATCH"; else echo "compare: DIFFERENT - read both dates before you pick one"; fi
+
+# 6. Who holds each era's address block today? RDAP, as in S1.2 (IANA: 93/8 RIPE NCC; 23/8, 104/8 ARIN).
+collect item004 json "https://rdap.db.ripe.net/ip/93.184.216.34"
+collect item005 json "https://rdap.arin.net/registry/ip/23.215.0.136"
+collect item006 json "https://rdap.arin.net/registry/ip/104.20.23.154"
+for i in item004 item005 item006; do
+  jq -r '"  \\(.startAddress)-\\(.endAddress)  \\(.name)  registered \\([.events[]? | select(.eventAction == "registration") | .eventDate] | first // "?")"' "evidence/$i.json"
+done
+
+# 7. Turn it round: which names were seen at an address? Counts only, no third-party names.
+collect item007 json "https://api.mnemonic.no/pdns/v3/23.215.0.136?limit=1000"
+jq -r '[.data[].query] as $q
+  | "at 23.215.0.136: \\($q | length) names; example.com \\($q | index("example.com") != null); under akamai.net \\([$q[] | select(endswith(".akamai.net"))] | length); others \\([$q[] | select(. != "example.com" and (endswith(".akamai.net") | not))] | length)"' evidence/item007.json
+collect item008 json "https://api.mnemonic.no/pdns/v3/93.184.216.34?limit=1"
+jq -r '"at 93.184.216.34: count \\(.count)\\(if .count >= 1000 then "  - the public cap: read it as at least 1000" else "" end)"' evidence/item008.json
+(cd evidence && shasum -a 256 item0* > ../SHA256SUMS)
+
+# 8. The finding - and two tempting sentences that the records do not support.
+row() { jq -r -s --arg ip "$1" 'map(select(.rdata == $ip)) | first
+  | "\\(.time_first | todate | .[0:10]) to \\(.time_last | todate | .[0:10]), \\(.count) answers"' evidence/item001.ndjson; }
+echo "tempting: 'example.com got 93.184.216.34 on $(row 93.184.216.34 | cut -c1-10)' - WRONG: that is when these sensors first saw it"
+echo "tempting: 'example.com was hosted at 127.0.0.1' - WRONG: $(jq -s 'map(select(.rdata == "127.0.0.1") | .count) | add' evidence/item001.ndjson) of $(jq -s 'map(select(.rrtype == "a") | .count) | add' evidence/item001.ndjson) A answers: sightings, not a hosting history"
+echo "finding:  mnemonic's public passive DNS saw example.com A 93.184.216.34 from $(row 93.184.216.34);"
+echo "          that block is registered today as $(jq -r .name evidence/item004.json). Addresses in $(jq -r .name evidence/item005.json) and then"
+echo "          $(jq -r .name evidence/item006.json) followed. Live answer on $(date -u +%F): $LIVE"`,
+      windows: `# PowerShell 7.5 or later - the same history, the same checks, with native cmdlets.
+# ETHICS: eight requests: four to mnemonic's public passive DNS API, one to Google Public DNS,
+# three to RDAP services. Nothing is sent to example.com's own servers. Third-party names are
+# counted, never printed. Not run on Windows when this module was written: compare your output
+# with the macOS one.
+$Analyst = "analyst01"; $UA = "CyberScoutsLab/1.0"
+$Case = "$HOME\\scouts-case\\s2_3"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory evidence | Out-Null
+
+@"
+case:         S2.3 passive DNS
+question:     Which addresses has example.com resolved to, when did one set give way to the
+              next, and who holds each address block today?
+authorised:   self (public passive DNS, a public resolver and public registry records)
+in scope:     mnemonic public passive DNS (TLP white only) for example.com and two of its
+              past addresses; one live lookup through Google Public DNS; RDAP for three addresses
+out of scope: queries sent straight to example.com's own name servers; any packet to its web
+              servers; the names of third parties that share its addresses
+"@ | Set-Content scope.txt
+
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content collection_log.tsv
+function Collect($Id, $Ext, $Url) {   # returns the saved text; status goes to the screen only
+  $f = "evidence\\$Id.$Ext"; Start-Sleep -Seconds 7
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  try {
+    $r = Invoke-WebRequest -Uri $Url -UserAgent $UA -OutFile $f -PassThru -SkipHttpErrorCheck -TimeoutSec 120
+    $C = [int]$r.StatusCode
+  } catch { $C = 0 }
+  if ($C -eq 200) { $H = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower() } else { $H = "FAILED"; Remove-Item $f -ErrorAction SilentlyContinue }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$C\`t$H" | Add-Content collection_log.tsv
+  Write-Host "$Id  HTTP $C  $($H.Substring(0, [Math]::Min(12, $H.Length)))"
+  if ($C -ne 200) { throw "STOP: $Id failed (HTTP $C) - it is in the log; if 402, wait a minute" }
+  Get-Content $f -Raw
+}
+function Utc($s) { [DateTimeOffset]::FromUnixTimeSeconds([long]$s).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") }
+$V6 = '^[0-9a-f]*:[0-9a-f:]*$'
+
+# The history, in COF: one JSON object per line
+$cof = (Collect item001 ndjson "https://api.mnemonic.no/pdns/v3/cof/example.com?rrType=a&rrType=aaaa&limit=1000") -split "\`n" |
+  Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json }
+if (-not $cof -or ($cof | Where-Object { $null -eq $_.time_first -or $null -eq $_.time_last })) { throw "UNKNOWN: item001 is not COF records with times" }
+$A = $cof | Where-Object rrtype -eq "a"
+"COF records: $(@($cof).Count)  (A: $(@($A).Count))"
+"A records, oldest first (UTC):"
+$A | Sort-Object time_first, rdata | ForEach-Object {
+  "  {0,-16} {1} -> {2}  {3,7}  {4}" -f $_.rdata, (Utc $_.time_first), (Utc $_.time_last), $_.count, $(if ($_.count -eq 1) { "single sighting" } else { "" })
+}
+
+# mnemonic's own JSON, checked against its documentation
+$js = Collect item002 json "https://api.mnemonic.no/pdns/v3/example.com?limit=1000" | ConvertFrom-Json
+$partial = $js.data | Where-Object { $_.flags -contains "partialResult" }
+"JSON: count $($js.count), rows $(@($js.data).Count), flagged partialResult $(@($partial).Count)"
+"partial rows with firstSeenTimestamp 0: $(@($partial | Where-Object firstSeenTimestamp -eq 0).Count)"
+"rows typed \`"a\`" whose answer is an IPv6 address: $(@($js.data | Where-Object { $_.rrtype -eq 'a' -and $_.answer -match $V6 }).Count)"
+$e = $js.data | Where-Object { $_.answer -match $V6 } | Select-Object -First 1
+if ($e) {
+  "  e.g. JSON $($e.answer) is typed \`"$($e.rrtype)\`", firstSeenTimestamp $($e.firstSeenTimestamp), flags $($e.flags -join ',')"
+  $c = $cof | Where-Object rdata -eq $e.answer | Select-Object -First 1
+  if ($c) { "  COF  $($c.rdata) is typed \`"$($c.rrtype)\`", time_first $($c.time_first)" }
+}
+
+# What a resolver says now
+$live = Collect item003 json "https://dns.google/resolve?name=example.com&type=A" | ConvertFrom-Json
+if ($live.Status -ne 0) { throw "UNKNOWN: DNS status is not NOERROR" }
+$Live = ($live.Answer | Where-Object type -eq 1 | ForEach-Object data | Sort-Object) -join " "
+$m = ($A | Measure-Object time_last -Maximum).Maximum
+$Newest = ($A | Where-Object { $_.time_last -gt $m - 86400 } | ForEach-Object rdata | Sort-Object) -join " "
+"live A now:            $Live"
+"COF A seen in the last day of its data: $Newest"
+if (-not $Live -or -not $Newest) { "compare: UNKNOWN (one side is empty)" }
+elseif ($Live -eq $Newest) { "compare: MATCH" } else { "compare: DIFFERENT - read both dates before you pick one" }
+
+# Who holds each era's block today (RDAP)
+$r4 = Collect item004 json "https://rdap.db.ripe.net/ip/93.184.216.34" | ConvertFrom-Json -DateKind String
+$r5 = Collect item005 json "https://rdap.arin.net/registry/ip/23.215.0.136" | ConvertFrom-Json -DateKind String
+$r6 = Collect item006 json "https://rdap.arin.net/registry/ip/104.20.23.154" | ConvertFrom-Json -DateKind String
+foreach ($r in $r4, $r5, $r6) {
+  "  $($r.startAddress)-$($r.endAddress)  $($r.name)  registered $(($r.events | Where-Object eventAction -eq 'registration' | Select-Object -First 1).eventDate)"
+}
+
+# Turn it round: counts only
+$rv = Collect item007 json "https://api.mnemonic.no/pdns/v3/23.215.0.136?limit=1000" | ConvertFrom-Json
+$q = @($rv.data.query)
+"at 23.215.0.136: $($q.Count) names; example.com $($q -contains 'example.com'); under akamai.net $(@($q | Where-Object { $_.EndsWith('.akamai.net') }).Count); others $(@($q | Where-Object { $_ -ne 'example.com' -and -not $_.EndsWith('.akamai.net') }).Count)"
+$cap = Collect item008 json "https://api.mnemonic.no/pdns/v3/93.184.216.34?limit=1" | ConvertFrom-Json
+"at 93.184.216.34: count $($cap.count)$(if ($cap.count -ge 1000) { '  - the public cap: read it as at least 1000' })"
+Get-ChildItem evidence\\item0* | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content SHA256SUMS
+
+# The finding
+$old = $A | Where-Object rdata -eq "93.184.216.34" | Select-Object -First 1
+$lo = ($A | Where-Object rdata -eq "127.0.0.1" | Measure-Object count -Sum).Sum
+$all = ($A | Measure-Object count -Sum).Sum
+"tempting: 'example.com got 93.184.216.34 on $((Utc $old.time_first).Substring(0, 10))' - WRONG: that is when these sensors first saw it"
+"tempting: 'example.com was hosted at 127.0.0.1' - WRONG: $lo of $all A answers: sightings, not a hosting history"
+"finding:  mnemonic's public passive DNS saw example.com A 93.184.216.34 from $((Utc $old.time_first).Substring(0, 10)) to $((Utc $old.time_last).Substring(0, 10)), $($old.count) answers;"
+"          that block is registered today as $($r4.name). Addresses in $($r5.name) and then"
+"          $($r6.name) followed. Live answer on $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')): $Live"`,
+      linux: `# Identical to macOS with one substitution, in the lab and in the drills:
+#   sha256sum            instead of  shasum -a 256
+# Everything else (curl, jq, python3, awk) behaves the same. Install jq from your
+# distribution's packages if it is missing (for example: sudo apt install jq).`,
+      expected: {
+        mac: `\`\`\`text
+item001  HTTP 200  850f5084f166
+COF records: 38  (A: 21)
+A records, oldest first (UTC):
+  93.184.216.119   2013-07-30T15:54 -> 2014-12-10T08:26      490  
+  74.117.222.18    2016-01-26T23:19 -> 2016-01-26T23:19        1  single sighting
+  93.184.216.34    2017-01-29T12:30 -> 2024-04-18T10:28   334652  
+  127.0.0.1        2019-04-30T10:32 -> 2021-03-23T06:00       12  
+  210.211.113.133  2020-05-21T16:00 -> 2020-05-21T16:00        1  single sighting
+  103.74.119.182   2023-04-13T12:27 -> 2023-04-13T12:27        1  single sighting
+  93.184.215.14    2024-04-18T22:09 -> 2025-01-14T19:59    11688  
+  23.215.0.136     2025-01-15T06:03 -> 2025-12-16T20:03    97243  
+  23.215.0.138     2025-01-15T06:03 -> 2025-12-16T20:03    97243  
+  96.7.128.175     2025-01-15T06:03 -> 2025-08-22T20:26    61474  
+  96.7.128.198     2025-01-15T06:03 -> 2025-08-22T20:26    61474  
+  23.192.228.80    2025-01-15T07:12 -> 2025-12-16T20:03    97222  
+  23.192.228.84    2025-01-15T07:12 -> 2025-12-16T20:03    97222  
+  23.220.75.232    2025-08-22T20:32 -> 2025-12-16T20:03    35769  
+  23.220.75.245    2025-08-22T20:32 -> 2025-12-16T20:03    35769  
+  104.20.34.220    2025-12-16T18:37 -> 2025-12-19T17:11      148  
+  172.66.144.113   2025-12-16T18:37 -> 2025-12-19T17:11      148  
+  104.18.26.120    2025-12-19T17:56 -> 2026-04-10T06:48     9545  
+  104.18.27.120    2025-12-19T17:56 -> 2026-04-10T06:48     9545  
+  104.20.23.154    2026-04-10T08:57 -> 2026-09-27T17:25    14993  
+  172.66.147.243   2026-04-10T08:57 -> 2026-09-27T17:25    14993  
+item002  HTTP 200  9a709017faa8
+JSON: count 997, rows 997, flagged partialResult 994
+partial rows with firstSeenTimestamp 0: 994
+rows typed "a" whose answer is an IPv6 address: 17
+  e.g. JSON 2606:4700:10::6814:179a is typed "a", firstSeenTimestamp 0, flags ["partialResult"]
+  COF  2606:4700:10::6814:179a is typed "aaaa", time_first 1775815867
+item003  HTTP 200  18f745d5eacd
+live A now:            104.20.23.154 172.66.147.243
+COF A seen in the last day of its data: 104.20.23.154 172.66.147.243
+compare: MATCH
+item004  HTTP 200  d7a12db0857a
+item005  HTTP 200  5b42836f863d
+item006  HTTP 200  0ebfbef29a5a
+  93.184.216.0-93.184.216.255  EDGECAST-NETBLK-03  registered 2012-06-22T21:48:41Z
+  23.192.0.0-23.223.255.255  AKAMAI  registered 2013-07-12T13:03:37-04:00
+  104.16.0.0-104.31.255.255  CLOUDFLARENET  registered 2014-03-28T11:30:55-04:00
+item007  HTTP 200  591820118635
+at 23.215.0.136: 7 names; example.com true; under akamai.net 4; others 2
+item008  HTTP 200  45c2b9611770
+at 93.184.216.34: count 1000  - the public cap: read it as at least 1000
+tempting: 'example.com got 93.184.216.34 on 2017-01-29' - WRONG: that is when these sensors first saw it
+tempting: 'example.com was hosted at 127.0.0.1' - WRONG: 12 of 979633 A answers: sightings, not a hosting history
+finding:  mnemonic's public passive DNS saw example.com A 93.184.216.34 from 2017-01-29 to 2024-04-18, 334652 answers;
+          that block is registered today as EDGECAST-NETBLK-03. Addresses in AKAMAI and then
+          CLOUDFLARENET followed. Live answer on 2026-09-28: 104.20.23.154 172.66.147.243
+\`\`\`
+
+Your hashes will differ, and so will some numbers. Rows whose last sighting is recent keep moving: the newest pair's \`time_last\` and count grow with every day of traffic, and a new address pair appears whenever example.com moves again. The closed rows should not change. The two ARIN RDAP records changed bytes between two runs a few minutes apart (as in S2.2), and the resolver's answer carries its own TTL countdown. The mnemonic replies were byte-identical across those two runs, but the COF file was not, a few hours later: a newer sighting had moved one open row.
+
+Read the output in this order:
+
+- **The history is windows, not moves.** 93.184.216.34 was seen from January 2017 to April 2024; the 23.x addresses (in the block registered today as AKAMAI) from January to December 2025; the 104.x addresses (CLOUDFLARENET today) since 16 December 2025. On 16 December 2025 the last 23.x sighting (20:03) is later than the first 104.x one (18:37): for about an hour and a half, the sensors saw both sets.
+- **Three single sightings and a loopback address.** 74.117.222.18, 210.211.113.133 and 103.74.119.182 were each seen once; 127.0.0.1 twelve times in two years. None is a hosting history.
+- **A gap.** Nothing between December 2014 and January 2017. This database saw no A record then; that is all the gap says.
+- **The JSON view contradicts its documentation.** 994 of 997 rows are flagged \`partialResult\`, their first-seen time is 0, and 17 IPv6 answers are typed \`a\`. The COF record for the same address is typed \`aaaa\`, with a real \`time_first\`.
+- **Count 1000 is a ceiling.** The public API stops at 1000 results, so "at least 1000 names" is all you can say about 93.184.216.34.`
+      }
+    },
+    caseStudy: {
+      title: "DNSpionage, 2018–19 — how passive DNS found the victims, and what it could not say",
+      body: `In February 2019, the US government and several security companies had warned about a campaign that hijacked DNS records to steal email passwords and other data. Cisco Talos had written it up on 27 November 2018 and named it DNSpionage. What nobody had published was who was hit, or how. On 18 February 2019, Brian Krebs published "A Deep Dive on the Recent Widespread DNS Hijacking Attacks" on KrebsOnSecurity. Most of it was built from passive DNS.
+
+**The method.** Krebs took each address listed in a CrowdStrike report "and running them through both Farsight Security and SecurityTrails", two passive DNS services. That is the reverse direction from this module: start from an address, ask what names were seen at it. Working back from each address, he writes, the attackers had compromised "key components of DNS infrastructure for more than 50 Middle Eastern companies and government agencies". One example was \`mail.gov.ae\`, which handles email for the United Arab Emirates government.
+
+**One address, read closely.** The address \`139.59.134[.]216\`, "according to Farsight was home to just seven different domains over the years". Two appeared there only in December 2018. One was \`ns0.idm.net.lb\`, a name server of the Lebanese provider IDM. From early 2014 until December 2018 it had pointed to \`194.126.10[.]18\`, an address in Lebanon. On 18 December 2018 it pointed to the German hosting address instead. The other names that moved there that month, \`sa1.dnsnode.net\` and \`fork.sth.dnsnode.net\`, belong to Netnod, a Swedish DNS provider. Notice the \`[.]\`: the addresses are "defanged" so nobody clicks or connects to them by accident.
+
+**Joining two records.** The hijacks were followed "sometimes weeks, sometimes just days or hours" later by TLS certificates for the same domains, from Comodo or Let's Encrypt, which Krebs points out can be seen at crt.sh. Passive DNS gave the window in which a name pointed somewhere new. Certificate Transparency (S1.3) gave the moment someone got a certificate for it. Neither alone shows an attack. Together, they show a name that moved and was then certified for its new home.
+
+**What the record could not supply.** How it happened came from people, not databases. Netnod's CEO confirmed to Krebs that parts of its DNS infrastructure were hijacked after the attackers got into its accounts at its domain registrar. Bill Woodcock of Packet Clearing House (PCH) described four attacks on PCH, in each of which the attackers switched their tools on for "roughly one hour", as Krebs reports it. PCH had "no fewer than three monitoring systems", and none of them alerted it. A change that lasts an hour is easy to miss live. It stays in passive DNS as a pair of timestamps.
+
+**What to take from it.**
+
+- **Passive DNS is often the only record of a short change.** Nobody saves DNS answers by default. Somebody else's sensor did.
+- **The reverse direction found the victims.** Seven names at one address is a short list. Seven thousand would have told him nothing.
+- **Every date is a sighting.** "Until December 2018" and "on Dec. 18" are what the sensors recorded, not the moment of change.
+- **Who and why came from elsewhere.** The "suspected Iranian hackers" came from the US government's and security companies' warnings. The registrar accounts came from the victims. Passive DNS showed where names pointed.`
+    },
+    challenges: [{
+      q: `A colleague's draft reads: "Passive DNS shows evil.example resolved to 198.51.100.7 on 3 March, so the attacker switched it that day." What does the record support, and what should the sentence say?`,
+      a: `The record supports a window, not a moment. "On 3 March" is presumably a time_first: the first time that provider's sensors saw that answer. The change may have happened earlier, and been answered to resolvers the provider does not watch. "Switched" and "the attacker" are two more claims: passive DNS shows that the answer changed, not who changed it or why. A defensible sentence: "<provider> passive DNS (public access, queried <date> UTC) first saw evil.example A 198.51.100.7 at <time_first> UTC and last at <time_last> UTC, <count> answers. The previous answer was last seen at <time>. Who made the change is not shown by this record." Add the holder of 198.51.100.7 from RDAP, with the date you checked it. (198.51.100.0/24 is a documentation range, RFC 5737: in a real case it would be a real address.)`
+    }, {
+      q: `A reverse lookup on an address returns 4,000 names, one of which is your client's. Your manager asks for "the other companies involved". What do you say?`,
+      a: `That the list is not evidence of involvement. Four thousand names at one address is a shared host or a content delivery network: unrelated sites that happen to pay the same provider. Anyone can also point a name they own at any address. Check the count against the provider's cap first: if the cap is 1,000 and you got 1,000, the real number is higher and unknown. What would narrow it: names seen at the address only in the same short window as your client's, a handful rather than thousands, and corroboration from another record (a certificate for both names, shared registration details). Even then, it is a lead, and the third parties' names stay out of the report unless the question needs them.`
+    }, {
+      q: `Two passive DNS providers disagree: one saw your name at a new address from 10 May, the other not until 14 May. Which is right?`,
+      a: `Probably both. Each provider only records what its own sensors were given, from where they sit. The COF draft warns clients not to "assume that answers will be identical across multiple Passive DNS servers". An earlier time_first means one provider's sensors met the new answer sooner. That could be because they sit near resolvers that asked sooner, or that were given a different answer by location. Report both, each with its provider and query date, and state the change as no later than 10 May on the first provider's evidence. The absence in the second provider between 10 and 14 May is not evidence against it.`
+    }],
+    quiz: ["What does passive DNS record, where does the sensor sit, and why does it not see which user asked?", "Name the five mandatory fields of a COF record. What exactly does time_first measure?", "Why is count not a measure of how popular a name is? What else makes it go up?", "Give two reasons a reverse lookup on an address can return names that have nothing to do with each other.", "The lab's history shows example.com at 127.0.0.1, twelve times between 2019 and 2021. How should that appear in a report?", "An unfiltered query reports count 997; queries by type report 38, 515 and 993. What do you write, and why?", "Why can 2606:2800:021f:… and 2606:2800:21f:… be one address, and what should you compare instead of text?", "A record's firstSeenTimestamp is 0. What does your grader say, and why not 'first seen in 1970'?"],
+    workbench: `> **What this trains.** The lab read one name's history. Here you meet the three ways that history misleads: two strings that are one address, a count that is really a ceiling, and a record with no real dates.
+
+#### 🟢 Drill 1 — two strings, one address ~5 min
+
+**Goal.** The lab's COF file holds 17 AAAA records for example.com. Find out how many distinct IPv6 addresses they are, and merge any that are the same. No new requests.
+
+**Done when.** You can name the address stored twice, say why, and give its merged window.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_3 || exit 1
+# Two strings can name one IPv6 address. Compare addresses, not text (RFC 5952 sets one canonical form).
+python3 - <<'PY'
+import ipaddress, json, datetime
+utc = lambda t: datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M")
+rows = [json.loads(l) for l in open("evidence/item001.ndjson") if l.strip()]
+seen = {}
+for r in rows:
+    if r["rrtype"] != "aaaa":
+        continue
+    seen.setdefault(str(ipaddress.ip_address(r["rdata"])), []).append(r)
+print("AAAA records:", sum(len(v) for v in seen.values()), " distinct addresses:", len(seen))
+for addr, rs in seen.items():
+    if len(rs) > 1:
+        print("one address, %d strings:" % len(rs), addr)
+        for r in rs:
+            print("   %-40s %s -> %s  %d" % (r["rdata"], utc(r["time_first"]), utc(r["time_last"]), r["count"]))
+        print("   merged window:", utc(min(r["time_first"] for r in rs)), "->", utc(max(r["time_last"] for r in rs)),
+              " answers:", sum(r["count"] for r in rs))
+PY
+\`\`\`
+
+\`\`\`text
+AAAA records: 17  distinct addresses: 16
+one address, 2 strings: 2606:2800:21f:cb07:6820:80da:af6b:8b2c
+   2606:2800:21f:cb07:6820:80da:af6b:8b2c   2024-04-19 09:04 -> 2025-01-14 15:55  1467
+   2606:2800:021f:cb07:6820:80da:af6b:8b2c  2024-04-25 17:46 -> 2024-10-26 07:35  111
+   merged window: 2024-04-19 09:04 -> 2025-01-14 15:55  answers: 1578
+\`\`\`
+
+\`2606:2800:021f:…\` and \`2606:2800:21f:…\` are the same address. The first keeps a leading zero that RFC 5952 §4.1 says "MUST be suppressed". Some answer, somewhere, wrote it the long way, and the database stored it as a separate row. A text comparison, \`grep\` or a spreadsheet lookup treats them as two addresses. Python's \`ipaddress\` module reads both and prints the canonical form.
+
+Merge them before you report. The window is the earliest \`time_first\` to the latest \`time_last\`. Adding the two counts is fair here, because they are separate tuples, each counted once. Say in your notes that you merged them, and why.
+</details>
+
+#### 🟡 Drill 2 — a count that is a ceiling ~6 min
+
+**Goal.** The lab's unfiltered query for example.com reported \`count 997\`. Ask for each record type separately, and page past row 1000 for 93.184.216.34. Four requests, 7 seconds apart.
+
+**Done when.** You can say why 997 is not the number of records about example.com, and what you can honestly write instead.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_3 || exit 1
+# The lab's unfiltered query said count 997. Ask for each record type separately (limit=1: we want
+# the count, not the rows), then page past row 1000 of the capped address. Four requests, 7 s apart.
+n() { sleep 7; curl -s -m 60 -A "CyberScoutsLab/1.0" "$1" | jq -r '"\\(.responseCode) count \\(.count) rows \\(.data | if type == "array" then length else 0 end)"'; }
+echo "unfiltered (lab item002): count $(jq -r .count evidence/item002.json)"
+echo "a + aaaa: $(n "https://api.mnemonic.no/pdns/v3/example.com?rrType=a&rrType=aaaa&limit=1")"
+echo "cname:    $(n "https://api.mnemonic.no/pdns/v3/example.com?rrType=cname&limit=1")"
+echo "ptr:      $(n "https://api.mnemonic.no/pdns/v3/example.com?rrType=ptr&limit=1")"
+echo "93.184.216.34 from row 1000: $(n "https://api.mnemonic.no/pdns/v3/93.184.216.34?limit=25&offset=1000")"
+\`\`\`
+
+\`\`\`text
+unfiltered (lab item002): count 997
+a + aaaa: 200 count 38 rows 1
+cname:    200 count 515 rows 1
+ptr:      200 count 993 rows 1
+93.184.216.34 from row 1000: 200 count 0 rows 0
+\`\`\`
+
+Split by type, the counts are 38, 515 and 993: 1,546 records, where the unfiltered query said 997. The unfiltered number cannot be a total. The public API returns at most 1000 results a query. Past row 1000, 93.184.216.34 returns nothing at all, not an error. 993 is close enough to the ceiling that you cannot tell whether it was cut short too.
+
+Honest wording is a lower bound, with the query: "at least 1,546 records name example.com (mnemonic, public access, three queries by type, 2026-09-28)". The \`cname\` and \`ptr\` rows are other people's names pointing at example.com. They say something about those people, and nothing about example.com's owner.
+</details>
+
+#### 🔴 Drill 3 — a grader that says UNKNOWN ~10 min
+
+**Goal.** Write a grader for passive DNS records before they go into a report: \`SEEN OVER TIME\`, \`UNDER A DAY\`, \`SINGLE SIGHTING\`, or \`UNKNOWN\` when the times are missing or impossible. Run it on the COF file and on the JSON file from the lab. No new requests.
+
+**Done when.** Your grader gives a verdict on every COF record and refuses every partial JSON one.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_3 || exit 1
+# Grade every A/AAAA record before it goes in a report. A record without real times is UNKNOWN,
+# never "short-lived": a zero is a missing value, not 1 January 1970.
+cat > grade.py <<'PY'
+import json, sys
+DAY = 86400
+def grade(first, last, count):
+    if not first or not last or last < first:
+        return "UNKNOWN"             # missing or impossible times: this record cannot date anything
+    if count == 1:
+        return "SINGLE SIGHTING"     # a lead to corroborate, not a history
+    if last - first < DAY:
+        return "UNDER A DAY"
+    return "SEEN OVER TIME"
+def load(path):
+    if path.endswith(".ndjson"):     # COF: seconds
+        for l in open(path):
+            if l.strip():
+                r = json.loads(l)
+                if r["rrtype"] in ("a", "aaaa"):
+                    yield r["rdata"], r.get("time_first"), r.get("time_last"), r.get("count")
+    else:                            # mnemonic JSON: milliseconds
+        for r in json.load(open(path))["data"]:
+            if r["query"] == "example.com" and r["rrtype"] in ("a", "aaaa"):
+                f, l = r["firstSeenTimestamp"] // 1000, r["lastSeenTimestamp"] // 1000
+                yield r["answer"], f, l, r["times"]
+for path in sys.argv[1:]:
+    tally = {}
+    for rdata, f, l, c in load(path):
+        g = grade(f, l, c)
+        tally[g] = tally.get(g, 0) + 1
+    print(path, dict(sorted(tally.items())))
+PY
+python3 grade.py evidence/item001.ndjson evidence/item002.json
+\`\`\`
+
+\`\`\`text
+evidence/item001.ndjson {'SEEN OVER TIME': 35, 'SINGLE SIGHTING': 3}
+evidence/item002.json {'UNKNOWN': 38}
+\`\`\`
+
+The same 38 records, graded twice. From COF: 35 seen over time and three single sightings, the three addresses in the lab's table seen once. From the JSON view: all 38 are \`UNKNOWN\`, because each one has \`0\` for first and last seen. Take the UNKNOWN branch out and the zeros become a window of no time at all: 35 records graded \`UNDER A DAY\` and 3 \`SINGLE SIGHTING\`, every verdict confident and every \`UNDER A DAY\` wrong.
+
+The tempting fix is to read \`createdTimestamp\` instead, since that field holds numbers. Don't. The documentation says it "always returns 0", so you would be relying on a field whose meaning nobody has written down. For 93.184.216.34, the JSON view's \`createdTimestamp\` falls almost three days after the COF \`time_first\` for the same record (248,397 seconds). Use the format whose fields are defined, and let the grader say UNKNOWN for the one whose are not.
+</details>`,
+    tracker: ["Wrote the question and scope before the first request, with every packet to example.com's own servers out of scope", "Ran the lab: eight requests logged with HTTP status, requests paced within the provider's limit, SHA256SUMS written", "Can read the example.com history as windows, and say why both 'tempting' lines are wrong", "Found the one IPv6 address stored as two strings, and merged it (Drill 1)", "Showed a count is a ceiling, and wrote the honest lower bound (Drill 2)", "Built a grader that answers UNKNOWN for records without real times (Drill 3)"]
   }]
 };
 

@@ -917,6 +917,14 @@ BANNED = [
      "A PowerShell function's bare strings go to its output, so a Collect that prints a status "
      "line and returns parsed JSON hands the caller an array: use Write-Host for the status "
      "(Scouts ledger S2.2 defects)", "A103"),
+    (r"""\[["']createdTimestamp["']\]|\.createdTimestamp\b""",
+     "mnemonic documents createdTimestamp as 'always returns 0', yet it holds numbers that are not "
+     "first-seen times (93.184.216.34: almost three days after COF time_first); date records from "
+     "COF time_first/time_last and answer UNKNOWN for partialResult rows (Scouts ledger S2.3, Drill 3)", "A104"),
+    (r"""["\u201c](?:gained access to accounts at Netnod|none of them alerted)|several governments and security companies""",
+     "Krebs (18 Feb 2019) paraphrases Netnod's CEO and PCH's Woodcock; those words are Krebs's, not "
+     "quotes from them, and the warnings came from the US government, not several governments "
+     "(Scouts ledger S2.3 defects)", "A105"),
 ]
 
 
@@ -1199,6 +1207,9 @@ TOPIC_ANCHORS = {
         "ripestat": ["S2.2"],
         "route collector": ["S2.2"],
         "route origin validation": ["S2.2"],
+        "passive dns": ["S2.3"],
+        "common output format": ["S2.3"],
+        "time_first": ["S2.3"],
     },
 }
 

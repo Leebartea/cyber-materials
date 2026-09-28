@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.2 + 2 roadmaps)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.3 + 2 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-25 (Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-28 (Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -418,3 +418,60 @@ Defects caught in the S2.2 build pass (none shipped):
   allocation date. Reworded to "buckets that began before January 2010".
 - **Case draft said Cloudflare "calls the leak 'erroneous'"** and "every window tried in June 2024"
   for two prefixes. Now the exact phrase ("erroneously leaked"), and per-prefix counts (row 171).
+
+## Batch 10 — S2.3 Passive DNS: what a name used to resolve to, and what a sighting proves
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 178 | S2.3 | Passive DNS was described by Florian Weimer, "Passive DNS replication", 17th Annual FIRST Conference, 2005 | `SOURCED` | draft-dulaunoy-dnsop-passive-dns-cof-13 §1 (ietf.org/archive/id), curl 2026-09-28 | stable |
+| 179 | S2.3 | Sensors capture "cache fill" responses (authoritative → recursive), so they never see the client; the method is "intended to minimize the privacy implications to users" | `SOURCED` | COF draft -13 §1 | stable |
+| 180 | S2.3 | Authoritative servers "may serve different answers to different query addresses" (RFC 7871 client subnet) | `SOURCED` | COF draft -13 §1 | stable |
+| 181 | S2.3 | COF is an Internet-Draft, revision 13, intended Informational, ISE stream, state Expired ("Expires: 28 February 2025"); never an RFC | `SOURCED` | datatracker API doc + state/2 ("Expired"), and the -13 text header, 2026-09-28 | 2027-03 |
+| 182 | S2.3 | COF mandatory fields rrname, rrtype, rdata, time_first, time_last; time_first = "the first time that the record / unique tuple (rrname, rrtype, rdata) has been seen by the passive DNS", UTC Unix seconds | `SOURCED` | COF draft -13 §3.3, §3.3.4–3.3.5 | stable |
+| 183 | S2.3 | COF count = "how many authoritative DNS answers were received at the Passive DNS server's collectors" (optional field) | `SOURCED` | COF draft -13 §3.4.1 | stable |
+| 184 | S2.3, challenge | "a snapshot-in-time answer"; clients should not "assume that answers will be identical across multiple Passive DNS servers" | `SOURCED` | COF draft -13 §2 | stable |
+| 185 | S2.3 | A shorter TTL means more refetches and so a higher count, whatever the traffic | `CONVENTION` | reasoning from row 183 and DNS caching; no statistic claimed | — |
+| 186 | S2.3 | Filtering or misbehaving resolvers hand out answers the real servers never gave, and some reach passive DNS databases | `CONVENTION` | reasoning; illustrated, not proven, by the lab's 127.0.0.1 and count-1 rows (row 193). COF §2 names the bailiwick filter as one protection | — |
+| 187 | S2.3 | RFC 5952 §4.1: leading zeros in an IPv6 field "MUST be suppressed" | `SOURCED` | rfc-editor.org/rfc/rfc5952.txt lines 523–527, curl 2026-09-28 | stable |
+| 188 | S2.3 | mnemonic is a security company headquartered in Oslo | `SOURCED` | mnemonic.io footer "Oslo (HQ)", curl 2026-09-28 | 2027-09 |
+| 189 | S2.3 | mnemonic public API: no key needed; "10 requests per minute, and 1000 requests per day"; TLP white only; HTTP 402 `resource.limit.exceeded` with `millisUntilResourcesAvailable`; public `limit` capped at 1000 (412 above) | `SOURCED` | www.docs.mnemonic.no/api/services/pdns/01-public_api.html, curl 2026-09-28 (docs.mnemonic.no without www 404s) | 2027-03 |
+| 190 | S2.3 | mnemonic docs: records carry firstSeenTimestamp/lastSeenTimestamp; createdTimestamp and lastUpdatedTimestamp "always returns 0"; results sorted by lastSeenTimestamp; COF at /pdns/v3/cof/. Neither the public nor the private API page mentions `flags` or `partialResult` (grep: 0 hits each) | `SOURCED` | same page + 02-private_api.html, curl 2026-09-28 | 2027-03 |
+| 191 | S2.3 lab | Unfiltered JSON for example.com: count 997, 994 rows flagged partialResult, all with firstSeenTimestamp 0, 17 IPv6 answers typed "a". The same records by `rrType`, or from COF, carry correct types and real times (filtered AAAA: flags [], firstSeen populated) | `EXECUTED` | lab item002 + rrType=aaaa query, 2026-09-28 | volatile |
+| 192 | S2.3 lab | 21 A rows for example.com: 93.184.216.119 (2013-07-30→2014-12-10, 490); 93.184.216.34 (2017-01-29→2024-04-18, 334652); 93.184.215.14 (2024-04-18→2025-01-14); 23.x/96.7.x from 2025-01-15; 104.x/172.66.x from 2025-12-16; last 23.x sighting 20:03, first 104.x 18:37 on 2025-12-16 | `EXECUTED` | lab item001 (COF), three runs 2026-09-28; closed rows identical, open rows move | volatile |
+| 193 | S2.3 lab | Single sightings 74.117.222.18, 210.211.113.133, 103.74.119.182 (count 1); 127.0.0.1 count 12, 2019-04-30→2021-03-23; total A answers 979633; no A row between 2014-12-10 and 2017-01-29 | `EXECUTED` | lab item001, 2026-09-28 | volatile |
+| 194 | S2.3 lab | Google Public DNS JSON `Status` 0 = NOERROR; live A 104.20.23.154 + 172.66.147.243 = the newest COF pair | `SOURCED` / `EXECUTED` | developers.google.com/speed/public-dns/docs/doh/json, curl 2026-09-28; lab item003 | volatile |
+| 195 | S2.3 lab | RDAP today: 93.184.216.0/24 EDGECAST-NETBLK-03 (RIPE, registered 2012-06-22); 23.192.0.0–23.223.255.255 AKAMAI (ARIN, 2013-07-12); 104.16.0.0–104.31.255.255 CLOUDFLARENET (ARIN, 2014-03-28). 96.7.128.x and 172.66.x were not looked up, and the course does not name their holders | `EXECUTED` | lab items 004–006, 2026-09-28 | volatile |
+| 196 | S2.3 lab | IANA: 93/8 RIPE NCC; 23/8 and 104/8 ARIN | `SOURCED` | iana.org ipv4-address-space, as fetched for S2.2 (2026-09-25) | stable |
+| 197 | S2.3 lab | Reverse 23.215.0.136: 7 names; example.com present; 4 under akamai.net; 2 others (not printed). 93.184.216.34: count 1000 | `EXECUTED` | lab items 007–008, 2026-09-28 | volatile |
+| 198 | S2.3 Drill 1 | 17 AAAA records = 16 addresses; 2606:2800:021f:cb07:6820:80da:af6b:8b2c and 2606:2800:21f:… are one; merged 2024-04-19 09:04 → 2025-01-14 15:55, 1578 answers | `EXECUTED` | wb1, bash and zsh identical, 2026-09-28 | volatile |
+| 199 | S2.3 Drill 2 | By type: a+aaaa 38, cname 515, ptr 993 (sum 1546) vs unfiltered 997; all 515 cname and 993 ptr rows have answer = example.com, 1 cname query under an IANA example name; 93.184.216.34 at offset 1000 → 0 rows | `EXECUTED` | wb2 + per-type pulls, 2026-09-28 | volatile |
+| 200 | S2.3 Drill 3 | COF grading 35 SEEN OVER TIME + 3 SINGLE SIGHTING; JSON view 38 UNKNOWN; without the UNKNOWN branch 35 UNDER A DAY + 3 SINGLE; 93.184.216.34 createdTimestamp − COF time_first = 248,397 s | `EXECUTED` | wb3 + one-off comparison script, 2026-09-28 | volatile |
+| 201 | S2.3 case | Krebs, "A Deep Dive on the Recent Widespread DNS Hijacking Attacks", KrebsOnSecurity, 18 Feb 2019: US government and security companies warned; "suspected Iranian hackers"; Talos write-up 27 Nov 2018 dubbed "DNSpionage"; CrowdStrike addresses run "through both Farsight Security and SecurityTrails"; "more than 50 Middle Eastern companies and government agencies"; mail.gov.ae; 139.59.134[.]216 "home to just seven different domains over the years", two only in Dec 2018; ns0.idm.net.lb at 194.126.10[.]18 "From early 2014 until December 2018", changed Dec. 18, 2018; sa1.dnsnode.net and fork.sth.dnsnode.net (Netnod, "a major global DNS provider based in Sweden"); certificates "sometimes weeks, sometimes just days or hours" later, Comodo/Let's Encrypt, visible at crt.sh; Netnod CEO confirmed hijacks after attackers gained access to registrar accounts (Krebs's paraphrase); Woodcock: four attacks, tools on "roughly one hour"; PCH "no fewer than three monitoring systems", none alerted (Krebs's paraphrase) | `SOURCED` | krebsonsecurity.com/2019/02/a-deep-dive-on-the-recent-widespread-dns-hijacking-attacks/, raw HTML curl 2026-09-28, datetime 2019-02-18T09:50:05-05:00 | stable |
+| 202 | S2.3 | example.com and the .example TLD are reserved for documentation (RFC 2606); 198.51.100.0/24 is a documentation range (RFC 5737) | `SOURCED` | as rows 10 and 174 | stable |
+| 203 | S2.3 | Querying a domain's authoritative servers directly lands in the log of whoever runs them; asking a public resolver lands in the resolver's | `CONVENTION` | S1.1's whose-log test applied | — |
+| 204 | S2.3 | A forgotten record pointing to an address you gave up is how subdomain takeovers begin | `CONVENTION` | general practice, stated without a statistic | — |
+| 205 | S2.3 | Windows variant not run (no pwsh on the build Mac); it says so in its header | `CONVENTION` | as S1.7–S2.2 | — |
+
+Defects caught in the S2.3 build pass (none shipped):
+
+- **The first plan dated records from mnemonic's JSON `firstSeenTimestamp`.** Every unfiltered row
+  had it as 0, flagged `partialResult`, a flag the documentation never mentions. The lab now dates from COF,
+  and Drill 3 grades JSON rows UNKNOWN (guard A104 blocks code that reads `createdTimestamp` instead).
+- **The lab set `PDNS=https://api.mnemonic.no/pdns/v3`**, a bare base that 404s under the URL gate.
+  Every request now spells out its full endpoint.
+- **"127.0.0.1 … in a history of hundreds of thousands"** was hand-typed around extracted values.
+  Now computed: 12 of 979,633. A draft "never from its servers" was unprovable and removed.
+- **Case draft said "several governments"** warned; Krebs says the US government (guard A105).
+- **Case draft put Krebs's paraphrases in the mouths of Netnod's CEO and PCH's Woodcock** as quotes.
+  Now attributed to Krebs; only "roughly one hour" and "no fewer than three monitoring systems" are quoted (A105).
+- **Drill 3 draft said a grader without UNKNOWN gives `UNDER A DAY` "38 times over".** Run, it is 35
+  plus 3 single sightings. Its "24 seconds" example belonged to a different record from the one named. Replaced
+  with the measured 248,397 s for 93.184.216.34.
+- **Theory said the lab shows "hundreds of strangers'" CNAME/PTR records.** The lab never fetches them.
+  Now points to Drill 2's measured counts. "Norwegian" became "headquartered in Oslo", the wording the site uses.
+- **Expected-output notes named the Akamai and Cloudflare eras from one RDAP lookup each.** Now "the 23.x
+  addresses (in the block registered today as AKAMAI)"; 96.7.x and 172.66.x holders are not claimed. "Byte-identical
+  mnemonic replies" was scoped to runs minutes apart after a later run's COF hash changed.
+- **Theory said old and new answers overlap "because cached answers live on until they expire".** The
+  lab's overlap is about 90 minutes against 300-second TTLs, so caching alone cannot be asserted as the
+  reason. Now names two possible causes and says the record does not tell you which.
