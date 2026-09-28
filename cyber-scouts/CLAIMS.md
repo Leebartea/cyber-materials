@@ -533,3 +533,58 @@ Defects caught in the S2.4 build pass (none shipped):
 - Gate: OOXML namespace URIs (host has no DNS record) were probed as links; that one host is now skipped,
   purl.org and w3.org namespace URIs are still probed. A `revision log` anchor was dropped: the term lives only
   in the case study, which the stale-anchor check does not read.
+
+## Batch 12 — S2.5 Image and video verification: is this picture what the post says it is?
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 238 | S2.5 | dHash: shrink to 9×8, grey, compare each pixel with its right neighbour, 64 bits; described by Neal Krawetz, "Kind of Like That", 21 January 2013, crediting the "difference hash" idea to David Oftedal | `SOURCED` | hackerfactor.com/blog archives/529 (raw HTML, 2026-09-28) | stable |
+| 239 | S2.5 | "A value of 0 indicates the same hash and likely a similar picture. A value greater than 10 is likely a different image, and a value between 1 and 10 is potentially a variation." | `SOURCED` | row 238 page | stable |
+| 240 | S2.5 | Bit = 1 where a pixel is darker than its right neighbour, as Krawetz's own convention ("a \"1\" to indicate that P[x] < P[x+1]") | `SOURCED` | row 238 page; lab `pic.py` uses the same | stable |
+| 241 | S2.5 | Distances from the original (sips, build Mac): thumbnail 2, night control 31, viral (mirrored, 95%) 38, viral mirrored back 5 | `EXECUTED` | lab step 6, bash and zsh identical, three runs | 2027-03 (Commons may re-make thumbnails) |
+| 242 | S2.5, Drill 2 | Centre crops of the thumbnail: 98% → 3, 95% → 6, 90% → 11, 85% → 14, 80% → 15, 70% → 25, 60% → 29, 50% → 38 | `EXECUTED` | Drill 2, bash and zsh identical | 2027-03 |
+| 243 | S2.5 | The original carries Exif: Apple iPhone 8, DateTimeOriginal 2018:08:26 09:42:06, no OffsetTimeOriginal, a GPS block. Commons' 960 px thumbnail has no APP segments at all | `EXECUTED` | lab step 5 (`pic.py` reads the bytes) | 2027-03 |
+| 244 | S2.5, Drill 1 | `sips -f horizontal` on the original keeps make, model, time and GPSImgDirection 75.2 on a mirror image (new SHA-256; dHash distance 38) | `EXECUTED` | Drill 1, bash and zsh identical | stable |
+| 245 | S2.5 | MediaWiki imageinfo `sha1`: "Adds SHA-1 hash for the file." | `SOURCED` | mediawiki.org/wiki/API:Imageinfo (curl) | stable |
+| 246 | S2.5 | item002 SHA-1 c6bac702d583… and item006 SHA-1 febdab7ba0a5… equal the API's values; API `url` fields end in `?utm_…` tracking tags | `EXECUTED` | lab step 3 | stable |
+| 247 | S2.5 | Commons upload timestamps: LONDON_BRIDGE.jpg 2018-10-06T06:34:05Z; Tower_Bridge_MVI_1768.webm 2017-01-07T19:13:00Z; 2,914 calendar days from the first to 2026-09-28 | `EXECUTED` | lab steps 7–8 | stable |
+| 248 | S2.5 | Matroska DateUTC: "The date and time that the Segment was created by the muxing application or library" (optional); MuxingApp and WritingApp minOccurs 1 | `SOURCED` | rfc-editor.org RFC 9559 §5.1.2.11–14 (txt) | stable |
+| 249 | S2.5 | EBML Date: signed nanoseconds from 2001-01-01T00:00:00 UTC; a zero-length Date means that instant | `SOURCED` | RFC 8794 §7.6 (txt) | stable |
+| 250 | S2.5 | QuickTime mvhd creation time: "seconds since midnight, January 1, 1904, preferably using coordinated universal time (UTC)" | `SOURCED` | developer.apple.com QTFF movie_header_atom/creation_time (docs JSON; HTML needs JavaScript) | stable |
+| 251 | S2.5 | `©swr`: "Name and version number of the software (or hardware) that generated this movie" | `SOURCED` | developer.apple.com QTFF user_data_atoms (docs JSON) | stable |
+| 252 | S2.5 | `Lavf` + version is FFmpeg libavformat's ident string (`LIBAVFORMAT_IDENT "Lavf" AV_STRINGIFY(LIBAVFORMAT_VERSION)`) | `SOURCED` | FFmpeg libavformat/version.h, master via raw.githubusercontent.com | stable |
+| 253 | S2.5 | item006 (WebM): MuxingApp = WritingApp = Lavf54.20.4, no DateUTC. item007 (.mov conversion): `©swr` Lavf59.27.100, mvhd version 0, creation time 0 | `EXECUTED` | lab step 8 (EBML walker, box walker; no byte search) | stable |
+| 254 | S2.5 | `qlmanage -t` gives the same frame bytes on two grabs of item007 | `EXECUTED` | lab step 8 | stable (per macOS version) |
+| 255 | S2.5 | C2PA FAQ: "While C2PA Manifests are typically embedded in the asset, they can be separated." and "The core C2PA Content Credentials specification does not support attribution of content to individuals or organizations" | `SOURCED` | c2pa.org/faqs (raw HTML) | 2027-03 |
+| 256 | S2.5 | No C2PA specification version is named: spec.c2pa.org does not route from the build network, and a search summary is a lead, not a source | `CONVENTION` | curl 000, WebFetch failed | — |
+| 257 | S2.5 | `sips -g all` prints make, model, software and a creation time, but no GPS | `EXECUTED` | on item002 | stable |
+| 258 | S2.5, Linux | Pillow 11.3.0 variant (LANCZOS to 9×8, "L" grey): thumbnail 0, control 26, viral 38, mirrored back 5; same verdicts as sips | `EXECUTED` | the linux.txt code run on macOS | stable |
+| 259 | S2.5 case | BBC social media editor, 29 May 2012: picture up "for about 90 minutes", "first spotted as it circulated on Twitter", the "veracity … disclaimer … should have been better … we apologise" passage; photographer "works for Getty Images"; "almost a decade earlier" | `SOURCED` | bbc.co.uk/blogs/theeditors/2012/05/houla_massacre_picture_mistake.html (raw HTML) | stable |
+| 260 | S2.5 case | BBC caption "This image – which cannot be independently verified – is believed to show the bodies of children in Houla awaiting burial."; credit "Photo From Activist"; Di Lauro to the Telegraph: "I almost felt off from my chair" | `SOURCED` | poynter.org, Craig Silverman, 28 May 2012 (raw HTML). The Telegraph returns 402 to scripts: quoted via Poynter, and said so | stable |
+| 261 | S2.5 case | Di Lauro's blog, 9 June 2012: text says taken "on March 27, 2003"; caption on the same page says "Al Musayyib, Iraq – May 27, 2003"; bodies moved from a mass grave to a school to be identified; story "Iraq, the Aftermath of Saddam" | `SOURCED` | marcodilauro.com blog post (raw HTML). Not resolved: no third source read | stable |
+| 262 | S2.5 case | BBC official by role only; photographer named as credited author of the picture and statements | `CONVENTION` | as S2.4 | — |
+| 263 | S2.5 | Windows variant not run (no pwsh on the build Mac); it says so in its header and skips the frame step | `CONVENTION` | as S1.7–S2.4 | — |
+
+Defects caught in the S2.5 build pass (none shipped):
+
+- **zsh broke the lab twice.** A jq path written with a variable followed directly by `[0]` is an array
+  subscript in zsh, and `set --` on an unquoted variable does not split there. Both ran in bash, and both
+  stopped in zsh. Guards A107 and A108.
+- **An EBML Date of zero length would have crashed** the WebM reader (RFC 8794 allows it). It now reads it as 2001-01-01.
+- **The clock grader said 2,913 days** where the lab said 2,914: a timedelta floors across the time of day.
+  Both now count calendar dates.
+- **The first finding said the post's picture "is a mirrored, trimmed copy".** That is known only because
+  the lab made the copy. The finding now says "within 5 bits … if it is that photo", and to confirm by eye.
+- **Case draft over-reached.** It had "his agency's archive", "some outlets argued" (pages not read),
+  "readers saw the picture more than the words", "an earlier copy existed to be found" (not in any source
+  read), "credited to 'an activist'" (the credit read "Photo From Activist"), and "both from the
+  photographer's own pages" (one page).
+- **Unsourced quantifiers** "Most false pictures", "Most pictures … have none", "Many apps remove location"
+  and "almost any video a platform touches" became statements of what can happen.
+- **PowerShell:** a uint64 XOR cast to int64 overflows; int64 keys never match int32 lookups in a hashtable;
+  a one-element list returned from a function unrolls; ConvertFrom-Json turns timestamps into local dates.
+  All four were fixed on reading. The variant is still not run.
+- **The API's thumbnail size is not the file's.** With `iiurlwidth=640`, Commons returned
+  `thumbwidth: 640` and a URL that served a 960-pixel file. The lab asks for 960 and measures what arrives.
+- **Case chosen against:** the 2015 error-level-analysis dispute over MH17 satellite images. The only
+  pages that could be read were one party's advocacy, too contested to pin quotes to.

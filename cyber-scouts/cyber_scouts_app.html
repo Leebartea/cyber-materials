@@ -828,7 +828,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | S2.2 | Network ownership: address blocks, AS numbers and routing | ✅ available |
 | S2.3 | Passive DNS: what a name used to resolve to | ✅ available |
 | S2.4 | Document and file metadata | ✅ available |
-| — | Image and video verification | planned |
+| S2.5 | Image and video verification | ✅ available |
 | — | Usernames and accounts, ethics first | planned |
 | — | Capstone: a multi-source pivot report | planned |
 
@@ -5491,6 +5491,725 @@ v3 has 22 hours between packing and commit. Almost any zone makes that CONSISTEN
 The offsets also show a pattern: \`-0800\` in December and January, \`-0700\` for the August 2013 and August 2018 commits (fetch the patches for \`e75d056a\` and \`d563fa4a\` the same way to see them). That fits a computer in a zone with summer time. It does not place the computer anywhere, and it is the committer's setting, not a location.
 </details>`,
     tracker: ["Wrote the question and scope before the first request, with the people behind any name out of scope", "Ran the lab: six requests logged with HTTP status, five pinned versions hashed in SHA256SUMS", "Can say what each of the three 'tempting' sentences gets wrong", "Made a forged copy and showed which hashes change and which do not", "Found the part that changed in v3, and a part whose bytes changed but values did not (Drill 1)", "Showed a plain-hash pseudonym is testable and made a keyed one (Drill 2)", "Built a grader that answers UNKNOWN for the DOS zero and tests zip times against commit offsets (Drill 3)"]
+  }, {
+    id: "s2_5",
+    level: 2,
+    num: "S2.5",
+    title: "Image & Video Verification — Is This Picture What the Post Says It Is?",
+    objective: `Check a picture or clip against the claim attached to it. Confirm you hold the file a host describes by its hash. Recognise a resized or re-saved copy with a difference hash, and know that a mirror or a small trim can hide a copy, so no match is never proof of a different picture. Date a picture by the earliest copy you can find, which works in one direction only. Read what each copy's metadata and each video container says about the program that made it, and treat a zero as no time. Report what the evidence supports, and nothing about who reposted it or why.`,
+    theory: `#### Why image and video verification matters
+
+A false picture does not have to be a fake. It can be a real picture with the wrong caption: an old photo passed off as today's, or a scene from one country labelled as another. This module's case study is one of these. It needs no editing software to make and no forensic lab to catch. You need a copy of the same picture that existed before the event it is said to show.
+
+S1.6 read what one photo says about where it was taken. This module asks three wider questions about any picture or clip:
+
+1. **Is it the same picture?** Copies get resized, re-saved, mirrored and trimmed. You need a way to recognise a copy that is not byte-for-byte the same.
+2. **When did it first exist?** The earliest copy you can find sets an upper limit: the picture existed no later than that.
+3. **What does each copy say about how it was made?** Photos and video containers name programs and carry clocks. Each copy says something different, and none of it proves who made it.
+
+#### Two kinds of hash
+
+A **cryptographic hash** (SHA-256, SHA-1) changes completely when a single bit changes. It answers "is this exactly the same file?" In the lab, Commons' own thumbnail of a photo has a different SHA-256 from the photo, and so does every copy you make.
+
+A **perceptual hash** summarises what the picture looks like, so near-copies get near-identical hashes. This module uses the *difference hash* (dHash), described by Neal Krawetz on his Hacker Factor blog ("Kind of Like That", 21 January 2013), who credits the idea to a reader, David Oftedal. Shrink the picture to 9×8 pixels, turn it grey, then compare each pixel with its right-hand neighbour: 8 comparisons × 8 rows = 64 bits. Two hashes are compared by counting the bits that differ (the *Hamming distance*). Krawetz's rule of thumb: "A value of 0 indicates the same hash and likely a similar picture. A value greater than 10 is likely a different image, and a value between 1 and 10 is potentially a variation."
+
+What the lab and the drills measure on one Commons photo:
+
+| Copy | Distance from the original (of 64) |
+|---|---|
+| Commons' 960-pixel thumbnail | 2 |
+| a different photo of the same bridge, at night | 31 |
+| the thumbnail mirrored, and trimmed to 95% | 38 |
+| the same copy mirrored back | 5 |
+| the thumbnail trimmed to 95% of each side (Drill 2) | 6 |
+| trimmed to 90% of each side (Drill 2) | 11 |
+
+Read the table both ways. A small distance found a copy through resizing and re-saving. A large distance did **not** find a different picture: a mirror scored worse than an unrelated photo, and losing a tenth of each edge was enough to pass Krawetz's line. A perceptual hash can support "these look like the same picture", which you then confirm by eye, side by side. It can never support "these are different pictures". Mirror a suspect copy back before you give up on it.
+
+#### When did it first exist?
+
+The earliest copy you can find is your strongest evidence about time, and it only works in one direction. If a picture was online in 2018, it cannot show an event in 2026. If the earliest copy you found is from the day of the event, that fits, and proves nothing: an older copy may exist where you did not look.
+
+Where earlier copies come from:
+
+- **The host's own record.** Wikimedia Commons keeps an upload time for every file. The MediaWiki API also returns each file's SHA-1 (its documentation: "Adds SHA-1 hash for the file."), so you can check that the file you downloaded is the one the record describes.
+- **Web archives** (S2.1). A capture time is when the archive fetched the page, and the page existed by then.
+- **Reverse image search.** Search engines that accept a picture and return pages that show it. Each one indexes different pages, so try more than one. **Uploading an image to a search engine gives that image to the search engine.** Never upload a picture of a person, or anything you were given in confidence, without authority to share it. The lab stays inside Commons for this reason.
+
+Every upload time is written by the host's clock and says when the host received the file. It does not say when the picture was taken, or who took it.
+
+#### What each copy says about itself
+
+Whether metadata survives depends on the program that made the copy, not on the picture:
+
+- Commons' thumbnail of the lab photo has no Exif block at all: no camera, no time, no GPS.
+- The practice "viral" copy, made from that thumbnail, has none either.
+- The same mirror made from the **original** (Drill 1) keeps everything: "Apple iPhone 8", the 2018 time and a compass heading of 75.2°. It now describes a mirror image that no phone ever took.
+
+So missing metadata does not mean a picture was never a camera photo, and present metadata does not mean a picture is unedited.
+
+#### Video: frames and containers
+
+A video is checked like a set of photos. Take frames, especially the first frame and any frame with landmarks or signs, then treat each as a picture: search for earlier copies and compare what the frame shows with what the caption says. The lab takes a frame with macOS's Quick Look (\`qlmanage\`) and shows that the same file gives the same frame each time.
+
+The container, the file format that wraps the video and sound, carries its own fields:
+
+- **WebM / Matroska** (RFC 9559). \`MuxingApp\` and \`WritingApp\` must be present and name the programs that wrote the file. \`DateUTC\` is optional: "The date and time that the Segment was created by the muxing application or library". It counts nanoseconds from 2001-01-01 UTC, and RFC 8794 says a zero-length date means exactly that moment.
+- **QuickTime / MP4.** The movie header (\`mvhd\`) has a creation time in "seconds since midnight, January 1, 1904, preferably using coordinated universal time (UTC)" (Apple's QuickTime File Format). *Preferably* means the zone is not guaranteed. The \`©swr\` item holds the "Name and version number of the software (or hardware) that generated this movie".
+
+In the lab, the video Commons calls the original says \`Lavf54.20.4\` in both app fields. \`Lavf\` is the name FFmpeg's libavformat library writes, followed by its version number (\`LIBAVFORMAT_IDENT\` in FFmpeg's source). So the "original" is itself a converted file, not what came off a camera, and it has no \`DateUTC\`. Commons' own \`.mov\` conversion says \`Lavf59.27.100\`, and its creation time is 0, which prints as 1904-01-01. As with the zip time of 1980 in S2.4, a zero is the absence of a time, not a date.
+
+#### Content Credentials
+
+Content Credentials (the C2PA standard) attach a signed record of a file's history to the file. If one is present and valid, the file has not changed since it was signed. The C2PA's own FAQ gives two limits. First: "While C2PA Manifests are typically embedded in the asset, they can be separated." A missing credential proves nothing. Second: "The core C2PA Content Credentials specification does not support attribution of content to individuals or organizations." A credential is evidence about a file's history. It is not a byline.
+
+#### The files in this lab
+
+A photo of Tower Bridge on Wikimedia Commons (\`File:LONDON_BRIDGE.jpg\`, the one from S1.6), Commons' 960-pixel thumbnail of it, a different photo of the bridge at night as a control, and a 1.7-second clip (\`File:Tower_Bridge_MVI_1768.webm\`) with Commons' \`.mov\` conversion of it. All are openly licensed. The practice post, captioned "Tower Bridge this morning" and dated 2026-09-28, does not exist online: you make its picture yourself in step 5.
+
+#### Steps 1–3 — scope, collection, integrity
+
+Seven requests, logged and hashed. The API records name each file's SHA-1, and the lab stops unless your download matches. The API adds tracking tags after \`?\` in the URLs it returns. The lab checks that the addresses it used are the ones the API names, without the tags.
+
+#### Steps 4–6 — copies and near-copies
+
+The helpers read the bytes directly: Exif from the JPEG, dHash via \`sips\` for the shrinking. Step 5 mirrors and trims the thumbnail, as reposts often are, then mirrors it back. Step 6 prints the distances above, with a verdict that never says "different picture".
+
+#### Step 7 — three clocks
+
+The phone's time (no zone, written by the phone, editable by anyone), Commons' upload time (the picture existed by then) and the post's date. Commons received the photo 2,914 days before the post.
+
+#### Steps 8–9 — the video, and the seal
+
+What each container says about the program that wrote it, one repeatable frame, then \`SHA256SUMS\`, three tempting sentences and a finding that says only what the evidence supports.
+
+#### What these checks cannot tell you
+
+- **Who.** An uploader, a reposter, a photographer: none is named by a hash or a clock. The lab does not collect uploader names.
+- **Whether an event happened.** A wrong picture on a true story is still a wrong picture. It says nothing either way about the event.
+- **That no older copy exists.** You can only report the earliest copy you found, and where you looked.
+- **That a picture is unedited.** No metadata field, and no hash, proves that.
+
+#### Lawful and polite collection
+
+Wikimedia asks scripts to name themselves with a contact in the User-Agent, and refuses a placeholder. Keep to one request at a time with a pause. Do not collect distressing images to "practise" on: this module's case study is about a photo of the dead, and you do not need to see it to learn from it.
+
+#### Your own photos
+
+Before you post a picture, check what it carries: \`sips -g all photo.jpg\` shows the basics, and the lab's \`pic.py\` shows the camera fields. Some apps offer to remove location when you share. Do not assume your own editing tools do: Drill 1's did not.`,
+    lab: {
+      mac: `# LAB: is this picture what a post says it is? Copies, near-copies and first-seen dates (Apple Silicon)
+# ETHICS: seven requests, all to Wikimedia Commons: two API records and five files, a photo and a
+# video of Tower Bridge (a public landmark) and one other landmark photo as a control. All three are
+# openly licensed. The "viral" copy is one you make yourself in step 5: no real person's post is
+# touched. No faces, no homes, and no image you were not given to examine.
+# NEEDS: nothing to install. curl, jq, python3, sips and qlmanage are all on macOS already.
+ANALYST=analyst01                      # a role name, not your real name
+CONTACT="you@example.com"              # Wikimedia asks scripts to identify themselves: put your own address here
+[ "$CONTACT" = "you@example.com" ] && { echo "set CONTACT first: Wikimedia refuses this placeholder with HTTP 403"; exit 1; }
+UA="CyberScoutsLab/1.0 ($CONTACT)"
+CLAIM_DATE=2026-09-28                  # the practice post's date: "Tower Bridge this morning"
+mkdir -p ~/scouts-case/s2_5 && cd ~/scouts-case/s2_5 || exit 1
+rm -rf evidence work collection_log.tsv SHA256SUMS && mkdir evidence work     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.5 image and video verification
+claim:        a practice post dated 2026-09-28 shares a picture captioned "Tower Bridge this morning"
+question:     Is the picture new, or an older one reused? Which copy is closest to the original, and
+              what does each copy's metadata say about when and how it was made?
+authorised:   self (openly licensed Wikimedia Commons files of public landmarks)
+in scope:     two Commons API records; one photo, its thumbnail, one control photo; one video and
+              one of Commons' own conversions of it; copies made on this computer
+out of scope: who took or uploaded any file (their names are not collected); any photo of a
+              person or a home; any upload of these files to a search engine
+SCOPE
+
+# 2. Collect through one door. Wikimedia asks for a contact in the User-Agent and a slow pace.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id extension url
+  local f="evidence/$1.$2" T C H
+  sleep 1
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -L -m 120 --retry 3 -A "$UA" -o "$f" -w '%{http_code}' "$3")
+  if [ "$C" = 200 ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=FAILED; rm -f "$f"; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$C" "$H" >> collection_log.tsv
+  echo "$1  HTTP $C  $(echo "$H" | cut -c1-12)"
+  [ "$C" = 200 ] || { echo "STOP: $1 failed (HTTP $C) - it is in the log"; exit 1; }
+}
+collect item001 json "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=imageinfo&iiprop=timestamp|sha1|size|mime|url&iiurlwidth=960&titles=File:LONDON_BRIDGE.jpg"
+collect item002 jpg  "https://upload.wikimedia.org/wikipedia/commons/d/d8/LONDON_BRIDGE.jpg"
+collect item003 jpg  "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/LONDON_BRIDGE.jpg/960px-LONDON_BRIDGE.jpg"
+collect item004 jpg  "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/Tower_Bridge_Butler%27s_Wharf_Pier_at_night_Shad_Thames_Southwark_London_England_01.jpg/960px-Tower_Bridge_Butler%27s_Wharf_Pier_at_night_Shad_Thames_Southwark_London_England_01.jpg"
+collect item005 json "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=videoinfo&viprop=timestamp|sha1|size|mime|url|derivatives&titles=File:Tower_Bridge_MVI_1768.webm"
+collect item006 webm "https://upload.wikimedia.org/wikipedia/commons/4/4d/Tower_Bridge_MVI_1768.webm"
+collect item007 mov  "https://upload.wikimedia.org/wikipedia/commons/transcoded/4/4d/Tower_Bridge_MVI_1768.webm/Tower_Bridge_MVI_1768.webm.360p.mpeg4.mov"
+
+# 3. Did we get the file Commons describes? The API gives each file's SHA-1; compute your own.
+#    Also check that the URLs above are the ones the API names (it adds tracking tags after "?").
+jq -e '.query.pages[0].imageinfo[0].url | startswith("https://upload.wikimedia.org/wikipedia/commons/d/d8/LONDON_BRIDGE.jpg")' evidence/item001.json >/dev/null || { echo "STOP: photo URL is not the one the API names"; exit 2; }
+jq -e '.query.pages[0].videoinfo[0].url | startswith("https://upload.wikimedia.org/wikipedia/commons/4/4d/Tower_Bridge_MVI_1768.webm")' evidence/item005.json >/dev/null || { echo "STOP: video URL is not the one the API names"; exit 2; }
+jq -e '.query.pages[0].videoinfo[0].derivatives | any(.src | contains("360p.mpeg4.mov"))' evidence/item005.json >/dev/null || { echo "STOP: the API no longer lists the .mov conversion"; exit 2; }
+for pair in "item002 imageinfo item001" "item006 videoinfo item005"; do
+  read -r ITEM KIND REC <<< "$pair"
+  API_SHA1=$(jq -r ".query.pages[0].\${KIND}[0].sha1" "evidence/$REC.json")
+  OUR_SHA1=$(shasum -a 1 evidence/$ITEM.* | cut -d' ' -f1)
+  [ "$API_SHA1" = "$OUR_SHA1" ] && echo "$ITEM  SHA-1 matches the API: $(echo "$OUR_SHA1" | cut -c1-12)" || { echo "STOP: $ITEM SHA-1 $OUR_SHA1, API says $API_SHA1"; exit 2; }
+done
+
+# 4. The helpers: camera fields from a JPEG's Exif block, a 64-bit difference hash, and the dates
+#    and program names inside the two video containers. Each reads the bytes itself: no libraries.
+cat > work/pic.py <<'PY'
+import json, os, struct, subprocess, sys, tempfile
+def exif(path):  # returns None when the file has no Exif block at all
+    b = open(path, "rb").read(); i = 2
+    while i < len(b) - 4 and b[i] == 0xFF and b[i + 1] != 0xDA:
+        marker = b[i + 1]; n, = struct.unpack_from(">H", b, i + 2); seg = b[i + 4:i + 2 + n]; i += 2 + n
+        if marker != 0xE1 or seg[:6] != b"Exif\\0\\0": continue
+        t = seg[6:]; e = "<" if t[:2] == b"II" else ">"
+        def ifd(o):
+            out = {}
+            for k in range(struct.unpack_from(e + "H", t, o)[0]):
+                tag, typ, cnt, raw = struct.unpack_from(e + "HHI4s", t, o + 2 + 12 * k)
+                if typ == 2:  # text: inline when 4 bytes or fewer, else at an offset
+                    s = raw[:cnt] if cnt <= 4 else t[struct.unpack(e + "I", raw)[0]:][:cnt]
+                    out[tag] = s.rstrip(b"\\0").decode("ascii", "replace")
+                elif typ == 4: out[tag] = struct.unpack(e + "I", raw)[0]
+            return out
+        i0 = ifd(struct.unpack_from(e + "I", t, 4)[0]); ex = ifd(i0[0x8769]) if 0x8769 in i0 else {}
+        return {"make": i0.get(0x10F), "model": i0.get(0x110), "software": i0.get(0x131),
+                "taken": ex.get(0x9003), "offset": ex.get(0x9011), "gps": 0x8825 in i0}
+    return None
+def dhash(path):  # Krawetz's dHash: shrink to 9x8, grey, bit = 1 where a pixel is darker than its right neighbour
+    tmp = tempfile.mkdtemp(); bmp = os.path.join(tmp, "s.bmp")
+    subprocess.run(["sips", "-s", "format", "bmp", "-z", "8", "9", path, "--out", bmp], capture_output=True, check=True)
+    b = open(bmp, "rb").read(); os.remove(bmp); os.rmdir(tmp)
+    off, = struct.unpack_from("<I", b, 10); w, h = struct.unpack_from("<ii", b, 18); bpp = struct.unpack_from("<H", b, 28)[0] // 8
+    row = (w * bpp + 3) & ~3; grey = [[0.0] * w for _ in range(abs(h))]
+    for y in range(abs(h)):
+        for x in range(w):
+            p = off + y * row + x * bpp
+            grey[abs(h) - 1 - y if h > 0 else y][x] = 0.299 * b[p + 2] + 0.587 * b[p + 1] + 0.114 * b[p]
+    return "%016x" % int("".join("1" if grey[y][x] < grey[y][x + 1] else "0" for y in range(8) for x in range(8)), 2)
+if __name__ == "__main__":
+    print(json.dumps({p: {"exif": exif(p), "dhash": dhash(p)} for p in sys.argv[1:]}, indent=1))
+PY
+cat > work/vid.py <<'PY'
+import datetime, json, struct, sys
+def vint(b, i, keep_marker):  # EBML variable-length integer: the leading 1 bit gives the length
+    n = 1
+    while not b[i] & (0x80 >> (n - 1)): n += 1
+    v = b[i] if keep_marker else b[i] & (0xFF >> n)
+    for k in range(1, n): v = (v << 8) | b[i + k]
+    return v, i + n, n
+def webm(path):  # walk EBML header -> Segment -> Info and read the three fields RFC 9559 defines there
+    b = open(path, "rb").read(); i = 0; out = {"MuxingApp": None, "WritingApp": None, "DateUTC": None}
+    eid, i, _ = vint(b, i, True); size, i, _ = vint(b, i, False); i += size   # skip the EBML header
+    eid, i, _ = vint(b, i, True); assert eid == 0x18538067, "no Segment"; _, i, _ = vint(b, i, False)
+    while i < len(b):
+        eid, i, _ = vint(b, i, True); size, i, n = vint(b, i, False)
+        if eid == 0x1549A966:  # Info
+            j = i
+            while j < i + size:
+                cid, j, _ = vint(b, j, True); csz, j, _ = vint(b, j, False); v = b[j:j + csz]; j += csz
+                if cid == 0x4D80: out["MuxingApp"] = v.decode("utf-8", "replace")
+                if cid == 0x5741: out["WritingApp"] = v.decode("utf-8", "replace")
+                if cid == 0x4461:  # signed nanoseconds since 2001-01-01T00:00:00 UTC; zero length means 0
+                    ns, = struct.unpack(">q", v) if len(v) == 8 else (0,)
+                    out["DateUTC"] = (datetime.datetime(2001, 1, 1) + datetime.timedelta(microseconds=ns // 1000)).isoformat() + "Z"
+            return out
+        i += size
+    return out
+def boxes(b, i, end):  # ISO/QuickTime boxes: 4-byte size, 4-byte type
+    while i + 8 <= end:
+        size, typ = struct.unpack_from(">I4s", b, i)
+        yield typ, i + 8, i + size; i += size
+def mov(path):
+    b = open(path, "rb").read(); out = {"created_raw": None, "created": None, "software": None}
+    for typ, s, e in boxes(b, 0, len(b)):
+        if typ != b"moov": continue
+        for t2, s2, e2 in boxes(b, s, e):
+            if t2 == b"mvhd":  # version 0: 32-bit seconds since 1904-01-01, "preferably" UTC (Apple)
+                raw = struct.unpack_from(">Q" if b[s2] == 1 else ">I", b, s2 + 4)[0]
+                out["created_raw"] = raw
+                out["created"] = (datetime.datetime(1904, 1, 1) + datetime.timedelta(seconds=raw)).isoformat() + "Z"
+            if t2 == b"udta":
+                for t3, s3, e3 in boxes(b, s2, e2):
+                    if t3 == b"\\xa9swr":  # QuickTime text item: 2-byte length, 2-byte language, text
+                        n, = struct.unpack_from(">H", b, s3); out["software"] = b[s3 + 4:s3 + 4 + n].decode("utf-8", "replace")
+    return out
+print(json.dumps({"webm": webm(sys.argv[1]), "mov": mov(sys.argv[2])}, indent=1))
+PY
+
+# 5. The practice "viral" copy: the thumbnail, mirrored and trimmed by 5%, as reposts often are.
+#    Then the one move a checker should always try: mirror it back.
+sips -f horizontal evidence/item003.jpg --out work/mirrored.jpg >/dev/null
+sips -c 436 912 work/mirrored.jpg --out work/viral.jpg >/dev/null
+sips -f horizontal work/viral.jpg --out work/viral_unmirrored.jpg >/dev/null
+python3 work/pic.py evidence/item002.jpg evidence/item003.jpg evidence/item004.jpg work/viral.jpg work/viral_unmirrored.jpg > work/pic.json || exit 2
+echo "copy                     pixels     camera fields"
+for f in evidence/item002.jpg evidence/item003.jpg work/viral.jpg; do
+  printf '%-24s %-10s %s\\n' "$f" "$(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixelWidth/{w=$2}/pixelHeight/{h=$2}END{print w"x"h}')" \\
+    "$(jq -r --arg f "$f" '.[$f].exif | if . == null or .make == null then "none" else "\\(.make) \\(.model), taken \\(.taken) (offset: \\(.offset // "none")), GPS: \\(.gps)" end' work/pic.json)"
+done
+
+# 6. Near-copies. SHA-256 changes with every re-save; a difference hash changes little when the picture
+#    does not. Distance = bits that differ, out of 64. Krawetz: 0 same, 1-10 "potentially a variation",
+#    more than 10 "likely a different image". A large distance is a lead, never proof of a different picture.
+jq -r '(.["evidence/item002.jpg"].dhash) as $o | to_entries[] | "\\(.key)\\t\\(.value.dhash)\\t\\($o)"' work/pic.json |
+while IFS=$'\\t' read -r f h o; do
+  d=$(python3 -c "print(bin(int('$h',16) ^ int('$o',16)).count('1'))")
+  if [ "$d" -le 10 ]; then v="same picture, likely"; else v="no match - not proof of a different picture"; fi
+  printf '%-28s %s  distance %2s  %s\\n' "$f" "$h" "$d" "$v"
+done
+
+# 7. When: three clocks. The camera's (zone-less, a claim), Commons' upload record (its server's clock:
+#    the file existed by then), and the post's. An older copy is the strongest answer a checker gets.
+UPLOAD=$(jq -r '.query.pages[0].imageinfo[0].timestamp' evidence/item001.json)
+TAKEN=$(jq -r '.["evidence/item002.jpg"].exif.taken' work/pic.json)
+echo "camera says taken:   $TAKEN   (no zone; written by the phone, editable by anyone)"
+echo "Commons received it: $UPLOAD   (Commons' clock; the picture existed no later than this)"
+echo "the post claims:     $CLAIM_DATE \\"this morning\\""
+python3 -c "import datetime as d; print('gap: the picture was on Commons', (d.date.fromisoformat('$CLAIM_DATE') - d.date.fromisoformat('$UPLOAD'[:10])).days, 'days before the post')"
+
+# 8. The video: what each container says about its own making. Then one frame, the thing you would
+#    search for, taken twice to show the frame grab is repeatable.
+python3 work/vid.py evidence/item006.webm evidence/item007.mov > work/vid.json || exit 2
+jq -r '"webm (Commons original): MuxingApp \\(.webm.MuxingApp), WritingApp \\(.webm.WritingApp), DateUTC \\(.webm.DateUTC // "absent")",
+       "mov (Commons conversion): software \\(.mov.software), created raw \\(.mov.created_raw) = \\(.mov.created)\\(if .mov.created_raw == 0 then " (zero: no time recorded)" else "" end)"' work/vid.json
+echo "Commons says uploaded:   $(jq -r '.query.pages[0].videoinfo[0].timestamp' evidence/item005.json)"
+mkdir -p work/frame1 work/frame2
+qlmanage -t -s 640 -o work/frame1 evidence/item007.mov >/dev/null 2>&1
+qlmanage -t -s 640 -o work/frame2 evidence/item007.mov >/dev/null 2>&1
+[ -s work/frame1/item007.mov.png ] || { echo "STOP: Quick Look made no frame"; exit 2; }
+F1=$(shasum -a 256 work/frame1/item007.mov.png | cut -c1-12); F2=$(shasum -a 256 work/frame2/item007.mov.png | cut -c1-12)
+echo "frame: $(python3 -c "import sys; sys.path.insert(0,'work'); from pic import dhash; print(dhash('work/frame1/item007.mov.png'))")  (dHash)  two grabs: $F1 / $F2 $([ "$F1" = "$F2" ] && echo same || echo DIFFERENT)"
+
+# 9. Seal, then the finding - and three tempting sentences that the evidence does not support.
+shasum -a 256 evidence/* work/viral.jpg work/pic.json work/vid.json > SHA256SUMS
+D=$(jq -r '[.["evidence/item002.jpg"].dhash, .["work/viral_unmirrored.jpg"].dhash] | "\\(.[0]) \\(.[1])"' work/pic.json | python3 -c "import sys; a,b=sys.stdin.read().split(); print(bin(int(a,16)^int(b,16)).count('1'))")
+echo "tempting: 'the viral copy is a different photo: no match' - WRONG: mirrored back it is within $D bits"
+echo "tempting: 'the thumbnail has no camera data, so it was never a phone photo' - WRONG: Commons' resizer dropped it"
+echo "tempting: 'the video was made in $(jq -r '.mov.created[0:4]' work/vid.json)' - WRONG: a zero field is no time, not a date"
+echo "finding:  mirrored back, the post's picture is within $D bits of a Commons photo received on"
+echo "          \${UPLOAD:0:10}. If it is that photo, the caption's 'this morning' ($CLAIM_DATE) is false."
+echo "          The match is a lead to confirm by eye, side by side. Who reposted it, and why, no file here can say."`,
+      windows: `# PowerShell 7.5 or later on Windows - the same seven requests and the same checks, with .NET's own
+# image code (System.Drawing) for the shrinking and plain byte reading for Exif and the containers.
+# ETHICS: as the macOS lab: seven requests to Wikimedia Commons, openly licensed landmark files only;
+# the "viral" copy is made on your disk. Not run on Windows when this module was written: compare
+# with the macOS output. Distances may differ by a bit or two, because .NET shrinks pictures with a
+# different filter from macOS's sips. There is no built-in frame grabber, so step 8 skips the frame.
+$Analyst = "analyst01"
+$Contact = "you@example.com"   # Wikimedia asks scripts to identify themselves: put your own address here
+if ($Contact -eq "you@example.com") { Write-Host "set \`$Contact first: Wikimedia refuses this placeholder with HTTP 403"; return }
+$UA = "CyberScoutsLab/1.0 ($Contact)"
+$ClaimDate = "2026-09-28"
+$Case = "$HOME\\scouts-case\\s2_5"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, work, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path evidence, work | Out-Null
+Add-Type -AssemblyName System.Drawing
+
+# 1. The question and the scope (same text as the macOS lab).
+@"
+case:         S2.5 image and video verification
+claim:        a practice post dated 2026-09-28 shares a picture captioned "Tower Bridge this morning"
+question:     Is the picture new, or an older one reused? Which copy is closest to the original, and
+              what does each copy's metadata say about when and how it was made?
+authorised:   self (openly licensed Wikimedia Commons files of public landmarks)
+in scope:     two Commons API records; one photo, its thumbnail, one control photo; one video and
+              one of Commons' own conversions of it; copies made on this computer
+out of scope: who took or uploaded any file (their names are not collected); any photo of a
+              person or a home; any upload of these files to a search engine
+"@ | Set-Content scope.txt
+
+# 2. Collect through one door. curl.exe ships with Windows 10 and 11, and saves bytes untouched.
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content collection_log.tsv
+function Collect($Id, $Ext, $Url) {
+  $f = "evidence\\$Id.$Ext"; Start-Sleep -Seconds 1
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $C = & curl.exe -s -L -m 120 --retry 3 -A $UA -o $f -w '%{http_code}' $Url
+  if ($C -eq "200") { $H = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower() } else { $H = "FAILED"; Remove-Item $f -ErrorAction SilentlyContinue }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$C\`t$H" | Add-Content collection_log.tsv
+  Write-Host "$Id  HTTP $C  $($H.Substring(0, [Math]::Min(12, $H.Length)))"
+  if ($C -ne "200") { throw "STOP: $Id failed (HTTP $C) - it is in the log" }
+}
+Collect item001 json "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=imageinfo&iiprop=timestamp|sha1|size|mime|url&iiurlwidth=960&titles=File:LONDON_BRIDGE.jpg"
+Collect item002 jpg  "https://upload.wikimedia.org/wikipedia/commons/d/d8/LONDON_BRIDGE.jpg"
+Collect item003 jpg  "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/LONDON_BRIDGE.jpg/960px-LONDON_BRIDGE.jpg"
+Collect item004 jpg  "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/Tower_Bridge_Butler%27s_Wharf_Pier_at_night_Shad_Thames_Southwark_London_England_01.jpg/960px-Tower_Bridge_Butler%27s_Wharf_Pier_at_night_Shad_Thames_Southwark_London_England_01.jpg"
+Collect item005 json "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=videoinfo&viprop=timestamp|sha1|size|mime|url|derivatives&titles=File:Tower_Bridge_MVI_1768.webm"
+Collect item006 webm "https://upload.wikimedia.org/wikipedia/commons/4/4d/Tower_Bridge_MVI_1768.webm"
+Collect item007 mov  "https://upload.wikimedia.org/wikipedia/commons/transcoded/4/4d/Tower_Bridge_MVI_1768.webm/Tower_Bridge_MVI_1768.webm.360p.mpeg4.mov"
+
+# 3. Integrity: your SHA-1 against the API's, and the API's URLs against the ones used above.
+$Img = (Get-Content evidence\\item001.json -Raw | ConvertFrom-Json -DateKind String).query.pages[0].imageinfo[0]
+$Vid = (Get-Content evidence\\item005.json -Raw | ConvertFrom-Json -DateKind String).query.pages[0].videoinfo[0]
+if (-not $Img.url.StartsWith("https://upload.wikimedia.org/wikipedia/commons/d/d8/LONDON_BRIDGE.jpg")) { throw "STOP: photo URL is not the one the API names" }
+if (-not $Vid.url.StartsWith("https://upload.wikimedia.org/wikipedia/commons/4/4d/Tower_Bridge_MVI_1768.webm")) { throw "STOP: video URL is not the one the API names" }
+if (-not ($Vid.derivatives.src -match "360p\\.mpeg4\\.mov")) { throw "STOP: the API no longer lists the .mov conversion" }
+foreach ($p in @(@("item002", "jpg", $Img.sha1), @("item006", "webm", $Vid.sha1))) {
+  $Ours = (Get-FileHash "evidence\\$($p[0]).$($p[1])" -Algorithm SHA1).Hash.ToLower()
+  if ($Ours -ne $p[2]) { throw "STOP: $($p[0]) SHA-1 $Ours, API says $($p[2])" }
+  Write-Host "$($p[0])  SHA-1 matches the API: $($Ours.Substring(0, 12))"
+}
+
+# 4. The helpers. Exif is read from the bytes (as on macOS) rather than through System.Drawing,
+#    which would re-read the file through its own decoder.
+function Get-U16($b, $o, $le) { if ($le) { [BitConverter]::ToUInt16($b, $o) } else { [int]$b[$o] * 256 + $b[$o + 1] } }
+function Get-U32($b, $o, $le) { if ($le) { [BitConverter]::ToUInt32($b, $o) } else { [uint32](([uint32]$b[$o] -shl 24) -bor ($b[$o + 1] -shl 16) -bor ($b[$o + 2] -shl 8) -bor $b[$o + 3]) } }
+function Get-Exif($Path) {
+  $b = [IO.File]::ReadAllBytes((Resolve-Path $Path)); $i = 2
+  while ($i -lt $b.Length - 4 -and $b[$i] -eq 0xFF -and $b[$i + 1] -ne 0xDA) {
+    $marker = $b[$i + 1]; $n = Get-U16 $b ($i + 2) $false; $seg = $i + 4; $i += 2 + $n
+    if ($marker -ne 0xE1 -or [Text.Encoding]::ASCII.GetString($b, $seg, 4) -ne "Exif") { continue }
+    $t = $seg + 6; $le = $b[$t] -eq 0x49
+    $ifd = {
+      param($o) $out = @{}
+      for ($k = 0; $k -lt (Get-U16 $b ($t + $o) $le); $k++) {
+        $e = $t + $o + 2 + 12 * $k; $tag = Get-U16 $b $e $le; $typ = Get-U16 $b ($e + 2) $le; $cnt = Get-U32 $b ($e + 4) $le
+        if ($typ -eq 2) { $s = if ($cnt -le 4) { $e + 8 } else { $t + (Get-U32 $b ($e + 8) $le) }; $out[$tag] = [Text.Encoding]::ASCII.GetString($b, $s, $cnt).TrimEnd([char]0) }
+        elseif ($typ -eq 4) { $out[$tag] = Get-U32 $b ($e + 8) $le }
+      }
+      $out
+    }
+    $i0 = & $ifd (Get-U32 $b ($t + 4) $le); $ex = if ($i0.ContainsKey(0x8769)) { & $ifd $i0[0x8769] } else { @{} }
+    return [pscustomobject]@{ make = $i0[0x10F]; model = $i0[0x110]; taken = $ex[0x9003]; offset = $ex[0x9011]; gps = $i0.ContainsKey(0x8825) }
+  }
+  return $null
+}
+function Get-DHash($Path) {   # Krawetz's dHash: 9x8, grey, bit = 1 where a pixel is darker than its right neighbour
+  $src = [Drawing.Image]::FromFile((Resolve-Path $Path)); $bmp = New-Object Drawing.Bitmap 9, 8
+  $g = [Drawing.Graphics]::FromImage($bmp); $g.InterpolationMode = "HighQualityBicubic"; $g.DrawImage($src, 0, 0, 9, 8); $g.Dispose(); $src.Dispose()
+  $bits = ""
+  for ($y = 0; $y -lt 8; $y++) { for ($x = 0; $x -lt 8; $x++) {
+    $a = $bmp.GetPixel($x, $y); $c = $bmp.GetPixel($x + 1, $y)
+    $bits += if ((0.299 * $a.R + 0.587 * $a.G + 0.114 * $a.B) -lt (0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B)) { "1" } else { "0" } } }
+  $bmp.Dispose(); [Convert]::ToUInt64($bits, 2)
+}
+function Get-Distance([uint64]$A, [uint64]$B) { $x = $A -bxor $B; $n = 0; while ($x) { $n += [int]($x -band 1); $x = $x -shr 1 }; $n }
+
+# 5. The practice "viral" copy: the thumbnail, mirrored and trimmed to 95%, then mirrored back.
+function Save-Copy($In, $Out, [switch]$Mirror, [int]$Pct = 100) {
+  $src = [Drawing.Image]::FromFile((Resolve-Path $In)); $bmp = New-Object Drawing.Bitmap $src
+  $src.Dispose(); if ($Mirror) { $bmp.RotateFlip("RotateNoneFlipX") }
+  $w = [int]($bmp.Width * $Pct / 100); $h = [int]($bmp.Height * $Pct / 100)
+  $crop = $bmp.Clone((New-Object Drawing.Rectangle ([int](($bmp.Width - $w) / 2)), ([int](($bmp.Height - $h) / 2)), $w, $h), $bmp.PixelFormat)
+  $crop.Save("$Case\\$Out", [Drawing.Imaging.ImageFormat]::Jpeg); $crop.Dispose(); $bmp.Dispose()
+}
+Save-Copy evidence\\item003.jpg work\\viral.jpg -Mirror -Pct 95
+Save-Copy work\\viral.jpg work\\viral_unmirrored.jpg -Mirror
+foreach ($f in "evidence\\item002.jpg", "evidence\\item003.jpg", "work\\viral.jpg") {
+  $x = Get-Exif $f; $im = [Drawing.Image]::FromFile((Resolve-Path $f)); $px = "$($im.Width)x$($im.Height)"; $im.Dispose()
+  $cam = if ($null -eq $x -or $null -eq $x.make) { "none" } else { "$($x.make) $($x.model), taken $($x.taken) (offset: $(if ($x.offset) { $x.offset } else { 'none' })), GPS: $($x.gps)" }
+  "{0,-24} {1,-10} {2}" -f $f, $px, $cam
+}
+
+# 6. Near-copies: distance in bits, of 64. More than 10 is "no match", never "a different picture".
+$O = Get-DHash evidence\\item002.jpg
+foreach ($f in "evidence\\item002.jpg", "evidence\\item003.jpg", "evidence\\item004.jpg", "work\\viral.jpg", "work\\viral_unmirrored.jpg") {
+  $d = Get-Distance $O (Get-DHash $f)
+  "{0,-28} {1:x16}  distance {2,2}  {3}" -f $f, (Get-DHash $f), $d, $(if ($d -le 10) { "same picture, likely" } else { "no match - not proof of a different picture" })
+}
+
+# 7. Three clocks.
+$Taken = (Get-Exif evidence\\item002.jpg).taken
+"camera says taken:   $Taken   (no zone; written by the phone, editable by anyone)"
+"Commons received it: $($Img.timestamp)   (Commons' clock; the picture existed no later than this)"
+"the post claims:     $ClaimDate \`"this morning\`""
+$Up = [datetime]::Parse($Img.timestamp, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal).Date
+"gap: the picture was on Commons $(([datetime]$ClaimDate - $Up).Days) days before the post"
+
+# 8. The video containers: EBML Info fields in the WebM, mvhd and ©swr in the .mov.
+function Read-VInt($b, [ref]$i, [bool]$Keep) {
+  $n = 1; while (-not ($b[$i.Value] -band (0x80 -shr ($n - 1)))) { $n++ }
+  [uint64]$v = if ($Keep) { $b[$i.Value] } else { $b[$i.Value] -band (0xFF -shr $n) }
+  for ($k = 1; $k -lt $n; $k++) { $v = ($v -shl 8) -bor $b[$i.Value + $k] }
+  $i.Value += $n; [int64]$v
+}
+$w = [IO.File]::ReadAllBytes("$Case\\evidence\\item006.webm"); $i = 0; $info = @{}
+$null = Read-VInt $w ([ref]$i) $true; $sz = Read-VInt $w ([ref]$i) $false; $i += $sz        # EBML header
+$id = Read-VInt $w ([ref]$i) $true; if ($id -ne 0x18538067) { throw "no Segment" }; $null = Read-VInt $w ([ref]$i) $false
+while ($i -lt $w.Length) {
+  $id = Read-VInt $w ([ref]$i) $true; $sz = Read-VInt $w ([ref]$i) $false
+  if ($id -eq 0x1549A966) {
+    $j = $i
+    while ($j -lt $i + $sz) {
+      $cid = Read-VInt $w ([ref]$j) $true; $csz = Read-VInt $w ([ref]$j) $false
+      if ($cid -in 0x4D80, 0x5741) { $info[[int]$cid] = [Text.Encoding]::UTF8.GetString($w, [int]$j, [int]$csz) }
+      if ($cid -eq 0x4461) { $info[[int]$cid] = "present" }
+      $j += $csz
+    }
+    break
+  }
+  $i += $sz
+}
+"webm (Commons original): MuxingApp $($info[0x4D80]), WritingApp $($info[0x5741]), DateUTC $(if ($info[0x4461]) { 'present' } else { 'absent' })"
+$m = [IO.File]::ReadAllBytes("$Case\\evidence\\item007.mov"); $Created = $null; $Sw = $null
+function Get-Boxes($b, $s, $e) { $out = @(); while ($s + 8 -le $e) { $n = Get-U32 $b $s $false; $out += , @([Text.Encoding]::Latin1.GetString($b, $s + 4, 4), ($s + 8), ($s + $n)); $s += $n }; , $out }   # the comma stops PowerShell unrolling a one-box list
+foreach ($bx in Get-Boxes $m 0 $m.Length) { if ($bx[0] -ne "moov") { continue }
+  foreach ($b2 in Get-Boxes $m $bx[1] $bx[2]) {
+    if ($b2[0] -eq "mvhd") { $Created = Get-U32 $m ($b2[1] + 4) $false }   # version 0: 32-bit seconds since 1904
+    if ($b2[0] -eq "udta") { foreach ($b3 in Get-Boxes $m $b2[1] $b2[2]) { if ($b3[0] -eq "$([char]0xA9)swr") { $Sw = [Text.Encoding]::UTF8.GetString($m, $b3[1] + 4, (Get-U16 $m $b3[1] $false)) } } }
+  } }
+"mov (Commons conversion): software $Sw, created raw $Created = $(([datetime]'1904-01-01').AddSeconds($Created).ToString('yyyy-MM-ddTHH:mm:ss'))Z$(if ($Created -eq 0) { ' (zero: no time recorded)' })"
+"Commons says uploaded:   $($Vid.timestamp)"
+"frame: skipped on Windows (no built-in frame grabber; with ffmpeg: ffmpeg -i evidence\\item007.mov -frames:v 1 work\\frame.png)"
+
+# 9. Seal and finding.
+Get-ChildItem evidence, work\\viral.jpg -File | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content SHA256SUMS
+$D = Get-Distance $O (Get-DHash work\\viral_unmirrored.jpg)
+"finding:  mirrored back, the post's picture is within $D bits of a Commons photo received on"
+"          $($Up.ToString('yyyy-MM-dd')). If it is that photo, the caption's 'this morning' ($ClaimDate) is false."
+"          The match is a lead to confirm by eye, side by side. Who reposted it, and why, no file here can say."`,
+      linux: `# Same as macOS except for the three macOS-only tools: shasum, sips and qlmanage.
+#   sha256sum / sha1sum      instead of  shasum -a 256 / shasum -a 1
+#   Pillow (Python)          instead of  sips      - install: sudo apt install python3-pil
+#   ffmpeg                   instead of  qlmanage  - install: sudo apt install ffmpeg
+# In work/pic.py, replace the dhash function with this one (Pillow's "L" grey uses the same weights):
+#   from PIL import Image
+#   def dhash(path):
+#       px = list(Image.open(path).convert("L").resize((9, 8), Image.Resampling.LANCZOS).getdata())
+#       return "%016x" % int("".join("1" if px[y * 9 + x] < px[y * 9 + x + 1] else "0" for y in range(8) for x in range(8)), 2)
+# Replace step 5's three sips lines with:
+#   python3 - <<'PY'
+#   from PIL import Image, ImageOps
+#   im = ImageOps.mirror(Image.open("evidence/item003.jpg")); w, h = im.size; cw, ch = w * 95 // 100, h * 95 // 100
+#   im.crop(((w - cw) // 2, (h - ch) // 2, (w - cw) // 2 + cw, (h - ch) // 2 + ch)).save("work/viral.jpg", quality=90)
+#   ImageOps.mirror(Image.open("work/viral.jpg")).save("work/viral_unmirrored.jpg", quality=90)
+#   PY
+# For the pixel sizes, use: python3 -c "from PIL import Image; print('%dx%d' % Image.open('FILE').size)"
+# For the frame, use: ffmpeg -loglevel error -y -i evidence/item007.mov -frames:v 1 work/frame1/item007.mov.png
+# Pillow's filter is not sips's, so the distances differ a little. The Pillow code above, run on macOS
+# with Pillow 11.3.0, gave thumbnail 0, control 26, viral 38, mirrored back 5: the same verdicts.`,
+      expected: {
+        mac: `\`\`\`text
+item001  HTTP 200  722904c26df3
+item002  HTTP 200  49e94c07bf33
+item003  HTTP 200  af70ac715992
+item004  HTTP 200  5a98c4db7495
+item005  HTTP 200  f44cc8c541d2
+item006  HTTP 200  5efd0585d970
+item007  HTTP 200  11c0c601e195
+item002  SHA-1 matches the API: c6bac702d583
+item006  SHA-1 matches the API: febdab7ba0a5
+copy                     pixels     camera fields
+evidence/item002.jpg     2016x963   Apple iPhone 8, taken 2018:08:26 09:42:06 (offset: none), GPS: true
+evidence/item003.jpg     960x459    none
+work/viral.jpg           912x436    none
+evidence/item002.jpg         ce8eb53425a42525  distance  0  same picture, likely
+evidence/item003.jpg         ce8eb53425a5a525  distance  2  same picture, likely
+evidence/item004.jpg         a650d03cb290d074  distance 31  no match - not proof of a different picture
+work/viral.jpg               8c9ed2d31bda5bdb  distance 38  no match - not proof of a different picture
+work/viral_unmirrored.jpg    8e86b43427a42524  distance  5  same picture, likely
+camera says taken:   2018:08:26 09:42:06   (no zone; written by the phone, editable by anyone)
+Commons received it: 2018-10-06T06:34:05Z   (Commons' clock; the picture existed no later than this)
+the post claims:     2026-09-28 "this morning"
+gap: the picture was on Commons 2914 days before the post
+webm (Commons original): MuxingApp Lavf54.20.4, WritingApp Lavf54.20.4, DateUTC absent
+mov (Commons conversion): software Lavf59.27.100, created raw 0 = 1904-01-01T00:00:00Z (zero: no time recorded)
+Commons says uploaded:   2017-01-07T19:13:00Z
+frame: da9ebbdb73f3d9a9  (dHash)  two grabs: ee07a1d89851 / ee07a1d89851 same
+tempting: 'the viral copy is a different photo: no match' - WRONG: mirrored back it is within 5 bits
+tempting: 'the thumbnail has no camera data, so it was never a phone photo' - WRONG: Commons' resizer dropped it
+tempting: 'the video was made in 1904' - WRONG: a zero field is no time, not a date
+finding:  mirrored back, the post's picture is within 5 bits of a Commons photo received on
+          2018-10-06. If it is that photo, the caption's 'this morning' (2026-09-28) is false.
+          The match is a lead to confirm by eye, side by side. Who reposted it, and why, no file here can say.
+\`\`\`
+
+Your output should match this line for line, with three possible exceptions. **Thumbnail bytes:** \`item003\` and \`item004\` are made by Commons' resizer, which can re-make them when its software changes. A new hash there, and a distance that moves by a bit or two, is expected. **The API records:** \`item001\` and \`item005\` change only if someone uploads a new version of either file. **Your Mac:** the frame and every copy you make depend on the macOS version's image code, so the frame's hash may differ. The two grabs must still match each other. \`item002\` and \`item006\` are checked against Commons' SHA-1 and must match exactly: \`c6bac702d583\` and \`febdab7ba0a5\`.
+
+Read the output in this order:
+
+- **Integrity first.** Both originals match the SHA-1 that Commons' API gives. Everything after this is about the file Commons describes, not a look-alike.
+- **Where the camera data went.** The original says "Apple iPhone 8", a time with no zone, and that it has GPS. Commons' thumbnail says nothing, and neither does the viral copy made from it.
+- **Distances.** The thumbnail is 2 bits from the original: the same picture, smaller. The night photo of the same bridge is 31: a different picture. The viral copy is 38, *further* than the unrelated photo, until you mirror it back (5). The verdict column never says "different picture".
+- **Three clocks.** The phone says 26 August 2018. Commons received the file on 6 October 2018, 2,914 days before the post. The upload time is what defeats the caption. The phone's clock only fits it.
+- **The video.** Both of the "original" WebM's app fields say \`Lavf54.20.4\`, the FFmpeg library, so it was converted before upload, and it carries no \`DateUTC\`. Commons' \`.mov\` conversion names a newer FFmpeg (\`Lavf59.27.100\`) and a creation time of 0, printed as 1904. Neither file records when the scene was filmed.
+- **The finding** says "within 5 bits" and "if it is that photo", then asks you to look side by side. You made the viral copy yourself, so you know the answer. In a real case, the hash is a lead and your eyes confirm it.`
+      }
+    },
+    caseStudy: {
+      title: "The Houla photo, 2012 — a real picture, the wrong massacre, and what an older copy proved",
+      body: `**What happened.** On Sunday 27 May 2012, the BBC News website illustrated its story on the killings in Houla, Syria, with a photograph of rows of shrouded bodies and a child jumping over one row. The caption read: "This image – which cannot be independently verified – is believed to show the bodies of children in Houla awaiting burial." The credit read "Photo From Activist". BBC News's social media editor later wrote that the picture "was first spotted as it circulated on Twitter" and that it stayed up "for about 90 minutes".
+
+**How it was caught.** The picture was nine years old and from another country. Marco Di Lauro, a photographer working with Getty Images, had taken it in Al Musayyib, Iraq, in 2003, of bodies moved from a mass grave to a school to be identified. He saw it on the BBC's front page in the early hours. "I almost felt off from my chair," he told the Daily Telegraph (quoted by Poynter, 28 May 2012). He did not need a forensic tool. He recognised his own picture, taken for a story he calls "Iraq, the Aftermath of Saddam".
+
+**What the BBC said.** In a post on 29 May 2012 its social media editor wrote that "having obtained some information pointing to its veracity, the picture was published, with a disclaimer saying it could not be independently verified. However, on this occasion, the extent of the checks and the consideration of whether to publish should have been better. It was a mistake – rectified by the removal of the image as soon as it was spotted – and we apologise for it."
+
+**What the evidence proved, and what it did not.**
+
+- **Proved: the picture was older than the event.** The photographer's own copy, dated by him to 2003, is enough to show the picture could not show Houla in 2012. That is the whole of this module's step 7, done with an archive instead of an API.
+- **Not proved: anything about Houla itself.** A wrong picture on a story says nothing, either way, about whether the story is true. Anyone who argues from this mistake that the killings were invented is making the same error in reverse: letting one picture carry a claim it cannot carry.
+- **Not proved: who passed it on, or why.** The picture reached the BBC as a post on a social network, credited as "Photo From Activist". Nothing in the picture says who first attached it to Houla.
+- **Not settled: the exact day in 2003.** The photographer's own blog post about the incident (9 June 2012) says in its text that he took the picture "on March 27, 2003". The caption printed below it on the same page begins "Al Musayyib, Iraq – May 27, 2003". Both are on the same page, the photographer's own, and they disagree. Either date makes the picture nine years older than Houla. A report should give the year, cite both pages, and not choose between them without a third source.
+
+**What a disclaimer does not do.** "Cannot be independently verified" told readers that no check had been completed. The picture still went on the front page. The lesson for your own reports is the one this module's lab prints: say what you checked and what it showed, and do not publish the picture as evidence of a claim you have not tested.
+
+**What would have caught it sooner.** A search for earlier copies, run before publication. The sources do not say whether one would have found the photographer's copy that Sunday morning. Even a failed search should have held the picture back. As the lab shows, finding no match proves nothing.
+
+**Sources.** BBC "The Editors" blog, "Houla massacre picture mistake", 29 May 2012 · Poynter, "BBC mistakenly uses image of Iraq in Syrian massacre story" (Craig Silverman), 28 May 2012 · Marco Di Lauro, "BBC mistakenly runs dated Iraq photo to illustrate the syrian massacre", 9 June 2012.`
+    },
+    challenges: [{
+      q: `A picture of a flooded street goes viral with the caption "our town, this morning". A reverse image search finds nothing older. Your editor wants to run it as "verified". What do you say?`,
+      a: `That a search finding nothing is not a check that passed. The earliest copy you can find only works in one direction. An older copy disproves "this morning". Finding none proves nothing: the engines may not index where an older copy lives, and as the lab shows, a mirror or a small trim can hide a copy from a hash. Say what you did: "Searched on <date> with <engines>; no earlier copy found." Then look for evidence that does not depend on the picture's age. Does what it shows (signs, shopfronts, the weather) match that town on that day? Can you reach the person who posted it and ask for the original file? "Not contradicted by the searches we ran" is the most a search alone supports.`
+    }, {
+      q: `A source sends you a photo with full Exif: camera model, a time on the claimed day, GPS in the right town. They say this proves it is genuine and unedited. Does it?`,
+      a: `No. Exif is written by whatever program last saved the file, and later programs can carry it over, change it or drop it. Drill 1 made a mirror image that still says "Apple iPhone 8", 2018 and heading 75.2°. The time has no zone, and anyone can write every field in a few lines. What the Exif does give you is a set of claims you can test against things outside the file: does the heading match the view, does the light match the time, is there any copy online before that time? Report the fields as what the file says, and each test as what it showed.`
+    }, {
+      q: `A video's container says it was created on 1 January 1904, and its writing app is "Lavf". A colleague writes "file created 1904 using FFmpeg, probably tampered". What is wrong with that sentence?`,
+      a: `Three things. 1904-01-01 is QuickTime's zero: the field holds 0, which is no time recorded, not a date. "Lavf" is the name FFmpeg's libavformat library writes into the files it produces, so the file was written or converted by FFmpeg. Commons used FFmpeg for the lab's own .mov conversion. The name says the file passed through a converter. It is not a sign of tampering. And "probably tampered" is a claim about intent that none of these fields can carry. A defensible sentence: "The container records no creation time (the field is zero), and names libavformat (Lavf, version as recorded) as the writing software. So this copy is a conversion, not a camera original." Then go looking for an earlier copy.`
+    }],
+    quiz: ["What question does a SHA-256 answer about two picture files, and what question does a difference hash answer?", "Describe the dHash steps: the size, the colour, the comparison and the number of bits.", "In the lab, the viral copy was 38 bits from the original and a different photo was 31. What does that tell you about a 'no match'?", "Why can an earliest copy disprove a date but never confirm one?", "Commons' thumbnail had no Exif; Drill 1's mirror kept all of it. What decides whether metadata survives a copy?", "What does a QuickTime creation time of 0 mean, and why does it print as 1904?", "The 'original' WebM names Lavf54.20.4 as its writing app. What does that tell you about the file, and what does it not?", "Name the two limits of Content Credentials that the C2PA's own FAQ states."],
+    workbench: `> **What this trains.** The lab found a copy that a hash missed and dated a picture by its earliest copy. Here you meet three ways a picture misleads: metadata that outlives an edit, a trim that hides a copy, and clocks that cannot all be right.
+
+#### 🟢 Drill 1 — an edit that keeps its camera data ~5 min
+
+**Goal.** In the lab, the viral copy had no camera fields because it was made from Commons' thumbnail. Make the same mirror from the **original** and read what the copy says about itself. No new requests.
+
+**Done when.** You can show a copy with a new SHA-256, a mirror image, and the original's make, model, time and compass heading, all unchanged.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_5 || exit 1
+# Mirror the ORIGINAL (not the thumbnail) with sips, and read what the copy says about itself.
+sips -f horizontal evidence/item002.jpg --out work/mirror_of_original.jpg >/dev/null
+python3 - <<'PY'
+import hashlib, struct, sys; sys.path.insert(0, "work")
+from pic import exif, dhash
+def heading(path):  # GPSImgDirection (GPS tag 0x11), the way the camera says it faced
+    b = open(path, "rb").read(); t = b[b.index(b"Exif\\0\\0") + 6:]; e = "<" if t[:2] == b"II" else ">"
+    def ifd(o):
+        return {struct.unpack_from(e + "H", t, o + 2 + 12 * k)[0]: struct.unpack_from(e + "HHI4s", t, o + 2 + 12 * k)[1:]
+                for k in range(struct.unpack_from(e + "H", t, o)[0])}
+    root = ifd(struct.unpack_from(e + "I", t, 4)[0]); gps = ifd(struct.unpack(e + "I", root[0x8825][2])[0])
+    num, den = struct.unpack_from(e + "II", t, struct.unpack(e + "I", gps[0x11][2])[0])
+    return round(num / den, 1)
+o, m = "evidence/item002.jpg", "work/mirror_of_original.jpg"
+for f in (o, m):
+    x = exif(f)
+    print(f"{f:28} sha256 {hashlib.sha256(open(f,'rb').read()).hexdigest()[:12]}  {x['make']} {x['model']}  taken {x['taken']}  heading {heading(f)}")
+print("dHash distance, original to mirror:", bin(int(dhash(o), 16) ^ int(dhash(m), 16)).count("1"), "of 64")
+PY
+\`\`\`
+
+\`\`\`text
+evidence/item002.jpg         sha256 49e94c07bf33  Apple iPhone 8  taken 2018:08:26 09:42:06  heading 75.2
+work/mirror_of_original.jpg  sha256 b85920992c48  Apple iPhone 8  taken 2018:08:26 09:42:06  heading 75.2
+dHash distance, original to mirror: 38 of 64
+\`\`\`
+
+The SHA-256 changed (yours may differ from \`b85920992c48\`: it depends on your macOS version's JPEG encoder), and the picture is 38 bits away by dHash. But the copy still says "Apple iPhone 8", 26 August 2018, facing 75.2°. That is the heading S1.6 checked against the bridge, and it now describes a mirror image. \`sips\` copied the metadata block across without checking it against the pixels. Nothing in the file records that the picture was flipped.
+
+So "the Exif matches the original" is not "this is the original". The metadata describes the moment the phone saved the file, and any later program can carry it over, change it or drop it.
+</details>
+
+#### 🟡 Drill 2 — how much of a trim can a hash see through? ~6 min
+
+**Goal.** The lab's viral copy was trimmed to 95% and still matched once mirrored back. Find how far a centre crop can go before the difference hash stops matching the original.
+
+**Done when.** You have the distance for each crop and can name the first one that fails Krawetz's line of 10.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_5 || exit 1
+# How much can be trimmed before the difference hash stops recognising the picture?
+mkdir -p work/crops
+W=$(sips -g pixelWidth evidence/item003.jpg | awk '/pixelWidth/{print $2}')
+H=$(sips -g pixelHeight evidence/item003.jpg | awk '/pixelHeight/{print $2}')
+for pct in 98 95 90 85 80 70 60 50; do
+  sips -c $((H * pct / 100)) $((W * pct / 100)) evidence/item003.jpg --out work/crops/c$pct.jpg >/dev/null
+done
+python3 - <<'PY'
+import sys; sys.path.insert(0, "work")
+from pic import dhash
+o = int(dhash("evidence/item002.jpg"), 16)
+for pct in [98, 95, 90, 85, 80, 70, 60, 50]:
+    d = bin(int(dhash(f"work/crops/c{pct}.jpg"), 16) ^ o).count("1")
+    print(f"centre crop keeping {pct:3}% of each side  distance {d:2}  {'match' if d <= 10 else 'no match'}")
+PY
+\`\`\`
+
+\`\`\`text
+centre crop keeping  98% of each side  distance  3  match
+centre crop keeping  95% of each side  distance  6  match
+centre crop keeping  90% of each side  distance 11  no match
+centre crop keeping  85% of each side  distance 14  no match
+centre crop keeping  80% of each side  distance 15  no match
+centre crop keeping  70% of each side  distance 25  no match
+centre crop keeping  60% of each side  distance 29  no match
+centre crop keeping  50% of each side  distance 38  no match
+\`\`\`
+
+Keeping 90% of each side (81% of the picture) is already a miss. A dHash compares brightness across a 9×8 grid laid over the *whole* frame. Trim the edges and every cell of the grid moves, even though a person would call it the same photo at a glance. Search engines use their own methods and may do better. Treat any "no match" the way the lab does: as no result, never as a different picture. When a hash fails, compare by eye: the same clouds, the same cars, the same crack in the wall.
+</details>
+
+#### 🔴 Drill 3 — a grader for three clocks ~10 min
+
+**Goal.** Write a grader that takes a claimed day, the earliest copy's UTC time and the camera's zone-less time, and says what the evidence supports. It must answer UNKNOWN for an epoch zero and for a first copy too close to the claimed day to rule out a zone, and it must never say CONFIRMED.
+
+**Done when.** The lab's photo is CONTRADICTED, "filmed today" is UNKNOWN, and a camera time later than the first copy is flagged as impossible as written.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_5 || exit 1
+cat > work/clocks.py <<'PY'
+# Grade a "when" claim against the earliest copy found and the file's own clock.
+# Never answers CONFIRMED: a date that fits is only not contradicted.
+import datetime as dt, sys
+ZEROS = {"1904-01-01", "1970-01-01", "1980-01-01", "2001-01-01"}   # QuickTime, Unix, DOS/zip, EBML epochs
+SLACK = dt.timedelta(hours=14)   # a zone-less time or a calendar day can sit anywhere from UTC-12 to UTC+14
+def grade(claim_day, first_seen_utc, camera):
+    day = dt.datetime.fromisoformat(claim_day)                       # midnight starting the claimed day
+    seen = dt.datetime.fromisoformat(first_seen_utc.replace("Z", ""))
+    if seen < day - SLACK:
+        when = f"CONTRADICTED   copy existed {(day.date() - seen.date()).days} days before the claimed day"
+    elif seen < day + dt.timedelta(days=1) + SLACK:
+        when = "UNKNOWN        first copy falls within the claimed day's zone range: need the zone"
+    else:
+        when = "NOT CONTRADICTED  (the earliest copy found is after the claim: that is all)"
+    if not camera or camera[:10].replace(":", "-") in ZEROS:
+        cam = "camera: UNKNOWN (absent or an epoch zero, not a time)"
+    else:
+        c = dt.datetime.strptime(camera, "%Y:%m:%d %H:%M:%S")
+        cam = ("camera: IMPOSSIBLE as written: after the first copy (wrong clock or edited field)"
+               if c > seen + SLACK else "camera: fits (zone-less, and anyone can write it)")
+    return when, cam
+for name, claim, seen, camera in [
+    ("photo, 'this morning'",       "2026-09-28", "2018-10-06T06:34:05Z", "2018:08:26 09:42:06"),
+    ("video, 'filmed yesterday'",   "2017-01-06", "2017-01-07T19:13:00Z", "1904:01:01 00:00:00"),
+    ("video, 'filmed today'",       "2017-01-07", "2017-01-07T19:13:00Z", None),
+    ("edited photo",                "2026-09-28", "2018-10-06T06:34:05Z", "2019:05:01 12:00:00"),
+]:
+    w, c = grade(claim, seen, camera)
+    print(f"{name:28} {w}\\n{'':28} {c}")
+PY
+python3 work/clocks.py
+\`\`\`
+
+\`\`\`text
+photo, 'this morning'        CONTRADICTED   copy existed 2914 days before the claimed day
+                             camera: fits (zone-less, and anyone can write it)
+video, 'filmed yesterday'    NOT CONTRADICTED  (the earliest copy found is after the claim: that is all)
+                             camera: UNKNOWN (absent or an epoch zero, not a time)
+video, 'filmed today'        UNKNOWN        first copy falls within the claimed day's zone range: need the zone
+                             camera: UNKNOWN (absent or an epoch zero, not a time)
+edited photo                 CONTRADICTED   copy existed 2914 days before the claimed day
+                             camera: IMPOSSIBLE as written: after the first copy (wrong clock or edited field)
+\`\`\`
+
+Why 14 hours. A calendar day and a zone-less clock both sit somewhere between UTC−12 and UTC+14, so a copy stamped at 19:13 UTC on 7 January could be from the 7th or the 8th somewhere in the world. Inside that range, the grader will not guess.
+
+Why no CONFIRMED. "Filmed yesterday" is not contradicted, because the earliest copy is later than the claim. That is all it is. An older copy may exist where nobody has looked.
+
+Why the camera line is separate. The edited photo's camera time falls after Commons received the file. A phone cannot save a file after it was uploaded, so either its clock was wrong or someone edited the field. Neither changes the main verdict: the upload time did the work.
+</details>`,
+    tracker: ["Wrote the claim, the question and the scope before the first request, with uploaders and people out of scope", "Ran the lab: seven requests logged, both originals matched Commons' SHA-1", "Can say what each of the three 'tempting' sentences gets wrong", "Found the viral copy by mirroring it back, and wrote the finding as a lead to confirm by eye", "Showed a mirrored copy that keeps the original's camera fields (Drill 1)", "Measured how far a trim can go before the difference hash misses (Drill 2)", "Built a clock grader that answers UNKNOWN for epoch zeros and near-day copies and never CONFIRMED (Drill 3)"]
   }]
 };
 

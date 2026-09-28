@@ -929,6 +929,13 @@ BANNED = [
      "An XML comparison built from each element's tag and text alone cannot see attributes: it scored "
      "v4->v5 settings.xml 'same values' while w:percent=\"203\" had been removed. Compare "
      "sorted(e.attrib.items()) too (Scouts ledger S2.4 defects, Drill 1)", "A106"),
+    (r"\.\$[A-Za-z_]\w*\[",
+     "In zsh, $NAME[0] is an array subscript, not $NAME followed by [0]: a jq path built as "
+     "\".pages[0].$KIND[0]\" became \".pages[0]..sha1\" and the lab stopped. Write ${KIND}[0] "
+     "(Scouts ledger S2.5 defects)", "A107"),
+    (r"\bset -- \$[A-Za-z_]",
+     "zsh does not word-split an unquoted variable, so set -- $pair gives one argument, not three; "
+     "use read -r a b c <<< \"$pair\" (Scouts ledger S2.5 defects)", "A108"),
 ]
 
 
@@ -1218,6 +1225,10 @@ TOPIC_ANCHORS = {
         "lastmodifiedby": ["S2.4"],
         "incremental update": ["S2.4"],
         "document inspector": ["S2.4"],
+        "dhash": ["S2.5"],
+        "perceptual hash": ["S2.5"],
+        "reverse image search": ["S2.5"],
+        "content credentials": ["S2.5"],
     },
 }
 
