@@ -588,3 +588,64 @@ Defects caught in the S2.5 build pass (none shipped):
   `thumbwidth: 640` and a URL that served a 960-pixel file. The lab asks for 960 and measures what arrives.
 - **Case chosen against:** the 2015 error-level-analysis dispute over MH17 satellite images. The only
   pages that could be read were one party's advocacy, too contested to pin quotes to.
+
+## Batch 13 — S2.6 Usernames and accounts: whose account is this, and who says so?
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 264 | S2.6 | GitHub: "After changing your username, your old username becomes available for anyone else to claim." | `SOURCED` | docs.github.com … /changing-your-github-username (curl, 2026-09-28) | 2027-03 |
+| 265 | S2.6 | WhatsMyName rule file pinned at commit 062bcfe48df7… (2026-09-16, "Add MAX public handle checks (#1073)"): 717 rules, SHA-256 507d2f8aa5b1…, licence CC BY-SA 4.0 | `EXECUTED` | lab step 3; `gh api repos/WebBreacher/WhatsMyName/commits/062bcfe…`; file's own `license` field | stable (pinned) |
+| 266 | S2.6 | WMN README: "started as a personal fix for a real frustration: existing username checkers were full of false positives"; CONTRIBUTING defines e_code / e_string / m_code / m_string as quoted in the theory table and asks for strings that are "truly unique" | `SOURCED` | README.md and CONTRIBUTING.md at the pinned commit (raw) | stable (pinned) |
+| 267 | S2.6 | Sherlock ("Hunt down social media accounts by username across social networks") and Maigret ("Collect a dossier on a person by username …") are username checkers | `SOURCED` | `gh api repos/sherlock-project/sherlock`, `repos/soxoj/maigret` descriptions | stable |
+| 268 | S2.6 | Rules as pinned: GitHub (User) 200+`"id":` / 404+`"status": "404"`; GitLab 200+`"id":` / 200+`[]`; Codeberg 200+`"id":` / 404+`user redirect does not exist`; Mastodon API 200+`display_name` / 404+`"accounts":[]` | `EXECUTED` | lab step 3 | stable (pinned) |
+| 269 | S2.6 | Codeberg: forgejo 200 FOUND; control 404 MISSING. GitLab: gitlab 200 FOUND; control 200 `[]` MISSING | `EXECUTED` | lab step 4, bash and zsh identical | 2027-03 |
+| 270 | S2.6 | GitHub's 404 body comes in two layouts, spaced (`"status": "404"`) and compact (`"status":"404"`), alternating across repeated requests for the same URL with the same User-Agent (15 requests, 5 UAs); the rule says UNKNOWN for the compact one | `EXECUTED` | build probes 2026-09-28; lab step 4 gave UNKNOWN in both shells | 2027-03 (layout may settle) |
+| 271 | S2.6 | mastodon.social `/api/v2/search?q=<control>` returns HTTP 200 with a different account (not an exact match); a query with no hits returns 200 `{"accounts":[],…}`. The endpoint never returned 404, so the rule's MISSING branch cannot fire | `EXECUTED` | lab step 4 (reply hashed and deleted); build probe with a nonsense query | 2027-03 |
+| 272 | S2.6 | GitHub `eff` → login EFF, type User, id 955524, created 2011-08-03, no eff.org link; `EFForg` → Organization, id 2120271, created 2012-08-09, blog https://www.eff.org/ | `EXECUTED` | lab step 5 | stable |
+| 273 | S2.6 | eff.org home page: one `rel="me"` link, to https://mastodon.social/@eff; no link to github.com/EFForg (the GitHub org page links to eff.org) | `EXECUTED` | lab step 6; build fetch of github.com/EFForg | 2027-03 (site redesigns) |
+| 274 | S2.6 | mastodon.social @eff: id 41055, created 2017-04-04, Website field → https://www.eff.org, verified_at 2023-11-02T21:28:54.864+00:00 | `EXECUTED` | lab step 7 | 2027-03 (re-verification moves verified_at) |
+| 275 | S2.6 | Mastodon docs: "Mastodon checks if that link resolves to a web page that links back to your Mastodon profile with a special rel=me attribute. If so, you get a verification checkmark" | `SOURCED` | docs.joinmastodon.org/user/profile/ (curl); verified_at field listed at /entities/Account/ | stable |
+| 276 | S2.6 | AT Protocol handle spec: `_atproto` TXT record with prefix `did=`; HTTPS `/.well-known/atproto-did`; "The link between handle and DID must be confirmed bidirectionally, otherwise anybody could create handle aliases for third-party accounts." | `SOURCED` | atproto.com/specs/handle (curl) | stable |
+| 277 | S2.6 | `_atproto.eff.org` TXT = did=did:plc:lr36xv2l64jwtnyoaqem6z2z; DID document alsoKnownAs `at://eff.org` | `EXECUTED` | lab step 8 | stable |
+| 278 | S2.6 | PLC audit log for that DID: 3 operations — 2023-04-25 and 2023-11-10 at://eff.bsky.social, 2024-02-08 at://eff.org | `EXECUTED` | lab step 8 | stable (closed history) |
+| 279 | S2.6 | did:plc spec: audit-log timestamps "could be cross-verified against network traffic or other information to de-anonymize account holders" | `SOURCED` | web.plc.directory/spec/v0.1/did-plc (curl; page says v0.3.0, December 2025) | stable |
+| 280 | S2.6 | `api.github.com/user/583231` → login octocat | `EXECUTED` | lab step 9 | stable |
+| 281 | S2.6 | GitHub unauthenticated REST limit: `x-ratelimit-limit: 60` per hour; exhausted during the build, which turned Drill 3's EFForg line UNKNOWN on the zsh run | `EXECUTED` | response headers 2026-09-28; wb3 zsh run | 2027-03 |
+| 282 | S2.6, Drill 1 | Saved compact reply: text rule UNKNOWN, parsed MISSING; spaced layout: both MISSING; octocat parsed FOUND; a rate-limit reply parsed UNKNOWN | `EXECUTED` | Drill 1, bash and zsh identical | stable |
+| 283 | S2.6, Drill 2 | octocat: GitHub FOUND, GitLab MISSING, Codeberg MISSING; all three controls MISSING | `EXECUTED` | Drill 2, bash and zsh identical | 2027-03 (anyone may register octocat) |
+| 284 | S2.6, Drill 3 | @eff↔www.eff.org TWO-WAY; @eff↔github.com/EFForg NONE; EFForg↔www.eff.org ONE-WAY (account's claim only); Bluesky eff.org TWO-WAY; example.com NONE (no `_atproto` TXT, well-known 404) | `EXECUTED` | Drill 3 (see row 281 for the UNKNOWN run) | 2027-03 |
+| 285 | S2.6 case | NYT, Nathaniel Popper, 25 Dec 2015, web title "The Unsung Tax Agent Who Put a Face on the Silk Road": Alford "a young special agent with the Internal Revenue Service assigned to work with the D.E.A."; Google advanced search by date range; "the last weekend of May 2013"; post "just before Silk Road had gone online, in early 2011"; "suggested that altoid might have inside knowledge"; email post "apparently deleted — but … preserved in the response of another user"; "the first of many striking parallels"; "wasn't able to get the surveillance and the subpoenas he wanted"; "more than three months to gather enough evidence …"; home "a few hundred feet" from the cafe; Frosty line (Times paraphrase from "two people briefed"); apprehended "at a public library in San Francisco" | `SOURCED` | web.archive.org/web/20151225215838id_/…nytimes.com/2015/12/27/business/dealbook/the-unsung-tax-agent-who-put-a-face-on-the-silk-road.html (raw HTML; live page 403s scripts). Wikipedia cites the print title "The Tax Sleuth Who Took Down a Drug Lord" | stable |
+| 286 | S2.6 case | Bitcointalk "A Heroin Store" thread: altoid, 29 January 2011, "Has anyone seen Silk Road yet? It's kind of like an anonymous amazon.com." | `SOURCED` | bitcointalk.org/index.php?topic=175.msg42670 (raw HTML, 2026-09-28) | stable |
+| 287 | S2.6 case | "IT pro needed for venture backed bitcoin startup", altoid (OP), 11 October 2011: the email address is in altoid's own opening post, live (2026-09-28) and in the Wayback capture 20111127165405; no "Quote from: altoid" on the live page. Conflicts with the NYT's "deleted … preserved in another user's response" — taught as a discrepancy, not resolved | `EXECUTED` | bitcointalk.org/index.php?topic=47811.0 live + `id_` capture (CDX lists 20111127165405 and 20140406212357) | stable |
+| 288 | S2.6 case | Convicted on all counts (NYT headline dated FEB. 4, 2015); sentenced to life (NYT headline dated MAY 29, 2015); arrest in October 2013 (NYT says Oct. 2; not narrowed further in the course) | `SOURCED` | row 285 page (related-coverage headlines and body) | stable |
+| 289 | S2.6 case | 21 January 2025: Trump "signed a full and unconditional pardon" (Truth Social post quoted by CNBC) | `SOURCED` | cnbc.com/2025/01/21/trump-pardons-silk-road-ross-ulbricht-.html (raw HTML) | stable |
+| 290 | S2.6 | Ethics conventions: the email address in the case is not reproduced; lab replies that name people (GitHub eff, the control search) are hashed into the log and deleted, and only ownership fields are printed; drills practise on the student's own usernames | `CONVENTION` | module text and lab | — |
+| 291 | S2.6 | Linux variant (sha256sum for shasum) executed on macOS via /sbin/sha256sum; Windows variant not run (no pwsh on the build Mac) and says so | `EXECUTED` / `CONVENTION` | lab_linux.sh run | — |
+
+Defects caught in the S2.6 build pass (none shipped):
+
+- **A shared rule file had two broken rules out of the four tested.** The Mastodon API rule reads a fuzzy
+  search as an existence check and reported a name nobody holds as FOUND; the GitHub rule matches one of two
+  reply layouts. Found only because every rule was run against a control name. Both are now the lesson.
+- **Drill 3's first Bluesky check read `dig` output without its exit status**, so a resolver failure would
+  have printed NONE. It now answers UNKNOWN. Guard A110.
+- **Case draft put the Times's paraphrase in Tarbell's mouth** ("Tarbell explained that 'Frosty was …'").
+  The Times reports it from two people briefed on the call. Guard A109.
+- **Case draft used the headline Wikipedia cites** (the print title). The archived page's own title is
+  "The Unsung Tax Agent Who Put a Face on the Silk Road".
+- **Case draft said Alford searched "for the earliest mentions of Silk Road"** and that the post came
+  "before the site was widely known": neither is in the article. Replaced with its words.
+- **Case draft quoted "anonymous Amazon.com"** from the Times; the forum post reads "amazon.com".
+- **Theory draft said EFForg "has held EFF's repositories since 2012"** — not checked. Now: an Organization
+  account created in 2012 whose profile names the foundation, so "probably".
+- **Lab header said "nineteen requests"**: it makes sixteen and one DNS lookup.
+- **GitHub's hourly limit ran out during the build.** The drill's UNKNOWN path caught it; the lesson went
+  into Drill 3's text.
+- **The lab's own DNS step had the Drill 3 defect.** `DID=$(dig … | sed …)` dropped dig's exit status, and a
+  transient resolver failure during the Linux-variant run stopped the lab with "no _atproto TXT record".
+  The lab now keeps the exit status, logs it, and says UNKNOWN for a failed lookup. A110 now also flags
+  a shell variable assigned from `$(dig … |`.
+- **A no-answer request (HTTP 000) made `shasum` fail on a missing file** before the STOP line. `collect`
+  now logs NONE as the hash and tells you to run the lab again. Two such drops happened in one build run.
+- **The URL gate probed Drill 2's `…/users/{}` template as a real URL** (Codeberg 404). The drill now uses
+  `<name>` placeholders, which the gate already skips.

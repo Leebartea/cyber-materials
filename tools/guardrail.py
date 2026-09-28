@@ -936,6 +936,14 @@ BANNED = [
     (r"\bset -- \$[A-Za-z_]",
      "zsh does not word-split an unquoted variable, so set -- $pair gives one argument, not three; "
      "use read -r a b c <<< \"$pair\" (Scouts ledger S2.5 defects)", "A108"),
+    (r'Tarbell[^."]{0,40}\b(?:said|explained)(?: that)? "Frosty',
+     "The 'Frosty was the name of the computer' line is the New York Times's paraphrase, reported "
+     "from two people briefed on the call, not Tarbell's own words: say 'in the Times's words' "
+     "(Scouts ledger S2.6 defects)", "A109"),
+    (r"""\[["']dig["'][^\]]*\][^)\n]*\)\.stdout|\b[A-Za-z_]\w*=\$\(dig\b[^)\n]*\|""",
+     "Reading dig's output without its exit status turns 'could not reach a resolver' (exit 9) into "
+     "'no record', and a link grader then prints NONE instead of UNKNOWN: check returncode first "
+     "(Scouts ledger S2.6 defects: Drill 3, and the lab's own DNS step)", "A110"),
 ]
 
 
@@ -1229,6 +1237,10 @@ TOPIC_ANCHORS = {
         "perceptual hash": ["S2.5"],
         "reverse image search": ["S2.5"],
         "content credentials": ["S2.5"],
+        "whatsmyname": ["S2.6"],
+        "username enumeration": ["S2.6"],
+        "rel=me": ["S2.6"],
+        "atproto": ["S2.6"],
     },
 }
 

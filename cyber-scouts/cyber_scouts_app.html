@@ -829,7 +829,7 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | S2.3 | Passive DNS: what a name used to resolve to | ✅ available |
 | S2.4 | Document and file metadata | ✅ available |
 | S2.5 | Image and video verification | ✅ available |
-| — | Usernames and accounts, ethics first | planned |
+| S2.6 | Usernames and accounts, ethics first | ✅ available |
 | — | Capstone: a multi-source pivot report | planned |
 
 Level 2 adds one tool, \`python3\`, which the Guardians setup already uses. \`python3 --version\` should print a version of 3.9 or later.
@@ -6210,6 +6210,673 @@ Why no CONFIRMED. "Filmed yesterday" is not contradicted, because the earliest c
 Why the camera line is separate. The edited photo's camera time falls after Commons received the file. A phone cannot save a file after it was uploaded, so either its clock was wrong or someone edited the field. Neither changes the main verdict: the upload time did the work.
 </details>`,
     tracker: ["Wrote the claim, the question and the scope before the first request, with uploaders and people out of scope", "Ran the lab: seven requests logged, both originals matched Commons' SHA-1", "Can say what each of the three 'tempting' sentences gets wrong", "Found the viral copy by mirroring it back, and wrote the finding as a lead to confirm by eye", "Showed a mirrored copy that keeps the original's camera fields (Drill 1)", "Measured how far a trim can go before the difference hash misses (Drill 2)", "Built a clock grader that answers UNKNOWN for epoch zeros and near-day copies and never CONFIRMED (Drill 3)"]
+  }, {
+    id: "s2_6",
+    level: 2,
+    num: "S2.6",
+    title: "Usernames & Accounts — Whose Account Is This, and Who Says So?",
+    objective: `Check whether an account exists without trusting a tool's "found": run each rule against a control name, answer UNKNOWN when a reply cannot be read, and count only exact-name matches. Tell apart three strengths of link between an account and a website: same name only, a one-way claim, and a two-way link that the site's owner confirms. Record the identifier that outlasts a rename, not only the name. Practise on organisations and on your own accounts, and keep nothing about a person that the question does not need.`,
+    theory: `#### Why usernames and accounts need their own rules
+
+A username is the cheapest thing on the internet to copy. Anyone can register \`eff\` on a new service before the Electronic Frontier Foundation gets there. When someone renames an account, the old name is free again: GitHub's documentation says that after you change your username, "your old username becomes available for anyone else to claim". So a name match between two services is a coincidence you have not yet ruled out. It is not evidence of one owner.
+
+This module is also where OSINT (S1.1) most easily turns into surveillance. Checking a name across hundreds of sites takes seconds, and the name usually belongs to a person. The lab therefore uses organisation accounts and a made-up control name only, and it deletes the two replies that happen to name people. Keep to that when you practise.
+
+This module asks three questions about any account:
+
+1. **Does the account exist at all?** A tool that says "found" is running a rule. The rule can be wrong.
+2. **Who does the account say it belongs to, and does the other side agree?** A link from an account to a website is the account's claim. A link back from the website is the site owner's. You want both.
+3. **What stays fixed when the name changes?** Services give each account a number or identifier that the name points to. That is what you record.
+
+#### Existence checks: what "found" means
+
+Username enumeration tools (Sherlock, Maigret, WhatsMyName and others) all do the same thing. They build a URL for each site from the name, request it, and read the answer. WhatsMyName keeps its rules in one open file (CC BY-SA 4.0). Each rule has four parts:
+
+| Field | Meaning (from the project's CONTRIBUTING file) |
+|---|---|
+| \`e_code\` | HTTP status code for an account that exists |
+| \`e_string\` | A unique string present only when the account exists |
+| \`m_code\` | HTTP status code for an account that doesn't exist |
+| \`m_string\` | A unique string present only when the account does not exist |
+
+The project's README says it "started as a personal fix for a real frustration: existing username checkers were full of false positives." Its own contributing rules ask for \`e_string\` and \`m_string\` to be "truly unique". The lab runs four rules from the pinned file and finds three different behaviours:
+
+- **Codeberg** behaves as designed: 200 for an account, 404 for a missing one.
+- **GitLab** answers 200 either way, with an empty list \`[]\` for a missing name. Only the body tells you which. This is why a status code alone is not an existence check.
+- **GitHub** sends the same "Not Found" reply in two layouts, \`"status": "404"\` and \`"status":"404"\`. Across repeated requests we saw both. The rule matches only the spaced one, so a missing name comes out \`UNKNOWN\` on some runs.
+- **Mastodon API** uses the search endpoint. Search returns the *closest* accounts it knows, with HTTP 200, never 404. For the control name, which nobody holds, it returned a stranger's account, and the rule says \`FOUND\`. Its "missing" half needs a 404 that this endpoint never sends, so it can never fire.
+
+Three rules to take away:
+
+- **Every checker needs a third answer.** A rule that can only say "found" or "missing" hides the cases it cannot read. Treat UNKNOWN as UNKNOWN, not as missing.
+- **Run a control.** A name nobody holds shows you what "missing" looks like on each site, today. The Mastodon false positive only shows up when you try one.
+- **"Found" means an account with exactly this name exists.** A search hit, a similar name or a different case is not that. The lab's last column counts exact matches for this reason.
+
+#### Linking two accounts: whose claim is it?
+
+Suppose a Mastodon account and a website both say "EFF". There are three strengths of link between them:
+
+1. **Same name only.** Nothing links them. GitHub's \`eff\` in the lab is a personal account that has nothing to do with the foundation. EFF's own account there is \`EFForg\`.
+2. **One-way claim.** The account links to the website. Anyone can type any URL into a profile, so this is the account holder's word only. In the lab, GitHub's \`EFForg\` profile links to eff.org, but eff.org does not link back to it. It is an Organization account, created in 2012, whose profile names the Electronic Frontier Foundation, so it is probably EFF's. But "probably" is the word you write.
+3. **Two-way link.** The account names the site *and* the site names the account. The site owner has said it too. Two services check this for you:
+   - **Mastodon** (from its profile documentation): if you put an HTTPS link in your profile, "Mastodon checks if that link resolves to a web page that links back to your Mastodon profile with a special rel=me attribute. If so, you get a verification checkmark." The API shows the time of the check as \`verified_at\`. The lab reads eff.org itself and finds the \`rel="me"\` link to mastodon.social/@eff. Don't just take Mastodon's word that it checked.
+   - **Bluesky** (AT Protocol) lets a domain be the handle. The domain's owner puts a DNS TXT record at \`_atproto.<domain>\` holding the account's DID (its permanent identifier). The DID's own record lists the handle under \`alsoKnownAs\`. The AT Protocol handle specification says the link "must be confirmed bidirectionally, otherwise anybody could create handle aliases for third-party accounts." The lab does both lookups itself.
+
+A two-way link shows that whoever controls the site also controls the account, or has blessed it. It does not tell you who that is in the physical world. For EFF you would take that from the site and from the registries in S1.2 and S1.4. For a person you usually have no business going further.
+
+#### Names change; identifiers do not
+
+GitHub looks accounts up by number as well as by name: \`api.github.com/user/583231\` returns \`octocat\`. Mastodon gives each account an \`id\` on its server, and Bluesky gives each one a DID such as \`did:plc:lr36xv2l64jwtnyoaqem6z2z\`. Record these beside every name you note, because the name is the part that moves.
+
+Bluesky's PLC directory keeps an **audit log** of every change to a DID. For eff.org it shows the same DID named \`eff.bsky.social\` from April 2023 and \`eff.org\` from 8 February 2024. So "EFF joined Bluesky as eff.org in 2023" is wrong twice: wrong name, wrong date. The PLC specification warns that this log's timestamps "could be cross-verified against network traffic or other information to de-anonymize account holders". That is another reason to use it on organisations, not people.
+
+#### The files in this lab
+
+Every request goes into \`collection_log.tsv\` (item, UTC time, collector, source, HTTP status, SHA-256). The rule file is pinned to one Git commit, so its hash is the same for everyone. The two replies that name people are hashed into the log and then deleted. The log proves the request was made without keeping what came back. Everything left is sealed in \`SHA256SUMS\`.
+
+#### Steps 1–4 — scope, the rules, and a control
+
+The scope names the claim ("EFF is @eff everywhere") and puts every person out of scope, including anyone a search returns. Step 3 fetches the pinned rules. Step 4 runs each rule on a real organisation or demo account and on the control name. It prints the rule's verdict and the exact-match count side by side, so you can see where they disagree.
+
+#### Steps 5–7 — same name, one-way and two-way
+
+Step 5 compares GitHub's \`eff\` and \`EFForg\` using only ownership fields: type (User or Organization), creation date, and whether the profile links to eff.org. Step 6 reads eff.org's home page for \`rel="me"\` links and for any link to GitHub. Step 7 reads Mastodon's record for @eff and its \`verified_at\` time.
+
+#### Steps 8–10 — DNS, the DID's history, the number, the seal
+
+Step 8 resolves \`_atproto.eff.org\`, fetches the DID's record and its audit log. Step 9 asks GitHub for an account by number. Step 10 seals the evidence and prints three tempting sentences the evidence does not support.
+
+#### What these checks cannot tell you
+
+- **Who types the posts.** A verified link says the site's controller vouches for the account. It says nothing about which staff member posts, or whether the account was taken over last week.
+- **That a missing account never existed.** A name can be deleted, renamed or suspended. To look back in time, use a web archive (S2.1) and record the date of each capture.
+- **That one person holds two accounts.** A shared name, avatar or writing style is a lead at most. Treat it as one until something the owner published on both sides links them.
+
+#### Lawful and polite collection
+
+The rules of S1.1 apply unchanged. Keyless endpoints are public, but they are shared and rate-limited: this lab pauses two seconds between requests. GitHub allows 60 unauthenticated requests an hour. Do not run a whole checker file (717 sites) against a name unless you are allowed to look into that person, have written down why, and can justify every site on the list. For a person, the question "does this name exist on 700 sites?" is rarely proportionate.
+
+#### Your own accounts
+
+The ethical way to practise on a person is to practise on yourself. Run the Drill 2 checker against your own usernames, and note which services show your account to anyone who asks. Then check whether your profiles link back to each other. That is what a stranger can prove about you.`,
+    lab: {
+      mac: `# LAB: whose account is this? Name checks, links that point both ways, and ids that outlast names (Apple Silicon)
+# ETHICS: sixteen requests and one DNS lookup. Every target is an organisation (EFF, GitLab, Forgejo)
+# or a platform's own demo account (GitHub's octocat), plus one made-up control name. No person is
+# looked up. Two replies do name people: GitHub's "eff" account and whoever Mastodon's search returns
+# for the control name. For those two the script logs a hash, prints only the fields named below,
+# and deletes the reply. Keep only what you need to answer the question.
+# NEEDS: nothing to install. curl, python3, dig and shasum are all on macOS already.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0 (course exercise)"
+CONTROL=zz-scouts-control-7f3q9        # a name nobody should hold. If it ever exists, pick another.
+mkdir -p ~/scouts-case/s2_6 && cd ~/scouts-case/s2_6 || exit 1
+rm -rf evidence work collection_log.tsv SHA256SUMS && mkdir evidence work     # start clean
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S2.6 usernames and accounts
+claim:        a practice note says "EFF is @eff everywhere: github.com/eff, mastodon.social/@eff, and eff.org on Bluesky"
+question:     Which of those accounts can be shown to belong to the Electronic Frontier Foundation,
+              and how far can a name-checking rule be trusted to say an account exists at all?
+authorised:   self (organisation and demo accounts; public, keyless endpoints)
+in scope:     WhatsMyName's rule file; the accounts octocat, gitlab, forgejo, eff, EFForg; eff.org's
+              home page; eff.org's DNS TXT record and its Bluesky identity record; one control name
+out of scope: any person. The GitHub "eff" reply and the control-name search reply are hashed,
+              reduced to the fields printed below, and deleted. Nothing is followed from either.
+SCOPE
+
+# 2. Collect through one door. Two seconds between requests: these are shared, free services.
+printf 'item\\tutc_time\\tcollector\\tsource\\thttp\\tsha256\\n' > collection_log.tsv
+collect() {  # id extension url -> evidence/<id>.<ext>; prints the HTTP status
+  local f="evidence/$1.$2" T C H
+  sleep 2
+  T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  C=$(curl -s -m 60 --retry 2 -A "$UA" -o "$f" -w '%{http_code}' "$3")
+  if [ -f "$f" ]; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else H=NONE; fi
+  printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$T" "$ANALYST" "$3" "$C" "$H" >> collection_log.tsv
+  [ "$C" = 000 ] && { echo "STOP: $1 got no answer (network) - it is in the log; run the lab again" >&2; exit 1; }
+  echo "$C"
+}
+
+# 3. The rules. WhatsMyName (CC BY-SA 4.0) is a shared file of "does this name exist here?" checks.
+#    Pin it to one commit, so the rules you test are the rules you cite.
+WMN=https://raw.githubusercontent.com/WebBreacher/WhatsMyName/062bcfe48df79fa618e96edc79dc9673f3fe5643/wmn-data.json
+collect item001 json "$WMN" >/dev/null
+python3 - <<'PY'
+import json
+sites = {s["name"]: s for s in json.load(open("evidence/item001.json"))["sites"]}
+print(len(sites), "rules in the pinned file. The four this lab tests:")
+for n in ["GitHub (User)", "GitLab", "Codeberg", "Mastodon API"]:
+    s = sites[n]
+    print(f"  {n:14} exists: HTTP {s['e_code']} + text {s['e_string']!r:14} missing: HTTP {s['m_code']} + text {s['m_string']!r}")
+PY
+
+# 4. Run each rule twice: on an account that exists, and on the control name.
+#    The verdict is the rule's, with UNKNOWN when neither half of the rule fits. The last column
+#    counts returned accounts whose name is exactly the one asked for: that is what "exists" means.
+cat > work/classify.py <<'PY'
+import json, sys
+site, name, code, path = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+rule = {s["name"]: s for s in json.load(open("evidence/item001.json"))["sites"]}[site]
+body = open(path, encoding="utf-8", errors="replace").read()
+if code == rule["e_code"] and rule["e_string"] in body:
+    verdict = "FOUND"
+elif code == rule["m_code"] and rule["m_string"] in body:
+    verdict = "MISSING"
+else:
+    verdict = "UNKNOWN"
+try:
+    data = json.loads(body)
+except ValueError:
+    data = None
+if isinstance(data, dict) and "accounts" in data:
+    rows = data["accounts"]
+elif isinstance(data, list):
+    rows = data
+elif isinstance(data, dict) and "id" in data:
+    rows = [data]
+else:
+    rows = []
+exact = sum(1 for r in rows if name.lower() in {str(r.get(k, "")).lower() for k in ("login", "username", "acct")})
+print(f"{site:14} {name:24} HTTP {code}  rule says {verdict:8} exact-name accounts: {exact}")
+PY
+check() {  # id site name url [drop]
+  local C; C=$(collect "$1" json "$4") || exit 1
+  python3 work/classify.py "$2" "$3" "$C" "evidence/$1.json"
+  [ "$5" = drop ] && rm -f "evidence/$1.json"
+}
+check item002 "GitHub (User)" octocat    "https://api.github.com/users/octocat"
+check item003 "GitHub (User)" "$CONTROL" "https://api.github.com/users/$CONTROL"
+check item004 "GitLab"        gitlab     "https://gitlab.com/api/v4/users?username=gitlab"
+check item005 "GitLab"        "$CONTROL" "https://gitlab.com/api/v4/users?username=$CONTROL"
+check item006 "Codeberg"      forgejo    "https://codeberg.org/api/v1/users/forgejo"
+check item007 "Codeberg"      "$CONTROL" "https://codeberg.org/api/v1/users/$CONTROL"
+check item008 "Mastodon API"  eff        "https://mastodon.social/api/v2/search?q=eff&limit=1&type=accounts"
+check item009 "Mastodon API"  "$CONTROL" "https://mastodon.social/api/v2/search?q=$CONTROL&limit=1&type=accounts" drop
+
+# 5. Same name, different owner. GitHub answers "eff" with an account called EFF; EFF's own is EFForg.
+#    Print only what bears on ownership. The eff reply names a person: it is deleted after this step.
+collect item010 json "https://api.github.com/users/eff"    >/dev/null
+collect item011 json "https://api.github.com/users/EFForg" >/dev/null
+python3 - <<'PY'
+import json
+for f in ("evidence/item010.json", "evidence/item011.json"):
+    d = json.load(open(f))
+    links = "eff.org" in (d.get("blog") or "")
+    print(f"github login={d['login']:7} id={d['id']:<8} type={d['type']:12} created={d['created_at']}  its profile links to eff.org: {'yes' if links else 'no'}")
+PY
+rm -f evidence/item010.json
+
+# 6. Does eff.org point back? A link from the account is the account's claim. A link back from the
+#    domain is the domain owner's. Both together are the owner saying it twice.
+collect item012 html "https://www.eff.org/" >/dev/null
+python3 - <<'PY'
+import re
+h = open("evidence/item012.html", encoding="utf-8", errors="replace").read()
+tags = re.findall(r'<a\\b[^>]*>', h)
+me = [re.search(r'href="([^"]+)"', t).group(1) for t in tags if re.search(r'rel="[^"]*\\bme\\b', t)]
+print("eff.org links marked rel=me:        ", me)
+print("eff.org links to github.com/EFForg: ", any("github.com/EFForg" in t for t in tags))
+PY
+
+# 7. What Mastodon itself checked. It fetches the linked page and looks for a rel=me link back.
+collect item013 json "https://mastodon.social/api/v1/accounts/lookup?acct=eff" >/dev/null
+python3 - <<'PY'
+import json, re
+d = json.load(open("evidence/item013.json"))
+print("mastodon.social @eff  id", d["id"], " created", d["created_at"][:10])
+for f in d["fields"]:
+    href = re.search(r'href="([^"]+)"', f["value"])
+    print("  profile field", f["name"], "->", href.group(1) if href else f["value"], "  verified_at", f["verified_at"])
+PY
+
+# 8. Bluesky: the domain is the handle. DNS names the account; the account's record names the domain.
+TXT=$(dig +short +time=5 +tries=3 TXT _atproto.eff.org); RC=$?      # keep dig's exit status: a failed lookup is not "no record"
+DID=$(printf '%s\\n' "$TXT" | tr -d '"' | sed -n 's/^did=//p')
+printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' dns001 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "dig TXT _atproto.eff.org" "DNS exit $RC" "\${DID:-NONE}" >> collection_log.tsv
+[ "$RC" -eq 0 ] || { echo "STOP: dig could not reach a resolver (exit $RC). That is UNKNOWN, not 'no record': run it again"; exit 1; }
+[ -n "$DID" ] || { echo "STOP: the resolver answered, and there is no _atproto TXT record with a did="; exit 1; }
+echo "DNS _atproto.eff.org TXT -> $DID"
+collect item014 json "https://plc.directory/$DID" >/dev/null
+collect item015 json "https://plc.directory/$DID/log/audit" >/dev/null
+python3 - <<'PY'
+import json
+print("its identity record says alsoKnownAs:", json.load(open("evidence/item014.json"))["alsoKnownAs"])
+print("handle history, one DID throughout:")
+for e in json.load(open("evidence/item015.json")):
+    print("  ", e["createdAt"], e["operation"].get("alsoKnownAs"))
+PY
+
+# 9. Names change; numbers do not. Ask GitHub for an account by its number, not its name.
+collect item016 json "https://api.github.com/user/583231" >/dev/null
+python3 -c "import json; print('GitHub account number 583231 is login', json.load(open('evidence/item016.json'))['login'], 'today')"
+
+# 10. Seal, then the finding - and three tempting sentences that the evidence does not support.
+shasum -a 256 scope.txt evidence/* > SHA256SUMS
+echo "logged: $(($(wc -l < collection_log.tsv) - 1)) lines; sealed: $(wc -l < SHA256SUMS | tr -d ' ') files (the two dropped replies are in the log only)"
+echo "tempting: 'github.com/eff is EFF' - WRONG: it is a personal account that does not link to eff.org"
+echo "tempting: 'the rule found $CONTROL on Mastodon' - WRONG: search returned someone else; exact matches 0"
+echo "tempting: 'EFF joined Bluesky as eff.org in 2023' - WRONG: the account began as eff.bsky.social"
+echo "finding:  mastodon.social/@eff and Bluesky eff.org are EFF's: each is linked from the account"
+echo "          and back from eff.org (rel=me; DNS TXT). GitHub EFForg claims eff.org, but eff.org does"
+echo "          not link back: a one-way claim. github.com/eff shows no link to EFF at all."`,
+      windows: `# PowerShell 7.5 or later on Windows - the same sixteen requests and one DNS lookup as the macOS lab.
+# ETHICS: as the macOS lab: organisation and demo accounts plus one made-up control name. The two
+# replies that name people (GitHub "eff" and the control-name search) are hashed, reduced to the
+# printed fields, and deleted. Not run on Windows when this module was written: compare with the
+# macOS output. curl.exe ships with Windows 10 and 11; Resolve-DnsName replaces dig.
+$Analyst = "analyst01"
+$UA = "CyberScoutsLab/1.0 (course exercise)"
+$Control = "zz-scouts-control-7f3q9"
+$Case = "$HOME\\scouts-case\\s2_6"
+New-Item -ItemType Directory -Force -Path $Case | Out-Null; Set-Location $Case
+Remove-Item -Recurse -Force evidence, work, collection_log.tsv, SHA256SUMS -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path evidence, work | Out-Null
+
+# 1. The question and the scope (same text as the macOS lab).
+@"
+case:         S2.6 usernames and accounts
+claim:        a practice note says "EFF is @eff everywhere: github.com/eff, mastodon.social/@eff, and eff.org on Bluesky"
+question:     Which of those accounts can be shown to belong to the Electronic Frontier Foundation,
+              and how far can a name-checking rule be trusted to say an account exists at all?
+authorised:   self (organisation and demo accounts; public, keyless endpoints)
+in scope:     WhatsMyName's rule file; the accounts octocat, gitlab, forgejo, eff, EFForg; eff.org's
+              home page; eff.org's DNS TXT record and its Bluesky identity record; one control name
+out of scope: any person. The GitHub "eff" reply and the control-name search reply are hashed,
+              reduced to the fields printed below, and deleted. Nothing is followed from either.
+"@ | Set-Content -Encoding utf8NoBOM scope.txt
+
+# 2. Collect through one door, two seconds apart. Returns the HTTP status; status lines go to the host.
+"item\`tutc_time\`tcollector\`tsource\`thttp\`tsha256" | Set-Content -Encoding utf8NoBOM collection_log.tsv
+function Collect($Id, $Ext, $Url) {
+  $f = "evidence\\$Id.$Ext"
+  Start-Sleep -Seconds 2
+  $T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $C = & curl.exe -s -m 60 --retry 2 -A $UA -o $f -w '%{http_code}' $Url
+  $H = if (Test-Path $f) { (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower() } else { "NONE" }
+  "$Id\`t$T\`t$Analyst\`t$Url\`t$C\`t$H" | Add-Content -Encoding utf8NoBOM collection_log.tsv
+  if ($C -eq "000") { Write-Host "STOP: $Id got no answer (network) - it is in the log; run the lab again"; exit 1 }
+  $C
+}
+
+# 3. The rules, pinned to one commit.
+$Wmn = "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/062bcfe48df79fa618e96edc79dc9673f3fe5643/wmn-data.json"
+Collect item001 json $Wmn | Out-Null
+$Rules = @{}; (Get-Content -Raw evidence\\item001.json | ConvertFrom-Json).sites | ForEach-Object { $Rules[$_.name] = $_ }
+"$($Rules.Count) rules in the pinned file. The four this lab tests:"
+foreach ($n in "GitHub (User)", "GitLab", "Codeberg", "Mastodon API") {
+  $s = $Rules[$n]
+  "  {0,-14} exists: HTTP {1} + text '{2}'  missing: HTTP {3} + text '{4}'" -f $n, $s.e_code, $s.e_string, $s.m_code, $s.m_string
+}
+
+# 4. Each rule on a real account and on the control name: FOUND, MISSING or UNKNOWN, plus exact matches.
+function Check($Id, $Site, $Name, $Url, [switch]$Drop) {
+  $code = [int](Collect $Id json $Url)
+  $rule = $Rules[$Site]; $body = Get-Content -Raw "evidence\\$Id.json"
+  if ($code -eq $rule.e_code -and $body.Contains($rule.e_string)) { $v = "FOUND" }
+  elseif ($code -eq $rule.m_code -and $body.Contains($rule.m_string)) { $v = "MISSING" }
+  else { $v = "UNKNOWN" }
+  $rows = @()
+  try { $d = $body | ConvertFrom-Json -NoEnumerate } catch { $d = $null }
+  if ($d -is [array]) { $rows = $d }
+  elseif ($d -and $d.PSObject.Properties.Name -contains "accounts") { $rows = @($d.accounts) }
+  elseif ($d -and $d.PSObject.Properties.Name -contains "id") { $rows = @($d) }
+  $exact = @($rows | Where-Object { @($_.login, $_.username, $_.acct) -contains $Name }).Count
+  "{0,-14} {1,-24} HTTP {2}  rule says {3,-8} exact-name accounts: {4}" -f $Site, $Name, $code, $v, $exact
+  if ($Drop) { Remove-Item "evidence\\$Id.json" }
+}
+Check item002 "GitHub (User)" octocat  "https://api.github.com/users/octocat"
+Check item003 "GitHub (User)" $Control "https://api.github.com/users/$Control"
+Check item004 "GitLab"        gitlab   "https://gitlab.com/api/v4/users?username=gitlab"
+Check item005 "GitLab"        $Control "https://gitlab.com/api/v4/users?username=$Control"
+Check item006 "Codeberg"      forgejo  "https://codeberg.org/api/v1/users/forgejo"
+Check item007 "Codeberg"      $Control "https://codeberg.org/api/v1/users/$Control"
+Check item008 "Mastodon API"  eff      "https://mastodon.social/api/v2/search?q=eff&limit=1&type=accounts"
+Check item009 "Mastodon API"  $Control "https://mastodon.social/api/v2/search?q=$Control&limit=1&type=accounts" -Drop
+
+# 5. Same name, different owner. Only ownership fields; the "eff" reply is deleted after this step.
+Collect item010 json "https://api.github.com/users/eff" | Out-Null
+Collect item011 json "https://api.github.com/users/EFForg" | Out-Null
+foreach ($f in "evidence\\item010.json", "evidence\\item011.json") {
+  $d = Get-Content -Raw $f | ConvertFrom-Json -DateKind String
+  $links = if ("$($d.blog)".Contains("eff.org")) { "yes" } else { "no" }
+  "github login={0,-7} id={1,-8} type={2,-12} created={3}  its profile links to eff.org: {4}" -f $d.login, $d.id, $d.type, $d.created_at, $links
+}
+Remove-Item evidence\\item010.json
+
+# 6. Does eff.org point back?
+Collect item012 html "https://www.eff.org/" | Out-Null
+$html = Get-Content -Raw evidence\\item012.html
+$tags = [regex]::Matches($html, '<a\\b[^>]*>') | ForEach-Object Value
+$me = $tags | Where-Object { $_ -match 'rel="[^"]*\\bme\\b' } | ForEach-Object { ([regex]::Match($_, 'href="([^"]+)"')).Groups[1].Value }
+"eff.org links marked rel=me:         $($me -join ', ')"
+"eff.org links to github.com/EFForg:  $([bool]($tags | Where-Object { $_.Contains('github.com/EFForg') }))"
+
+# 7. What Mastodon itself checked.
+Collect item013 json "https://mastodon.social/api/v1/accounts/lookup?acct=eff" | Out-Null
+$m = Get-Content -Raw evidence\\item013.json | ConvertFrom-Json -DateKind String
+"mastodon.social @eff  id $($m.id)  created $($m.created_at.Substring(0, 10))"
+foreach ($f in $m.fields) {
+  "  profile field $($f.name) -> $(([regex]::Match($f.value, 'href="([^"]+)"')).Groups[1].Value)   verified_at $($f.verified_at)"
+}
+
+# 8. Bluesky: DNS names the account; the account's record names the domain.
+# A failed lookup is not "no record": Resolve-DnsName throws for both, so read the error's kind.
+$Did = $null; $Dns = "answered"
+try {
+  $Did = (Resolve-DnsName -Type TXT -Name _atproto.eff.org -ErrorAction Stop).Strings |
+    Where-Object { $_ -like "did=*" } | ForEach-Object { $_.Substring(4) } | Select-Object -First 1
+} catch {
+  $Dns = if ($_.Exception.Message -match "does not exist|DNS name does not exist") { "no such name" } else { "FAILED" }
+}
+$T = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+"dns001\`t$T\`t$Analyst\`tResolve-DnsName TXT _atproto.eff.org\`tDNS $Dns\`t$(if ($Did) { $Did } else { 'NONE' })" | Add-Content -Encoding utf8NoBOM collection_log.tsv
+if ($Dns -eq "FAILED") { "STOP: the lookup failed. That is UNKNOWN, not 'no record': run it again"; exit 1 }
+if (-not $Did) { "STOP: the resolver answered, and there is no _atproto TXT record with a did="; exit 1 }
+"DNS _atproto.eff.org TXT -> $Did"
+Collect item014 json "https://plc.directory/$Did" | Out-Null
+Collect item015 json "https://plc.directory/$Did/log/audit" | Out-Null
+"its identity record says alsoKnownAs: $((Get-Content -Raw evidence\\item014.json | ConvertFrom-Json).alsoKnownAs -join ', ')"
+"handle history, one DID throughout:"
+foreach ($e in (Get-Content -Raw evidence\\item015.json | ConvertFrom-Json -DateKind String)) { "   $($e.createdAt) $($e.operation.alsoKnownAs -join ', ')" }
+
+# 9. Ask GitHub for an account by its number.
+Collect item016 json "https://api.github.com/user/583231" | Out-Null
+"GitHub account number 583231 is login $((Get-Content -Raw evidence\\item016.json | ConvertFrom-Json).login) today"
+
+# 10. Seal, then the finding.
+Get-ChildItem scope.txt, evidence\\* | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_).Hash.ToLower())  $(Resolve-Path -Relative $_)" } | Set-Content -Encoding utf8NoBOM SHA256SUMS
+"logged: $((Get-Content collection_log.tsv).Count - 1) lines; sealed: $((Get-Content SHA256SUMS).Count) files (the two dropped replies are in the log only)"
+"tempting: 'github.com/eff is EFF' - WRONG: it is a personal account that does not link to eff.org"
+"tempting: 'the rule found $Control on Mastodon' - WRONG: search returned someone else; exact matches 0"
+"tempting: 'EFF joined Bluesky as eff.org in 2023' - WRONG: the account began as eff.bsky.social"
+"finding:  mastodon.social/@eff and Bluesky eff.org are EFF's: each is linked from the account"
+"          and back from eff.org (rel=me; DNS TXT). GitHub EFForg claims eff.org, but eff.org does"
+"          not link back: a one-way claim. github.com/eff shows no link to EFF at all."`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# In collect(), change  shasum -a 256 "$f"  to  sha256sum "$f"
+# In step 10, change the seal line to:     sha256sum scope.txt evidence/* > SHA256SUMS
+# dig comes from your distribution's DNS tools package if it is missing:
+#   Debian/Ubuntu: sudo apt install dnsutils      Fedora: sudo dnf install bind-utils
+# Everything else (curl, python3, date -u) behaves the same. The drills need no changes:
+# they use only python3, and Drill 3 calls dig.`,
+      expected: {
+        mac: `\`\`\`text
+717 rules in the pinned file. The four this lab tests:
+  GitHub (User)  exists: HTTP 200 + text '"id":'        missing: HTTP 404 + text '"status": "404"'
+  GitLab         exists: HTTP 200 + text '"id":'        missing: HTTP 200 + text '[]'
+  Codeberg       exists: HTTP 200 + text '"id":'        missing: HTTP 404 + text 'user redirect does not exist'
+  Mastodon API   exists: HTTP 200 + text 'display_name' missing: HTTP 404 + text '"accounts":[]'
+GitHub (User)  octocat                  HTTP 200  rule says FOUND    exact-name accounts: 1
+GitHub (User)  zz-scouts-control-7f3q9  HTTP 404  rule says UNKNOWN  exact-name accounts: 0
+GitLab         gitlab                   HTTP 200  rule says FOUND    exact-name accounts: 1
+GitLab         zz-scouts-control-7f3q9  HTTP 200  rule says MISSING  exact-name accounts: 0
+Codeberg       forgejo                  HTTP 200  rule says FOUND    exact-name accounts: 1
+Codeberg       zz-scouts-control-7f3q9  HTTP 404  rule says MISSING  exact-name accounts: 0
+Mastodon API   eff                      HTTP 200  rule says FOUND    exact-name accounts: 1
+Mastodon API   zz-scouts-control-7f3q9  HTTP 200  rule says FOUND    exact-name accounts: 0
+github login=EFF     id=955524   type=User         created=2011-08-03T02:22:48Z  its profile links to eff.org: no
+github login=EFForg  id=2120271  type=Organization created=2012-08-09T01:26:53Z  its profile links to eff.org: yes
+eff.org links marked rel=me:         ['https://mastodon.social/@eff']
+eff.org links to github.com/EFForg:  False
+mastodon.social @eff  id 41055  created 2017-04-04
+  profile field Website -> https://www.eff.org   verified_at 2023-11-02T21:28:54.864+00:00
+DNS _atproto.eff.org TXT -> did:plc:lr36xv2l64jwtnyoaqem6z2z
+its identity record says alsoKnownAs: ['at://eff.org']
+handle history, one DID throughout:
+   2023-04-25T23:17:38.490Z ['at://eff.bsky.social']
+   2023-11-10T16:27:59.059Z ['at://eff.bsky.social']
+   2024-02-08T01:36:28.845Z ['at://eff.org']
+GitHub account number 583231 is login octocat today
+logged: 17 lines; sealed: 15 files (the two dropped replies are in the log only)
+tempting: 'github.com/eff is EFF' - WRONG: it is a personal account that does not link to eff.org
+tempting: 'the rule found zz-scouts-control-7f3q9 on Mastodon' - WRONG: search returned someone else; exact matches 0
+tempting: 'EFF joined Bluesky as eff.org in 2023' - WRONG: the account began as eff.bsky.social
+finding:  mastodon.social/@eff and Bluesky eff.org are EFF's: each is linked from the account
+          and back from eff.org (rel=me; DNS TXT). GitHub EFForg claims eff.org, but eff.org does
+          not link back: a one-way claim. github.com/eff shows no link to EFF at all.
+\`\`\`
+
+- **Two lines can differ from this run.** GitHub sends the same "Not Found" reply in two layouts: spaced (\`"status": "404"\`) and compact (\`"status":"404"\`). Across repeated requests we saw both, whatever the User-Agent. The rule matches the spaced text only, so the control name shows \`UNKNOWN\` for a compact reply and \`MISSING\` for a spaced one. Drill 1 fixes this by reading the JSON, not the text.
+- **The Mastodon control line says \`FOUND\` because the rule is wrong, not because the name exists.** The search endpoint answers HTTP 200 with the closest accounts it knows, never 404, so the rule's "missing" half can never fire. The exact-name count of 0 is the true answer. Never print or keep the account it returned: the script deletes that reply.
+- \`created\`, \`id\` and the handle history are closed records and should match exactly. \`verified_at\` changes if Mastodon checks the link again. The rule count (717) and the file hash stay fixed because the file is pinned to one commit.
+- The hashes in \`collection_log.tsv\` differ from run to run for the live pages: eff.org's home page, the search replies and GitHub's \`updated_at\`. Only item001 (the pinned rule file, \`507d2f8a…\`) should hash the same every time.`
+      }
+    },
+    caseStudy: {
+      title: "\"altoid\", 2013 — how a reused username became a lead, and why it took three months to become a suspect",
+      body: `**What happened.** Silk Road was a drug market on Tor, run by someone who called themselves "Dread Pirate Roberts". In the summer of 2013 Gary Alford, a US Internal Revenue Service special agent working with the Drug Enforcement Administration, put a name to that alias using public forum posts and a search engine. The New York Times told his story on 25 December 2015 ("The Unsung Tax Agent Who Put a Face on the Silk Road", Nathaniel Popper). This case uses that article, the forum posts it describes, and an archive capture of one of them.
+
+**The pivot.** The Times says Alford read up on the origins of Silk Road, using Google's advanced search to look for material posted within specific date ranges. During "the last weekend of May 2013" that brought him to a post made "just before Silk Road had gone online, in early 2011", by someone with the screen name "altoid". It asked: "Has anyone seen Silk Road yet? It's kind of like an anonymous amazon.com." That post is still readable on the Bitcointalk forum, dated 29 January 2011. The early date "suggested that altoid might have inside knowledge", and Alford then went through everything altoid had written. In one post altoid asked for programming help and gave an email address that contained his full name. A search on that name found a young man from Texas who, like Dread Pirate Roberts, admired the economist Ludwig von Mises and the politician Ron Paul. The Times calls this "the first of many striking parallels".
+
+**Where the sources disagree.** The Times says the email post was one "that altoid had apparently deleted — but that had been preserved in the response of another user". The Bitcointalk thread that matches its description, "IT pro needed for venture backed bitcoin startup" (11 October 2011), shows the address in altoid's own opening post on the live forum (fetched 28 September 2026). It is also there in the Wayback Machine capture of that thread from 27 November 2011 (S2.1). Both can be true: altoid may have deleted the same message somewhere else. But what we can check shows the address in plain view in 2011, and our record should say so. We do not repeat the address here: the lesson does not need it.
+
+**The name was a lead, not the answer.** The Times reports that Alford's supervisors showed no interest, and that he "wasn't able to get the surveillance and the subpoenas he wanted". It took him "more than three months to gather enough evidence to prevail upon his colleagues to take his suspect seriously." The turn came from evidence altoid did not control. Ulbricht's home address was "a few hundred feet" from a cafe where the FBI knew Dread Pirate Roberts had logged in. Then Alford mentioned that Ulbricht posted on programmers' message boards as "Frosty". According to two people briefed on the investigation, FBI agent Christopher Tarbell stopped him and explained, in the Times's words, that "Frosty was the name of the computer from which Dread Pirate Roberts had been logging in to the Silk Road." Two different identifiers, found independently, pointed at one person. Only then did the investigation act.
+
+**What followed.** Ulbricht was arrested at a public library in San Francisco in October 2013. He was convicted on all counts in February 2015 and sentenced to life in prison in May 2015. On 21 January 2025, President Trump announced a "full and unconditional pardon" (CNBC, 21 January 2025).
+
+**What this case teaches.**
+- **One reused name is a lead.** "altoid" on two posts linked those posts to each other. It did not link them to a person. The email address did that, and even then it took months of corroboration before anyone acted on it.
+- **Look for identifiers the subject did not choose to share.** A login record and a computer name, held by the investigators, did what the forum posts could not.
+- **Date every claim about a post.** "Deleted" or "still there" is only true as of when someone looked. Archive captures (S2.1) and your own collection log record the when.
+- **The lawful steps were the slow part.** Surveillance and subpoenas needed approval that a name match alone did not earn. An OSINT analyst's name match earns even less. Write it up as a lead, with its limits, and hand it to someone who has the authority to go further.`
+    },
+    challenges: [{
+      q: `A colleague runs a username checker on a handle from an abusive message. It reports "found" on 212 sites and they want to send the list to the police as "the suspect's accounts". What do you say?`,
+      a: `That the list says nothing yet about whose accounts they are, and some of the "found" lines may not be accounts at all. In the lab, one rule reported a name nobody holds as found, because the site's search returned the nearest stranger. Another said UNKNOWN for a missing name because of a change in spacing. Before anything leaves your hands: run a control name through the same checker, and drop every site whose control fails. Check that each remaining hit is an account with exactly that name. Then say what is left: "accounts with this name exist on these sites, as of <date>". A shared name is a coincidence you have not ruled out. Also ask whether checking 700 sites for one person was proportionate. The police can ask the platforms for records you should not try to guess at.`
+    }, {
+      q: `A company's new Mastodon account links to the company website and shows a green verified tick. A journalist asks you whether this proves it is the company's official account. Does it?`,
+      a: `It proves something narrower, and you can check it yourself. The tick means Mastodon fetched the linked page and found a rel=me link back to the profile. So whoever controls that web page also chose to point at this account. Fetch the page and find the link, as the lab did for eff.org, and note the time. Then check the link is on the company's real domain (S1.2's registration records help there), not a look-alike. What the tick does not tell you: which person runs the account, or whether the site itself was compromised when the link went up. "The company's website links to this account, as of <time>" is the sentence the evidence supports.`
+    }, {
+      q: `You find that a Bluesky account called "newsdesk.example" posted a story in 2023. A colleague says that can't be right, because the domain newsdesk.example was only bought this year. Who is right?`,
+      a: `Possibly both, and the identity record can tell you. A Bluesky handle is a name that points at a DID, and the DID's audit log records every handle it has had. In the lab, eff.org's DID was eff.bsky.social from April 2023 and eff.org only from February 2024. So the account can be older than its domain handle: look the DID up in the PLC directory and read its history. Report the post as made by the DID, under the handle it had on that date. And the reverse matters too: if a handle moves to a different DID, the old posts belong to the old DID, not to whoever holds the name today.`
+    }],
+    quiz: ["What are WhatsMyName's four rule fields, and why does a rule that uses only the HTTP status code fail on GitLab?", "In the lab, the Mastodon API rule reported the control name as FOUND. What did the site actually return, and why can that rule never say MISSING?", "Why did the GitHub rule say UNKNOWN for a missing name on some runs, and how does Drill 1's check avoid it?", "What is a control name for, and what should a checker do with a site whose control does not come back MISSING?", "Name the three strengths of link between an account and a website, with the lab's example of each.", "What does Mastodon check before it sets verified_at, and why does the lab also fetch eff.org itself?", "How does a Bluesky domain handle prove itself in both directions, and which two lookups does the lab make?", "The lab deletes two replies but keeps their hashes in the log. What does that prove, and why is it done?"],
+    workbench: `> **What this trains.** The lab showed a rule that misreads a reply, a rule that finds a stranger, and three strengths of link between an account and a site. Here you fix the first, build a checker that tests itself with a control, and turn the link check into a grader that says UNKNOWN when it cannot see.
+
+#### 🟢 Drill 1 — read the reply, not its spacing ~4 min
+
+**Goal.** The lab's GitHub rule said \`UNKNOWN\` for a name that does not exist, because GitHub sent the compact layout and the rule looks for the spaced one. Classify the same reply both ways, in both layouts. No new requests.
+
+**Done when.** Your parsed check says \`MISSING\` for both layouts, \`FOUND\` for octocat, and \`UNKNOWN\` for a reply it does not recognise.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_6 || exit 1
+# The GitHub control reply you saved (item003), and the same reply in the other layout GitHub sends.
+python3 - <<'PY'
+import json
+saved = open("evidence/item003.json").read()
+other = json.dumps(json.loads(saved), indent=2) if '": "' not in saved else json.dumps(json.loads(saved), separators=(",", ":"))
+rule_missing = '"status": "404"'                       # WhatsMyName's m_string, as pinned
+def by_text(code, body):                               # the rule as written
+    return "MISSING" if code == 404 and rule_missing in body else "UNKNOWN"
+def by_json(code, body):                               # read the reply, not its spacing
+    try:
+        d = json.loads(body)
+    except ValueError:
+        return "UNKNOWN"
+    if code == 200 and isinstance(d, dict) and "login" in d and "id" in d:
+        return "FOUND"
+    if code == 404 and isinstance(d, dict) and d.get("message") == "Not Found":
+        return "MISSING"
+    return "UNKNOWN"
+for label, body in (("saved layout", saved), ("other layout", other)):
+    print(f"{label:13} {len(body):3} bytes  rule-as-text: {by_text(404, body):8} parsed-JSON: {by_json(404, body)}")
+print("octocat (item002)          parsed-JSON:", by_json(200, open("evidence/item002.json").read()))
+print("rate-limit page (made up)  parsed-JSON:", by_json(403, '{"message":"API rate limit exceeded"}'))
+PY
+\`\`\`
+
+\`\`\`text
+saved layout   89 bytes  rule-as-text: UNKNOWN  parsed-JSON: MISSING
+other layout  102 bytes  rule-as-text: MISSING  parsed-JSON: MISSING
+octocat (item002)          parsed-JSON: FOUND
+rate-limit page (made up)  parsed-JSON: UNKNOWN
+\`\`\`
+
+If your saved reply came back spaced, the two lines swap: the text rule gets that one right and the other layout wrong. Either way it fails on one of the two layouts GitHub really sends. The parsed check does not care about spacing. It asks what the reply *says*: an object with a login and an id, or GitHub's "Not Found" message.
+
+The made-up rate-limit reply is the reason for the third answer. When GitHub stops answering (60 anonymous requests an hour), a checker with only two answers has to call it something, and "missing" is the usual wrong guess. The "other layout" line is rebuilt from your saved reply by Python, so its byte count can differ by one from GitHub's own.
+</details>
+
+#### 🟡 Drill 2 — a checker that tests itself ~5 min
+
+**Goal.** Build a three-site existence checker that runs the control name first on every site, and only trusts that site's answer if the control comes back \`MISSING\`. Six requests. Then run it on **a username of your own**, never someone else's.
+
+**Done when.** Every site says \`control OK\`, and you can say what the checker would print for a site whose control failed.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_6 || exit 1
+NAME=octocat                   # replace with a username of YOUR OWN - never someone else's
+CONTROL=zz-scouts-control-7f3q9
+cat > work/exists.py <<'PY'
+import json, sys, time, urllib.request, urllib.error
+UA = {"User-Agent": "CyberScoutsLab/1.0 (course exercise)"}
+def get(url):
+    time.sleep(2)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, TimeoutError):
+        return 0, ""
+def rows(body):
+    try:
+        d = json.loads(body)
+    except ValueError:
+        return None
+    return d if isinstance(d, list) else [d] if isinstance(d, dict) and "id" in d else []
+SITES = {  # site: (url, the HTTP status that means "no such account", the name field)
+    "GitHub":   ("https://api.github.com/users/<name>",              404, "login"),
+    "GitLab":   ("https://gitlab.com/api/v4/users?username=<name>",  None, "username"),
+    "Codeberg": ("https://codeberg.org/api/v1/users/<name>",         404, "login"),
+}
+def verdict(site, name):
+    url, missing_code, field = SITES[site]
+    code, body = get(url.replace("<name>", name))
+    r = rows(body)
+    if code == 200 and r is not None:
+        exact = [x for x in r if str(x.get(field, "")).lower() == name.lower()]
+        return code, ("FOUND" if exact else "MISSING" if r == [] else "UNKNOWN")
+    if missing_code and code == missing_code:
+        return code, "MISSING"
+    return code, "UNKNOWN"          # rate limits, outages, anything this checker cannot read
+name, control = sys.argv[1], sys.argv[2]
+for site in SITES:
+    c1, v1 = verdict(site, control)
+    c2, v2 = verdict(site, name)
+    trust = "control OK" if v1 == "MISSING" else "control FAILED - do not trust this site's answer"
+    print(f"{site:9} control: HTTP {c1} {v1:8} {name}: HTTP {c2} {v2:8} {trust}")
+PY
+python3 work/exists.py "$NAME" "$CONTROL"
+\`\`\`
+
+\`\`\`text
+GitHub    control: HTTP 404 MISSING  octocat: HTTP 200 FOUND    control OK
+GitLab    control: HTTP 200 MISSING  octocat: HTTP 200 MISSING  control OK
+Codeberg  control: HTTP 404 MISSING  octocat: HTTP 404 MISSING  control OK
+\`\`\`
+
+\`octocat\` exists on GitHub and not on GitLab or Codeberg. That is also the lesson of this module in one line: the same name is not reserved everywhere, so someone else could register it tomorrow. \`FOUND\` requires an account whose name is *exactly* the one asked for. GitLab's empty list \`[]\` is \`MISSING\`, and anything else it returns is \`UNKNOWN\`.
+
+Run it again with your own username in \`NAME\`. Where it says \`FOUND\`, anyone can confirm that account exists without signing in. If a site's control ever says \`FOUND\` or \`UNKNOWN\`, the site changed or is refusing you. Don't use that site's answer until you know which.
+</details>
+
+#### 🔴 Drill 3 — a link grader with four answers and a fifth for "cannot tell" ~8 min
+
+**Goal.** For a claimed pair (account, website), check both directions yourself: does the account name the site, and does the site name the account? Do it for Mastodon (profile fields and the page's links), GitHub (the profile's website field) and Bluesky domain handles (DNS TXT or \`/.well-known/atproto-did\`, then the DID's \`alsoKnownAs\`). Eight requests and two DNS lookups.
+
+**Done when.** The grader prints \`TWO-WAY\`, \`ONE-WAY\` or \`NONE\` for the five pairs below, and \`UNKNOWN\` whenever a lookup fails, never a guess.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s2_6 || exit 1
+cat > work/twoway.py <<'PY'
+import json, re, subprocess, sys, time, urllib.request, urllib.error
+UA = {"User-Agent": "CyberScoutsLab/1.0 (course exercise)"}
+def get(url):
+    time.sleep(2)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, ""
+    except (urllib.error.URLError, TimeoutError):
+        return 0, ""
+norm = lambda u: u.lower().rstrip("/").replace("://www.", "://")
+def site_links_to(site, target):          # does the site's page carry rel=me (or any link) to target?
+    code, html = get(site)
+    if code != 200:
+        return None
+    tags = re.findall(r"<(?:a|link)\\b[^>]*>", html)
+    hrefs = [(re.search(r'href="([^"]+)"', t) or [None, ""])[1] for t in tags]
+    return any(norm(h) == norm(target) for h in hrefs)
+def grade(forward, back):
+    if forward is None or back is None:
+        return "UNKNOWN"
+    return {(True, True): "TWO-WAY", (True, False): "ONE-WAY (account's claim only)",
+            (False, True): "ONE-WAY (site's claim only)", (False, False): "NONE"}[(forward, back)]
+def mastodon(server, user, site):
+    code, body = get(f"https://{server}/api/v1/accounts/lookup?acct={user}")
+    if code != 200:
+        return "UNKNOWN"
+    fields = [(re.search(r'href="([^"]+)"', f["value"]) or [None, ""])[1] for f in json.loads(body)["fields"]]
+    return grade(any(norm(f) == norm(site) for f in fields), site_links_to(site, f"https://{server}/@{user}"))
+def github(login, site):
+    code, body = get("https://api.github.com/users/<login>".replace("<login>", login))
+    if code != 200:
+        return "UNKNOWN"
+    blog = json.loads(body).get("blog") or ""
+    return grade(norm(blog) == norm(site) if blog else False, site_links_to(site, f"https://github.com/{login}"))
+def bluesky(domain):                      # handle = domain: DNS TXT names the DID, the DID names the handle
+    r = subprocess.run(["dig", "+short", "TXT", f"_atproto.{domain}"], capture_output=True, text=True)
+    if r.returncode != 0:                 # dig could not reach a resolver: no answer is not "no record"
+        return "UNKNOWN"
+    txt = r.stdout
+    did = next((t.strip('"')[4:] for t in txt.split() if t.strip('"').startswith("did=")), None)
+    if not did:
+        code, body = get(f"https://{domain}/.well-known/atproto-did")
+        did = body.strip() if code == 200 and body.startswith("did:") else None
+    if not did:
+        return "NONE (the domain names no DID)"
+    code, body = get(f"https://plc.directory/{did}")
+    if code != 200:
+        return "UNKNOWN"
+    return grade(True, f"at://{domain}" in json.loads(body).get("alsoKnownAs", []))
+checks = [
+    ("mastodon.social/@eff  <-> https://www.eff.org",       lambda: mastodon("mastodon.social", "eff", "https://www.eff.org")),
+    ("mastodon.social/@eff  <-> https://github.com/EFForg", lambda: mastodon("mastodon.social", "eff", "https://github.com/EFForg")),
+    ("github.com/EFForg     <-> https://www.eff.org/",      lambda: github("EFForg", "https://www.eff.org/")),
+    ("bluesky handle eff.org",                              lambda: bluesky("eff.org")),
+    ("bluesky handle example.com",                          lambda: bluesky("example.com")),
+]
+for label, fn in checks:
+    print(f"{label:52} {fn()}")
+PY
+python3 work/twoway.py
+\`\`\`
+
+\`\`\`text
+mastodon.social/@eff  <-> https://www.eff.org        TWO-WAY
+mastodon.social/@eff  <-> https://github.com/EFForg  NONE
+github.com/EFForg     <-> https://www.eff.org/       ONE-WAY (account's claim only)
+bluesky handle eff.org                               TWO-WAY
+bluesky handle example.com                           NONE (the domain names no DID)
+\`\`\`
+
+These are the lab's findings, now from code you can reuse. The Mastodon account and eff.org each name the other. GitHub's EFForg names eff.org, but eff.org does not name it back. Pairing @eff with the GitHub page finds no link in either direction, even though both are almost certainly EFF's. \`NONE\` means "not linked", not "not the same owner".
+
+The \`UNKNOWN\` paths matter as much as the others. We ran this drill twice in a row. The second run hit GitHub's hourly limit, and the EFForg line came back \`UNKNOWN\`, not \`NONE\`. A grader without that path would have reported that EFF's own GitHub account does not claim eff.org. The same goes for DNS: if \`dig\` cannot reach a resolver, it exits non-zero, and "no answer" is not "no record".
+</details>`,
+    tracker: ["Wrote the claim, the question and the scope before the first request, with every person out of scope", "Ran the lab: sixteen requests and one DNS lookup logged, two replies hashed and deleted", "Can say what each of the three 'tempting' sentences gets wrong", "Explained why the Mastodon rule found a name nobody holds, and why the GitHub rule missed one that is absent", "Classified GitHub replies by parsing them, in both layouts (Drill 1)", "Built an existence checker that trusts a site only when its control passes, and ran it on my own username (Drill 2)", "Built a link grader that answers TWO-WAY, ONE-WAY, NONE or UNKNOWN, and saw UNKNOWN when a limit was hit (Drill 3)"]
   }]
 };
 
