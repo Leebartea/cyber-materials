@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.7 + 2 roadmaps)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.7 + S3.1 + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-28 (Batch 14: S2.7 build pass, rows 292–318, 13 defects caught before publication, none shipped; Batch 13: S2.6 build pass, rows 264–291, 12 defects caught before publication, none shipped; Batch 12: S2.5 build pass, rows 238–263, 9 defects caught before publication, none shipped; Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-28 (Batch 15: S3.1 build pass, rows 319–345, 14 defects caught before publication, none shipped; guard A111; Batch 14: S2.7 build pass, rows 292–318, 13 defects caught before publication, none shipped; Batch 13: S2.6 build pass, rows 264–291, 12 defects caught before publication, none shipped; Batch 12: S2.5 build pass, rows 238–263, 9 defects caught before publication, none shipped; Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -713,3 +713,65 @@ Defects caught in the S2.7 build pass (none shipped):
   uses its own `~/scouts-case/s2_N` folder. The line now says so.
 - **This ledger's header was stale since Batch 11** (course-file line said S2.1–S2.3; Last pass began at
   Batch 11). Updated with Batches 12–14.
+
+## Batch 15 — S3.1 Source grading and competing hypotheses (opens Level 3)
+
+Level 3 list agreed 2026-09-28: the user delegated the choice ("recommend … global standard"); benchmarked
+against the Berkeley Protocol's Chapter VI and SANS SEC587's published syllabus. Sock puppets, dark-web
+markets, password cracking and facial recognition were left out as incompatible with the course's passive,
+lawful-first stance. Planned rows carry `—`, not numbers.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 319 | S3.1 | JDP 2-00 (4th Edition) is dated August 2023, UK MOD; para 3.40 calls the NATO Intelligence Grading System "sometimes referred to as the 'Admiralty Code'"; Table 3.1 gives A–F reliability and 1–6 credibility with the labels the module prints | `SOURCED` | assets.publishing.service.gov.uk JDP_2_00_Ed_4_web.pdf, pdftotext (2026-09-28), pp. 59–60 | 2028-09 |
+| 320 | S3.1 | JDP 2-00 para 3.40: B5 / E1 examples; "The two ratings do not need to 'match'"; F6 "does not render the information useless"; gradings "should be reviewed as further intelligence is acquired" | `SOURCED` | same PDF, para 3.40 and 3.40a | 2028-09 |
+| 321 | S3.1 | JDP 2-00 para 3.39a (reliability of organisational sources "largely depend[s] on the reporting history…"), 3.39b (credibility "usually best assessed by corroborating…"; internal check for content "factually incorrect or logically implausible"; circular reporting), 3.39c ("Reliability and credibility must be evaluated separately…") | `SOURCED` | same PDF, para 3.39 | 2028-09 |
+| 322 | S3.1 | JDP 2-00 footnote 53 (to para 3.51) defines circular reporting in the words quoted | `SOURCED` | same PDF, para 3.51 fn 53 | 2028-09 |
+| 323 | S3.1 | JDP 2-00 para 3.33: SATs "compel users to actively think…"; names anchoring, confirmation bias, groupthink | `SOURCED` | same PDF, para 3.33a–b | 2028-09 |
+| 324 | S3.1 | NATO's JADL copy of AJP-2.1 was not used: 403 to curl. The grading table is cited from JDP 2-00, which reproduces it | `CONVENTION` | jadl.act.nato.int … AJP21.pdf → HTTP 403 (2026-09-28) | — |
+| 325 | S3.1 | College of Policing APP "Intelligence report": first published 24 August 2015, updated 26 January 2022; three source gradings (reliable — "competence and veracity" tests; untested; not reliable); A–E information grades with the quoted wording; handling codes P and C; corroboration must be "independent and not from the same original source"; refers to intelligence "graded under the 5x5x5 system" | `SOURCED` | live page 403s to curl and WebFetch; read via Wayback `20240707145422id_` (2026-09-28) | 2027-09 |
+| 326 | S3.1 | The APP page does not number the three source grades; the module names them and does not claim 1/2/3 | `CONVENTION` | same capture; secondary sources (Substack, Blockint) number them, not relied on | 2027-09 |
+| 327 | S3.1 | Old 5x5x5 system graded the source with letters, "A – ALWAYS RELIABLE" | `SOURCED` | library.college.police.uk/docs/APPref/how-to-complete-5x5x5-form.pdf, pdftotext (2026-09-28) | stable |
+| 328 | S3.1 | Heuer, *Psychology of Intelligence Analysis*, CIA Center for the Study of Intelligence, 1999; Chapter 8 ACH; the eight steps as paraphrased; high-temperature analogy; "fewest minuses" (quoted with the original's "hypotheses … is"); "You, not the matrix, must make the decision. The matrix serves only as an aid to thinking and analysis" | `SOURCED` | archive.org PsychologyOfIntelligenceAnalysis/Psychology_of_Intelligence.pdf, pdftotext (2026-09-28), pp. 95–104 | stable |
+| 329 | S3.1 | Berkeley Protocol Chapter VI sections A–F = online inquiries, preliminary assessment, collection, preservation, verification, investigative analysis; paras 176–182 (verification; source analysis: provenance, credibility, independence and impartiality, specificity, attenuation) with the quoted phrases; bias sentence in Principles | `SOURCED` | ohchr.org …/OHCHR_BerkeleyProtocol.pdf, pdftotext -raw (2026-09-28) | stable |
+| 330 | S3.1 | Theory draft called the six parts a "cycle"; the Protocol lists them as sections and says "investigation cycle" only in passing — now "sets out the investigation process in six parts" | `FIXED` | same PDF | — |
+| 331 | S3.1 | RIPEstat routing-history for 129.134.30.0/23, 3–6 Oct 2021: only origin AS32934; 129.134.30.0/24 and 129.134.31.0/24 seen by 341/342 peers before and 0 in the 2021-10-04 16:00–23:59 bin; the /23 at 31; covering 129.134.0.0/17 at 341 throughout | `EXECUTED` | lab item001, three runs 2026-09-28 (zsh, bash, rendered copy) | historical data; stable |
+| 332 | S3.1 | RIPEstat bgp-updates returns 0 updates for these prefixes in October 2021 — the lab uses routing-history (8-hour bins) instead | `EXECUTED` | curl stat.ripe.net bgp-updates (2026-09-28) | 2027-09 |
+| 333 | S3.1 | RIPEstat replies carry `time`, `server_id`, `process_time`, so item001's hash changes every run | `EXECUTED` | jq on item001 | stable |
+| 334 | S3.1 | mnemonic pDNS: a.ns.facebook.com A 129.134.30.12 first seen 2020-03-05, last seen 2026-09-13 (open row); 69.171.239.12 2017-01-29 → 2020-03-06 | `EXECUTED` | lab item002 | closed row stable; open row moves |
+| 335 | S3.1 | Cloudflare post (datePublished 2021-10-04T21:08:52Z): "around 15:40 UTC … a peak of routing changes"; 1.1.1.1 unavailable ~15:50 → 21:20 UTC; renewed BGP ~21:00, peak 21:17; "other Facebook IP addresses remained routed"; lines at 15:51 and 15:58 exist only in today's version | `EXECUTED` | lab items 003 (Wayback 20211004220101) and 004 (live) | item004 live: 2027-03 |
+| 336 | S3.1 | Cloudflare's post said "as of 22:28 UTC" in captures from 21:39:41 to 22:05:40 UTC; "21:28" from 22:18:50; no "as of" sentence at 21:17:40 and 21:29:21 | `EXECUTED` | Drill 1 binary search over 221 CDX captures, run as written 2026-09-28 | stable |
+| 337 | S3.1 | Facebook engineering post (2021-10-05, Wayback 20211005173240): command "unintentionally took down all the connections in our backbone network"; DNS servers "withdraw those BGP advertisements"; "not by malicious activity" | `EXECUTED` | lab item005 | stable |
+| 338 | S3.1 | Kentik (Wayback 20211004220908): traffic "virtually disappeared at 15:39 UTC", from NetFlow data | `EXECUTED` | lab item006 | stable |
+| 339 | S3.1 | Wikipedia "2021 Facebook outage" revision 1319969338 (2025-11-02T00:20:01Z): "Cloudflare reported that at 15:39 UTC…" cites only the Cloudflare post; the cause sentence cites engineering.fb.com | `EXECUTED` | lab item007 | pinned revision; stable |
+| 340 | S3.1 | Same revision gives recovery as BGP ~21:50 / DNS 22:05 UTC in one paragraph and BGP before 21:00 / resolvable 21:05 UTC in another; Drill 2 finds neither 22:05 nor 21:05 on the cited pages (21:50 has no "UTC" after it, so the drill does not test it); 22:45 not on the cited BBC capture, which states no time zone | `EXECUTED` | Drill 2 run as written; BBC capture 20211004225712 grepped for BST/GMT/UTC/ET (none) | pinned; stable |
+| 341 | S3.1 | Grade letters are based on this course's own history with each source (B for RIPEstat and mnemonic, F for first use) | `CONVENTION` | STANAG-style F = no track record; JDP 3.39a reporting history | — |
+| 342 | S3.1 | The ACH marks (C/I/N) for C1–C7 against H1–H4 are the module's judgement, with each reason in the matrix row and the theory | `CONVENTION` | judgement, shown so it can be challenged | — |
+| 343 | S3.1 | WMD Commission "Report to the President, March 31, 2005": every quotation in the case (Curveball fabricator; three other sources "thought to have corroborated"; second source recanted Oct 2003, never recalled; INC source fabrication notice May 2002, reused July 2002; fourth source single report; WINPAC analyst vs DO group chief; "damning comment"; recall requirement; May 2004 recall) | `SOURCED` | georgewbush-whitehouse.archives.gov/wmd/text/report.html (2026-09-28), each quotation string-matched by script | stable |
+| 344 | S3.1 | The `sha256sum` variant produces identical facts and checks | `EXECUTED` | run with macOS's own `/sbin/sha256sum`; Docker daemon not running, so not run on a Linux distribution | 2027-03 |
+| 345 | S3.1 | Windows route is WSL; no native PowerShell port was run | `CONVENTION` | as S2.7 | — |
+
+Defects caught in the S3.1 build pass (none shipped):
+
+- **`check_report.sh` matched `F[0-9]*`, which matches the bare "F" in "Facebook's"**, and failed a correct
+  report ("cites F, which is not a finding"). Now `F[0-9][0-9]*`.
+- **The Wikipedia API call asked only for `content`**, so `revid` was missing and the facts step crashed.
+  Now `rvprop=ids|timestamp|content`.
+- **`datetime.utcfromtimestamp`** (deprecated since 3.12) replaced with `fromtimestamp(…, timezone.utc)`.
+- **Drill 2 put a backslash inside an f-string's `{…}`** — a SyntaxError before Python 3.12, and Level 2
+  promises 3.9. Rewritten; **guard A111** now catches the shape in every course (0 existing hits).
+- **Drill 1's first fetch crashed on gzip-encoded Wayback captures**; `--compressed` added.
+- **Drill outputs were drafted before the drills ran.** Two blocks were wrong (Drill 2's last paragraph,
+  Drill 3's `tail -2` lines). All three are now pasted from runs of the extracted code blocks.
+- **Theory draft said the APP "replaced" 5x5x5**; the page only calls 5x5x5 gradings historic. Reworded.
+- **Heuer quotation ended "aid to thinking."** — the sentence continues "and analysis". Restored.
+- **Case draft put "was never recalled or corrected" in quotation marks**; the report's words are "Nor, for
+  that matter, was the report ever recalled or corrected." Now paraphrased without quotes.
+- **Case draft quoted two hypotheses that were the module's own phrasing**; now italic, not quoted.
+- **Case draft called the objector "the chief of the group handling the case"**; the report says a group chief
+  "responsible for the liaison country's region" in the Directorate of Operations.
+- **Quiz asked why a non-diagnostic item is "worth having" in the matrix**, against Heuer's step 4 (delete
+  it). Quiz and theory now say what step 4 says.
+- **Theory draft called Cloudflare "new to this course"**; S2.7 uses a Cloudflare address as its control.
+  Now "not used as a source".
+- **The lab had no STOP when a statement the grades rely on vanished from a source**; added.

@@ -944,6 +944,10 @@ BANNED = [
      "Reading dig's output without its exit status turns 'could not reach a resolver' (exit 9) into "
      "'no record', and a link grader then prints NONE instead of UNKNOWN: check returncode first "
      "(Scouts ledger S2.6 defects: Drill 3, and the lab's own DNS step)", "A110"),
+    (r"""\bf(["'])(?:(?!\1)[^\n{])*\{[^}\n]*\\[^}\n]*\}""",
+     "A backslash inside an f-string's {…} expression is a SyntaxError before Python 3.12, and the "
+     "courses promise Python 3.9 or later: build the value in a variable first "
+     "(Scouts ledger S3.1 defects: Drill 2)", "A111"),
 ]
 
 
@@ -1243,6 +1247,10 @@ TOPIC_ANCHORS = {
         "atproto": ["S2.6"],
         "lame delegation": ["S2.7"],
         "weakest link": ["S2.7"],
+        "admiralty code": ["S3.1"],
+        "3x5x2": ["S3.1"],
+        "circular reporting": ["S3.1"],
+        "competing hypotheses": ["S3.1"],
     },
 }
 

@@ -758,6 +758,18 @@ const curriculum = {
       build: "One case folder per module, each with its scope, collection log and hashes, ending in a multi-source pivot report that grades every link (the Level 2 capstone).",
       prereq: "Level 1, especially the collection record and the report form."
     }
+  }, {
+    id: 3,
+    name: "Analyst",
+    tagline: "Judgement under uncertainty — grading sources, competing explanations, harder records",
+    colorVar: "--l3",
+    weeks: "Weeks 15–21",
+    roadmap: {
+      promise: "Level 3 adds judgement. Levels 1 and 2 collected public records, proved they had not changed and graded how strongly one record links to another. Level 3 grades the sources themselves, tests several explanations at once instead of defending one, and takes the same discipline to harder kinds of record: internet-wide scans, public ledgers, transport signals and satellite images.",
+      canDo: ["Grade a source and a claim separately, with the name of the grading system beside the grade", "Catch corroboration that comes from the same origin, including a summary that cites the source it seems to confirm", "Test competing hypotheses, set aside evidence that fits them all, and name the item a conclusion depends on", "Write a report that names the hypotheses it rejects, keeps the open ones open, and lists what would change its mind"],
+      build: "One case folder per module, each with its scope, collection log, hashes and a grades file, ending in a full investigation file from plan to finding (the Level 3 capstone).",
+      prereq: "Levels 1 and 2, especially the collection record, the report form and link strength (S2.7)."
+    }
   }],
   modules: [
   {
@@ -833,6 +845,22 @@ Level 2 adds time and connection: what a record said before, who runs the networ
 | S2.7 | Capstone: a multi-source pivot report | ✅ available |
 
 Level 2 adds one tool, \`python3\`, which the Guardians setup already uses. \`python3 --version\` should print a version of 3.9 or later.
+
+#### Level 3 — Analyst
+
+Level 3 adds judgement: how far to trust a source, how to test competing explanations, and harder kinds of record.
+
+| # | Topic | Status |
+|---|---|---|
+| S3.1 | Source grading and competing hypotheses | ✅ available |
+| — | Preservation: capturing and checking your own web evidence | planned |
+| — | Internet-wide scan data: what a banner proves | planned |
+| — | Public ledgers: tracing cryptocurrency, and where tracing stops | planned |
+| — | Transport tracking: aircraft and ships | planned |
+| — | Satellite imagery: change over time | planned |
+| — | Capstone: an investigation file, from plan to finding | planned |
+
+Level 3 so far needs no new tools. Any module that does will say so at the top of its lab.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -7480,6 +7508,697 @@ The delegation line shows what the lab's STRONG finding is worth by comparison. 
 
 </details>`,
     tracker: ["Wrote the question, the two candidates and the rule for new leads into the scope before the first request", "Ran the lab: three DNS lookups and eleven requests logged and hashed, report PASS, seal verified", "Can explain why a shared address and a shared registrar are LEADs, using the control", "Can explain why a delegation needs both sides, and what the aa flag and the REFUSED control each prove", "Audited the tags and caught the draft's STRONG on F4 that the report check passed (Drill 1)", "Tested delegations from both sides, and saw UNKNOWN when no server answered (Drill 2)", "Graded pivot chains by their weakest link and by when each link held (Drill 3)"]
+  }, {
+    id: "l3_roadmap",
+    level: 3,
+    num: "L3",
+    title: "Level 3 Roadmap — Analyst",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first. The real modules begin next.",
+    isRoadmap: true
+  }, {
+    id: "s3_1",
+    level: 3,
+    num: "S3.1",
+    title: "Source Grading & Competing Hypotheses — How Much Should You Trust It, and What Else Could Explain It?",
+    objective: `Grade every claim with the NATO system (JDP 2-00 Table 3.1): a letter for the source, based on its track record, and a number for the information, based on independent corroboration. Catch circular reporting, including a summary that cites the source it seems to confirm. Test four explanations of a real outage with Heuer's Analysis of Competing Hypotheses: count inconsistencies, drop evidence that fits every hypothesis, and find the one item the conclusion depends on. Write a report that names the hypotheses it rejects, keeps the open ones open, and lists what would change its mind.`,
+    theory: `#### What Level 3 adds
+
+Levels 1 and 2 taught you to collect public records lawfully, to prove they have not changed, and to grade how strongly one record links to another. Level 3 is about **judgement under uncertainty**: how professionals decide how much to trust a source, how they test several explanations at once instead of defending one, and how they write down *why*, so that someone else can check the reasoning.
+
+Chapter VI of the Berkeley Protocol (S1.1) sets out the investigation process in six parts: online inquiries, preliminary assessment, collection, preservation, verification and investigative analysis. Levels 1 and 2 worked mostly on collection and preservation. This module covers the last two steps: verification and analysis. It uses three published standards:
+
+- **JDP 2-00**, *Intelligence, Counter-intelligence and Security Support to Joint Operations* (UK Ministry of Defence, 4th edition, August 2023). It is the UK's own statement of NATO's grading system.
+- **The College of Policing's APP** on the intelligence report (first published 24 August 2015, updated 26 January 2022). It is the grading system UK police use.
+- **Richards J. Heuer Jr.'s** *Psychology of Intelligence Analysis* (CIA Center for the Study of Intelligence, 1999). Its Chapter 8 sets out the Analysis of Competing Hypotheses.
+
+#### Two questions about every item, asked separately
+
+A piece of information raises two different questions:
+
+1. **Who is saying it, and how far do you trust them?** This is the *reliability of the source*.
+2. **How well supported is this particular claim?** This is the *credibility of the information*.
+
+JDP 2-00 insists that they are separate: "Reliability and credibility must be evaluated separately. A previously reliable source may still provide inaccurate information through sincere error or coming under hostile control, and occasionally highly credible information can come from a usually unreliable source" (para 3.39c).
+
+#### The NATO grading system (the "Admiralty Code")
+
+JDP 2-00 para 3.40 calls it the NATO Intelligence Grading System, "sometimes referred to as the 'Admiralty Code'". Each grade is a letter for the source and a number for the information (Table 3.1):
+
+| | Reliability of the source | | Credibility of the information |
+|---|---|---|---|
+| A | Completely reliable | 1 | Confirmed by other sources |
+| B | Usually reliable | 2 | Probably true |
+| C | Fairly reliable | 3 | Possibly true |
+| D | Not usually reliable | 4 | Doubtful |
+| E | Unreliable | 5 | Improbable |
+| F | Reliability cannot be judged | 6 | Truth cannot be judged |
+
+JDP 2-00 adds three rules. Every grade in the lab follows them:
+
+- **The two halves need not match.** "A usually reliable source providing improbable information would result in B5, and confirmed information from an unreliable source would be E1." Grades that always fall on the diagonal (A1, B2, C3 and so on) are a sign that the two judgements were not made separately.
+- **F6 is not "worthless".** A grading of F6 "does not render the information useless or mean it has no value. It simply means that there is insufficient internal evidence or independent confirmation to make a judgement".
+- **Grades are reviewed.** They "should be reviewed as further intelligence is acquired". A grade is a judgement at a moment, not a label for life.
+
+**Where the letter comes from.** For an organisation, JDP 2-00 says reliability "largely depend[s] on the reporting history of the source in terms of accuracy and correlation with other sources over time" (para 3.39a). You cannot judge a source's history if you have none with it. So the lab bases every letter on *this course's* history with the source. RIPEstat and mnemonic were used in Level 2, and their records matched other sources, so they get B. Cloudflare's blog, Facebook, Kentik and Wikipedia have not been used as sources in this course before, so they get F: reliability cannot be judged. That is not an insult. It means the letter has no track record to rest on, so the number has to do the work.
+
+**Where the number comes from.** Credibility "is usually best assessed by corroborating with other sources that may confirm or disconfirm the substance of that report" (para 3.39b). It can also be judged internally, "by identifying content that is factually incorrect or logically implausible". The lab has one of those: a web page captured at 22:01 UTC that reports something "as of 22:28 UTC".
+
+#### A second system, and why a bare letter is dangerous
+
+UK police use a different system, called **3x5x2**. The APP page points to guidance for forces whose older intelligence was "graded under the 5x5x5 system", which came before it. The name counts the options:
+
+- **3 source gradings:** *reliable* (both "competence and veracity of past intelligence" must be met), *untested*, and *not reliable*.
+- **5 information gradings, A to E:** A "Known directly to the source"; B "Known indirectly to the source but corroborated"; C "Known indirectly to the source"; D "Not known"; E "Suspected to be false".
+- **2 handling codes:** P, lawful sharing permitted, and C, lawful sharing permitted with conditions.
+
+The old 5x5x5 system graded the *source* with letters: its "A" was "Always reliable". The new system uses letters for the *information*. NATO uses letters for the source again. So a "B" means a usually reliable source to NATO, and corroborated second-hand information under 3x5x2. **Always write the system's name next to a grade.** This course uses the NATO system, and every grades file says so.
+
+The APP's definition of B carries a rule worth copying, whatever system you use: "Care should be taken when ascertaining corroboration to ensure that the information that is presented as corroboration is independent and not from the same original source."
+
+#### Is the source independent? Five things to check
+
+The Berkeley Protocol lists what source analysis looks at (paras 177 to 182):
+
+| Factor | What to ask |
+|---|---|
+| **Provenance** (para 178) | Where did this first appear? It advises writing "first copy found online" rather than "the first copy online", because the original may have been removed. |
+| **Credibility** (para 179) | Does the source's posting history and online presence support it? |
+| **Independence and impartiality** (para 180) | Who funds it? Is it connected to any party involved? What are its "motivations, interests or agendas"? |
+| **Specificity** (para 181) | "The more precise the information and claims, the easier they will be to prove or disprove." |
+| **Attenuation** (para 182) | Was it written at the time of the events, or long after? |
+
+Independence is the one the lab tests most. Facebook's own account of its outage is the best-placed source there is, because nobody else could see inside its network. It is also not impartial: a company has an interest in its outage not being a breach. Both facts go into the grade. Being well placed does not make a source impartial, and having an interest does not make it wrong.
+
+#### Circular reporting
+
+JDP 2-00 defines it in a footnote to para 3.51: "Circular reporting occurs where material is conveyed and then repeated a number of times in separate assessments when in fact it has just come from one source. The repetition gives the appearance that the material may be new or additional corroboration when it had actually been reported previously."
+
+On the open web, circular reporting often comes through summaries. An encyclopedia article, a news round-up or a chatbot answer repeats a claim and cites where it came from. The citation is honest. The mistake is counting the summary as a second witness. In the lab, Wikipedia's sentence about the cause of the outage cites Facebook's own post. It adds a citation, not a second witness. The lab's grade checker fails any claim graded "confirmed by other sources" when the corroborating item has the same origin.
+
+A summary can also change what it repeats. The same Wikipedia revision says "Cloudflare reported that at 15:39 UTC" Facebook made its BGP changes. The Cloudflare post it cites says "around 15:40 UTC", in the copy archived on the day and in today's version. 15:39 is the time in a different report, Kentik's, which measured traffic, not routing. So check a quotation against the source it cites, not against your memory of the story.
+
+#### Analysis of Competing Hypotheses (ACH)
+
+The natural way to analyse is to pick the most likely explanation and look for evidence that supports it. Heuer's point is that this is backwards. "No matter how much information is consistent with a given hypothesis, one cannot prove that hypothesis is true, because the same information may also be consistent with one or more other hypotheses. On the other hand, a single item of evidence that is inconsistent with a hypothesis may be sufficient grounds for rejecting that hypothesis."
+
+His eight steps, from Chapter 8:
+
+1. Identify the possible hypotheses.
+2. List the significant evidence and arguments for and against each.
+3. Build a matrix: hypotheses across the top, evidence down the side. Work out which items are **diagnostic**.
+4. Refine the matrix: reconsider the hypotheses and delete evidence with no diagnostic value.
+5. Draw tentative conclusions. Try to *disprove* hypotheses rather than prove them.
+6. Analyse how sensitive the conclusion is to a few critical items of evidence.
+7. Report conclusions, discussing all the hypotheses, not just the most likely.
+8. Identify milestones: future observations that would show events taking a different course.
+
+**Diagnosticity** is the key idea. Heuer's example is a high temperature: it tells a doctor the patient is ill, but "relatively little value in determining which illness a person is suffering from". Evidence that fits every hypothesis cannot help you choose between them. In the lab, "traffic to Facebook disappeared at 15:39" is the most repeated fact about the outage, and it fits all four hypotheses. The lab shows it in the matrix so you can see that it decides nothing. Step 4 says to delete items like it, and deleting it changes no count.
+
+**Count the inconsistencies, not the agreements.** "The hypotheses with the fewest minuses is probably the most likely one," Heuer writes, because "a long list of evidence that is consistent with almost any reasonable hypothesis can be easily made". The lab's script counts each hypothesis's *inconsistent* items.
+
+**The matrix does not decide.** "You, not the matrix, must make the decision. The matrix serves only as an aid to thinking and analysis". If the matrix ranks the hypotheses in a way you disagree with, something that influences your thinking is missing from it. Add it and look again.
+
+**Sensitivity (step 6)** is where the lab's case becomes interesting. Two hypotheses survive: a mistake by Facebook (H1), and an intruder inside Facebook's network (H3). Every piece of routing evidence fits both. The only item separating them is Facebook's own statement that the outage was "not by malicious activity". That is graded F3: possibly true, and not confirmed by anything outside Facebook. So the report says that H1 is *likely*, not that it is certain, and gives its analytical confidence as *moderate*. It keeps H3 open by name, and it lists the milestones that would change its mind.
+
+#### Bias, and what the method is for
+
+JDP 2-00 says structured analytical techniques "compel users to actively think about information, including evidence, assumptions and judgements, rather than relying on intuition or mental shortcuts that are more susceptible to bias". It names anchoring, confirmation bias and groupthink (para 3.33). The Berkeley Protocol asks investigators to "always strive to be aware of and correct for their own biases, which may be either conscious or subconscious".
+
+The methods in this module are ways of making bias visible. A grade with a written reason can be challenged. A matrix shows which items actually carried the conclusion. A named milestone shows what would change it. None of them makes a judgement correct. They make it checkable.
+
+#### How the lab fits together
+
+1. **Scope with hypotheses.** The question and all four hypotheses are written before the first request, so none can be quietly added after the evidence arrives.
+2. **Collection:** seven items, logged and hashed as in every earlier lab. Four of them are dated copies: Wayback captures of the October 2021 write-ups and a pinned Wikipedia revision, 1319969338.
+3. **Facts:** a script prints what each item says, so every claim in the grades file can be checked against a file.
+4. **Grades**, in \`grades.tsv\`: each claim gets a NATO grade, an origin, the item that corroborates it and a written reason. \`grade_check.py\` fails the first draft, which "confirms" Facebook's claim with Wikipedia.
+5. **ACH:** \`ach.py\` refuses a matrix row that repeats another claim or is graded 5 or 6. It counts inconsistencies, marks non-diagnostic rows and flags a conclusion that rests only on unconfirmed items.
+6. **Report:** graded findings, sources not relied on, likelihood and confidence in separate sentences (S1.7), the rejected hypotheses by name, and milestones. \`check_report.sh\` confirms that every grade matches \`grades.tsv\` and that the Assessment cites only findings that were relied on.
+7. **Seal**, as before.`,
+    lab: {
+      mac: `# LAB: grade every source, then let four explanations compete for one event (Apple Silicon)
+# ETHICS: seven requests about one organisation's public outage in October 2021. No person, no
+# account, no email address. Most of the requests go to archives and public research services (the
+# Internet Archive, RIPE NCC, mnemonic, Wikipedia). One goes to Cloudflare's blog today, to compare
+# with the archived copy. Nothing is sent to Facebook's systems.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s3_1 && cd ~/scouts-case/s3_1 || exit 1
+rm -rf evidence collection_log.tsv facts.txt claims.tsv grades.tsv grades_draft.tsv ach.tsv ach_draft.tsv \\
+  grade_check.py ach.py report.md check_report.sh SEAL.sha256 && mkdir evidence
+
+# 1. The question, the competing answers and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S3.1 source grading and competing hypotheses
+question:     On 4 October 2021 Facebook's domain names stopped resolving for about five and
+              a half hours. What made its DNS servers unreachable?
+hypotheses:   H1 Facebook's own change withdrew the routes to its DNS servers (an error)
+              H2 another network hijacked the routes
+              H3 an intruder inside Facebook's network withdrew them
+              H4 an outside DNS provider failed
+authorised:   self (public records about one organisation's outage)
+in scope:     RIPEstat routing history; mnemonic passive DNS; Wayback copies of the Cloudflare,
+              Facebook and Kentik write-ups from October 2021; Cloudflare's post as it is today;
+              one pinned revision of the Wikipedia article
+out of scope: any person, including the named authors of the write-ups; social media posts;
+              any request to Facebook's own systems; any other outage
+SCOPE
+
+# 2. Collect through one door: every request is a logged, hashed item.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+collect() {  # id extension url
+  local f="evidence/$1.$2" H=FAILED
+  if curl -sfL --retry 3 --retry-all-errors -m 120 -A "$UA" -o "$f" "$3"; then H=$(shasum -a 256 "$f" | cut -d' ' -f1); else rm -f "$f"; fi
+  log "$1" "$3" "$H"
+}
+WB=https://web.archive.org/web
+collect item001 json "https://stat.ripe.net/data/routing-history/data.json?resource=129.134.30.0/23&starttime=2021-10-03&endtime=2021-10-06&sourceapp=CyberScoutsLab"
+collect item002 json "https://api.mnemonic.no/pdns/v3/a.ns.facebook.com?rrType=a&limit=100"
+collect item003 html "$WB/20211004220101id_/https://blog.cloudflare.com/october-2021-facebook-outage/"; sleep 5
+collect item004 html "https://blog.cloudflare.com/october-2021-facebook-outage/"
+collect item005 html "$WB/20211005173240id_/https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/"; sleep 5
+collect item006 html "$WB/20211004220908id_/https://www.kentik.com/analysis/facebook-suffers-global-outage/"
+collect item007 json "https://en.wikipedia.org/w/api.php?action=query&revids=1319969338&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&format=json&formatversion=2"
+(cd evidence && shasum -a 256 item0* > SHA256SUMS)
+awk -F'\\t' '{print $1, $2, substr($5, 1, 12)}' collection_log.tsv
+grep -q FAILED collection_log.tsv && { echo "STOP: a request failed - it is in the log; retry before writing"; exit 1; }
+
+# 3. Read each item for what the question needs. Every fact printed here comes from a file in evidence/.
+python3 - > facts.txt <<'PY'
+import datetime, json, re, html
+def text(i):   # a web page as plain text: scripts, styles and tags removed
+    t = open(f"evidence/{i}.html", errors="ignore").read()
+    t = re.sub(r"(?s)<(script|style).*?</\\1>", " ", t)
+    return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", t)))
+def has(i, s): return "yes" if s in text(i) else "NO"
+d = json.load(open("evidence/item001.json"))["data"]
+origins = sorted({o["origin"] for o in d["by_origin"]})
+print("item001 origins seen for 129.134.30.0/23 and everything inside it, 3-6 Oct 2021:", " ".join("AS" + o for o in origins))
+for o in d["by_origin"]:
+    for p in o["prefixes"]:
+        bin_ = [t for t in p["timelines"] if t["starttime"] <= "2021-10-04T16:00:00" <= t["endtime"]]
+        peers = round(float(bin_[0]["full_peers_seeing"])) if bin_ else 0
+        before = [t for t in p["timelines"] if t["starttime"] <= "2021-10-04T08:00:00" <= t["endtime"]]
+        b = round(float(before[0]["full_peers_seeing"])) if before else 0
+        print(f"item001 {p['prefix']:<16} peers seeing it: {b} before, {peers} in the bin 2021-10-04 16:00-23:59 UTC")
+for r in json.load(open("evidence/item002.json"))["data"]:
+    if r["rrtype"] == "a":
+        f, l = (datetime.datetime.fromtimestamp(x / 1000, datetime.timezone.utc).strftime("%Y-%m-%d") for x in (r["firstSeenTimestamp"], r["lastSeenTimestamp"]))
+        print(f"item002 {r['query']} A {r['answer']}  first seen {f}, last seen {l}")
+t3, t4 = text("item003"), text("item004")
+times = lambda t: sorted(set(re.findall(r"\\b\\d\\d:\\d\\d UTC", t)))
+print("item003 Cloudflare, archived 2021-10-04 22:01 UTC, times it states:", ", ".join(times(t3)))
+print("item004 Cloudflare, today, times only in today's version:", ", ".join(x for x in times(t4) if x not in times(t3)) or "none")
+print("item003 says 'at around 15:40 UTC we saw a peak of routing changes':", "yes" if "around 15:40 UTC we saw a peak of routing changes" in t3 else "NO")
+for i, t in (("item003", t3), ("item004", t4)):
+    m = re.search(r"as of (\\d\\d:\\d\\d UTC) Facebook appears to be reconnected", t)
+    print(f"{i} says Facebook reconnected 'as of {m.group(1) if m else 'NOT FOUND'}'" + (" - but this copy was captured at 22:01 UTC" if i == "item003" else ""))
+print("item005 Facebook says a command 'unintentionally took down all the connections':", has("item005", "unintentionally took down all the connections in our backbone network"))
+print("item005 Facebook says its DNS servers 'withdraw those BGP advertisements':", has("item005", "withdraw those BGP advertisements"))
+print("item005 Facebook says 'not by malicious activity':", has("item005", "not by malicious activity"))
+print("item006 Kentik says traffic 'virtually disappeared at 15:39 UTC':", has("item006", "virtually disappeared at 15:39 UTC"))
+w = json.load(open("evidence/item007.json"))["query"]["pages"][0]["revisions"][0]
+wt = w["slots"]["main"]["content"]
+print(f"item007 Wikipedia revision {w['revid']} saved {w['timestamp']}")
+for key in ("Cloudflare]] reported that at 15:39 UTC", "posted a blog post explaining the cause"):
+    i = wt.find(key)
+    urls = re.findall(r"\\|\\s*url=(\\S+?)\\s*[|}]", wt[i:wt.find("\\n", i)]) if i >= 0 else []
+    print(f"item007 sentence '{key.replace(']]', '')[:45]}' cites: {', '.join(urls) or 'NOT FOUND'}")
+PY
+cat facts.txt
+grep -Eq ': NO$|NOT FOUND' facts.txt && { echo "STOP: a statement the grades rely on is missing - read the item before grading"; exit 1; }
+
+# 4. Grade every claim: the source's letter, the information's number (NATO system, JDP 2-00 Table 3.1).
+#    Letters come from this course's own history with the source. Credibility 1 needs a corroborating
+#    item from a DIFFERENT origin. A claim that only repeats another claim takes that claim's grade.
+cat > grades.tsv <<'G'
+claim	item	origin	grade	corroborated_by	repeats	reason
+C1	item001	ripe-ris	B1	item003	-	RIPEstat used in S2.2 and S2.7 and matched other records; Cloudflare saw the same withdrawals independently
+C2	item001	ripe-ris	B2	-	-	only AS32934 appears; not confirmed elsewhere, consistent with every other item
+C3	item002	mnemonic	B2	-	-	mnemonic used in S2.3 and S2.7; a sighting at both ends of 2021, not a continuous record
+C4	item003	cloudflare	F1	item001	-	first use of this source in the course; its withdrawals match RIPE RIS
+C5	item005	facebook	F1	item001,item003	-	first use; its DNS servers' withdrawals are what RIS and Cloudflare saw from outside
+C6	item005	facebook	F3	-	-	first use; best placed to know the cause but not impartial (Berkeley Protocol para 180); nothing outside confirms it
+C7	item006	kentik	F2	-	-	first use; traffic loss at 15:39 fits the withdrawals but is not the same measurement
+C8	item007	facebook	F3	-	C6	Wikipedia's cause sentence cites item005: it repeats C6, so it cannot corroborate it
+C9	item007	wikipedia	F5	-	-	says Cloudflare reported 15:39; the cited Cloudflare post says around 15:40, in both versions
+C10	item003	cloudflare	F5	-	-	'as of 22:28 UTC' in a copy captured at 22:01 UTC cannot be right; today's version says 21:28
+G
+# The first draft: C6 "confirmed" by Wikipedia. It has a reason and a corroborating item, so it looks complete.
+sed 's/^C6\\titem005\\tfacebook\\tF3\\t-/C6\\titem005\\tfacebook\\tF1\\titem007/' grades.tsv > grades_draft.tsv
+cat > grade_check.py <<'PY'
+import csv, re, sys
+rows = list(csv.DictReader(open(sys.argv[1]), delimiter="\\t"))
+by_item = {}
+for r in rows: by_item.setdefault(r["item"], set()).add(r["origin"])
+bad = 0
+for r in rows:
+    c, g = r["claim"], r["grade"]
+    if not re.fullmatch(r"[A-F][1-6]", g): print(f"{c} FAIL grade {g!r} is not letter A-F + number 1-6"); bad += 1; continue
+    if not r["reason"].strip(): print(f"{c} FAIL no reason written"); bad += 1
+    if r["repeats"] != "-" and g[1] < "3": print(f"{c} FAIL repeats {r['repeats']}, so it cannot be graded above what it repeats"); bad += 1
+    if g[1] == "1":
+        cor = [x for x in r["corroborated_by"].split(",") if x != "-"]
+        if not cor: print(f"{c} FAIL graded {g} (confirmed by other sources) but names no corroborating item"); bad += 1
+        for x in cor:
+            if r["origin"] in by_item.get(x, {"?"}):
+                print(f"{c} FAIL graded {g}, but {x} comes from the same origin ({r['origin']}): circular reporting"); bad += 1
+diag = sum(1 for r in rows if re.fullmatch(r"[A-F][1-6]", r["grade"]) and "ABCDEF".index(r["grade"][0]) + 1 == int(r["grade"][1]))
+print(f"grade check: {'PASS' if bad == 0 else 'FAIL'} ({len(rows)} claims; {diag} on the diagonal A1/B2/C3...; letters and numbers are separate judgements)")
+sys.exit(1 if bad else 0)
+PY
+echo "--- the draft"; python3 grade_check.py grades_draft.tsv
+echo "--- the graded claims"; python3 grade_check.py grades.tsv || exit 1
+
+# 5. Analysis of competing hypotheses (Heuer, ch. 8): C consistent, I inconsistent, N not applicable.
+cat > ach.tsv <<'A'
+claim	H1	H2	H3	H4	what the claim says
+C1	C	I	C	I	the /24s holding Facebook's DNS servers vanished from RIPE RIS in the 16:00-23:59 bin
+C2	C	I	C	N	only Facebook's own network, AS32934, originated these prefixes 3-6 October
+C3	C	C	C	I	a.ns.facebook.com is 129.134.30.12, inside Facebook's own prefix, sighted either side of the outage
+C4	C	I	C	I	Cloudflare saw Facebook withdraw routes at around 15:40 UTC
+C5	C	I	C	I	Facebook: its DNS servers withdrew their own BGP advertisements
+C6	C	I	I	I	Facebook: a maintenance command did it, "not by malicious activity"
+C7	C	C	C	C	Kentik: traffic to Facebook virtually disappeared at 15:39 UTC
+A
+# The first draft adds Wikipedia's cause sentence as its own row: one source, counted twice.
+{ cat ach.tsv; printf 'C8\\tC\\tI\\tI\\tI\\tWikipedia: the outage was caused by a backbone command\\n'; } > ach_draft.tsv
+cat > ach.py <<'PY'
+import csv, sys
+grades = {r["claim"]: r for r in csv.DictReader(open("grades.tsv"), delimiter="\\t")}
+reader = csv.DictReader(open(sys.argv[1]), delimiter="\\t")
+rows = list(reader)
+H = [c for c in reader.fieldnames if c[0] == "H" and c[1:].isdigit()]    # every hypothesis column
+seen, bad = {}, 0
+for r in rows:
+    g = grades.get(r["claim"])
+    if not g: print(f"{r['claim']} FAIL not graded - grade it before it enters the matrix"); bad += 1; continue
+    if g["repeats"] != "-": print(f"{r['claim']} FAIL repeats {g['repeats']}: one source counted twice (circular reporting)"); bad += 1
+    if g["grade"][1] in "56": print(f"{r['claim']} FAIL graded {g['grade']}: improbable or unjudgeable claims do not vote"); bad += 1
+if bad: print(f"ACH: FAIL - fix the matrix first ({bad})"); sys.exit(1)
+print("claim grade  " + "  ".join(H) + "   diagnostic?")
+for r in rows:
+    marks = [r[h] for h in H]
+    print(f"{r['claim']:<5} {grades[r['claim']]['grade']:<5}  " + "   ".join(marks) + ("   no - same for every hypothesis" if len(set(marks)) == 1 else ""))
+inc = {h: [r["claim"] for r in rows if r[h] == "I"] for h in H}
+print("inconsistent items (fewest is probably most likely):", "  ".join(f"{h}={len(inc[h])}" for h in H))
+rank = sorted(H, key=lambda h: len(inc[h]))
+a, b = rank[0], rank[1]
+sep = [r["claim"] for r in rows if r[a] != r[b]]
+if not sep:
+    print(f"TIE: nothing in the matrix separates {a} from {b} - it cannot choose between them")
+else:
+    print(f"{a} and {b} are separated only by: {', '.join(sep)}")
+weak = [c for c in sep if grades[c]["grade"][1] >= "3"]
+if sep and len(weak) == len(sep):
+    print(f"SENSITIVE: every item separating {a} from {b} is unconfirmed ({', '.join(c + ' ' + grades[c]['grade'] for c in weak)})")
+PY
+echo "--- the draft matrix"; python3 ach.py ach_draft.tsv
+echo "--- the matrix"; python3 ach.py ach.tsv || exit 1
+
+# 6. The report: graded findings, the rejected hypotheses by name, likelihood and confidence
+#    in separate sentences (S1.7), and what to watch for next.
+cat > report.md <<REPORT
+# S3.1 - What made Facebook's DNS servers unreachable on 4 October 2021?
+
+Analyst: $ANALYST. Collection log: collection_log.tsv. Evidence hashes: evidence/SHA256SUMS.
+Grades: grades.tsv (NATO system, JDP 2-00 Table 3.1). Matrix: ach.tsv.
+
+## Findings
+F1 {B1} [item001] The /24s holding Facebook's DNS servers were seen by 0 RIPE RIS peers in the bin 2021-10-04 16:00-23:59 UTC, down from about 340; the covering /17 stayed visible.
+F2 {B2} [item001] Only AS32934, Facebook's own network, originated these prefixes between 3 and 6 October.
+F3 {B2} [item002] a.ns.facebook.com has resolved to 129.134.30.12, inside the first of those /24s, in sightings from before and after the outage.
+F4 {F1} [item003] Cloudflare saw a peak of routing changes from Facebook at around 15:40 UTC, and facebook.com unavailable on 1.1.1.1 from around 15:50 to 21:20 UTC.
+F5 {F1} [item005] Facebook says its DNS servers withdrew their own BGP advertisements when they lost contact with its data centres.
+F6 {F3} [item005] Facebook says a maintenance command took down its backbone, and that the outage was "not by malicious activity".
+F7 {F2} [item006] Kentik says traffic to Facebook virtually disappeared at 15:39 UTC.
+
+## Sources not relied on
+F8 {F3} [item007] Wikipedia's cause sentence cites Facebook's post (F6). It repeats F6 and does not corroborate it.
+F9 {F5} [item007] Wikipedia says Cloudflare reported 15:39 UTC. Cloudflare's post says around 15:40, in the 2021 copy and today; 15:39 is Kentik's traffic figure.
+F10 {F5} [item003] The 2021 copy of Cloudflare's post says Facebook was reconnected "as of 22:28 UTC", but the copy was captured at 22:01 UTC. Today's version says 21:28 (item004).
+
+## Gaps and limits
+RIPEstat's routing history comes in 8-hour bins, so it dates the loss to the bin, not the minute. The pinpoint times are Cloudflare's and Kentik's. No source outside Facebook shows what happened inside its network.
+
+## Assessment
+It is almost certain that the routes to Facebook's DNS servers were withdrawn from inside Facebook's own network, and not hijacked by another network or lost by an outside DNS provider (F1, F2, F3, F4).
+It is likely that the withdrawal followed Facebook's own maintenance error rather than an intruder (F5, F6).
+Analytical confidence: moderate. The routing evidence is independent and consistent, but the only item separating an error from an intruder is Facebook's own, unconfirmed account (F6).
+Rejected: H2 (hijack) and H4 (outside DNS provider), each inconsistent with five graded items. Still open: H3 (intruder), inconsistent only with F6.
+
+## Milestones
+Would change this assessment: an independent investigation or regulator's finding on the cause; a later disclosure of unauthorised access to Facebook's network in October 2021.
+REPORT
+
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}
+[ -f "$R" ] && [ -f collection_log.tsv ] && [ -f grades.tsv ] || { echo "UNKNOWN: report, collection log or grades.tsv missing"; exit 2; }
+bad=0; n=0
+while IFS= read -r line; do
+  F=$(printf '%s' "$line" | awk '{print $1}'); n=$((n + 1))
+  g=$(printf '%s' "$line" | sed -n 's/^F[0-9]* {\\([A-F][1-6]\\)}.*/\\1/p')
+  [ -z "$g" ] && { echo "$F FAIL no grade"; bad=$((bad + 1)); continue; }
+  ids=$(printf '%s' "$line" | grep -o '\\[item[0-9]*\\]' | tr -d '[]')
+  [ -z "$ids" ] && { echo "$F FAIL cites no item"; bad=$((bad + 1)); continue; }
+  for id in $ids; do
+    h=$(awk -F'\\t' -v i="$id" '$1 == i {print $5}' collection_log.tsv)
+    f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+    if [ -z "$h" ]; then echo "$F FAIL $id not in the log"; bad=$((bad + 1))
+    elif [ "$h" = FAILED ] || [ -z "$f" ]; then echo "$F FAIL $id was not collected"; bad=$((bad + 1))
+    elif [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "$F FAIL $id hash differs from log"; bad=$((bad + 1))
+    elif ! awk -F'\\t' -v i="$id" -v g="$g" '$2 == i && $4 == g {ok = 1} END {exit !ok}' grades.tsv; then
+      echo "$F FAIL grade $g is not a grade grades.tsv gives $id"; bad=$((bad + 1))
+    fi
+  done
+done < <(grep -E '^F[0-9]+ ' "$R")
+J=$(awk '/^## Assessment/ {a = 1; next} /^## / {a = 0} a && /^It is/' "$R")
+[ -z "$J" ] && { echo "UNKNOWN: no judgement found under ## Assessment"; exit 2; }
+for F in $(printf '%s\\n' "$J" | grep -o 'F[0-9][0-9]*' | sort -u); do
+  g=$(grep -E "^$F " "$R" | sed -n 's/^F[0-9]* {\\([A-F][1-6]\\)}.*/\\1/p')
+  sec=$(awk -v f="$F" '/^## / {s = $0} $1 == f {print s}' "$R")
+  [ -z "$g" ] && { echo "Assessment FAIL cites $F, which is not a finding"; bad=$((bad + 1)); continue; }
+  [ "$sec" != "## Findings" ] && { echo "Assessment FAIL cites $F, a source not relied on"; bad=$((bad + 1)); }
+done
+printf '%s\\n' "$J" | grep -q 'F[0-9][0-9]*' || { echo "Assessment FAIL cites no findings"; bad=$((bad + 1)); }
+grep -q '^Rejected:' "$R" || { echo "Assessment FAIL does not name the rejected hypotheses"; bad=$((bad + 1)); }
+grep -q '^## Milestones' "$R" || { echo "FAIL no Milestones section (Heuer step 8)"; bad=$((bad + 1)); }
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n graded findings)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 7. Seal the case folder and verify the seal.
+shasum -a 256 scope.txt collection_log.tsv evidence/SHA256SUMS grades.tsv ach.tsv report.md check_report.sh > SEAL.sha256
+shasum -a 256 SEAL.sha256
+shasum -a 256 -c SEAL.sha256 && (cd evidence && shasum -a 256 -c SHA256SUMS)`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab's checks are a bash script and three Python scripts that read tab-separated files.
+# A PowerShell port would be a different program, and this module has not run one. A lab whose
+# documented result has not been seen to happen is not taught here. WSL runs the same code as Linux.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s3_1 inside Ubuntu. The drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in collect(), inside the check_report.sh heredoc, and in steps 2 and 7.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl and python3 3.9 or later (Level 2 already uses both). No jq or dig in this lab.
+# Everything else (awk, sed, grep, the three Python scripts) behaves the same.`,
+      expected: {
+        mac: `\`\`\`text
+item001 2026-09-28T16:10:47Z ec5b3cbc225a
+item002 2026-09-28T16:10:49Z 58911abdb0da
+item003 2026-09-28T16:10:52Z d1aee18a43a6
+item004 2026-09-28T16:11:02Z 1609dc69d17e
+item005 2026-09-28T16:11:05Z 522d3f5a3e5d
+item006 2026-09-28T16:11:13Z b246bc07d1ba
+item007 2026-09-28T16:11:14Z 2deb8d8d2ac7
+item001 origins seen for 129.134.30.0/23 and everything inside it, 3-6 Oct 2021: AS32934
+item001 129.134.0.0/17   peers seeing it: 341 before, 341 in the bin 2021-10-04 16:00-23:59 UTC
+item001 129.134.30.0/23  peers seeing it: 342 before, 31 in the bin 2021-10-04 16:00-23:59 UTC
+item001 129.134.30.0/24  peers seeing it: 341 before, 0 in the bin 2021-10-04 16:00-23:59 UTC
+item001 129.134.31.0/24  peers seeing it: 342 before, 0 in the bin 2021-10-04 16:00-23:59 UTC
+item002 a.ns.facebook.com A 129.134.30.12  first seen 2020-03-05, last seen 2026-09-13
+item002 a.ns.facebook.com A 69.171.239.12  first seen 2017-01-29, last seen 2020-03-06
+item003 Cloudflare, archived 2021-10-04 22:01 UTC, times it states: 15:40 UTC, 15:45 UTC, 15:50 UTC, 16:45 UTC, 21:00 UTC, 21:17 UTC, 21:20 UTC, 22:28 UTC
+item004 Cloudflare, today, times only in today's version: 15:51 UTC, 15:58 UTC, 21:28 UTC
+item003 says 'at around 15:40 UTC we saw a peak of routing changes': yes
+item003 says Facebook reconnected 'as of 22:28 UTC' - but this copy was captured at 22:01 UTC
+item004 says Facebook reconnected 'as of 21:28 UTC'
+item005 Facebook says a command 'unintentionally took down all the connections': yes
+item005 Facebook says its DNS servers 'withdraw those BGP advertisements': yes
+item005 Facebook says 'not by malicious activity': yes
+item006 Kentik says traffic 'virtually disappeared at 15:39 UTC': yes
+item007 Wikipedia revision 1319969338 saved 2025-11-02T00:20:01Z
+item007 sentence 'Cloudflare reported that at 15:39 UTC' cites: https://blog.cloudflare.com/october-2021-facebook-outage/
+item007 sentence 'posted a blog post explaining the cause' cites: https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/
+--- the draft
+C6 FAIL graded F1, but item007 comes from the same origin (facebook): circular reporting
+grade check: FAIL (10 claims; 2 on the diagonal A1/B2/C3...; letters and numbers are separate judgements)
+--- the graded claims
+grade check: PASS (10 claims; 2 on the diagonal A1/B2/C3...; letters and numbers are separate judgements)
+--- the draft matrix
+C8 FAIL repeats C6: one source counted twice (circular reporting)
+ACH: FAIL - fix the matrix first (1)
+--- the matrix
+claim grade  H1  H2  H3  H4   diagnostic?
+C1    B1     C   I   C   I
+C2    B2     C   I   C   N
+C3    B2     C   C   C   I
+C4    F1     C   I   C   I
+C5    F1     C   I   C   I
+C6    F3     C   I   I   I
+C7    F2     C   C   C   C   no - same for every hypothesis
+inconsistent items (fewest is probably most likely): H1=0  H2=5  H3=1  H4=5
+H1 and H3 are separated only by: C6
+SENSITIVE: every item separating H1 from H3 is unconfirmed (C6 F3)
+report check: PASS (10 graded findings)
+18689c1cdce8e3acc1ebe7b12adf8dfefe2903da678c1a7f4cf9b4ac5f574946  SEAL.sha256
+scope.txt: OK
+…  (every sealed file and every evidence item: OK)
+item007.json: OK
+\`\`\`
+
+That is the run on 28 September 2026. What will differ on yours, and why:
+
+- **item001's hash, and so the seal.** RIPEstat stamps every reply with the time, the server that answered and how long it took (\`time\`, \`server_id\`, \`process_time\`), so the routing file is new every run even though the 2021 routing history inside it is not. Items 003, 005, 006 and 007 are fixed copies (Wayback captures and a pinned Wikipedia revision), so their hashes should match these. Item004 is Cloudflare's live page and item002 is passive DNS, and either can change at any time.
+- **The passive DNS "last seen" date.** 129.134.30.12's row is still open, so its last-seen date keeps moving. Its first-seen date (2020-03-05) and the closed row for 69.171.239.12 should match.
+
+What should not change in character: 0 peers for both /24s in the 16:00-23:59 bin while the /17 stays at about 341; only AS32934; \`22:28\` in the 2021 copy against \`21:28\` today; the draft failing on C6 and C8; H1=0 and H3=1 separated only by C6; and \`report check: PASS\`. If a statement the grades rely on has gone, the lab prints a \`STOP\` line and writes nothing further. Read the item: when a source changes, the grades have to change with it.`
+      }
+    },
+    caseStudy: {
+      title: "Curveball, 2002 — four sources that looked like corroboration, one fabricator, and a judgement that rested on him",
+      body: `**What happened.** In October 2002 a US National Intelligence Estimate (NIE) judged that Iraq had mobile facilities for producing biological weapons. The Commission on the Intelligence Capabilities of the United States Regarding Weapons of Mass Destruction examined how that judgement was reached. Its report to the President, dated 31 March 2005, is the source for everything below. The Commission found: "Virtually all of the Intelligence Community's information on Iraq's alleged mobile biological weapons facilities was supplied by a source, codenamed 'Curveball,' who was a fabricator."
+
+The judgement did not look like it rested on one person at the time. The report says: "reporting from three other human sources--who provided one report each on mobile BW facilities--was thought to have corroborated Curveball's information". Then it adds: "These three sources also proved problematic".
+
+**Three "corroborating" sources, graded afterwards.**
+
+- *The second source* made one report in June 2001, and "recanted in October 2003". The Commission found that his report was never recalled or corrected.
+- *The INC source* was judged a fabricator by a foreign liaison service and by the CIA's Directorate of Operations. A fabrication notice was issued in May 2002. His information "began to be used again in finished intelligence in July 2002, including the October 2002 NIE", because the reporting had not been recalled.
+- *The fourth source* provided "a single report". The classified version of the report discusses this source in more detail.
+
+Four sources that look independent become one source and three weak ones once each is graded. And one of them had already been graded a fabricator, but that grade never reached the people who later used his reporting.
+
+**The argument about corroboration.** Before the war, analysts disagreed about Curveball. According to the report, an analyst from WINPAC, the Weapons Intelligence, Non-Proliferation, and Arms Control Center, argued that "Curveball's information was reliable because it was detailed, technically accurate, and corroborated by another source's reporting". A group chief in the CIA's Directorate of Operations, "responsible for the liaison country's region", argued "that the supposedly corroborating information was of dubious significance because it merely established that Curveball had been to the location, not that he had any knowledge of BW activities being conducted there". She also "questioned whether some of Curveball's knowledge could have come from readily available, open source materials".
+
+**Read it through this module.**
+
+- *Diagnosticity.* The group chief's objection is Heuer's high temperature. Evidence that Curveball had been at the site fits *he knows what happened there* and also *he was there and invented the rest*. It confirms a detail and decides nothing. It was counted as corroboration anyway.
+- *Detail is not credibility.* "Detailed" and "technically accurate" were given as reasons to believe him. The group chief's question shows why detail is weak evidence: a fabricator with access to open sources can be detailed too. The Berkeley Protocol's point about specificity (para 181) is that precise claims are *easier to test*. It does not say they are more likely to be true.
+- *The letter came from nowhere.* The report calls it "a damning comment" that the NIE did not make clear "how heavily it relied on a single source that no American intelligence officer had ever met, and about whose reliability several intelligence professionals had expressed serious concern". In NATO terms, the source's reliability could not be judged: an F. The information was graded as if the source were an A or B.
+- *Grades must travel with the claim, and be reviewed.* The INC source's reporting came back after a fabrication notice because nobody recalled it. The Commission's remedy was "a uniform requirement to reissue or recall reporting from a source whose information turns out to be fabricated". The lab's \`grades.tsv\` sits next to the report for the same reason, inside the seal. Only in May 2004, the report notes, did the CIA "formally deem Curveball's reporting fabricated and recall it."
+
+**What this case does not show.** The report is about how analysts handled human sources inside intelligence agencies. It is not an open-source investigation, and nothing in it involves the web. It is here because the failure has the same shape as the one this module's lab checks for: a claim counted as confirmed by items that were not independent, or not diagnostic. The report also describes much else, including disputes over other weapons programmes and how the agencies were organised. This case uses only the Iraq chapter's account, in its section on biological weapons, of Curveball and the three other sources.`
+    },
+    challenges: [{
+      q: `A colleague grades a claim from a well-known newspaper "A1", explaining: "It's a major paper, and three other sites say the same thing." What questions do you ask before accepting either half of that grade?`,
+      a: `Take the halves separately, as JDP 2-00 requires. For the letter: what is *your* record with this source? JDP 2-00 says an organisation's reliability rests on its reporting history, "in terms of accuracy and correlation with other sources over time". Being famous is not a track record. If you have never used it and checked it, the honest letter is F, and F does not mean worthless. For the number: are the three other sites independent? Open them and see where their claim comes from. If they quote the newspaper, or a wire story the newspaper also used, they are circular reporting (JDP 2-00's footnote 53) and the claim is not "confirmed by other sources". The APP puts the test in one sentence: corroboration must be "independent and not from the same original source". Finally, check the grade against the claim itself. A number grades one piece of information, not the whole article.`
+    }, {
+      q: `Your ACH matrix has ten items. Eight are consistent with every hypothesis, and your favourite hypothesis has the most "consistent" marks. A teammate says the matrix proves your case. What do you say?`,
+      a: `That the eight items prove nothing. Evidence consistent with every hypothesis has no diagnostic value: it is Heuer's high temperature, which shows the patient is ill but not what the illness is. Step 4 says to reconsider such items and delete the ones with no diagnostic value. Counting agreements is the trap Heuer warns about, because "a long list of evidence that is consistent with almost any reasonable hypothesis can be easily made". Count the *inconsistent* items instead. Then do step 6: look at the two items that remain. How are they graded? If either is unconfirmed, or from a source that is not impartial, the conclusion is sensitive to it, and the report has to say so. That is what the lab's SENSITIVE line does with C6.`
+    }, {
+      q: `You are summarising an incident for a report and find a clear timeline on an encyclopedia page, with a citation for every time. Can you cite the encyclopedia? What do you do instead?`,
+      a: `Use it to find sources, not as one. Follow each citation to the page it names, and to the version it names: the Wayback capture in the reference, if there is one. Then check that the page says what the summary says. In the lab, Wikipedia says "Cloudflare reported" 15:39. Cloudflare's post says around 15:40, and 15:39 is Kentik's traffic figure. In Drill 2, the same revision gives two different recovery times, and neither matches its source to the minute. When the check passes, cite the original source, with the version you read. When it fails, the summary's claim goes under "Sources not relied on", graded as what it is (F5 in the lab). The encyclopedia is a map. It is not a witness.`
+    }],
+    quiz: ["What do the letter and the number in a NATO grade such as B2 each describe, and why does JDP 2-00 insist they are judged separately?", "Why does the lab give Cloudflare, Facebook, Kentik and Wikipedia an F, and what does JDP 2-00 say an F6 grade does not mean?", "Under the UK police 3x5x2 system, what does the letter B mean? How is that different from a B in the NATO system, and what should you write next to every grade because of it?", "Define circular reporting in JDP 2-00's words, and explain why the draft's grade of F1 for C6 fails the lab's grade check.", "What is a diagnostic item in Heuer's sense? Which item in the lab's matrix is not diagnostic, and what does Heuer's step 4 say to do with items like it?", "Why does Heuer count the inconsistent items rather than the consistent ones?", "Which single item separates H1 from H3, how is it graded, and how does that change the likelihood and confidence the report gives?", "The 2021 copy of Cloudflare's post says Facebook was back \"as of 22:28 UTC\". How do you know that is wrong without any other source, and what does it teach about citing web pages?"],
+    workbench: `> **What this trains.** The lab graded each claim and let four hypotheses compete. Here you date a correction to a source, check a summary against the pages it cites, and test how much the lab's conclusion depends on one item and on the hypotheses you thought of.
+
+#### 🟢 Drill 1 — which version did you read? ~4 min
+
+**Goal.** The lab's copy of Cloudflare's post (item003, captured at 22:01 UTC) says Facebook was back "as of 22:28 UTC": a time after the capture. Today's version says 21:28. Find when the page changed, using the archive's own list of captures (S2.1), without fetching all of them.
+
+**Done when.** You can name the last capture that says 22:28 and the first that says 21:28, and you have checked that item003 falls between them.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_1 || exit 1
+# One request: every capture from the first week whose content differs from the one before.
+curl -sf --retry 3 --retry-all-errors -m 120 -A "CyberScoutsLab/1.0" \\
+  "https://web.archive.org/cdx/search/cdx?url=blog.cloudflare.com/october-2021-facebook-outage/&from=20211004&to=20211010&filter=statuscode:200&collapse=digest&fl=timestamp" > cf_captures.txt
+wc -l < cf_captures.txt
+cat > which_version.py <<'PY'
+import re, subprocess, time
+ts = [l.strip() for l in open("cf_captures.txt") if l.strip()]
+def says(t):   # the time in "as of HH:MM UTC Facebook appears to be reconnected", or "absent"
+    for _ in range(4):
+        r = subprocess.run(["curl", "-sfL", "--compressed", "-m", "90", "-A", "CyberScoutsLab/1.0",
+            f"https://web.archive.org/web/{t}id_/https://blog.cloudflare.com/october-2021-facebook-outage/"], capture_output=True)
+        if r.returncode == 0:
+            m = re.search(r"as of (\\d\\d:\\d\\d) UTC Facebook appears", r.stdout.decode("utf-8", "ignore"))
+            return m.group(1) if m else "absent"
+        time.sleep(5)
+    return "UNKNOWN"
+# Binary search: once the page says 21:28 it keeps saying it, so halve the list each time.
+lo, hi = 0, len(ts) - 1
+print(ts[lo], says(ts[lo]), "|", ts[hi], says(ts[hi]))
+while hi - lo > 1:
+    mid = (lo + hi) // 2
+    v = says(ts[mid]); print("  probe", ts[mid], v); time.sleep(3)
+    if v == "UNKNOWN": print("STOP: a capture did not load - rerun"); raise SystemExit(1)
+    if v == "21:28": hi = mid
+    else: lo = mid
+print("last capture before the change:", ts[lo], says(ts[lo]))
+print("first capture saying 21:28:    ", ts[hi])
+PY
+python3 which_version.py
+\`\`\`
+
+One request for the list (221 captures when this module was written) and ten for the pages. On 28 September 2026 it printed:
+
+\`\`\`text
+     221
+20211004211740 absent | 20211010201046 21:28
+  probe 20211005105019 21:28
+  probe 20211005040547 21:28
+  probe 20211005002147 21:28
+  probe 20211004225816 21:28
+  probe 20211004220322 22:28
+  probe 20211004224206 21:28
+  probe 20211004220540 22:28
+  probe 20211004221850 21:28
+last capture before the change: 20211004220540 22:28
+first capture saying 21:28:     20211004221850
+\`\`\`
+
+The page changed between 22:05:40 and 22:18:50 UTC on 4 October 2021. The first capture, at 21:17, has no "as of" sentence at all: that paragraph was added later. So the post existed in at least three versions on its first evening. Item003 was captured at 22:01, inside the short window when it said 22:28.
+
+Two lessons. First, a claim about a web page needs the *version*: "Cloudflare said 22:28" and "Cloudflare said 21:28" are both true, of different captures. The lab's report cites item003 and item004 separately for that reason. Second, internal checking (JDP 2-00 para 3.39b) caught the error before any archive did: a page captured at 22:01 cannot know what happened at 22:28.
+
+The binary search assumes that once the page said 21:28 it never went back. If the result looks wrong, check the captures on either side of the change by hand.
+</details>
+
+#### 🟡 Drill 2 — does the summary say what its sources say? ~6 min
+
+**Goal.** The lab found one time in the Wikipedia revision that its cited source does not carry: 15:39. Do the same check for every time in the article, automatically. For each paragraph that gives a time in UTC, fetch the archived copies of the pages it cites and report which of them carry that time. US news sites write US Eastern time, and British ones British Summer Time, so check those too.
+
+**Done when.** You have a list of times with the cited page that carries each one, or \`NONE\`, and you have read the article around every \`NONE\` before deciding what it means.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_1 || exit 1
+cat > cited_times.py <<'PY'
+import json, re, subprocess, time
+w = json.load(open("evidence/item007.json"))["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"]
+# A reference defined once with a name can be reused later as <ref name="x" />.
+defs = {m.group(1).strip(): m.group(2) for m in re.finditer(r'<ref name="?([^">/]+?)"?\\s*>(.*?)</ref>', w, re.S)}
+def cited(par):   # the archived copy of each page a paragraph cites (the live URL if there is none)
+    out = []
+    for m in re.finditer(r'<ref(?: name="?([^">/]+?)"?)?\\s*(/>|>(.*?)</ref>)', par, re.S):
+        body = m.group(3) if m.group(3) is not None else defs.get((m.group(1) or "").strip(), "")
+        u = re.search(r'archive-url\\s*=\\s*(\\S+?)\\s*[|}]', body) or re.search(r'\\burl\\s*=\\s*(\\S+?)\\s*[|}]', body)
+        if u and u.group(1) not in out: out.append(u.group(1))
+    return out
+def page(u):
+    u = re.sub(r"(web\\.archive\\.org/web/\\d+)/", r"\\1id_/", u)          # the archived page itself, no banner
+    for _ in range(3):
+        r = subprocess.run(["curl", "-sfL", "--compressed", "-m", "90", "-A", "CyberScoutsLab/1.0", u], capture_output=True)
+        if r.returncode == 0: return re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", r.stdout.decode("utf-8", "ignore")))
+        time.sleep(5)
+    return None
+def local(t, off):   # 4 October 2021: US Eastern time was UTC-4, British Summer Time UTC+1
+    h, m = map(int, t.split(":")); h = (h + off) % 24
+    return [f"{h % 12 or 12}:{m:02d}", f"{h:02d}:{m:02d}"]
+for par in w.split("\\n"):
+    text = re.sub(r"<ref.*?(</ref>|/>)", "", par, flags=re.S)
+    plain = re.sub(r"\\[\\[|\\]\\]", "", text)
+    times = sorted(set(re.findall(r"\\b(\\d\\d:\\d\\d) UTC", plain)))
+    if not times: continue
+    urls = cited(par)
+    print("\\nparagraph: " + plain[:80] + "...")
+    pages = {u: page(u) for u in urls}
+    for t in times:
+        where = []
+        for u, p in pages.items():
+            short = re.sub(r"https?://(web\\.archive\\.org/web/\\d+/)?(https?://)?(www\\.)?", "", u)[:40]
+            if p is None: where.append(f"{short}=UNKNOWN")
+            elif t + " UTC" in p or t + " GMT" in p: where.append(f"{short}=UTC")
+            elif any(re.search(r"\\b" + re.escape(x) + r"\\s*(a\\.?m\\.?|p\\.?m\\.?)?\\s*(ET|EDT|Eastern)", p, re.I) for x in local(t, -4)): where.append(f"{short}=as ET")
+            elif any(re.search(r"\\b" + re.escape(x) + r"\\s*(a\\.?m\\.?|p\\.?m\\.?)?\\s*BST", p, re.I) for x in local(t, 1)): where.append(f"{short}=as BST")
+        print(f"  {t} UTC found in: {', '.join(where) or 'NONE of the ' + str(len(urls)) + ' cited pages'}")
+PY
+python3 cited_times.py
+\`\`\`
+
+On 28 September 2026 it printed:
+
+\`\`\`text
+paragraph: On October 4, 2021, at 15:39 UTC, the social network Facebook and its subsidiari...
+  15:39 UTC found in: kentik.com/blog/facebooks-historic-outag=UTC
+
+paragraph: During the outage, many users flocked to Twitter, Discord, Signal (software)|Sig...
+  22:05 UTC found in: NONE of the 5 cited pages
+
+paragraph: Cloudflare reported that at 15:39 UTC, Facebook made a significant number of BGP...
+  15:39 UTC found in: NONE of the 1 cited pages
+  15:50 UTC found in: blog.cloudflare.com/october-2021-faceboo=UTC
+  21:00 UTC found in: blog.cloudflare.com/october-2021-faceboo=UTC
+  21:05 UTC found in: NONE of the 1 cited pages
+
+paragraph: Facebook gradually returned after a team got access to server computers at the S...
+  22:45 UTC found in: NONE of the 1 cited pages
+\`\`\`
+
+Your run should match these times and \`NONE\` lines, because the revision and the archived pages are fixed copies. Now read the article, because a script's \`NONE\` is a lead, not a finding. It can mean the page states the time in words the script does not recognise, or in a time zone it does not check.
+
+Here, reading turns two of the \`NONE\`s into something more useful. The article says two different things about recovery. One paragraph says routing "was restored for the affected prefixes at about 21:50, and DNS services began to be available again at 22:05 UTC". Another says "A little before 21:00 UTC, Facebook resumed announcing BGP updates, with Facebook's domain name becoming resolvable again at 21:05 UTC". Cloudflare, which the second sentence cites, gives around 21:00 for the renewed BGP activity, a peak at 21:17, and 21:20 for facebook.com resolving again on 1.1.1.1. The summary contradicts itself, and neither version matches its cited source to the minute. Neither is corroboration of anything. The last \`NONE\`, 22:45, cites a BBC article whose archived copy states no time in UTC, GMT, BST or US Eastern: open it and read before deciding what it supports.
+
+What to take away: in a report, quote Cloudflare's times and cite Cloudflare. If an encyclopedia led you to a source, cite that source, not the encyclopedia.
+</details>
+
+#### 🔴 Drill 3 — how much does the conclusion lean on one item, and on your list of hypotheses? ~5 min
+
+**Goal.** Heuer's step 6 asks how sensitive the conclusion is to a few critical items. Step 1 asks whether you thought of every reasonable hypothesis. Test both on the lab's matrix, with no new requests.
+
+**Done when.** You have seen the matrix tie when C6 is removed, and seen that one more hypothesis also rests on C6 alone.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_1 || exit 1
+echo "--- step 6: suppose Facebook's statement (C6) were wrong or misleading"
+grep -v '^C6' ach.tsv > ach_noC6.tsv && python3 ach.py ach_noC6.tsv | tail -2
+echo "--- step 1: a hypothesis nobody wrote down - H5, Facebook took itself offline on purpose"
+# H5 fits every routing item (C) and conflicts only with Facebook's word "unintentionally" (C6).
+awk -F'\\t' -v OFS='\\t' 'NR == 1 {print $1, $2, $3, $4, $5, "H5", $6; next}
+  {print $1, $2, $3, $4, $5, ($1 == "C6" ? "I" : "C"), $6}' ach.tsv > ach_h5.tsv
+python3 ach.py ach_h5.tsv | tail -3
+awk -F'\\t' 'NR > 1 && $6 == "I" {print "items against H5:", $1}' ach_h5.tsv
+\`\`\`
+
+It prints:
+
+\`\`\`text
+--- step 6: suppose Facebook's statement (C6) were wrong or misleading
+inconsistent items (fewest is probably most likely): H1=0  H2=4  H3=0  H4=4
+TIE: nothing in the matrix separates H1 from H3 - it cannot choose between them
+--- step 1: a hypothesis nobody wrote down - H5, Facebook took itself offline on purpose
+inconsistent items (fewest is probably most likely): H1=0  H2=5  H3=1  H4=5  H5=1
+H1 and H3 are separated only by: C6
+SENSITIVE: every item separating H1 from H3 is unconfirmed (C6 F3)
+items against H5: C6
+\`\`\`
+
+Without C6, the matrix cannot tell a mistake from an intruder. Add a third hypothesis, a deliberate shutdown, and it stands exactly where the intruder does: ruled out only by Facebook's own word. Everything outside Facebook narrows the question to "something inside Facebook's network withdrew the routes". Only Facebook says *what*.
+
+This is why the report says "likely" and "moderate", not "almost certain" and "high". It is also why the report names its milestones: an independent finding about the cause would be the first item graded 1 that separates these hypotheses. A report that had never listed H3 or H5 would look more certain, and would be less honest. Heuer's step 1 exists for this: the hypotheses you never write down are never tested.
+</details>`,
+    tracker: ["Wrote the question and all four hypotheses into the scope before the first request", "Ran the lab: seven items logged and hashed, grade check and ACH run, report PASS, seal verified", "Can explain the NATO letter and number, why they are separate, and why F is not an insult", "Can explain why the draft's C6 grade and the draft matrix's C8 row both fail: one source counted twice", "Dated the Cloudflare correction between two archive captures (Drill 1)", "Checked a summary's times against its cited pages, and read the article behind every NONE (Drill 2)", "Saw the matrix tie without C6, and saw a fifth hypothesis rest on C6 alone (Drill 3)"]
   }]
 };
 
