@@ -1251,6 +1251,10 @@ TOPIC_ANCHORS = {
         "3x5x2": ["S3.1"],
         "circular reporting": ["S3.1"],
         "competing hypotheses": ["S3.1"],
+        "known-answer test": ["S3.2"],
+        "payload digest": ["S2.1", "S3.2"],
+        "rfc 3161": ["S3.2"],
+        "time-stamping authority": ["S3.2"],
     },
 }
 
@@ -1397,6 +1401,13 @@ def is_probeable(u: str) -> bool:
     return "." in host and len(host) > 3  # needs a real dotted hostname
 
 
+TSA_ENDPOINTS = ("https://freetsa.org/tsr",)  # probed with TSA_EMPTY_QUERY, see check_urls
+TSA_EMPTY_QUERY = (  # `openssl ts -query -data <empty file> -sha256 -no_nonce`, DER hex
+    "30360201013031300d060960864801650304020105000420"
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
+
+
 GITHUB_PAGES_IPS = ("185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153")
 
 
@@ -1438,8 +1449,16 @@ def check_urls(sources):
         # so probe that instead — still a real liveness check, not an exemption.
         target = u + "help" if re.match(r"https://rdap\.[^/]+/(?:.*/)?$", u) else u
         req = urllib.request.Request(target, headers={"User-Agent": "cyber-materials-guardrail"})
+        # An RFC 3161 TSA endpoint answers only POSTed timestamp queries: a GET is refused
+        # (403 at freetsa.org), which says nothing. Send the smallest real query instead,
+        # the SHA-256 of empty input with no nonce, and require a timestamp-reply back.
+        if u in TSA_ENDPOINTS:
+            req = urllib.request.Request(target, data=bytes.fromhex(TSA_EMPTY_QUERY), headers={
+                "User-Agent": "cyber-materials-guardrail", "Content-Type": "application/timestamp-query"})
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
+                if u in TSA_ENDPOINTS and r.headers.get("Content-Type") != "application/timestamp-reply":
+                    return u, "ERR not a timestamp-reply"
                 return u, r.status
         except urllib.error.HTTPError as e:
             return u, e.code

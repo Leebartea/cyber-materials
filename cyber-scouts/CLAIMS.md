@@ -775,3 +775,41 @@ Defects caught in the S3.1 build pass (none shipped):
 - **Theory draft called Cloudflare "new to this course"**; S2.7 uses a Cloudflare address as its control.
   Now "not used as a source".
 - **The lab had no STOP when a statement the grades rely on vanished from a source**; added.
+
+## Batch 16 — S3.2 Preservation and tool validation: is the capture what the tool says it is?
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 346 | S3.2 | WARC/1.0 = ISO 28500:2009, WARC/1.1 = ISO 28500:2017; IIPC publishes the text of both | `SOURCED` | IIPC warc-specifications (2026-09-28) | 2028-09 |
+| 347 | S3.2 | WARC borrows "entity-body" from RFC 2616; RFC 2616: entity-body "is obtained from the message-body by decoding any Transfer-Encoding"; IIPC issue 22 (2015–2017) kept "entity-body" for WARC/1.1 | `SOURCED` | RFC 2616 §7.2; IIPC warc-specifications issue 22 | stable |
+| 348 | S3.2 | 2023 public thread, Internet Archive crawler/Wayback maintainer: "Payload-Digest is computed after decoding Transfer-Encoding, but before removing Content-Encoding"; the Archive recalculates the digest at indexing and does not use the WARC's | `SOURCED` | thread read 2026-09-28; quotation string-matched | stable |
+| 349 | S3.2 | Forensic Science Regulator statutory Code of Practice v2, England and Wales, in force 2 October 2025; para 24.1.2 validation definition incl. "fit for the specific purpose intended"; binding on forensic units, not on the learner | `SOURCED` | gov.uk Code of Practice PDF (2026-09-28) | 2027-09 |
+| 350 | S3.2 | RFC 3161 (2001) Time-Stamp Protocol; query/reply content types `application/timestamp-query` / `-reply` | `SOURCED` | rfc-editor.org RFC 3161 | stable |
+| 351 | S3.2 | Berkeley Protocol paras 168–170: keep evidentiary and working copies apart | `SOURCED` | OHCHR Berkeley Protocol PDF (as row 329) | stable |
+| 352 | S3.2 | Wget 1.25.0 writes `WARC/1.0` records | `EXECUTED` | lab facts step, `head -1` of each record | 2027-03 |
+| 353 | S3.2 | Known-answer test: 1,400-byte body served plain / gzip / chunked / chunked-gzip; expected payload digests XXHBHIW4… (identity) and 2FAV3TQB… (gzip), written before Wget runs; checker validated 4/4 against them first | `EXECUTED` | lab, bash + zsh + sha256sum variant, identical output (2026-09-29) | stable |
+| 354 | S3.2 | Wget 1.25.0: block digests 4/4 PASS, payload digests 2/4 PASS; fails on /chunked and /chunked-gzip — the stored payload digest is over the still-chunked bytes, against the WARC/1.0 and 1.1 definition | `EXECUTED` | lab, three runs identical | re-run on each new Wget |
+| 355 | S3.2 | Both real captures (IANA example-domains, RFC 2606) were served chunked; stored payload digest DIFFERS on both, block ok; so were all four pages tried during the build | `EXECUTED` | lab items 001–002 | 2027-03 |
+| 356 | S3.2 | Drill 1: Internet Archive CDX digests for rfc2606.txt match the checker's recomputed digest; Wget's stored digest appears nowhere in the list | `EXECUTED` | Drill 1 run as written | stable (RFC unchanged since 1999) |
+| 357 | S3.2 | Drill 2 measures the Mac clock against the TSA reply's `Time stamp:` field, bounded by the before/after local reads | `EXECUTED` | Drill 2 run as written; output pasted | — |
+| 358 | S3.2 | Drill 3: a script-inserted sentence is visible in the browser and absent from Wget's `--page-requisites` WARC | `EXECUTED` | Drill 3 run as written; Chrome part 2 macOS-only, Linux prints "skip part 2" | 2027-03 |
+| 359 | S3.2 | freetsa.org/tsr returns a verifiable RFC 3161 reply for a SHA-256-only query; `openssl ts -verify` with its published cacert.pem/tsa.crt passes; changing one letter makes the block digest check fail | `EXECUTED` | lab seal step + tamper step | 2027-03 |
+| 360 | S3.2 | Case: Casey Anthony trial 2011; March 2008 Firefox history in Mork; NetAnalysis (first police report, Aug 2008) showed 1 visit to the chloroform page on sci-spot.com; CacheBack showed 84 | `SOURCED` | Digital Detective post 11 July 2011; NYT 19 July 2011 as republished by NBC News | stable |
+| 361 | S3.2 | Wilson (NetAnalysis developer) post 11 July 2011: first heard of the discrepancy ~9 June 2011; account attributed to him, not stated as fact | `SOURCED` | Digital Detective post | stable |
+| 362 | S3.2 | NYT 19 July 2011: Bradley (CacheBack designer, testified) now said 1 visit not 84, after redesigning; said neither tool decoded the whole file; said his findings were not presented to the jury — attributed to him | `SOURCED` | NYT via NBC | stable |
+| 363 | S3.2 | ABA Journal 21 July 2011: State Attorney press release — Bradley contacted prosecutors 23 June; discrepancy discussed 27 June; both sides agreed on one visit; a later report went to a wrong email address; Bradley's lawyer disputed "erroneous media reports"; jury acquitted 5 July | `SOURCED` | two ABA Journal reports | stable |
+| 364 | S3.2 | Who knew what and when is disputed; the module gives both sides and does not settle it | `CONVENTION` | — | — |
+| 365 | S3.2 | Windows route is WSL; no native PowerShell port was run | `CONVENTION` | as S2.7 / S3.1 | — |
+| 366 | S3.2 | Guardrail probes RFC 3161 TSA endpoints by POSTing the SHA-256-of-empty query and requiring `application/timestamp-reply`; a GET gets 403 and proves nothing | `EXECUTED` | `tools/guardrail.py` TSA_ENDPOINTS; freetsa.org/tsr verified in gate run | — |
+
+Defects caught in the S3.2 build pass (none shipped):
+
+- **The seal broke itself.** It covered the collection log, and the timestamp entry was then appended to that
+  log. The timestamp record now goes in its own file.
+- **The Last-Modified regex was case-sensitive** and missed IANA's lowercase `last-modified` header.
+- **A literal `</script>` in Drill 3 ended the app's script block.** The builder now escapes it.
+- **Case draft said the jury "was never told"**; that is Bradley's claim to the Times, now attributed to him.
+- **Case draft said "June and July 2011"**; the trial began earlier. Now "2011".
+- **Case draft missed Bradley's point that both tools were incomplete** (neither decoded the whole file,
+  though NetAnalysis got this record right). Added.
+- **Guardrail GET-probed freetsa.org/tsr and got 403**; now a real POSTed query (row 366).

@@ -853,14 +853,14 @@ Level 3 adds judgement: how far to trust a source, how to test competing explana
 | # | Topic | Status |
 |---|---|---|
 | S3.1 | Source grading and competing hypotheses | ✅ available |
-| — | Preservation: capturing and checking your own web evidence | planned |
+| S3.2 | Preservation: capturing and checking your own web evidence | ✅ available |
 | — | Internet-wide scan data: what a banner proves | planned |
 | — | Public ledgers: tracing cryptocurrency, and where tracing stops | planned |
 | — | Transport tracking: aircraft and ships | planned |
 | — | Satellite imagery: change over time | planned |
 | — | Capstone: an investigation file, from plan to finding | planned |
 
-Level 3 so far needs no new tools. Any module that does will say so at the top of its lab.
+S3.2 adds one tool, GNU Wget (\`brew install wget\`), and says so at the top of its lab. Any later module that needs a new tool will do the same.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -8199,6 +8199,666 @@ Without C6, the matrix cannot tell a mistake from an intruder. Add a third hypot
 This is why the report says "likely" and "moderate", not "almost certain" and "high". It is also why the report names its milestones: an independent finding about the cause would be the first item graded 1 that separates these hypotheses. A report that had never listed H3 or H5 would look more certain, and would be less honest. Heuer's step 1 exists for this: the hypotheses you never write down are never tested.
 </details>`,
     tracker: ["Wrote the question and all four hypotheses into the scope before the first request", "Ran the lab: seven items logged and hashed, grade check and ACH run, report PASS, seal verified", "Can explain the NATO letter and number, why they are separate, and why F is not an insult", "Can explain why the draft's C6 grade and the draft matrix's C8 row both fail: one source counted twice", "Dated the Cloudflare correction between two archive captures (Drill 1)", "Checked a summary's times against its cited pages, and read the article behind every NONE (Drill 2)", "Saw the matrix tie without C6, and saw a fifth hypothesis rest on C6 alone (Drill 3)"]
+  }, {
+    id: "s3_2",
+    level: 3,
+    num: "S3.2",
+    title: "Preservation & Tool Validation — Capture It Yourself, Then Prove the Tool Recorded It Right",
+    objective: `Capture two public pages into your own WARC files with Wget, and read every record type Wget writes. Before trusting any digest in them, run a known-answer test: a server on your own Mac sends known bytes four ways (plain, gzip, chunked, chunked gzip), an independent checker is validated against the answers first, and only then judges the tool. Learn why the block digest and the payload digest answer different questions, and what the test finds in Wget 1.25.0. Keep evidentiary and working copies apart (Berkeley Protocol paras 168–170), seal the case, and bind the seal to a time that is not your Mac's with an RFC 3161 timestamp. Then change one letter and watch the block digest catch it.`,
+    theory: `#### What this module adds
+
+S1.1 hashed every item and kept a collection record. S2.1 read other people's archives and showed that a capture's \`digest\` is of the bytes the server sent, gzip and all. S3.1 graded sources. This module turns the same scepticism on **your own tools**. A capture you made yourself is only as good as the program that made it, and "the program said so" is a claim like any other. Professionals test a tool on input whose correct output they already know, and only then trust it on input they don't.
+
+The module uses four published texts:
+
+- **The WARC standard.** WARC/1.0 was published as ISO 28500:2009 and WARC/1.1 as ISO 28500:2017. The International Internet Preservation Consortium (IIPC) publishes the text of both.
+- **RFC 2616** (HTTP/1.1, 1999). The WARC standard borrows its definition of "entity-body" from it.
+- **The Forensic Science Regulator's statutory Code of Practice, version 2** (England and Wales; in force 2 October 2025). It is binding on forensic units there, not on you. It is included because it is the clearest current statement of what validating a method means.
+- **RFC 3161** (2001), the Time-Stamp Protocol.
+
+#### A WARC you made yourself
+
+Wget writes a WARC when you add \`--warc-file=NAME\`. Open one with \`gzip -dc NAME.warc.gz | less\` and you will find a sequence of **records**. Each record has a block of WARC headers, then its content:
+
+| Record type | What it holds |
+|---|---|
+| \`warcinfo\` | who wrote the file: Wget puts its name and version on a \`software:\` line, plus the exact command-line arguments |
+| \`request\` | the HTTP request as sent, headers included |
+| \`response\` | the HTTP response as received: status line, headers and body, byte for byte |
+| \`metadata\`, \`resource\` | Wget adds a manifest, its arguments and its own log |
+
+Every record carries a \`WARC-Record-ID\`, a \`WARC-Date\` (from **your Mac's clock**) and a \`WARC-Block-Digest\`. A response usually also carries a \`WARC-Payload-Digest\`. The first line of every record shows which version of the standard it claims. Wget 1.25.0 writes \`WARC/1.0\`.
+
+#### Two digests, two different questions
+
+- **The block digest** covers the whole record content: for a response, the status line, the headers and the body exactly as they came off the connection. It answers one question: *has this record changed since it was written?*
+- **The payload digest** covers only the HTTP **entity-body**. WARC/1.0 defines the payload of a \`response\` record as its "'entity-body' (per [RFC2616]), with any transfer-encoding removed". It answers a different question: *is this the same document as another capture of it?* Archives use it to spot unchanged pages and to skip storing them twice.
+
+RFC 2616 section 4.3 explains the gap between the two. The message-body "differs from the entity-body only when a transfer-coding has been applied". The common transfer-coding is **chunked**: the server sends the body in pieces, each piece preceded by its length in hexadecimal. The chunk lengths are part of the delivery, not the document. **Content**-encoding is different. A page sent gzipped (S2.1) *is* a gzipped entity, so gzip stays in the payload.
+
+| The server sent | Stored in the record | Payload digest is computed over |
+|---|---|---|
+| plain body with a Content-Length | the body | the body |
+| gzip body (\`Content-Encoding: gzip\`) | the gzip bytes | the gzip bytes (S2.1) |
+| chunked body (\`Transfer-Encoding: chunked\`) | the body *with* the chunk lengths | the body with the chunk lengths **removed** |
+| chunked gzip body | gzip bytes with the chunk lengths | the gzip bytes, chunk lengths removed |
+
+This is not a reading made up for this course. In IIPC's issue 22 on the WARC specification (2015–2017), the editors kept "entity-body" for WARC/1.1 and quoted RFC 2616's own definition: the entity-body "is obtained from the message-body by decoding any Transfer-Encoding". The record itself still keeps the bytes exactly as received. In 2023 an Internet Archive developer who maintains its crawlers and Wayback Machine said the same in a public thread: "Payload-Digest is computed after decoding Transfer-Encoding, but before removing Content-Encoding". He also said the Archive recalculates the digest itself during indexing and does not use the one in the WARC.
+
+#### Validation: test the tool before you trust what it says
+
+The Code of Practice (para 24.1.2) defines validation as "the process of providing objective evidence that a method or procedure is fit for the specific purpose intended". For a capture tool, the cheapest objective evidence is a **known-answer test**:
+
+1. **Build input whose right answer you can work out without the tool.** In the lab, a test server on your own Mac sends the same 1,400 bytes four ways: plain, gzip, chunked, and chunked gzip.
+2. **Write the answers down first.** The payload digest a correct WARC must hold for each case comes straight from the definition above, before the tool ever runs.
+3. **Check the checker.** The lab's \`warc_check.py\` is written from the standard, not from Wget's code. Before it is allowed to judge Wget, it must reproduce all four known answers. A checker nobody has tested only moves the trust problem somewhere else.
+4. **Run the tool exactly as you will run it for real**, then compare.
+5. **Record the version.** The Code (para 19.2.2(b)(iii)) asks that any output be traceable to "the instrument configuration, e.g. software version". A result holds for the version tested. The Code (para 24.9.19) requires revalidation "when changes are assessed to have the potential to influence the results obtained", and a new Wget is such a change.
+
+Annex V of the Berkeley Protocol (S1.1) lists "Considerations for validating new tools": who owns the tool, whether it is open source, where it stores data, how it is funded and supported. None of its questions asks whether the tool's output is *correct*. The known-answer test is how you ask that question. In 2011, after the case below, the developer of one of the tools involved put it this way: "Whilst it may not be possible to verify a tool, it is possible to verify the results against known data sets."
+
+#### What the test finds in Wget 1.25.0
+
+Run the lab and you will see this result on Wget 1.25.0:
+
+- **Block digests: 4 of 4 correct.** Every record is exactly what Wget says it wrote.
+- **Payload digests: 2 of 4 correct.** For both chunked cases, Wget computed the payload digest over the body *with the chunk lengths still in it*. That value is not the entity-body's digest, so it will not match another capture of the same document delivered without chunking.
+
+The real pages in the lab show why this matters: both came back chunked. So did all four of the reference pages tried while this module was written. On today's web, a stored Wget payload digest is often wrong by the standard's definition. What the lab does about it:
+
+- **Rely on the block digests.** They were tested and they pass.
+- **Do not cite a stored payload digest for a chunked response.** Use the checker's recomputed one, and say that you did.
+- **Seal the WARC file itself with SHA-256.** As in S1.1, that is the hash your report cites.
+
+The test also corrects a reading of Wget's source code. In 2019, in a public thread about exactly this problem, an experienced archivist wrote that from "a glance over the relevant code, it seems like wget does remove chunking for the payload digest". Reading code is a lead. A known-answer test on the version you actually have is evidence.
+
+#### What a capture does not hold
+
+Paragraph 155 of the Berkeley Protocol names three items as "a minimum standard for providing evidence in court": the URL, the HTML source code and a full-page capture. The lab's WARC holds the first two. It has no screenshot, and the report says so. A WARC made with \`wget\` also misses:
+
+- **Anything a script fetches after the page loads.** Wget does not run JavaScript. What a browser shows may not be in the HTML at all.
+- **The TLS certificate.** WARC/1.1 says conventions for recording "certificates exchanged, consulted, or verified, are not in the scope" of the standard.
+- **An independent time.** Three dates describe the lab's IANA capture, and none of them comes from outside your Mac and the server: the page's own "Last revised" line, the server's \`Last-Modified\` header, and the \`WARC-Date\` from your Mac's clock. The Berkeley Protocol (para 155(g)) asks you to keep the clock accurate, "preferably by synchronizing it with a Network Time Protocol server". That makes the clock more accurate. It does not make it provable to anyone else.
+
+#### Originals, working copies and fixity
+
+The Berkeley Protocol separates the **evidentiary copy**, stored in its original form (para 168), from **working copies** made for analysis, "so that investigators can work with the copy, rather than the original" (para 169). It also calls for **fixity checking**, "checking to ensure that the item has not been altered", as part of storage (para 170). In the lab, \`evidence/\` holds the WARCs, and nothing writes to them after capture. The checker extracts each page's content into \`working/\`. The seal lists both, and step 9 changes one letter in a copy to show that the block digest catches it.
+
+#### A clock that is not yours: RFC 3161
+
+A hash proves that a file has not changed since you hashed it. It does not prove *when* you hashed it: you could have made the file yesterday and dated it last month. A **Time-Stamping Authority (TSA)** closes that gap. You send it only a hash. It returns a signed token binding that hash to its own time. RFC 3161 section 2.1 lists what the TSA must do, including:
+
+- "to only time-stamp a hash representation of the datum". Your evidence never leaves your Mac.
+- "not to examine the imprint being time-stamped in any way (other than to check its length...)".
+- "not to include any identification of the requesting entity in the time-stamp tokens". The token says *when*, not *who*.
+
+The token shows the sealed hash "existed before a particular time". It does not show the content is true, that you collected it lawfully, or who you are. The lab uses FreeTSA, a free public TSA, and pins the SHA-256 of FreeTSA's certificates as FreeTSA publishes them. If the certificates you download ever differ, the lab stops rather than "verifying" against a substitute. The pinned values also come from FreeTSA's own site. So record them in your case, where a later checker can compare them with an independent copy.
+
+#### How the lab fits together
+
+1. Scope, written first.
+2. Known answers, from the definition.
+3. Wget run against the test server.
+4. The checker validated, then used to judge the tool: \`validation/validation.tsv\` and a one-line summary.
+5. Two real captures through one logged, hashed door, each checked record by record.
+6. Facts read from working copies only.
+7. A report whose \`## Tool validation\` section says what the result changes. \`check_report.sh\` fails the report if any WARC was written by a Wget version other than the one validated.
+8. The seal, with a verified RFC 3161 timestamp.
+9. The tamper test.`,
+    lab: {
+      mac: `# LAB: capture your own web evidence, then test the tool that captured it (Apple Silicon)
+# ETHICS: two requests for public reference pages (IANA's page on example domains and RFC 2606),
+# one timestamp request that carries only a SHA-256 hash to FreeTSA, and two downloads of FreeTSA's
+# published certificates. The tool tests run against a small server on your own Mac (127.0.0.1).
+# No person, no account, no email address.
+# NEW TOOL: GNU Wget, the tool under test. If \`wget --version\` fails: brew install wget
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+command -v wget >/dev/null || { echo "STOP: wget is not installed - run: brew install wget"; exit 1; }
+mkdir -p ~/scouts-case/s3_2 && cd ~/scouts-case/s3_2 || exit 1
+rm -rf evidence working validation collection_log.tsv known_answers.tsv warc_check.py facts.txt \\
+  report.md check_report.sh SEAL.* timestamp_log.tsv && mkdir evidence working validation
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:            S3.2 preservation and tool validation
+question:        Can your own Wget captures of two public reference pages be relied on as
+                 evidence, and which of the digests Wget writes into them can a checker trust?
+tool under test: GNU Wget, with --warc-file (its version is read from the tool in step 3)
+authorised:      self (public reference pages; a test server on this Mac)
+in scope:        a test server on 127.0.0.1; https://www.iana.org/help/example-domains;
+                 https://www.rfc-editor.org/rfc/rfc2606.txt; one RFC 3161 timestamp from
+                 freetsa.org, sent a SHA-256 hash only
+out of scope:    any person; any other page; the pages' images, styles and scripts (this
+                 captures the HTML only, and the report says so)
+SCOPE
+
+# 2. Known answers first. A test server sends the same 1,400 bytes four ways. Before the tool
+#    runs, write down the payload digest a correct WARC must record for each one. WARC 1.0 and
+#    1.1 define the payload as the HTTP entity-body (RFC 2616): transfer-encoding (chunking)
+#    removed, content-encoding (gzip) kept.
+cat > validation/fixture.py <<'PY'
+import base64, gzip, hashlib, http.server, sys
+BODY = b"Cyber Scouts fixture: known bytes.\\n" * 40
+GZ = gzip.compress(BODY, mtime=0)
+CASES = {"/plain": (BODY, False, False), "/gzip": (GZ, True, False),
+         "/chunked": (BODY, False, True), "/chunked-gzip": (GZ, True, True)}
+def b32(b): return "sha1:" + base64.b32encode(hashlib.sha1(b).digest()).decode()
+if sys.argv[1] == "answers":
+    for path, (body, gz, ch) in CASES.items():
+        print(f"{path}\\t{'gzip' if gz else '-'}\\t{'chunked' if ch else '-'}\\t{b32(body)}\\t{hashlib.sha256(BODY).hexdigest()}")
+    raise SystemExit
+class H(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    def do_GET(self):
+        if self.path not in CASES:
+            self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+        body, gz, ch = CASES[self.path]
+        self.send_response(200); self.send_header("Content-Type", "text/plain")
+        if gz: self.send_header("Content-Encoding", "gzip")
+        if ch: self.send_header("Transfer-Encoding", "chunked")
+        else: self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if not ch: self.wfile.write(body); return
+        for i in range(0, len(body), 500):
+            c = body[i:i + 500]; self.wfile.write(b"%x\\r\\n" % len(c) + c + b"\\r\\n")
+        self.wfile.write(b"0\\r\\n\\r\\n")
+    def log_message(self, *a): pass
+s = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+open("validation/port", "w").write(str(s.server_address[1])); s.serve_forever()
+PY
+python3 validation/fixture.py answers > known_answers.tsv
+cat known_answers.tsv | cut -f1-4
+
+# 3. Run the tool under test against the test server, exactly as it will be run for real.
+rm -f validation/port; python3 validation/fixture.py serve & SRV=$!
+for i in 1 2 3 4 5 6 7 8 9 10; do [ -s validation/port ] && break; sleep 0.5; done
+[ -s validation/port ] || { echo "STOP: the test server did not start"; kill $SRV; exit 1; }
+P=$(cat validation/port)
+wget -q -U "$UA" --warc-file=validation/fixture -O /dev/null \\
+  "http://127.0.0.1:$P/plain" "http://127.0.0.1:$P/gzip" "http://127.0.0.1:$P/chunked" "http://127.0.0.1:$P/chunked-gzip"
+kill $SRV; wait $SRV 2>/dev/null
+TOOL=$(wget --version | head -1 | awk '{print $1, $2, $3}')
+echo "tool under test: $TOOL"
+
+# 4. An independent checker, written from the WARC standard, not from Wget's code. For every
+#    record it recomputes the block digest; for every HTTP response it removes chunking, recomputes
+#    the payload digest and compares both with what the tool stored. It also writes out each
+#    response's decoded content, which is what a reader of the page would see.
+cat > warc_check.py <<'PY'
+import base64, gzip, hashlib, os, sys
+def b32(b): return "sha1:" + base64.b32encode(hashlib.sha1(b).digest()).decode()
+def dechunk(b):
+    out = b""
+    while True:
+        line, b = b.split(b"\\r\\n", 1); n = int(line.split(b";")[0], 16)
+        if n == 0: return out
+        out, b = out + b[:n], b[n + 2:]
+path, outdir = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else None)
+data, pos, n = gzip.open(path).read(), 0, 0
+print("record\\ttype\\ttarget\\tblock\\tstored_payload\\tspec_payload\\tpayload\\ttransfer\\tcontent\\tsha256_content")
+while pos < len(data):
+    end = data.index(b"\\r\\n\\r\\n", pos)
+    h = dict(l.split(": ", 1) for l in data[pos:end].decode().split("\\r\\n")[1:])
+    size = int(h["Content-Length"]); block = data[end + 4:end + 4 + size]; pos = end + 4 + size + 4; n += 1
+    row = [str(n), h["WARC-Type"], h.get("WARC-Target-URI", "-").strip("<>"),
+           "ok" if b32(block) == h.get("WARC-Block-Digest") else "MISMATCH"]
+    if h["WARC-Type"] == "response":
+        head, body = block.split(b"\\r\\n\\r\\n", 1)
+        fields = {l.split(":", 1)[0].strip().lower(): l.split(":", 1)[1].strip().lower()
+                  for l in head.decode("latin-1").split("\\r\\n")[1:] if ":" in l}
+        te, ce = fields.get("transfer-encoding", "-"), fields.get("content-encoding", "-")
+        entity = dechunk(body) if te == "chunked" else body
+        stored, spec = h.get("WARC-Payload-Digest", "-"), b32(entity)
+        content = gzip.decompress(entity) if ce == "gzip" else entity
+        row += [stored, spec, "ok" if stored == spec else "DIFFERS", te, ce, hashlib.sha256(content).hexdigest()]
+        if outdir: open(os.path.join(outdir, f"record{n:02d}.content"), "wb").write(content)
+    else:
+        row += ["-"] * 6
+    print("\\t".join(row))
+PY
+python3 warc_check.py validation/fixture.warc.gz > validation/fixture_check.tsv
+
+# 4b. Validate the checker first, then judge the tool. The checker's own payload digests and
+#     decoded content must equal the known answers; if they do not, the checker is wrong and its
+#     verdict on the tool means nothing.
+python3 - "$TOOL" > validation/validation.tsv <<'PY'
+import csv, sys
+known = {r[0]: r for r in csv.reader(open("known_answers.tsv"), delimiter="\\t")}
+rows = [r for r in csv.DictReader(open("validation/fixture_check.tsv"), delimiter="\\t") if r["type"] == "response"]
+print("case\\tchecker\\ttool_block\\ttool_payload\\ttransfer\\tcontent")
+for r in rows:
+    case = "/" + r["target"].split("/", 3)[3]
+    k = known[case]
+    checker = "ok" if (r["spec_payload"] == k[3] and r["sha256_content"] == k[4]) else "WRONG"
+    tool_payload = "PASS" if r["stored_payload"] == k[3] else "FAIL"
+    print(f"{case}\\t{checker}\\t{'PASS' if r['block'] == 'ok' else 'FAIL'}\\t{tool_payload}\\t{r['transfer']}\\t{r['content']}")
+PY
+cat validation/validation.tsv
+grep -q WRONG validation/validation.tsv && { echo "STOP: the checker does not reproduce the known answers - fix it before trusting it"; exit 1; }
+[ "$(grep -c . validation/validation.tsv)" -eq 5 ] || { echo "STOP: expected 4 test cases"; exit 1; }
+awk -F'\\t' -v t="$TOOL" 'NR > 1 {b += ($3 == "PASS"); p += ($4 == "PASS"); if ($4 == "FAIL") f = f " " $1}
+  END {printf "validation: %s block digests %d/4 PASS; payload digests %d/4 PASS; fails on:%s\\n", t, b, p, (f ? f : " none")}' \\
+  validation/validation.tsv | tee validation/summary.txt
+
+# 5. Capture the real pages through one door: every capture is a logged, hashed item. The WARC
+#    is the evidentiary copy and is never opened for writing again; the checker writes working
+#    copies of the content into working/ (Berkeley Protocol paras 168-169).
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+capture() {  # id url
+  local H=FAILED
+  if wget -q --tries=3 --timeout=60 -U "$UA" --warc-file="evidence/$1" -O /dev/null "$2" && [ -s "evidence/$1.warc.gz" ]; then
+    H=$(shasum -a 256 "evidence/$1.warc.gz" | cut -d' ' -f1); else rm -f "evidence/$1.warc.gz"; fi
+  log "$1" "$2" "$H"
+}
+capture item001 "https://www.iana.org/help/example-domains"
+capture item002 "https://www.rfc-editor.org/rfc/rfc2606.txt"
+awk -F'\\t' '{print $1, $2, substr($5, 1, 12)}' collection_log.tsv
+grep -q FAILED collection_log.tsv && { echo "STOP: a capture failed - it is in the log; retry before writing"; exit 1; }
+for i in item001 item002; do
+  mkdir -p working/$i && python3 warc_check.py evidence/$i.warc.gz working/$i > working/$i/check.tsv
+  awk -F'\\t' -v i=$i '$2 == "response" {print i, "block", $4, "| stored payload digest", $7, "| transfer:", $8, "| content:", $9}' working/$i/check.tsv
+  awk -F'\\t' 'NR > 1 && $4 != "ok" {bad = 1} END {exit bad}' working/$i/check.tsv || { echo "STOP: $i has a record whose block digest fails"; exit 1; }
+done
+
+# 6. Read the working copies for what the question needs. Every fact printed here comes from a
+#    file under working/, which came from a WARC under evidence/.
+python3 - > facts.txt <<'PY'
+import csv, gzip, re, html
+def rows(i): return list(csv.DictReader(open(f"working/{i}/check.tsv"), delimiter="\\t"))
+def text(i):
+    r = [x for x in rows(i) if x["type"] == "response"][0]
+    t = open(f"working/{i}/record{int(r['record']):02d}.content", "rb").read().decode("utf-8", "ignore")
+    t = re.sub(r"(?s)<(script|style).*?</\\1>", " ", t)
+    return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", t)))
+for i in ("item001", "item002"):
+    raw = gzip.open(f"evidence/{i}.warc.gz").read()
+    sw = re.search(rb"\\r\\nsoftware: ([^\\r\\n]+)", raw).group(1).decode()
+    wd = re.search(rb"WARC-Type: response\\r\\n(?:.*\\r\\n)*?WARC-Date: (\\S+)", raw).group(1).decode()
+    lm = re.search(rb"(?i)\\r\\nLast-Modified: ([^\\r\\n]+)", raw)
+    print(f"{i} written by: {sw}; WARC-Date of the response: {wd}; server Last-Modified: {lm.group(1).decode() if lm else 'none sent'}")
+t1, t2 = text("item001"), text("item002")
+m = re.search(r"Last revised (\\d{4}-\\d\\d-\\d\\d)", t1)
+print("item001 the page's own date: 'Last revised", (m.group(1) if m else "NOT FOUND") + "'")
+print("item001 says example.com and example.org 'are maintained for documentation purposes':",
+      "yes" if "are maintained for documentation purposes" in t1 else "NO")
+print("item001 links to RFC 2606:", "yes" if "Reserved Top Level DNS Names (RFC 2606)" in t1 else "NO")
+print("item002 is RFC 2606, dated June 1999:", "yes" if ("RFC 2606" in t2 and "June 1999" in t2) else "NO")
+print("item002 section 3 lists example.com, example.net and example.org:",
+      "yes" if all(d in t2.split("3. Reserved Example Second Level Domain Names")[-1] for d in ("example.com", "example.net", "example.org")) else "NO")
+PY
+cat facts.txt
+
+# 7. The report: what was captured, what the tool validation found, and which digests it relies on.
+V=$(cat validation/summary.txt)
+cat > report.md <<REPORT
+# S3.2 - Can these captures be relied on, and which digests in them can be trusted?
+
+Analyst: $ANALYST. Collection log: collection_log.tsv. Scope: scope.txt.
+
+## Tool validation
+Tool: $TOOL
+Known-answer test: 4 cases (validation/validation.tsv), checker confirmed against the known answers first.
+Result: $V
+Consequence: block digests are relied on. Stored payload digests are not relied on where the response was chunked; the checker's recomputed payload digest is used instead.
+
+## Findings
+F1 [item001] IANA's page says example.com and example.org "are maintained for documentation purposes", and links to RFC 2606.
+F2 [item002] RFC 2606 (June 1999) section 3 lists example.com, example.net and example.org as reserved example names.
+F3 [item001 item002] Every record in both WARCs passes its block digest; each response's stored payload digest is reported in working/*/check.tsv beside the recomputed one.
+
+## Gaps and limits
+HTML only: no images, styles, scripts or screenshot (the Berkeley Protocol's minimum also asks for a full-page capture). The TLS certificate is not recorded: the WARC standard puts it out of scope. The checker was tested on four cases only. Three clocks date each capture: the page's own "Last revised" line, the server's Last-Modified header and the WARC-Date (this Mac's clock). The timestamp in SEAL.tsr is the only one from outside this Mac.
+REPORT
+
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}
+[ -f "$R" ] && [ -f collection_log.tsv ] && [ -f validation/validation.tsv ] || { echo "UNKNOWN: report, log or validation missing"; exit 2; }
+bad=0; n=0
+while IFS= read -r line; do
+  F=$(printf '%s' "$line" | awk '{print $1}'); n=$((n + 1))
+  ids=$(printf '%s' "$line" | sed -n 's/^F[0-9]* \\[\\([^]]*\\)\\].*/\\1/p')
+  [ -z "$ids" ] && { echo "$F FAIL cites no item"; bad=$((bad + 1)); continue; }
+  for id in $ids; do
+    h=$(awk -F'\\t' -v i="$id" '$1 == i {print $5}' collection_log.tsv)
+    f=evidence/$id.warc.gz
+    if [ -z "$h" ]; then echo "$F FAIL $id not in the log"; bad=$((bad + 1))
+    elif [ "$h" = FAILED ] || [ ! -f "$f" ]; then echo "$F FAIL $id was not collected"; bad=$((bad + 1))
+    elif [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "$F FAIL $id hash differs from log"; bad=$((bad + 1))
+    elif ! awk -F'\\t' 'NR > 1 && $4 != "ok" {b = 1} END {exit b}' "working/$id/check.tsv" 2>/dev/null; then
+      echo "$F FAIL $id has a failing block digest, or was never checked"; bad=$((bad + 1))
+    fi
+  done
+done < <(grep -E '^F[0-9]+ ' "$R")
+# The validation covers only the version tested (FSR Code 24.9.19): every WARC must name that tool.
+T=$(sed -n 's/^Tool: //p' "$R")
+[ -z "$T" ] && { echo "FAIL no Tool: line under ## Tool validation"; bad=$((bad + 1)); }
+for f in evidence/*.warc.gz; do
+  sw=$(gzip -dc "$f" | grep -a -m1 '^software: ' | sed 's/^software: //; s/\\r$//' | awk '{print $1}')
+  v=$(printf '%s' "$T" | awk '{print $3}')
+  [ "$sw" = "Wget/$v" ] || { echo "FAIL $f was written by $sw, not the validated $T"; bad=$((bad + 1)); }
+done
+grep -q '^Consequence:' "$R" || { echo "FAIL the report does not say what the validation result changes"; bad=$((bad + 1)); }
+grep -q '^## Gaps and limits' "$R" || { echo "FAIL no Gaps and limits section"; bad=$((bad + 1)); }
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n findings)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 8. Seal the case folder, then get a trusted timestamp for the seal (RFC 3161). Only the hash
+#    of SEAL.sha256 leaves this Mac. The CA certificate's hash is pinned here, as FreeTSA
+#    published it, so a swapped certificate stops the lab instead of verifying.
+(cd evidence && shasum -a 256 item0*.warc.gz > SHA256SUMS)
+shasum -a 256 scope.txt collection_log.tsv known_answers.tsv validation/validation.tsv \\
+  validation/fixture.warc.gz evidence/SHA256SUMS report.md check_report.sh warc_check.py > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H "Content-Type: application/timestamp-query" \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+# The log is sealed, so the timestamp's own record goes in a separate file, written after.
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o validation/freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o validation/freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 validation/freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 validation/freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile validation/freetsa_cacert.pem -untrusted validation/freetsa_tsa.crt 2>/dev/null
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^(Hash Algorithm|Time stamp):'
+shasum -a 256 -c SEAL.sha256 && (cd evidence && shasum -a 256 -c SHA256SUMS)
+
+# 9. Tamper test on a copy: change one letter inside the captured page and check again.
+python3 - <<'PY'
+import gzip
+raw = gzip.open("evidence/item002.warc.gz").read()
+i = raw.index(b"example.net"); gzip.open("/tmp/s3_2_tampered.warc.gz", "wb").write(raw[:i] + b"exbmple.net" + raw[i + 11:])
+PY
+python3 warc_check.py /tmp/s3_2_tampered.warc.gz | awk -F'\\t' '$2 == "response" {print "tampered copy: block digest", $4}'
+rm -f /tmp/s3_2_tampered.warc.gz`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab's checks are a bash script and Python scripts that read tab-separated files, and
+# the tool under test is GNU Wget. A PowerShell port would test a different program. A lab whose
+# documented result has not been seen to happen is not taught here. WSL runs the same code as Linux.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y wget curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s3_2 inside Ubuntu. Drills 1 and 2 run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in capture(), inside the check_report.sh heredoc, and in step 8.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: wget, curl, openssl and python3 3.9 or later. On Debian or Ubuntu:
+#   sudo apt install -y wget curl openssl python3
+# Your distribution's Wget will be a different version from the one this module tested. Run the
+# known-answer test and report what YOUR version does: that is the result your report may rely on.
+# Drill 3's part 2 looks for Chrome at its macOS path; on Linux it prints "skip part 2".`,
+      expected: {
+        mac: `\`\`\`text
+/plain	-	-	sha1:XXHBHIW4WBDNTXJUL3FPGU4MFR5ED767
+/gzip	gzip	-	sha1:2FAV3TQBTS7OYGBQA7PT5TC7WFJQCZDF
+/chunked	-	chunked	sha1:XXHBHIW4WBDNTXJUL3FPGU4MFR5ED767
+/chunked-gzip	gzip	chunked	sha1:2FAV3TQBTS7OYGBQA7PT5TC7WFJQCZDF
+tool under test: GNU Wget 1.25.0
+case	checker	tool_block	tool_payload	transfer	content
+/plain	ok	PASS	PASS	-	-
+/gzip	ok	PASS	PASS	-	gzip
+/chunked	ok	PASS	FAIL	chunked	-
+/chunked-gzip	ok	PASS	FAIL	chunked	gzip
+validation: GNU Wget 1.25.0 block digests 4/4 PASS; payload digests 2/4 PASS; fails on: /chunked /chunked-gzip
+item001 2026-09-29T06:02:23Z 18325cee2f40
+item002 2026-09-29T06:02:24Z 4d7f53296087
+item001 block ok | stored payload digest DIFFERS | transfer: chunked | content: -
+item002 block ok | stored payload digest DIFFERS | transfer: chunked | content: -
+item001 written by: Wget/1.25.0 (darwin24.1.0); WARC-Date of the response: 2026-09-29T06:02:23Z; server Last-Modified: Tue, 29 Sep 2026 05:10:35 GMT
+item002 written by: Wget/1.25.0 (darwin24.1.0); WARC-Date of the response: 2026-09-29T06:02:24Z; server Last-Modified: none sent
+item001 the page's own date: 'Last revised 2026-09-27'
+item001 says example.com and example.org 'are maintained for documentation purposes': yes
+item001 links to RFC 2606: yes
+item002 is RFC 2606, dated June 1999: yes
+item002 section 3 lists example.com, example.net and example.org: yes
+report check: PASS (3 findings)
+Verification: OK
+Hash Algorithm: sha256
+Time stamp: Sep 29 06:02:28 2026 GMT
+scope.txt: OK
+collection_log.tsv: OK
+known_answers.tsv: OK
+validation/validation.tsv: OK
+validation/fixture.warc.gz: OK
+evidence/SHA256SUMS: OK
+report.md: OK
+check_report.sh: OK
+warc_check.py: OK
+item001.warc.gz: OK
+item002.warc.gz: OK
+tampered copy: block digest MISMATCH
+\`\`\`
+
+Your times, hashes and the IANA page's dates will differ. Every WARC has new record IDs and dates, so its SHA-256 changes each run, and IANA revises its page. These should match exactly:
+
+- **The known answers.**
+- **The validation table.**
+- **The summary line** (if your Wget is 1.25.0).
+- **\`DIFFERS\`** for both real pages, if the servers still send them chunked.
+- **The four \`yes\` facts.**
+- **\`report check: PASS\`**, **\`Verification: OK\`**, every seal line \`OK\`, and **\`tampered copy: block digest MISMATCH\`**.
+
+If your Wget is another version, your validation line is the result for *that* version. That is the point of the test, and \`check_report.sh\` holds your report to it. \`STOP: the checker does not reproduce the known answers\` means \`warc_check.py\` was changed or mis-pasted. Fix it before reading anything it says about Wget.`
+      }
+    },
+    caseStudy: {
+      title: "Two tools, one browser history, 1 visit or 84: the 2011 Mork parsing discrepancy",
+      body: `**What happened.** In 2011, a Florida jury heard the murder trial of Casey Anthony. Part of the prosecution's case was a computer's Firefox history from March 2008. In 2008, Firefox kept its history in a single file, \`History.dat\`, in an old database format called Mork. Two forensic programs read that one file and gave two different answers:
+
+- **NetAnalysis**, used for a first police report in August 2008, showed one visit to a page about chloroform on sci-spot.com.
+- **CacheBack**, used later, showed a visit count of **84** for that page.
+
+The 84 figure was used repeatedly during the trial (New York Times, 19 July 2011, as republished by NBC News). The jury acquitted on 5 July.
+
+**Two tools, one file.** The account below comes from Craig Wilson, the developer of NetAnalysis, in a post dated 11 July 2011 on his company's site. He says he first heard of the discrepancy around 9 June 2011, and that no one for the prosecution or the defence asked him about it. After the trial he obtained a copy of the recovered \`History.dat\` (3,338,603 bytes) and decoded the relevant records by hand, field by field:
+
+- **The sci-spot.com record has no VisitCount field.** In Mork, that field appears only once a page has been visited twice or more, so its absence means one visit. The record's FirstVisitDate and LastVisitDate are also the same moment.
+- **The visit was at 15:16:34** local time. The second tool's report said 15:16:13.
+- **The 84 belongs to another record.** 15:16:13 and a count of 84 are the values of a MySpace record, which Wilson also decoded field by field.
+
+He also describes how the second tool came to be used. The examiner wanted local times adjusted for daylight saving, which the NetAnalysis version then in use did not show, and tried another tool. It recovered nothing from the Mork file. Its developer then "reviewed the Mork database over a period of a few nights and allegedly corrected the problem". The corrected tool recovered 8,557 records, 320 fewer than NetAnalysis at the time.
+
+**The other developer agreed.** On 19 July 2011 the New York Times reported that John Bradley, CacheBack's designer, who had testified at the trial, now said the page had been visited once, not 84 times. He came to that after redesigning part of his software. He also said that both reports were inaccurate, "in part because it appears both types of software had failed to fully decode the entire file", although NetAnalysis got this record right. How the correction travelled is disputed, and this module does not settle it:
+
+- Bradley told the Times that his findings were not presented to the jury and the record was never corrected.
+- The State Attorney's office issued a press release, reported by the ABA Journal on 21 July 2011. It said Bradley had contacted prosecutors on 23 June, that prosecutors and the defence discussed the discrepancy on 27 June, and that both sides agreed on the one-visit analysis. It said a later report went to a wrong email address.
+- Bradley's lawyer said his client disputed "erroneous media reports" suggesting he had insinuated wrongdoing by prosecutors.
+
+**What should have caught it.**
+
+- **A known-answer test.** A Mork file with a few records whose visit counts you set yourself would show at once whether a parser reads the count from the right record. Wilson's conclusion: "Whilst it may not be possible to verify a tool, it is possible to verify the results against known data sets."
+- **Revalidation after a change.** A parser "corrected" over a few nights, while the case was pending, is a changed method. Today's Code of Practice (para 24.9.19) requires revalidation when a change could affect the results.
+- **Treat disagreement between tools as a finding.** Wilson again: "If two forensic tools produce completely different results, this should at least warrant further investigation." Two tools that disagree about a single file cannot both be right. At that point the raw record, read by hand, is the tie-breaker. That is exactly what Wilson did afterwards.
+- **Grade the sources (S3.1).** Wilson develops the rival product, so he is an interested source: use a letter F on first use, not an A for sounding expert. But his claim can be checked against the raw record he publishes. It was also confirmed by the other tool's own developer, whose interest ran the opposite way. Two sources with opposing interests reaching the same answer is strong corroboration.
+
+**The same lesson in this module.** Wget's block digests passed the known-answer test, and its payload digests failed it for chunked responses. Neither result shows up unless you test on input whose answer you already know. Wilson's words apply to your WARCs as much as to Mork files.`
+    },
+    challenges: [{
+      q: `A colleague says: "Wget is open source, used by archives for years, and I've never seen it lose a page. We don't need to test it." Using the lab's result, what do you say?`,
+      a: `Three answers.
+
+- **Use is not validation.** Being widely used shows a tool is popular, not that its output is right for your purpose. The Code of Practice defines validation as "objective evidence" that a method is fit for "the specific purpose intended". Years of use without complaint is not objective evidence of anything in particular.
+- **The failure the lab found is silent.** Wget 1.25.0 wrote a payload digest for every chunked response, and nothing warned that it was the wrong one. Nothing ever looked lost. You find this kind of fault only by comparing against an answer you worked out independently.
+- **Your purpose decides what matters.** If you rely only on block digests and a SHA-256 of the whole WARC, the fault does not touch your evidence. If you cite a payload digest to argue that your capture matches an archive's, it does. The known-answer test tells you which digests you can use. Your colleague's claim can't.`
+    }, {
+      q: `You capture a page, and a week later someone says your WARC "can't be trusted because the payload digest doesn't match the Internet Archive's". The page was served chunked. How do you answer?`,
+      a: `Start from what each digest is for.
+
+1. **Check the integrity claim with the right digest.** The block digest in every record, and the SHA-256 of the WARC in your sealed log, show whether the file has changed since capture. Both verify.
+2. **Explain the mismatch.** Your tool's stored payload digest was computed over the chunked bytes. The standard, and the Internet Archive's indexing, remove chunking first. So the mismatch is between two ways of computing a digest, not between two versions of the page. Your checker's recomputed payload digest is the one to compare. Drill 1 shows it matching the archive's digest for the plain body.
+3. **Allow for content-encoding.** If the archive received the page gzipped, its digest will differ from yours even when the page is the same (S2.1). Compare decoded content in that case, and say so.
+4. **Put it in writing.** Your report's Tool validation section already says the stored payload digest is not relied on for chunked responses. That sentence, written before anyone challenged you, is worth more than any explanation afterwards.`
+    }, {
+      q: `Your WARCs were written by Wget 1.25.0, and the lab validated 1.25.0. Next month Homebrew upgrades Wget. What do you have to do, and what does \`check_report.sh\` do about it?`,
+      a: `Rerun the known-answer test on the new version before relying on anything it captures.
+
+- **What the Code says.** Para 24.9.19 requires revalidation "when changes are assessed to have the potential to influence the results obtained". A new release of the capture tool is exactly such a change. The fix could go either way: payload digests might become correct, or something that passed might break.
+- **Validation records a version.** Para 19.2.2(b)(iii) asks for output to be traceable to the software version, and every WARC names its writer on the \`software:\` line.
+- **What \`check_report.sh\` does.** It reads that line in every WARC in \`evidence/\` and fails the report if any WARC was written by a version other than the one named under \`## Tool validation\`. So an upgrade without revalidation shows up as a failed check, not as a silent assumption.
+- **Old captures are fine.** They stay valid under the old validation, because they were written by the version that was tested.`
+    }],
+    quiz: ["What does a WARC block digest cover, what does a payload digest cover, and which question does each one answer?", "Using RFC 2616's terms, why does chunking come out of the payload but gzip stays in? Give the digest a correct tool records for a chunked gzip response.", "Name the five steps of a known-answer test as the lab runs them. Why must the checker reproduce the known answers before it judges the tool?", "What did the known-answer test find in Wget 1.25.0? Which digests does the report rely on because of it, and which does it refuse to use?", "What does the Berkeley Protocol name as the minimum for a web capture to be used in court? Which part of that minimum does the lab's WARC not hold?", "What is the difference between an evidentiary copy and a working copy? Where does each one live in the lab's case folder?", "What does an RFC 3161 timestamp prove, and what three things does it not prove? What does the TSA see of your evidence?", "In the 2011 Mork case, what did the raw record show that the second tool's report did not, and which two practices from this module would have caught it before trial?"],
+    workbench: `> **What this trains.** The lab validated Wget against known answers. Here you check that result against an outside party, measure the one clock in the case that is not yours, and find something a WARC of the HTML cannot hold.
+
+#### 🟢 Drill 1 — does anyone outside agree with your checker? ~4 min
+
+**Goal.** Your checker says Wget's stored payload digest for RFC 2606 is wrong by the standard's definition. The Internet Archive says it recomputes payload digests itself, the standard's way, when it indexes. RFC 2606 has not changed since 1999, so the archive's digests for it can be compared with yours.
+
+**Done when.** You know which of the archive's digests equals your checker's, which equals Wget's, and what the others are.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_2 || exit 1
+# One request: the archive's captures of the same file, with the digest it indexed for each.
+curl -sf --retry 3 --retry-all-errors -m 120 -A "CyberScoutsLab/1.0" \\
+  "https://web.archive.org/cdx/search/cdx?url=www.rfc-editor.org/rfc/rfc2606.txt&filter=statuscode:200&fl=timestamp,digest&limit=-20" > ia_rfc2606.txt
+awk '{print $2}' ia_rfc2606.txt | sort | uniq -c
+awk -F'\\t' '$2 == "response" {print "stored by Wget: ", $5; print "checker (spec):  ", $6}' working/item002/check.tsv
+# One more request: the same file, this time asking for gzip, to explain a second archive digest.
+curl --http1.1 -sf -m 60 -A "CyberScoutsLab/1.0" -H "Accept-Encoding: gzip" -o /tmp/rfc2606.gz https://www.rfc-editor.org/rfc/rfc2606.txt
+python3 -c "import base64, hashlib; print('gzip body:       ', 'sha1:' + base64.b32encode(hashlib.sha1(open('/tmp/rfc2606.gz', 'rb').read()).digest()).decode())"
+rm -f /tmp/rfc2606.gz
+\`\`\`
+
+It prints (the archive's counts grow over time):
+
+\`\`\`text
+   9 2F2R3AJOSFTJ7WZM6ZCDI33C2TT3SUGC
+   5 5N2IJJO7QTBMJKS3UJXXDVXNCZQXKE2H
+   1 VPASLMHROJOSVKZGV6E2LUDLY2TZ4JFX
+   5 Y2L2IBDZX6VNGVUNUTD25TLA2QD3JHLE
+stored by Wget:  sha1:4J2PI3SL6ZOS7PTM4CEBSO6C4D3MZQKE
+checker (spec):   sha1:2F2R3AJOSFTJ7WZM6ZCDI33C2TT3SUGC
+gzip body:        sha1:5N2IJJO7QTBMJKS3UJXXDVXNCZQXKE2H
+\`\`\`
+
+- **The checker's digest is in the archive's list:** it is the digest of the plain body. An independent party, computing by the definition, gets the same answer as your checker.
+- **Wget's stored digest appears nowhere** in the archive's list.
+- **The second archive digest is the gzip body.** The one extra request asked for gzip and reproduced it exactly.
+- **The two other digests are the same text, gzipped differently.** Opened from the archive during this module's build, both came back with \`content-encoding: gzip\`, at 3,013 and 2,993 bytes.
+
+This is S2.1's lesson seen from the other side. Content-encoding stays in the payload, so one unchanged 1999 text has four archive digests. Transfer-encoding does not stay in the payload, which is why none of the four is Wget's.
+
+</details>
+
+#### 🟡 Drill 2 — how far off is your own clock? ~3 min
+
+**Goal.** Every \`WARC-Date\` in your case comes from your Mac's clock. Measure that clock against the TSA's by timestamping a throwaway hash, noting your Mac's time just before and just after.
+
+**Done when.** You can say how far your Mac's clock is from the TSA's, and to within how many seconds you can say it.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_2 || exit 1
+# The clocks already in the case folder, for the IANA capture:
+grep '^item001' facts.txt | grep -o "WARC-Date of the response: [^;]*\\|Last-Modified: .*\\|own date: .*"
+# Now measure this Mac's clock against the TSA's: timestamp a throwaway hash, note the Mac's
+# UTC time just before and just after, and compare with the time inside the token.
+printf 'clock check %s\\n' "$RANDOM" > /tmp/clock.txt
+openssl ts -query -data /tmp/clock.txt -sha256 -no_nonce -out /tmp/clock.tsq 2>/dev/null
+B=$(date -u +%s)
+curl -sf --retry 3 -m 60 -A "CyberScoutsLab/1.0" -H "Content-Type: application/timestamp-query" \\
+  --data-binary @/tmp/clock.tsq -o /tmp/clock.tsr https://freetsa.org/tsr || { echo "STOP: no reply"; exit 1; }
+A=$(date -u +%s)
+T=$(openssl ts -reply -in /tmp/clock.tsr -text 2>/dev/null | sed -n 's/^Time stamp: //p')
+python3 - "$B" "$A" "$T" <<'PY'
+import sys, datetime
+b, a = int(sys.argv[1]), int(sys.argv[2])
+t = datetime.datetime.strptime(sys.argv[3].replace(" GMT", ""), "%b %d %H:%M:%S %Y").replace(tzinfo=datetime.timezone.utc).timestamp()
+print(f"Mac before: {b}  TSA: {int(t)}  Mac after: {a}  (round trip {a - b} s)")
+print("Mac clock agrees with the TSA to within the round trip" if b - 1 <= t <= a + 1 else f"Mac clock is off by about {int(t - (a + b) / 2)} s")
+PY
+rm -f /tmp/clock.txt /tmp/clock.tsq /tmp/clock.tsr
+\`\`\`
+
+It prints (your times will differ):
+
+\`\`\`text
+WARC-Date of the response: 2026-09-29T06:02:44Z
+Last-Modified: Tue, 29 Sep 2026 05:10:35 GMT
+own date: 'Last revised 2026-09-27'
+Mac before: 1790662358  TSA: 1790662360  Mac after: 1790662360  (round trip 2 s)
+Mac clock agrees with the TSA to within the round trip
+\`\`\`
+
+- **Three clocks, three answers.** For one page, the capture carries three dates:
+  - the page's own "Last revised" date (27 September);
+  - a server \`Last-Modified\` time later than that (29 September, 05:10 UTC);
+  - the \`WARC-Date\` from your Mac.
+
+  None of them shows *when you had the file*.
+- **What the measurement adds.** The TSA's time falls inside the window your Mac measured, so your \`WARC-Date\` values can be trusted to within a couple of seconds, on the day you measured.
+- **Write the measurement into your case notes.** A later reader cannot rerun it. The seal's token in \`SEAL.tsr\` is what carries the independent time into the case.
+- **A mismatch is a finding, not a failure.** If the TSA time falls outside your window, record the offset and correct the dates in your report. Do not change the WARC.
+
+</details>
+
+#### 🔴 Drill 3 — what the browser shows and the WARC does not hold ~5 min
+
+**Goal.** Many pages load their words with a script after the HTML arrives. Build one on your own Mac, capture it with Wget using \`--page-requisites\` (images, styles and scripts it can find), and look for the sentence a reader would see.
+
+**Done when.** You have seen the sentence missing from the WARC and present in a browser, and you can say what your report's limits section must add.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_2 || exit 1
+rm -rf drill3 && mkdir drill3 && cd drill3 || exit 1
+# A page like many real ones: the words you read are fetched by a script after the page loads.
+cat > page.html <<'HTML'
+<!doctype html><title>Notice</title>
+<p id="claim">Loading...</p>
+<script>fetch("claim.json").then(r => r.json()).then(j => { document.getElementById("claim").textContent = j.text; });<\/script>
+HTML
+printf '{"text": "The office closes on 31 October."}\\n' > claim.json
+python3 -u -m http.server 0 --bind 127.0.0.1 > server.log 2>&1 & SRV=$!
+for i in 1 2 3 4 5 6 7 8 9 10; do P=$(grep -o 'port [0-9]*' server.log | awk '{print $2}'); [ -n "$P" ] && break; sleep 0.5; done
+[ -n "$P" ] || { echo "STOP: the test server did not start"; kill $SRV; exit 1; }
+# 1. Wget, with everything it can follow: page requisites (images, styles, scripts it can see).
+wget -q --page-requisites -U "CyberScoutsLab/1.0" --warc-file=wget_capture -O /dev/null "http://127.0.0.1:$P/page.html"
+python3 ../warc_check.py wget_capture.warc.gz | awk -F'\\t' '$2 == "response" {print "wget captured:", $3}'
+gzip -dc wget_capture.warc.gz | grep -a -c "closes on 31 October" | sed 's/^/"closes on 31 October" occurrences in the WARC: /'
+# 2. A browser, if you have Google Chrome: the page as a reader sees it.
+C="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+if [ -x "$C" ]; then
+  "$C" --headless --disable-gpu --virtual-time-budget=5000 --dump-dom "http://127.0.0.1:$P/page.html" 2>/dev/null | grep -o '<p id="claim">[^<]*</p>' | sed 's/^/browser shows: /'
+else echo "Chrome not found - skip part 2"; fi
+kill $SRV
+\`\`\`
+
+It prints (the port number changes each run):
+
+\`\`\`text
+wget captured: http://127.0.0.1:63184/page.html
+"closes on 31 October" occurrences in the WARC: 0
+browser shows: <p id="claim">The office closes on 31 October.</p>
+\`\`\`
+
+- **The WARC is a faithful record of an incomplete page.** Wget stored exactly what the server sent for \`page.html\`, and every digest in it would pass. The sentence is not there, because the sentence is not in the HTML. A script fetches it later from \`claim.json\`. Wget does not run scripts, so it never asks for that file.
+- **Validation does not cover this.** The known-answer test checked that the tool records correctly what it fetches. It says nothing about what the tool never fetches.
+- **Two things follow.**
+  - This is why the Berkeley Protocol's minimum (para 155) adds a **full-page capture** to the URL and the HTML.
+  - It is why a report built on a Wget WARC must say "HTML only" in its limits, as the lab's does.
+- **Tools exist for this, and they need validating too.** Browser-based capture tools record what a browser fetches, scripts included. They need the same known-answer treatment before you rely on them.
+
+</details>`,
+    tracker: ["Wrote the question, the tool under test and the scope before the first request", "Ran the lab: checker confirmed against 4 known answers, Wget's result recorded, 2 captures logged, report PASS, timestamp verified", "Can explain block digest vs payload digest, and why chunking comes out of the payload but gzip stays in", "Can explain why the checker is validated before the tool, and why a validation belongs to one version", "Matched the checker's digest to the Internet Archive's for the same file (Drill 1)", "Measured this Mac's clock against the TSA's and noted the result in the case notes (Drill 2)", "Saw a sentence a browser shows that the WARC does not hold, and can say what the limits section must add (Drill 3)"]
   }]
 };
 
