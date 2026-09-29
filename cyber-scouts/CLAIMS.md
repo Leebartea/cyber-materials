@@ -9,9 +9,9 @@ Unlike the Guardians and AppSec ledgers, this one is **built as the course is
 written, never retrofitted**: a module ships in the same commit as its batch, and
 no claim enters the course before its row exists.
 
-- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.7 + S3.1 + 3 roadmaps)
+- **Course file:** `cyber-scouts/cyber_scouts_app.html` (intro + S1.1–S1.7 + S2.1–S2.7 + S3.1–S3.3 + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py scouts --json out.json`
-- **Last pass:** 2026-09-28 (Batch 15: S3.1 build pass, rows 319–345, 14 defects caught before publication, none shipped; guard A111; Batch 14: S2.7 build pass, rows 292–318, 13 defects caught before publication, none shipped; Batch 13: S2.6 build pass, rows 264–291, 12 defects caught before publication, none shipped; Batch 12: S2.5 build pass, rows 238–263, 9 defects caught before publication, none shipped; Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
+- **Last pass:** 2026-09-29 (Batch 17: S3.3 build pass, rows 367–397, 10 defects caught before publication, none shipped; Batch 16: S3.2, rows 346–366; Batch 15: S3.1 build pass, rows 319–345, 14 defects caught before publication, none shipped; guard A111; Batch 14: S2.7 build pass, rows 292–318, 13 defects caught before publication, none shipped; Batch 13: S2.6 build pass, rows 264–291, 12 defects caught before publication, none shipped; Batch 12: S2.5 build pass, rows 238–263, 9 defects caught before publication, none shipped; Batch 11: S2.4 build pass, rows 206–237, 10 defects caught before publication, none shipped; Batch 10: S2.3 build pass, rows 178–205, 9 defects caught before publication, none shipped; Batch 9: S2.2 build pass, rows 147–177, 8 defects caught before publication, none shipped; Batch 8: S2.1 build pass, rows 122–146, 8 defects caught before publication, none shipped; Batch 7: S1.7 build pass, rows 106–121, 8 defects caught before publication, none shipped; Batch 6: S1.6 build pass, rows 88–105, 10 defects caught before publication, none shipped; Batch 5: S1.5 build pass, rows 70–87, 9 defects caught before publication, none shipped; Batch 4: S1.4 build pass, rows 53–69, 9 defects caught before publication, none shipped; Batch 3: S1.3 build pass, rows 36–52, 9 defects caught before publication, none shipped; Batch 2: S1.2 build pass, rows 17–35, 4 defects caught before publication, none shipped; Batch 1: S1.1, 16 rows)
 
 ## How to use it
 
@@ -813,3 +813,54 @@ Defects caught in the S3.2 build pass (none shipped):
 - **Case draft missed Bradley's point that both tools were incomplete** (neither decoded the whole file,
   though NetAnalysis got this record right). Added.
 - **Guardrail GET-probed freetsa.org/tsr and got 403**; now a real POSTed query (row 366).
+
+## Batch 17 — S3.3 Public ledgers: what the chain proves, what it only repeats, and where tracing stops
+
+Moved ahead of "internet-wide scan data" at the user's request (2026-09-29); the L3 list is otherwise unchanged.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 367 | S3.3 | ERC-20 marks `name()`, `symbol()`, `decimals()` OPTIONAL: "interfaces and other contracts MUST NOT expect these values to be present"; `Transfer(address indexed _from, address indexed _to, uint256 _value)` | `SOURCED` | ethereum/ERCs `ERCS/erc-20.md` (raw, 2026-09-29) | stable |
+| 368 | S3.3 | Tether's own page lists `0xdAC17F958D2ee523a2206206994597C13D831ec7` for Ethereum | `EXECUTED` | lab item001 (tether.to/en/supported-protocols/) | 2027-03 |
+| 369 | S3.3 | Blockscout's first search page for USDT: 30 tokens with symbol USDT, 29 not the issuer's, 28 named "Tether USD"; most-"held" lookalike 0x5620…50f7 with 128,698 | `EXECUTED` | lab item002; counts drift, expected output says so | volatile |
+| 370 | S3.3 | Node: the issuer's contract and 0x417D…A154 both return name "Tether USD", symbol "USDT", decimals 6 | `EXECUTED` | lab items 003–004 | 2027-03 |
+| 371 | S3.3 | Drill 1: 0x417D…A154 is not on Tether's page; created 2025-12-30; Tether's contract created 2017-11-28 | `EXECUTED` | Drill 1 run as written, bash + zsh identical | stable |
+| 372 | S3.3 | 2024 poisoning: victim's key signed 0.05 ETH (native) to 0xd9a1b0b1…853a91 at 09:14:47 UTC 3 May 2024 (tx 0xb18ab131…) | `EXECUTED` | lab item005 (node) + Blockscout | stable |
+| 373 | S3.3 | Tx 0x9147d74e… (09:17:35 UTC) was signed by 0x517d…1db2, not the victim; it emitted 16 Transfer events naming 16 different senders; the victim's: token 0x7393…262e, to 0xd9a1c378…3a91, raw 50000 | `EXECUTED` | lab items 006–007 (node receipt) | stable |
+| 374 | S3.3 | Token 0x7393…262e: name "Ether", symbol "ETH", decimals 6 | `EXECUTED` | lab item008 (node) | stable |
+| 375 | S3.3 | Intended vs lookalike: first 4 and last 6 hex digits identical; 27 of 40 differ | `EXECUTED` | lab item005 + item007 | stable |
+| 376 | S3.3 | Loss: victim's key signed transfer() on WBTC contract 0x2260…c599 to the lookalike, raw 115528802767 (1,155.288 WBTC) at 10:31:35 UTC, 74 min after the fake transfer | `EXECUTED` | lab item009 (node); timestamp via Blockscout | stable |
+| 377 | S3.3 | Chainalysis (23 Oct 2024): scammer "returned the original $68 million in ETH on May 9th"; 82,031 addresses seeded | `SOURCED` | chainalysis.com/blog/address-poisoning-scam/ raw HTML | stable |
+| 378 | S3.3 | Bybit theft tx 0x46deef0f… block 21895238, 14:13:35 UTC, execTransaction (0x6a761202), operation=1, to 0x9622…7242, inner transfer(0xbdd077…9516, 0) | `EXECUTED` | lab items 011 (node raw decode) + 012 (explorer decode) agree | stable |
+| 379 | S3.3 | Safe v1.3.0: `enum Operation {Call, DelegateCall}`; proxy: singleton "always needs to be first declared variable", fallback `sload(0)` | `SOURCED` | safe-global/safe-smart-account v1.3.0 Enum.sol, GnosisSafeProxy.sol (raw) | stable |
+| 380 | S3.3 | Bybit Safe storage slot 0 today = 0xbdd077f651ebe7f7b3ce16fe5f2b025be2969516 | `EXECUTED` | lab item013 (node, latest) | 2027-03 |
+| 381 | S3.3 | sweepETH tx 0xb61413c4… at 14:16:11 UTC paid 401,346.768858404671846374 ETH from the Safe to 0x4766…86e2; state-changes agree | `EXECUTED` | lab item014; Drill 2 | stable |
+| 382 | S3.3 | 0x4766…86e2: 62 outgoing txs; 40 distinct addresses paid exactly 10,000 ETH; 39 on FBI list, 0x36ed…e4cb not; 0x4766 itself not listed | `EXECUTED` | lab items 010, 015–016 | re-check if IC3 edits the PSA |
+| 383 | S3.3 | FBI PSA I-022625-PSA (26 Feb 2025): North Korea / "TraderTraitor", ~$1.5B, on or about 21 Feb 2025; 51 ETH addresses "holding or have held assets from the theft"; "dispersed across thousands of addresses on multiple blockchains" | `SOURCED` | ic3.gov/psa/2025/psa250226 raw HTML (item010) | 2027-03 |
+| 384 | S3.3 | Drill 3: 0x36ed…e4cb sent 2 × 5,000 ETH to 0x4571…900a on 22 Feb 2025; neither listed; 0x4571's first page: 50 txs to 41 addresses | `EXECUTED` | Drill 3 run as written; count by direct query | stable |
+| 385 | S3.3 | Drill 2: Blockscout v2 internal-transactions answered 0, 2 and no reply for the same sweep within minutes; v1 txlistinternal answered 1; v1 also returned HTTP 429 for several minutes after heavy build use | `EXECUTED` | Drill 2 bash + zsh runs pasted; lab log rows | volatile |
+| 386 | S3.3 | Arkham announced ZachXBT submitted "definitive proof" of Lazarus at 19:09 UTC 21 Feb 2025 (Arkham's bounty) | `SOURCED` | crypto.news 22 Feb 2025 and cryptoninjas 22 Feb 2025, both quoting Arkham's post | stable |
+| 387 | S3.3 | Sygnia (16 Mar 2025): dev macOS workstation compromised 4 Feb "likely through social engineering"; AWS 5–17 Feb; S3 JS modified 19 Feb with activation condition for one Bybit cold wallet; malicious code removed two minutes after the tx; Mandiant confirmed attribution (per Safe's X post); Docker project in ~/Downloads | `SOURCED` | sygnia.co/blog/sygnia-investigation-bybit-hack/ raw HTML | stable |
+| 388 | S3.3 | Etherscan labels 0x4766…86e2 "Bybit Exploiter 1" | `SOURCED` | etherscan.io address page title (2026-09-29) | 2027-03 |
+| 389 | S3.3 | Bitget: unauthorized transfers from some hot wallets detected 18:31 UTC 24 Sep 2026; $351.6M; CEO: "compromised a critical backend system…spoof transaction data…"; "Private key compromise has been ruled out" | `SOURCED` | CoinDesk 25 Sep 2026 raw HTML | re-read when independent reports land |
+| 390 | S3.3 | Bitget CEO: "Based on IP behavior patterns and on-chain analysis, the attack method…is highly consistent with known patterns of North Korean hacker organizations" | `SOURCED` | The Hacker News (2026/09) raw HTML | as row 389 |
+| 391 | S3.3 | Whitepaper §10: "Some linking is still unavoidable with multi-input transactions, which necessarily reveal that their inputs were owned by the same owner." | `SOURCED` | nakamotoinstitute.org/library/bitcoin/ HTML (bitcoin.org PDF unreadable here) | stable |
+| 392 | S3.3 | Bitcoin Wiki Privacy: "One of the purposes of CoinJoin is to break this heuristic" | `SOURCED` | en.bitcoin.it/wiki/Privacy raw HTML | stable |
+| 393 | S3.3 | IC3 I-081325-PSA (13 Aug 2025) updates I-062424-PSA on fictitious law firms; "The US Government does not request payment for law enforcement services provided." | `SOURCED` | ic3.gov/PSA/2025/PSA250813 raw HTML | stable |
+| 394 | S3.3 | Fake-token swap in theory is a composite of a common pattern, not a named case | `CONVENTION` | labelled as such in the text | — |
+| 395 | S3.3 | Lab stops one hop from addresses named in case documents; victim and intended recipient truncated; lookalike shown in full | `CONVENTION` | scope.txt, lab header | — |
+| 396 | S3.3 | Lab, bash + zsh + sha256sum variant: identical checker output; RFC 3161 seal verifies | `EXECUTED` | four full runs 2026-09-29 | 2027-03 |
+| 397 | S3.3 | Windows route is WSL; no native PowerShell port was run | `CONVENTION` | as S3.2 | — |
+
+Defects caught in the S3.3 build pass (none shipped):
+
+- **A WebFetch summary invented a claim.** It said Chainalysis described the poisoning as "not fake tokens". The raw page says no such thing, and the ledger shows a fake "ETH" token (row 373). Only raw text is pinned.
+- **An explorer said "0 internal transactions" for a 401,346 ETH sweep**, and the first checker silently dropped the line. The lab now tests content, retries across two interfaces, and prints UNKNOWN (row 385).
+- **The collection-log FAILED check read every row**, so a retried-then-successful capture stopped the lab. The last row per item now decides.
+- **The inner-call decoder read the bytes argument's length word as its selector.** It now follows the ABI offset.
+- **The FBI's attribution was first graded B2.** Under S3.1's rule (the course's own history with the source), a first-use source is F; now F3.
+- **The bare explorer base `…/api/v2` failed the URL gate (400).** The variable is now the host.
+- **A stale background run overwrote a sealed evidence file**; the seal reported it `FAILED`. The case was rerun clean.
+- **Case draft said "hot and warm wallets" for Bitget's 18:31 detection**; CoinDesk says "some exchange hot wallets". Fixed.
+- **Case draft cited BleepingComputer for the Bitget attribution quote**, which returned 403 to a raw fetch; re-pinned to The Hacker News raw HTML.
+- **"The address the sweep paid" was first described as outside the FBI list's remit**; it held stolen ether, which is what the list describes. Now stated as a gap without a reason.

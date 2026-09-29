@@ -765,7 +765,7 @@ const curriculum = {
     colorVar: "--l3",
     weeks: "Weeks 15–21",
     roadmap: {
-      promise: "Level 3 adds judgement. Levels 1 and 2 collected public records, proved they had not changed and graded how strongly one record links to another. Level 3 grades the sources themselves, tests several explanations at once instead of defending one, and takes the same discipline to harder kinds of record: internet-wide scans, public ledgers, transport signals and satellite images.",
+      promise: "Level 3 adds judgement. Levels 1 and 2 collected public records, proved they had not changed and graded how strongly one record links to another. Level 3 grades the sources themselves, tests several explanations at once instead of defending one, and takes the same discipline to harder kinds of record: public ledgers, internet-wide scans, transport signals and satellite images.",
       canDo: ["Grade a source and a claim separately, with the name of the grading system beside the grade", "Catch corroboration that comes from the same origin, including a summary that cites the source it seems to confirm", "Test competing hypotheses, set aside evidence that fits them all, and name the item a conclusion depends on", "Write a report that names the hypotheses it rejects, keeps the open ones open, and lists what would change its mind"],
       build: "One case folder per module, each with its scope, collection log, hashes and a grades file, ending in a full investigation file from plan to finding (the Level 3 capstone).",
       prereq: "Levels 1 and 2, especially the collection record, the report form and link strength (S2.7)."
@@ -854,8 +854,8 @@ Level 3 adds judgement: how far to trust a source, how to test competing explana
 |---|---|---|
 | S3.1 | Source grading and competing hypotheses | ✅ available |
 | S3.2 | Preservation: capturing and checking your own web evidence | ✅ available |
+| S3.3 | Public ledgers: tracing cryptocurrency, and where tracing stops | ✅ available |
 | — | Internet-wide scan data: what a banner proves | planned |
-| — | Public ledgers: tracing cryptocurrency, and where tracing stops | planned |
 | — | Transport tracking: aircraft and ships | planned |
 | — | Satellite imagery: change over time | planned |
 | — | Capstone: an investigation file, from plan to finding | planned |
@@ -8859,6 +8859,601 @@ browser shows: <p id="claim">The office closes on 31 October.</p>
 
 </details>`,
     tracker: ["Wrote the question, the tool under test and the scope before the first request", "Ran the lab: checker confirmed against 4 known answers, Wget's result recorded, 2 captures logged, report PASS, timestamp verified", "Can explain block digest vs payload digest, and why chunking comes out of the payload but gzip stays in", "Can explain why the checker is validated before the tool, and why a validation belongs to one version", "Matched the checker's digest to the Internet Archive's for the same file (Drill 1)", "Measured this Mac's clock against the TSA's and noted the result in the case notes (Drill 2)", "Saw a sentence a browser shows that the WARC does not hold, and can say what the limits section must add (Drill 3)"]
+  }, {
+    id: "s3_3",
+    level: 3,
+    num: "S3.3",
+    title: "Public Ledgers — What the Chain Proves, What It Only Repeats, and Where Tracing Stops",
+    objective: `Read three published cases straight from the Ethereum ledger, through two readers: an explorer and a public node. Show that a token is its contract and not its name, when dozens of contracts copy Tether's name, symbol and decimals exactly. Take apart a 2024 address-poisoning loss: which transfers the victim's key signed, and which a fake token only claimed. Decode the transaction Bybit's signers actually approved in 2025, a DELEGATECALL that replaced the wallet's code, then follow the sweep and the first split and compare them with the FBI's published address list. Grade every link with S2.7's strengths and every attribution with S3.1's grades. Keep empty replies from counting as answers, stay one hop from the case, and learn what to do, and what to distrust, when the victim is you.`,
+    theory: `#### What this module adds
+
+S2.7 graded how strongly one record links to another. S3.1 graded the sources. S3.2 checked the tools. A public blockchain looks like the answer to all three: one record, public to everyone, that nobody can quietly edit. It is a very good record. But it records **keys, contracts and movements**, not people, and much of what a wallet or an explorer shows you is not the ledger at all. This module is about telling the two apart.
+
+Everything here is on Ethereum, where the three cases in the lab took place. Bitcoin works differently, and a section below covers the difference.
+
+#### The ledger in one page
+
+- **An account is either a key or a contract.** An *externally owned account* is controlled by whoever holds its private key. A *contract account* is code, and it does only what its code says.
+- **A transaction is signed by exactly one key.** Its \`from\` field is the account whose key signed it. That is the strongest fact on the ledger: nobody else could have produced that signature.
+- **Ether is native. Tokens are not.** Ether moves as a transaction's \`value\`. A **token** is a contract that keeps its own table of balances. "Sending a token" is a call to that contract, and the contract then logs a \`Transfer\` event. The event is the contract's own statement of what happened. It is as trustworthy as the contract's code, and no more.
+- **Two ways to read it.** An **explorer** (the lab uses Blockscout) indexes the chain for you. It labels addresses, decodes calls, reconstructs internal transfers and searches by name. A **node** answers raw questions about the chain itself. The explorer is more convenient, and it is also a source: it can be slow, incomplete or simply wrong. Where the lab can ask both, it does.
+
+#### A token is its contract, not its name
+
+The token standard, ERC-20, defines \`name()\`, \`symbol()\` and \`decimals()\`, and marks all three **OPTIONAL**: "interfaces and other contracts MUST NOT expect these values to be present". They are strings and a number that the contract's author chose. Anyone can deploy a contract that returns \`"Tether USD"\`, \`"USDT"\` and \`6\`, which are exactly what Tether's real contract returns. A wallet will show both tokens the same way: same name, same symbol, same number format. Only the **contract address** is different, and nobody can copy it.
+
+The lab searches for USDT and finds dozens of such contracts, many with tens of thousands of "holders". A holder here is only an address that the contract says has a balance. A contract can give a balance to anyone it likes, and "airdrops" of this kind are how these tokens reach wallets.
+
+**The rule:** identify a token by its contract address, checked against a page the **issuer** controls. A name, a symbol, a logo, a chat message or a search result does not identify a token.
+
+#### The fake-token swap
+
+A scam you are likely to meet goes like this. A friendly stranger says he holds a large amount of a well-known coin and cannot sell it himself. If you help, he says, you can keep a percentage. The "help" is a swap: you send him your real coins, or buy his coin through a link he gives you, and you receive his "coin" in return. It carries the famous name, and your wallet shows the balance you expected. Then you try to sell it, and nobody will buy. It was never the famous coin, only a contract with a copied name. The stranger is gone.
+
+On the ledger, the two halves of that swap are very different kinds of record:
+
+- **What you sent** was signed by your key. It is a STRONG link from your address to his (S2.7), and anyone can follow where it goes next.
+- **What you received** is a \`Transfer\` event logged by his contract. It is ONE-WAY: the contract says so, and nothing else agrees.
+
+A trace can show where your coins went. It cannot bring them back. Only a party that controls the next stop can freeze funds: an exchange that receives them, or an issuer whose token contract can freeze balances. So report quickly, with the transaction hashes, to the platform, to the police (in the UK, Action Fraud; in the US, the FBI's IC3) and to any exchange the funds reach. Then expect a second wave of scammers. The FBI has warned, most recently in August 2025, of fake "law firms" that contact scam victims offering to recover their funds. The notice adds: "The US Government does not request payment for law enforcement services provided."
+
+#### Address poisoning
+
+An Ethereum address is 40 hexadecimal digits. Wallets usually shorten it to the first few and the last few, like \`0xd9A1…3a91\`. An attacker generates an address that matches yours at both ends, then puts it into your transaction history, typically as a tiny or fake transfer that seems to come from you. The next time you copy a "recent" address from your history, you may copy theirs.
+
+The lab reads a real case from May 2024. The victim sent 0.05 ETH as a test payment. Within three minutes, a token contract that calls itself \`"Ether"\` / \`"ETH"\` logged a matching "0.05 ETH" transfer from the victim to a lookalike address. The victim never signed it: someone else's transaction made the contract log it, alongside 15 other fake transfers to other people. At 10:31 UTC, 74 minutes after the fake transfer, the victim's own key signed a transfer of 1,155 WBTC to the lookalike. Chainalysis reports that the scammer returned the original $68 million, in ETH, on 9 May. The ledger shows the loss and the return. It does not show why the money came back.
+
+The defence is dull and complete: compare the **whole** address, or better, never copy an address from history.
+
+#### Reading what a transaction actually did
+
+In February 2025, Bybit's signers approved what their screen showed as a routine transfer from the exchange's cold wallet, a Safe multisig. The transaction they actually signed is on the ledger, and it can be decoded without trusting anyone's summary:
+
+- **\`operation = 1\`.** Safe's \`Enum.Operation\` is \`{Call, DelegateCall}\`, so 1 means DELEGATECALL. A delegatecall runs another contract's code *inside the Safe's own storage*.
+- **The code it ran was a \`transfer(address, 0)\` call.** It looks harmless. But in the contract it called, that function simply writes its first argument into storage slot 0.
+- **Slot 0 is the Safe's code pointer.** Safe's proxy contract says its singleton "always needs to be first declared variable", and it reads the address of its code from slot 0 on every call. Overwrite slot 0 and the wallet runs whatever code the attacker chose.
+- **Then the sweep.** Less than three minutes later, a \`sweepETH\` call on that new code paid out the wallet's ether with no signatures at all.
+
+The lab reads the slot as it stands today, and decodes the signed transaction twice: once from the node's raw bytes and once from the explorer's decoding.
+
+#### What the ledger proves, and what it does not
+
+| The ledger proves | The ledger does not prove |
+|---|---|
+| a key signed this transaction | who holds the key |
+| value moved from A to B under the chain's rules | that B is a person, or a different person from A |
+| a contract logged an event | that the event is true, or that the named sender agreed |
+| the order of transactions and the block they are in | why anything was done |
+
+**Attribution comes from sources, never from the ledger itself.** In the Bybit case, the independent investigator ZachXBT, who publishes his work on X, was the first to link the theft publicly to North Korea's Lazarus Group. Arkham Intelligence, which had offered a bounty for the answer, announced that he submitted "definitive proof" at 19:09 UTC on the day of the theft. Those are Arkham's words about its own bounty, so grade them as Arkham's. Five days later, the FBI publicly attributed it to North Korea ("TraderTraitor") and published 51 Ethereum addresses. Grade each of these as a source (S3.1). The FBI notice does not publish its evidence. The ledger can confirm that listed addresses received stolen funds, which checks the list's reach. It cannot confirm who is behind them. The lab also finds one first-hop address the list leaves out. A missing address is a gap in the list, not a finding that the address is innocent.
+
+#### Bitcoin is different
+
+Bitcoin has no accounts. A transaction spends earlier outputs ("inputs") and creates new ones. That makes one kind of inference possible. The whitepaper itself says: "Some linking is still unavoidable with multi-input transactions, which necessarily reveal that their inputs were owned by the same owner." Analysts call this the **common-input-ownership heuristic**. It is a heuristic, not a proof. The Bitcoin Wiki notes that "One of the purposes of CoinJoin is to break this heuristic", because CoinJoin builds one transaction from several owners' inputs. A cluster of addresses built on this heuristic is at best a LEAD until something else confirms it.
+
+#### Where tracing stops
+
+- **At an exchange.** Funds that reach an exchange go into its internal books. Who the account belongs to is in the exchange's records, which only a court or the police can require it to hand over.
+- **At a bridge, swap or mixer.** Funds that change chain or token, or pass through a mixer, leave a trail that is weak at best. The FBI says the Bybit funds were "dispersed across thousands of addresses on multiple blockchains".
+- **At your scope.** Each hop outward reaches more addresses that belong to people with no part in the case: exchanges' customers, merchants, strangers. The lab stops one hop from the addresses named in the case documents, and the report says so.
+
+#### Ethics
+
+An address is personal data once it can be tied to a person. The lab shows the 2024 victim's address, and the address the victim meant to pay, only in shortened form. It never sends a transaction, never "tests" an address with a tiny payment, and never connects a wallet. Level 3's exclusions still stand: no sock puppets and no dark-web markets.`,
+    lab: {
+      mac: `# LAB: a token is its contract; a transfer is its signature; an attribution is a source (Apple Silicon)
+# ETHICS: reads of a public ledger through two public services (Blockscout's explorer API and a
+# public Ethereum node), one issuer web page (Tether) and one FBI notice. Every address used is
+# named in a published case document or is a token contract. No wallet, no key, no account, no
+# transaction sent, nothing bought. The 2024 victim and the address they meant to pay are private
+# parties: both are shown truncated. The lookalike address is shown in full: it is the scam's tool.
+# NO NEW TOOL: curl, jq and python3, as in Level 2. The explorer limits keyless use: run the lab,
+# then the drills, not the lab many times in a row.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+BS=https://eth.blockscout.com          # explorer (Blockscout): an indexer's reading of the chain
+NODE=https://ethereum-rpc.publicnode.com   # a public node: the chain itself, no index in between
+mkdir -p ~/scouts-case/s3_3 && cd ~/scouts-case/s3_3 || exit 1
+rm -rf evidence collection_log.tsv ledger_check.py facts.txt report.md check_report.sh SEAL.* \\
+  timestamp_log.tsv freetsa_* && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S3.3 public ledgers
+question:     For three published cases, what does the Ethereum ledger itself prove, what does it
+              only show someone saying, and where does it stop?
+              A. which of the tokens called "USDT" is the one its issuer publishes
+              B. the May 2024 WBTC address-poisoning loss: which transfers the victim signed
+              C. the Feb 2025 Bybit theft: the code change, the sweep, the first split, and how
+                 the split compares with the FBI's published address list
+authorised:   self (public ledger records; public web pages)
+in scope:     eth.blockscout.com API v2; ethereum-rpc.publicnode.com (read-only calls);
+              https://tether.to/en/supported-protocols/; https://www.ic3.gov/psa/2025/psa250226
+out of scope: any wallet, key or transaction; any person behind an address; any address more
+              than one hop from those named in the case documents; any other chain
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+keep() {  # id source  (the file evidence/<id> is already written, or missing)
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+get() {  # id url
+  curl -sf --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"
+  keep "$1" "$2"
+}
+full() {  # id url test [url2] : an explorer can answer "nothing" when it has not worked the answer out
+  local k=1 u="$2"   # yet. With a second URL (another interface, same question), tries alternate.
+  while :; do
+    get "$1" "$u"; jq -e "$3" "evidence/$1" >/dev/null 2>&1 && return 0
+    [ -n "$4" ] && { [ "$u" = "$2" ] && u="$4" || u="$2"; }
+    [ $k -ge 5 ] && { echo "STOP: $1 failed its test 5 times: $3"
+      echo "If the explorer is limiting you (HTTP 429, 'Too many requests'), wait 15 minutes and rerun."; exit 1; }
+    echo "$1: reply failed the test $3 - the reply stays in the log; retrying in 20 s"; k=$((k + 1)); sleep 20
+  done
+}
+rpc() {  # id method params-json   (one read-only JSON-RPC call to the node)
+  local B="{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"$2\\",\\"params\\":$3}"
+  curl -sf --retry 5 --retry-all-errors --retry-delay 3 -m 60 -A "$UA" -H 'content-type: application/json' \\
+    -d "$B" -o "evidence/$1" "$NODE" && jq -e '.result != null' "evidence/$1" >/dev/null || rm -f "evidence/$1"
+  keep "$1" "POST $NODE $B"
+}
+erc20() {  # id contract   (one request, three read-only calls: name(), symbol(), decimals())
+  local B="[" k=1 f
+  for f in 0x06fdde03 0x95d89b41 0x313ce567; do
+    B="$B{\\"jsonrpc\\":\\"2.0\\",\\"id\\":$k,\\"method\\":\\"eth_call\\",\\"params\\":[{\\"to\\":\\"$2\\",\\"data\\":\\"$f\\"},\\"latest\\"]}"
+    [ $k -lt 3 ] && B="$B,"; k=$((k + 1))
+  done; B="$B]"
+  curl -sf --retry 5 --retry-all-errors --retry-delay 3 -m 60 -A "$UA" -H 'content-type: application/json' \\
+    -d "$B" -o "evidence/$1" "$NODE" && jq -e 'length == 3 and all(.[]; .result != null)' "evidence/$1" >/dev/null || rm -f "evidence/$1"
+  keep "$1" "POST $NODE $B"
+}
+USDT=0xdAC17F958D2ee523a2206206994597C13D831ec7     # the contract to test against the issuer's page
+LOOK=0x417D2Cc0C90920D4AbeFA724Fc1688FFB5D3A154     # another token that calls itself USDT
+TEST=0xb18ab131d251f7429c56a2ae2b1b75ce104fe9e83315a0c71ccf2b20267683ac   # 2024: victim's 0.05 ETH test
+DUST=0x9147d74ef5749b7f27eb2e2528e5a611060b3f609b435f7f50ac87f49e5b957c   # 2024: the lookalike's "0.05 ETH"
+LOSS=0x3374abc5a9c766ba709651399b6e6162de97ca986abc23f423a9d893c8f5f570   # 2024: the 1,155 WBTC transfer
+FAKE=0x739352337C902c3874B95f14e81ebBCF1B7b262E     # the token contract that emitted the "ETH" transfer
+THEFT=0x46deef0f52e3a983b67abf4714448a41dd7ffd6d32d32da69d62081c68ad7882  # 2025: Bybit, 14:13:35 UTC
+SWEEP=0xb61413c495fdad6114a7aa863a00b2e3c28945979a10885b12b30316ea9f072c  # 2025: the sweepETH call
+SAFE=0x1Db92e2EeBC8E0c075a02BeA49a2935BcD2dFCF4     # Bybit's ETH cold wallet (a Safe multisig)
+EXPL=0x47666Fab8bd0Ac7003bce3f5C3585383F09486E2     # the address the sweep paid
+
+get item001.html "https://tether.to/en/supported-protocols/"
+full item002.json "$BS/api/v2/tokens?q=USDT&type=ERC-20" '.items | length > 0'
+erc20 item003.json "$USDT"
+erc20 item004.json "$LOOK"
+rpc item005.json eth_getTransactionByHash "[\\"$TEST\\"]"
+rpc item006.json eth_getTransactionByHash "[\\"$DUST\\"]"
+rpc item007.json eth_getTransactionReceipt "[\\"$DUST\\"]"
+erc20 item008.json "$FAKE"
+rpc item009.json eth_getTransactionByHash "[\\"$LOSS\\"]"
+get item010.html "https://www.ic3.gov/psa/2025/psa250226"
+rpc item011.json eth_getTransactionByHash "[\\"$THEFT\\"]"
+full item012.json "$BS/api/v2/transactions/$THEFT" '.decoded_input.parameters | length == 10'
+rpc item013.json eth_getStorageAt "[\\"$SAFE\\",\\"0x0\\",\\"latest\\"]"
+full item014.json "https://eth.blockscout.com/api?module=account&action=txlistinternal&txhash=$SWEEP" \\
+  '(.result // .items // []) | length > 0' "$BS/api/v2/transactions/$SWEEP/internal-transactions"
+# The paid address's own transactions, every page (the explorer returns 50 at a time).
+n=15; Q=""
+while [ $n -lt 25 ]; do
+  full item0$n.json "$BS/api/v2/addresses/$EXPL/transactions?filter=from$Q" '.items | length > 0'
+  Q=$(jq -r '.next_page_params | if . == null then "" else to_entries | map("&\\(.key)=\\(.value)") | join("") end' evidence/item0$n.json)
+  n=$((n + 1)); [ -z "$Q" ] && break
+done
+awk -F'\\t' '{print $1, $2, substr($5, 1, 12)}' collection_log.tsv
+# An item may have several rows (a retry); the last row is the one the case relies on.
+awk -F'\\t' '{last[$1] = $5} END {for (i in last) if (last[i] == "FAILED") bad = 1; exit bad}' collection_log.tsv ||
+  { echo "STOP: a capture failed - it is in the log; rerun the lab"; exit 1; }
+
+# 3. Read the evidence. Nothing below touches the network: it reads only the saved files.
+cat > ledger_check.py <<'PY'
+import glob, json, re, sys
+E = "evidence/"
+def j(i): return json.load(open(E + i))
+def res(i): return j(i)["result"]
+def txt(h):  # an ABI-encoded string, as name() and symbol() return it
+    b = bytes.fromhex(h[2:]); n = int.from_bytes(b[32:64], "big"); return b[64:64 + n].decode()
+def erc20(i):  # name, symbol, decimals from one batch reply
+    r = {x["id"]: x["result"] for x in j(i)}; return txt(r[1]), txt(r[2]), int(r[3], 16)
+def word(data, k): return data[10 + 64 * k: 10 + 64 * (k + 1)]   # k-th 32-byte argument after the selector
+def addr(w): return "0x" + w[-40:]
+def short(a): return a[:6] + "…" + a[-4:]
+lo = str.lower
+USDT, LOOK, FAKE, SAFE, EXPL = [lo(a) for a in sys.argv[1:6]]
+out = []
+def say(tag, s): out.append(f"[{tag}] {s}"); print(f"{tag:8} {s}")
+
+print("A. Which USDT?")
+page = lo(open(E + "item001.html", encoding="utf-8", errors="replace").read())
+say("item001", f"issuer's page names {short(USDT)}: {'yes' if USDT[2:] in page else 'NO'}")
+same = [t for t in j("item002.json")["items"] if t.get("symbol") == "USDT"]
+others = [t for t in same if lo(t["address_hash"]) != USDT]
+named = sum(t.get("name") == "Tether USD" for t in others)
+say("item002", f"explorer search, first page: {len(same)} tokens with symbol USDT; {len(others)} are not the issuer's, {named} of those named 'Tether USD'")
+top = max(others, key=lambda t: int(t.get("holders_count") or 0))
+say("item002", f"the most 'holders' among them: {short(lo(top['address_hash']))} with {int(top['holders_count']):,}")
+for i, a in (("item003.json", USDT), ("item004.json", LOOK)):
+    n, s, d = erc20(i); say(i[:7], f"node: {short(a)} name()={n!r} symbol()={s!r} decimals()={d}")
+
+print("B. The 2024 poisoning")
+t5, t6, t9 = res("item005.json"), res("item006.json"), res("item009.json")
+victim, intended = lo(t5["from"]), lo(t5["to"])
+say("item005", f"test: signed by {short(victim)}, to {intended[:10]}…{intended[-6:]}, {int(t5['value'], 16) / 1e18} ETH (native)")
+logs = [l for l in res("item007.json")["logs"] if l["topics"][0].startswith("0xddf252ad")]   # Transfer events
+mine = [l for l in logs if addr(l["topics"][1]) == victim]
+lookalike = addr(mine[0]["topics"][2])
+say("item006", f"the '0.05 ETH' transaction: signed by {short(lo(t6['from']))}, not the victim")
+say("item007", f"it emitted {len(logs)} Transfer events naming {len({addr(l['topics'][1]) for l in logs})} different 'senders'; the victim's: token {short(lo(mine[0]['address']))}, to {lookalike}, raw amount {int(mine[0]['data'], 16)}")
+n, s, d = erc20("item008.json")
+say("item008", f"node: that token's name()={n!r} symbol()={s!r} decimals()={d}; ether itself has no contract and 18 decimals")
+h1, h2 = intended[2:], lookalike[2:]    # the 40 hex digits after 0x
+p = next(i for i in range(40) if h1[i] != h2[i]); q = next(i for i in range(40) if h1[-1 - i] != h2[-1 - i])
+say("item005", f"intended vs lookalike: first {p} and last {q} hex digits identical (0x{h1[:p]}…{h1[-q:]}); {sum(a != b for a, b in zip(h1, h2))} of the 40 differ")
+data = t9["input"]
+say("item009", f"the loss: signed by {short(lo(t9['from']))}, transfer() on {short(lo(t9['to']))} to {addr(word(data, 0))}, raw amount {int(word(data, 1), 16)} (8 decimals)")
+
+print("C. Bybit 2025")
+t11 = res("item011.json"); d = t11["input"]
+op, to_ = int(word(d, 3), 16), addr(word(d, 0))
+off = 10 + 2 * int(word(d, 2), 16)          # where the bytes argument starts: its length, then its bytes
+inner = d[off + 64: off + 64 + 2 * int(d[off: off + 64], 16)]
+say("item011", f"node: signed by {short(lo(t11['from']))} to {short(lo(t11['to']))}, selector {d[:10]}, operation={op} ({'DELEGATECALL' if op == 1 else 'CALL'}) into {short(to_)}")
+say("item011", f"the call it carried: selector 0x{inner[:8]}, first argument {addr(inner[8:72])}, second {int(inner[72:136], 16)}")
+dec = {x["name"]: x["value"] for x in j("item012.json")["decoded_input"]["parameters"]}
+say("item012", f"the explorer's decoding agrees on operation and target: {'yes' if str(op) == dec.get('arg3') and lo(dec.get('arg0', '')) == to_ else 'NO'}")
+say("item013", f"node: the Safe's storage slot 0 today = {addr(res('item013.json'))}")
+def hx(v): return v["hash"] if isinstance(v, dict) else v   # the two interfaces write addresses differently
+r14 = j("item014.json"); r14 = r14.get("result") or r14.get("items") or []
+paid = [it for it in r14 if it["type"] == "call" and int(it["value"]) > 0]
+if not paid: say("item014", "UNKNOWN: the explorer's reply holds no value transfer for the sweep")
+for it in paid:
+        v = int(it["value"]); say("item014", f"the sweep paid {v // 10**18:,}.{v % 10**18:018d} ETH from {short(lo(hx(it['from'])))} to {short(lo(hx(it['to'])))}")
+psa = open(E + "item010.html", encoding="utf-8", errors="replace").read()
+listed = {lo(a) for a in re.findall(r"0x[0-9a-fA-F]{40}", psa)}
+first = lo(re.search(r"0x[0-9a-fA-F]{40}", psa).group())
+say("item010", f"FBI list: {len(listed)} addresses. checker test: first listed address found={first in listed}; Tether's contract found={USDT in listed}")
+pages = sorted(f for f in glob.glob(E + "item0[1-9][0-9].json") if int(f[-8:-5]) >= 15)
+txs = [t for f in pages for t in json.load(open(f))["items"]]
+ten = sorted({lo(t["to"]["hash"]) for t in txs if t["value"] == str(10**22)})
+on = [a for a in ten if a in listed]; off_list = [a for a in ten if a not in listed]
+say("item015", f"{len(txs)} outgoing transactions from {short(EXPL)} ({len(pages)} pages); {len(ten)} different addresses paid exactly 10,000 ETH")
+say("item010", f"of those {len(ten)}: {len(on)} on the FBI list, {len(off_list)} not: {' '.join(off_list)}")
+say("item010", f"is {short(EXPL)} itself on the list? {EXPL in listed}")
+open("facts.txt", "w").write("\\n".join(out) + "\\n")
+PY
+python3 ledger_check.py "$USDT" "$LOOK" "$FAKE" "$SAFE" "$EXPL" || { echo "STOP: the check failed - read the error"; exit 1; }
+
+# 4. Grade what the ledger shows. Link strength is S2.7's; the grades are S3.1's.
+cat > report.md <<REPORT
+# S3.3 Public ledgers: what the chain proves, and where it stops
+
+Analyst: $ANALYST. Collection log: collection_log.tsv. Scope: scope.txt. Facts: facts.txt.
+
+## A. Which USDT?
+- STRONG (item001, item002): only one of the tokens whose symbol is USDT is the contract Tether publishes. Several others use the same symbol, and some the same name.
+- ONE-WAY (item003, item004): the issuer's contract and another one return the same name, symbol and decimals. Each is a string or number its contract's author chose. Only the address differs.
+- Rule: identify a token by its contract address, checked against the issuer's own page, never by its name, symbol or logo.
+
+## B. The 2024 poisoning
+- STRONG (item005): the victim's key signed the 0.05 ETH test to the intended address.
+- ONE-WAY (item006, item007, item008): the "0.05 ETH" transfer that put the lookalike address into the victim's history was a token contract's statement, in a transaction someone else signed. The token calls itself ETH and has 6 decimals.
+- STRONG (item009): the victim's key signed the WBTC transfer to the lookalike address.
+- CONTEXT (item005): the two addresses match in their first and last characters, which is what a wallet shows.
+
+## C. Bybit 2025
+- STRONG (item011, item012, item013): the signed transaction was a DELEGATECALL, not a transfer. Its inner call wrote the address that the Safe's storage slot 0 still holds.
+- STRONG (item014): the sweep paid the address in item014. The ledger shows where the funds went. It does not show who holds the key.
+- ONE-WAY, graded F3 (item010): the FBI attributes the theft to North Korea's TraderTraitor. F: first use of this source in the course. 3: nothing in this case folder confirms the attribution, and the notice does not publish its evidence. The ledger does confirm that the listed addresses received the stolen funds (item015). That confirms the list's reach, not who is behind it.
+- CONTEXT (item015, item010): one of the 40 first-hop addresses is not on the FBI list. That is a gap in a list, not a finding that the address is innocent.
+
+## Limits
+Two readers, not one: the explorer (Blockscout) and a public node. Where both were read, they agree. The node had no archive history, so past balances and storage are the explorer's reading. The ledger proves signatures and movements. It proves nothing about who a person is. Every attribution here is a named source's claim, graded. Tracing is not recovering: only an exchange, an issuer or a court can freeze funds.
+REPORT
+
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}
+[ -f "$R" ] && [ -f collection_log.tsv ] && [ -f facts.txt ] || { echo "UNKNOWN: report, log or facts missing"; exit 2; }
+bad=0
+for id in $(grep -o 'item[0-9][0-9][0-9]' "$R" | sort -u); do
+  h=$(awk -F'\\t' -v i="$id" 'index($1, i) == 1 {h = $5} END {print h}' collection_log.tsv)
+  f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+  if [ -z "$h" ] || [ -z "$f" ] || [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "FAIL: $id cited but missing or changed"; bad=1; fi
+done
+# An attribution must be graded and sourced; a ledger link must never be used for identity.
+grep -n 'North Korea\\|TraderTraitor\\|Lazarus' "$R" | grep -v 'ONE-WAY, graded' && { echo "FAIL: an attribution line is not graded"; bad=1; }
+grep -niE 'STRONG.*(owned by|belongs to|is controlled by)' "$R" && { echo "FAIL: a STRONG line claims identity"; bad=1; }
+grep -q '^## Limits' "$R" || { echo "FAIL: no Limits section"; bad=1; }
+[ $bad -eq 0 ] && echo "report OK: every cited item is in the log and unchanged; attributions graded"
+exit $bad
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 5. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv facts.txt report.md check_report.sh ledger_check.py evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H 'Content-Type: application/timestamp-query' \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab's evidence checks are a bash script and a Python script, and its report check relies
+# on the same shell. A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl jq openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s3_3 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in keep(), inside the check_report.sh heredoc, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, jq, openssl and python3 3.9 or later. On Debian or Ubuntu:
+#   sudo apt install -y curl jq openssl python3
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+item001.html 2026-09-29T12:03:47Z 414311ca6f30
+item002.json 2026-09-29T12:03:48Z 4ade65b4aae9
+item003.json 2026-09-29T12:03:49Z fc24d266e640
+item004.json 2026-09-29T12:03:49Z fc24d266e640
+item005.json 2026-09-29T12:03:51Z b8d7dae7e9de
+item006.json 2026-09-29T12:03:52Z 77d52e8c1889
+item007.json 2026-09-29T12:03:52Z ff9d975db3d2
+item008.json 2026-09-29T12:03:53Z e375e2723331
+item009.json 2026-09-29T12:03:54Z ae5b94c3c665
+item010.html 2026-09-29T12:03:55Z 4a5cd7743864
+item011.json 2026-09-29T12:03:56Z 3e36dfe92dd7
+item012.json 2026-09-29T12:03:56Z a6bb670ba429
+item013.json 2026-09-29T12:03:57Z e54fbfe3d975
+item014.json 2026-09-29T12:03:58Z 0732b245c18a
+item015.json 2026-09-29T12:03:58Z 6c9d286c188a
+item016.json 2026-09-29T12:03:59Z fb954e835b41
+\`\`\`
+
+The collection log: your times and hashes will differ, because the explorer's replies carry live figures such as holder counts and balances. Every line must end in a hash, never \`FAILED\`. A reply that fails its content test is kept in the log, retried, and noted on screen.
+
+\`\`\`text
+A. Which USDT?
+item001  issuer's page names 0xdac1…1ec7: yes
+item002  explorer search, first page: 30 tokens with symbol USDT; 29 are not the issuer's, 28 of those named 'Tether USD'
+item002  the most 'holders' among them: 0x5620…50f7 with 128,698
+item003  node: 0xdac1…1ec7 name()='Tether USD' symbol()='USDT' decimals()=6
+item004  node: 0x417d…a154 name()='Tether USD' symbol()='USDT' decimals()=6
+B. The 2024 poisoning
+item005  test: signed by 0x1e22…8fd5, to 0xd9a1b0b1…853a91, 0.05 ETH (native)
+item006  the '0.05 ETH' transaction: signed by 0x517d…1db2, not the victim
+item007  it emitted 16 Transfer events naming 16 different 'senders'; the victim's: token 0x7393…262e, to 0xd9a1c3788d81257612e2581a6ea0ada244853a91, raw amount 50000
+item008  node: that token's name()='Ether' symbol()='ETH' decimals()=6; ether itself has no contract and 18 decimals
+item005  intended vs lookalike: first 4 and last 6 hex digits identical (0xd9a1…853a91); 27 of the 40 differ
+item009  the loss: signed by 0x1e22…8fd5, transfer() on 0x2260…c599 to 0xd9a1c3788d81257612e2581a6ea0ada244853a91, raw amount 115528802767 (8 decimals)
+C. Bybit 2025
+item011  node: signed by 0x0fa0…6d2e to 0x1db9…fcf4, selector 0x6a761202, operation=1 (DELEGATECALL) into 0x9622…7242
+item011  the call it carried: selector 0xa9059cbb, first argument 0xbdd077f651ebe7f7b3ce16fe5f2b025be2969516, second 0
+item012  the explorer's decoding agrees on operation and target: yes
+item013  node: the Safe's storage slot 0 today = 0xbdd077f651ebe7f7b3ce16fe5f2b025be2969516
+item014  the sweep paid 401,346.768858404671846374 ETH from 0x1db9…fcf4 to 0x4766…86e2
+item010  FBI list: 51 addresses. checker test: first listed address found=True; Tether's contract found=False
+item015  62 outgoing transactions from 0x4766…86e2 (2 pages); 40 different addresses paid exactly 10,000 ETH
+item010  of those 40: 39 on the FBI list, 1 not: 0x36ed3c0213565530c35115d93a80f9c04d94e4cb
+item010  is 0x4766…86e2 itself on the list? False
+report OK: every cited item is in the log and unchanged; attributions graded
+Verification: OK
+Time stamp: Sep 29 12:04:01 2026 GMT
+sealed files: 22
+22
+\`\`\`
+
+- **A.** Your counts will differ: the explorer's search changes as tokens are created. The node lines will not: the issuer's contract and the lookalike return the same name, symbol and decimals.
+- **B.** These lines do not change: the 2024 transactions are settled history. The victim and the address they meant to pay are shortened on purpose.
+- **C.** These lines do not change either, unless the FBI edits its list. The last two show that its list covers 39 of the 40 first hops, and that the address the sweep paid is not on it either, although that address held stolen ether, which is how the notice describes its list.
+- **The end.** \`report OK\`, \`Verification: OK\`, your own timestamp, and a count of sealed files that equals the number of OK lines.`
+      }
+    },
+    caseStudy: {
+      title: "Bybit, February 2025: the screen, the signature, and who says who did it",
+      body: `**What happened.** On 21 February 2025, Bybit moved ether from its Ethereum cold wallet, as it routinely did. The wallet was a Safe multisig: several signers must approve every transaction. Sygnia, which investigated the signers' machines for Bybit, published its timeline on 16 March 2025:
+
+- **4 February:** a Safe{Wallet} developer's macOS workstation was compromised, "likely through social engineering". Mandiant's preliminary findings, as posted by Safe{Wallet}, trace it to a Docker project in the developer's \`~/Downloads\` folder.
+- **5 to 17 February:** the attackers used the developer's AWS access to operate inside Safe{Wallet}'s cloud infrastructure.
+- **19 February:** the JavaScript that serves Safe{Wallet}'s web interface was modified. It carried "an activation condition" so that it manipulated transactions only for one specific Bybit cold wallet.
+- **21 February:** the signers approved what their screen showed. Two minutes after the malicious transaction, the attackers removed the malicious code from the web interface.
+
+**What the ledger adds.** Everything above comes from investigators' reports. The lab does not take the core of it on trust: it reads it from the chain. The signed transaction (block 21895238, 14:13:35 UTC) was a DELEGATECALL, not a transfer. Its payload wrote a new code address into the wallet's slot 0, and that slot still holds it today. At 14:16:11 UTC, a \`sweepETH\` call with no signatures paid 401,346.768858404671846374 ETH to one address. From there, 40 transfers of exactly 10,000 ETH went to 40 new addresses.
+
+**Who did it, and who says so.** Arkham Intelligence announced that ZachXBT had linked the theft to North Korea's Lazarus Group at 19:09 UTC the same day. On 26 February, the FBI named North Korea ("TraderTraitor") and published 51 Ethereum addresses it said were "holding or have held assets from the theft". Sygnia notes that Mandiant also confirmed the attribution. That is three sources. Grade them as S3.1 does:
+
+- **Are they independent?** Arkham and ZachXBT are one line of reporting, not two: Arkham announced the result of its own bounty. The FBI and Mandiant publish no evidence you can check. Agreement between sources you cannot inspect is weaker than it looks, because you cannot tell whether they share an origin (S3.1, circular reporting).
+- **What can you check?** The addresses. 39 of the 40 first-hop recipients are on the FBI's list, so the list matches the ledger where the two can be compared. That tests the list. It does not test the attribution.
+- **What the list leaves out.** One first hop, \`0x36ed…e4cb\`, received 10,000 ETH from the same address in the same way and is not on the list. The FBI does not say why. Your report says what you found, without guessing at a reason.
+
+**Seven months later.** On 24 September 2026, Bitget detected unauthorised transfers from some of its hot wallets at 18:31 UTC and put the loss at $351.6 million. Its CEO, Gracy Chen, said "the attacker compromised a critical backend system within our wallet infrastructure, used it to spoof transaction data, and triggered our authorization process to move funds out", and that "private key compromise has been ruled out" (CoinDesk, 25 September). That is the Bybit pattern in another form: the keys were safe and the approval process was fed a false picture. Bitget said the method was "highly consistent with known patterns of North Korean hacker organizations", based on "IP behavior patterns and on-chain analysis" (quoted by The Hacker News). This module was written five days after the theft. At that point the victim company was the main source for its own figures and its own attribution. Grade it that way (F, first use; an interested party), and re-read the case when independent reports arrive.
+
+**The lessons for this module.**
+
+1. **Decode what was signed.** A screen is a claim about a transaction. The transaction on the ledger is the fact.
+2. **The ledger proves movement, not identity.** Every attribution in this case is a source's claim. Grade it.
+3. **Check an official list against the ledger.** It will usually agree, and the places it doesn't are findings.`
+    },
+    challenges: [{
+      q: `A friend has been offered 10% to help a stranger "sell" a large amount of a well-known coin. The stranger wants your friend to swap real USDT for his coin first, "to prove trust", and sends a contract address. What do you tell your friend to check, and what does the ledger say about the swap if they go ahead?`,
+      a: `Check one thing before anything else: **is the contract address on the issuer's own page?** (Drill 1.) Name, symbol, logo and decimals can all be copied exactly, and the lab found dozens of contracts that copy Tether's. If the address isn't on the issuer's page, it isn't the coin, and the conversation is over.
+
+If your friend goes ahead anyway, the ledger will record two very different things:
+
+- **Their USDT leaving** is a transfer signed by their own key: STRONG, and traceable onward.
+- **The "coin" arriving** is an event logged by the stranger's contract: ONE-WAY. It proves nothing except that the contract said so.
+
+A trace can show where the USDT went. It cannot bring it back. And the offer itself is the warning sign: a stranger who needs your money to "prove trust" before paying you is describing the scam.`
+    }, {
+      q: `Your report says: "0x36ed…e4cb is not on the FBI's list, so it is probably not connected to North Korea." What is wrong with that sentence, and what should the line say instead?`,
+      a: `It treats a gap in a list as evidence. The FBI's list is a snapshot of addresses it chose to publish. It does not say it is complete, and it does not explain what it leaves out. The ledger shows that 0x36ed…e4cb received 10,000 ETH from the address the Bybit sweep paid, in the same pattern as 39 listed addresses. That link is STRONG for **movement**.
+
+Better: "STRONG: 0x36ed…e4cb received 10,000 ETH from 0x4766…86e2 on 21 February 2025 and passed it on to 0x4571…900a the next day (Drill 3). Neither address is on the FBI list of 26 February 2025. The ledger does not show who controls either address." Then stop. Don't guess at the FBI's reasons, and don't draw a conclusion the ledger can't support.`
+    }, {
+      q: `An explorer shows the label "Bybit Exploiter 1" on an address. Can your report say "the Bybit exploiter's address is 0x4766…86e2" on the strength of that label?`,
+      a: `Not on the label alone. A label is the explorer's statement, and so a source (S3.1), usually without its evidence attached. It is also the kind of summary that gets copied from one site to another until it looks corroborated (circular reporting).
+
+What you can say comes from the ledger: the sweep transaction called by 0x0fa0…6d2e paid 401,346.77 ETH from Bybit's cold wallet to 0x4766…86e2 (item014). That is a fact about movement, and it is enough to call the address "the address the sweep paid". If you want the word "exploiter", attribute it: "which Etherscan labels 'Bybit Exploiter 1'", graded as a first-use source.`
+    }],
+    quiz: ["What are the two kinds of Ethereum account, and which field of a transaction is the strongest fact on the ledger? Why?", "What is the difference between sending ether and sending a token? Which of the two produces a Transfer event, and whose statement is that event?", "ERC-20 marks name(), symbol() and decimals() as OPTIONAL. What does that mean for identifying a token, and what is the one check that settles it?", "In the 2024 poisoning case, which transfers did the victim's key sign, and which one only appeared to come from the victim? How can you tell from the ledger?", "What does operation = 1 mean in a Safe transaction, and why did it give the attacker control of Bybit's cold wallet? Which storage slot does the lab read, and what does it hold?", "Name three things the ledger proves and three it does not. Where does attribution come from, and how does the lab grade the FBI's?", "What is the common-input-ownership heuristic, where does the idea first appear, and what is one reason it can be wrong?", "An explorer interface answers '0 internal transactions' for a transaction that moved 401,346 ETH. What should a script do with that answer, and how does the lab make sure it does?", "Name three places where tracing stops. If you have been scammed, who can actually freeze funds, and what warning has the FBI given about 'recovery' services?"],
+    workbench: `> **What this trains.** The lab read three cases from the ledger. Here you check a token the way a scam's target should, catch an explorer giving different answers to one question, and follow the one address the FBI's list leaves out, one hop and no further.
+
+#### 🟢 Drill 1 — someone sends you a contract address and says it is USDT ~3 min
+
+**Goal.** Decide, before anything leaves your wallet, whether the token you are offered is the issuer's.
+
+**Done when.** You can say what the token calls itself, whether the issuer publishes it, and when it was created, and which of those three settles the question.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_3 || exit 1
+# Someone sends you this contract address and says it is USDT. Three checks.
+OFFER=0x417D2Cc0C90920D4AbeFA724Fc1688FFB5D3A154
+REAL=0xdAC17F958D2ee523a2206206994597C13D831ec7
+BS=https://eth.blockscout.com
+# 1. What does it say it is? One request to the node: name() and symbol().
+B='[{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"'$OFFER'","data":"0x06fdde03"},"latest"]},{"jsonrpc":"2.0","id":2,"method":"eth_call","params":[{"to":"'$OFFER'","data":"0x95d89b41"},"latest"]}]'
+curl -sf --retry 3 -m 60 -H 'content-type: application/json' -d "$B" https://ethereum-rpc.publicnode.com |
+  python3 -c 'import json, sys; [print("it says:", bytes.fromhex(r["result"][130:130 + 2 * int(r["result"][66:130], 16)]).decode()) for r in sorted(json.load(sys.stdin), key=lambda r: r["id"])]'
+# 2. Does the issuer publish it? Read the issuer's page you saved in the lab.
+grep -qi "\${OFFER#0x}" evidence/item001.html && echo "issuer's page: lists it" || echo "issuer's page: does NOT list it"
+# 3. When was each contract created, and by whom?
+for A in $OFFER $REAL; do
+  C=$(curl -sf --retry 3 -m 60 "$BS/api/v2/addresses/$A" | jq -r .creation_transaction_hash)
+  curl -sf --retry 3 -m 60 "$BS/api/v2/transactions/$C" | jq -r --arg a "$A" '"\\($a[0:6])…\\($a[-4:]) created \\(.timestamp[0:10]) by \\(.from.hash[0:6])…\\(.from.hash[-4:])"'
+done
+\`\`\`
+
+It prints:
+
+\`\`\`text
+it says: Tether USD
+it says: USDT
+issuer's page: does NOT list it
+0x417D…A154 created 2025-12-30 by 0x369a…2e00
+0xdAC1…1ec7 created 2017-11-28 by 0x3692…7D57
+\`\`\`
+
+- **The name and symbol match the real token exactly.** They are strings its author chose, so they settle nothing.
+- **The issuer's page does not list it.** That settles it: this is not Tether's USDT. You don't need to know who made it or why.
+- **The dates are context.** A token created in December 2025 cannot be the one Tether has published since 2017. But a new date is not proof of fraud either, because honest projects launch new tokens too. The issuer's page is the test.
+- **In the scam in the theory,** step 2 is the one the victim skipped. It costs one page load.
+
+</details>
+
+#### 🟡 Drill 2 — an empty answer is not "no" ~2 min
+
+**Goal.** The lab asks for the Bybit sweep's internal transfer through two interfaces of the same explorer: the older one (\`api?module=account&action=txlistinternal\`) first, then the newer one (\`api/v2/.../internal-transactions\`), and it accepts only an answer that is not empty. While this module was being built, the newer one answered "0 internal transactions" five times in a row for this transaction, and the older one was later refused with HTTP 429 (too many requests) for several minutes. Ask both, three times each.
+
+**Done when.** You can explain why the lab asks the interface it does, and what a script would have concluded from the newer one's empty answer.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_3 || exit 1
+# The same question to the same explorer, through two of its interfaces:
+# "which value transfers happened inside the sweep transaction?"
+SWEEP=0xb61413c495fdad6114a7aa863a00b2e3c28945979a10885b12b30316ea9f072c
+for k in 1 2 3; do
+  V2=$(curl -s -m 120 "https://eth.blockscout.com/api/v2/transactions/$SWEEP/internal-transactions" |
+    jq -r 'if .items == null then "no reply" else "\\(.items | length) internal transactions" end' 2>/dev/null)
+  V1=$(curl -s -m 120 "https://eth.blockscout.com/api?module=account&action=txlistinternal&txhash=$SWEEP" |
+    jq -r 'if .result == null then "no reply" else "\\(.result | length) internal transactions" end' 2>/dev/null)
+  echo "try $k  v2: \${V2:-no reply}   v1: \${V1:-no reply}"
+  sleep 10
+done
+# And the chain's own totals, which do not depend on either list:
+curl -s -m 120 "https://eth.blockscout.com/api/v2/transactions/$SWEEP/state-changes" |
+  jq -r '.items[] | select(.type == "coin") | .change' | sort -n | head -1 | sed 's/^/largest balance decrease (wei): /'
+\`\`\`
+
+It printed, in bash (your counts may differ from run to run, which is the point):
+
+\`\`\`text
+try 1  v2: 2 internal transactions   v1: 1 internal transactions
+try 2  v2: no reply   v1: 1 internal transactions
+try 3  v2: 2 internal transactions   v1: 1 internal transactions
+largest balance decrease (wei): -401346768858404671846374
+\`\`\`
+
+and, a minute later, in zsh:
+
+\`\`\`text
+try 1  v2: 0 internal transactions   v1: 1 internal transactions
+try 2  v2: 0 internal transactions   v1: 1 internal transactions
+try 3  v2: no reply   v1: 1 internal transactions
+largest balance decrease (wei): -401346768858404671846374
+\`\`\`
+
+- **The same question got 0, 2 and no reply** from the v2 interface within minutes. The chain didn't change. The explorer's answer did.
+- **"0" is the dangerous one.** "No reply" looks like a failure, and a script stops. "0" looks like an answer, and a script concludes that nothing was paid. That is why the lab's \`full\` function tests each reply's content, not only whether a reply came back. It keeps every failed reply in the log, and the case relies on the last one. And the checker prints UNKNOWN rather than silently leaving out a line it has no answer for.
+- **The two interfaces count differently.** v2's 2 includes the delegatecall into the new code, which carries no value. v1's 1 is the value transfer only. Neither is wrong. Know which one you are quoting.
+- **The balance change checks both.** The wallet's largest balance decrease is exactly the amount v1 reports.
+
+</details>
+
+#### 🔴 Drill 3 — the one the list leaves out ~3 min
+
+**Goal.** 39 of the 40 first hops are on the FBI's list. Follow the 40th, \`0x36ed…e4cb\`, one hop: where did its 10,000 ETH go, and is that address listed?
+
+**Done when.** You have one line for your report, tagged with S2.7's link strength, that says what the ledger shows and nothing more.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s3_3 || exit 1
+# The one first hop the FBI list leaves out. Where did its 10,000 ETH go? One hop, then stop.
+X=0x36ed3c0213565530c35115d93a80f9c04d94e4cb
+curl -sf --retry 3 -m 120 "https://eth.blockscout.com/api/v2/addresses/$X/transactions?filter=from" > /tmp/x_out.json || exit 1
+python3 - "$X" <<'PY'
+import json, re, sys
+listed = {a.lower() for a in re.findall(r"0x[0-9a-fA-F]{40}", open("evidence/item010.html", encoding="utf-8", errors="replace").read())}
+items = json.load(open("/tmp/x_out.json"))["items"]
+print(f"{sys.argv[1][:6]}…{sys.argv[1][-4:]} sent {len(items)} transactions")
+for t in sorted(items, key=lambda t: t["timestamp"]):
+    to = t["to"]["hash"].lower(); eth = int(t["value"]) / 1e18
+    print(f"  {t['timestamp'][:19]}  {eth:>10,.4f} ETH  to {to[:6]}…{to[-4:]}  on the FBI list: {to in listed}")
+PY
+rm -f /tmp/x_out.json
+\`\`\`
+
+It prints:
+
+\`\`\`text
+0x36ed…e4cb sent 2 transactions
+  2025-02-22T06:28:23  5,000.0000 ETH  to 0x4571…900a  on the FBI list: False
+  2025-02-22T10:30:47  5,000.0000 ETH  to 0x4571…900a  on the FBI list: False
+\`\`\`
+
+- **The whole branch is off the list.** The address passed its 10,000 ETH on in two halves, the next day, to a second address that is not listed either.
+- **Your report line:** "STRONG: 0x36ed…e4cb received 10,000 ETH from the address the Bybit sweep paid, and passed it on in two 5,000 ETH transfers to 0x4571…900a on 22 February 2025. Neither address is on the FBI list of 26 February 2025 (item010)." It says nothing about who controls them, or why they are missing.
+- **Stop here.** The next hop from \`0x4571…900a\` spreads into dozens of addresses (41 different ones on the explorer's first page alone), and every further hop reaches more people who have nothing to do with the case. The lab's scope says one hop. If the branch matters, send the two addresses to someone who can act on them: the FBI (the PSA asks for reports through IC3 or a local field office). Don't publish a longer chain yourself.
+
+</details>`,
+    tracker: ["Ran the lab: every capture hashed, no FAILED line, report OK, timestamp verified", "Can explain why a token is its contract address, and did the issuer's-page check in Drill 1", "Can say which 2024 transfers the victim signed and which a fake token only claimed", "Decoded the Bybit transaction: DELEGATECALL, the slot-0 write, the sweep, the 40-way split", "Graded the FBI's attribution as a source, and wrote the Drill 3 line without guessing", "Saw an explorer answer '0' for a real transfer (Drill 2), and know why the lab tests replies' content"]
   }]
 };
 

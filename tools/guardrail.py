@@ -1255,6 +1255,10 @@ TOPIC_ANCHORS = {
         "payload digest": ["S2.1", "S3.2"],
         "rfc 3161": ["S3.2"],
         "time-stamping authority": ["S3.2"],
+        "address poisoning": ["S3.3"],
+        "delegatecall": ["S3.3"],
+        "common-input-ownership": ["S3.3"],
+        "erc-20": ["S3.3"],
     },
 }
 
