@@ -1259,6 +1259,10 @@ TOPIC_ANCHORS = {
         "delegatecall": ["S3.3"],
         "common-input-ownership": ["S3.3"],
         "erc-20": ["S3.3"],
+        "banner grabbing": ["S3.4"],
+        "internetdb": ["S3.4"],
+        "greynoise": ["S3.4"],
+        "cvedb": ["S3.4"],
     },
 }
 
