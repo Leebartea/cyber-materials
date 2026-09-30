@@ -952,6 +952,10 @@ BANNED = [
      "zsh (the macOS default shell) aborts a whole command when an unquoted glob matches nothing, so "
      "a first-run 'rm -rf … SEAL.* … && mkdir evidence' never creates the folder and every download "
      "fails: name the files, or remove and recreate one folder (Scouts ledger S3.5 defects)", "A112"),
+    (r"(?m)^[ \t]*openssl ts -verify\b(?![^\n]*(?:\|\||&&|\\$))[^\n]*$",
+     "A time-stamping authority can refuse a request with HTTP 200 and a token saying 'Status: Rejected', "
+     "so curl -f succeeds and openssl ts -verify prints 'Verification: FAILED' while the script carries "
+     "on: stop on the verify's exit status (Scouts ledger S3.7 defects)", "A113"),
 ]
 
 
@@ -1275,6 +1279,9 @@ TOPIC_ANCHORS = {
         "multihash": ["S3.6"],
         "datatake": ["S3.6"],
         "scene classification": ["S3.6"],
+        "route leak": ["S2.2", "S3.7"],
+        "as_trans": ["S3.7"],
+        "investigation plan": ["S3.7"],
     },
 }
 

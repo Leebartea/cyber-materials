@@ -4,7 +4,7 @@ Three self-paced cybersecurity curricula, each shipped as a self-contained, offl
 
 - **Cyber Guardians** (`cyber-guardians/cyber_guardians_curriculum.md`, `cyber-guardians/cyber_guardians_app.html`) — broad cybersecurity course, beginner to specialist, as an interactive React reader (progress tracking, quizzes, search).
 - **Full-Stack AppSec** (`cyber-full stack/full_stack_appsec_app.html`) — a security path built specifically for full-stack web developers: every vulnerability is shown with annotated vulnerable-vs-secure code in **both Node.js and Python**, plus hands-on labs. Start with `cyber-full stack/START_HERE_appsec.md`.
-- **Cyber Scouts** (`cyber-scouts/cyber_scouts_app.html`) — open-source intelligence (OSINT): lawful method first, then public sources one family at a time, with a claims ledger built as each module ships. Level 1 in progress; shares the Guardians setup (`cyber-guardians/MY_SETUP_M2PRO.md`).
+- **Cyber Scouts** (`cyber-scouts/cyber_scouts_app.html`) — open-source intelligence (OSINT): lawful method first, then public sources one family at a time, with a claims ledger built as each module ships. Three levels, 21 modules (S1.1–S3.7), each ending in a capstone; shares the Guardians setup (`cyber-guardians/MY_SETUP_M2PRO.md`).
 
 ## How to use these files
 
