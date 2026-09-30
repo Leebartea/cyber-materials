@@ -857,7 +857,7 @@ Level 3 adds judgement: how far to trust a source, how to test competing explana
 | S3.3 | Public ledgers: tracing cryptocurrency, and where tracing stops | ✅ available |
 | S3.4 | Internet-wide scan data: what a banner proves | ✅ available |
 | S3.5 | Transport tracking: aircraft and ships | ✅ available |
-| — | Satellite imagery: change over time | planned |
+| S3.6 | Satellite imagery: change over time | ✅ available |
 | — | Capstone: an investigation file, from plan to finding | planned |
 
 S3.2 adds one tool, GNU Wget (\`brew install wget\`), and says so at the top of its lab. Any later module that needs a new tool will do the same.
@@ -10801,6 +10801,813 @@ addresses shared by two marks: 0
 
 </details>`,
     tracker: ["Ran the lab: every item hashed, no FAILED line, report OK, timestamp verified", "Decoded three ADS-B frames to the book's answers, and forged one that passes the CRC", "Linked two registration marks to their addresses and confirmed them in the FAA registry", "Counted where a live snapshot's positions came from and how old they were, without naming any aircraft", "Decoded two AIS sentences, read the flag state from the MMSI, and forged one that passes the checksum", "Did Drill 2 and Drill 3: put units back on the case's distances, and tested the converter over all 915,399 marks"]
+  }, {
+    id: "s3_6",
+    level: 3,
+    num: "S3.6",
+    title: "Satellite Imagery & Change — What a Pixel Proves, When It Was Taken, and What Really Changed",
+    objective: `Take a satellite image apart using open Copernicus Sentinel-2 data and no image software. Ask two catalogues which images of one point in the Suez Canal exist for March 2021, and find that they disagree by 15 minutes about when each was taken. Settle it with the sun: compute its position for each candidate time and compare it with the angles recorded in the image's own metadata. Check the metadata file against the catalogue's published checksum, and read one 1.2 km window of pixels on six dates by HTTP range requests, with a change rule written down before the results were seen. Then read how BuzzFeed News used gaps in a map platform's imagery to find detention camps in Xinjiang, and tag every statement with S2.7's strengths.`,
+    theory: `#### What this module adds
+
+A satellite image looks like the most objective evidence there is: a picture taken from space, with no one on the ground to stage it. It is still a claim. It is a measurement made by one instrument, at one moment, at one resolution, then processed, catalogued, reprocessed and relabelled by several organisations before it reaches you. This module asks three questions of any satellite image. What can its pixels show? When exactly was it taken? And what changed between two images, as opposed to what changed in the conditions under which they were taken?
+
+The lab uses only open data: Copernicus **Sentinel-2** images of the Suez Canal in March 2021, when the container ship *Ever Given* ran aground there. It reads about 12 MB of pixels without any image software, and it never looks at a person or a home.
+
+#### A pixel is a measurement, not a photograph
+
+The Copernicus Sentinel-2 mission is a pair of satellites carrying one instrument, the MSI (Multi-Spectral Instrument). ESA's SentiWiki describes it: it "samples 13 spectral bands: four bands at 10 m, six bands at 20 m and three bands at 60 m spatial resolution", with a 290 km swath. Two satellites flying 180° apart give "a high revisit frequency of 5 days at the Equator". Sentinel-2A was launched in 2015 and 2B in 2017. Sentinel-2C, launched in 2024, has since taken over from 2A.
+
+What that means for evidence:
+
+- **One 10 m pixel is one number for 100 m² of ground.** A car, a person or a tent is smaller than one pixel and cannot be seen. The *Ever Given* is 399.94 m long and 58.8 m wide, so it covers about 40 × 6 pixels. It is visible, but it is not recognisable as that ship from the pixels alone.
+- **Bands are not colours.** The lab uses band B08, near infrared, because water absorbs it and looks dark, while sand and steel reflect it. A "true colour" picture is three bands (B04, B03, B02) stretched for the eye.
+- **Bands are not taken at the same instant.** The SentiWiki gives the delays: B08 is seen 0.264 s after B02. A ship barely moves in that time, but an aircraft moves tens of metres, so a flying aircraft appears in a different place in each band.
+- **The satellite passes at the same local time every day.** Sentinel-2's orbit crosses the equator at "10:30 (am) Mean Local Solar Time". Every Sentinel-2 image of a place has nearly the same sun angle and the same shadows for that season. That is useful for comparing, and it means Sentinel-2 never sees the afternoon.
+
+#### Where images come from, and who controls them
+
+| Source | Resolution | Access | What it means for you |
+|---|---|---|---|
+| Copernicus Sentinel-2 (EU/ESA) | 10–60 m | free, full and open | Anyone can check your work with the same pixels |
+| Copernicus Sentinel-1 (radar) | down to 5 m | free, full and open | Sees through cloud and at night, but it is not a photograph |
+| Landsat (USGS/NASA) | 30 m (15 m panchromatic) | free since 2008 | The long archive, back to 1972 |
+| Commercial (e.g. Planet's SkySat, "sampled at 50 centimeters per pixel") | sub-metre | paid licence; you can pay to have a place imaged ("tasking") | Detailed, but you depend on a company's archive, prices and rules |
+
+Sentinel-1 is different in kind. SentiWiki: its "C-band SAR active sensor can observe the Earth's surface at any time of the day or night, regardless of weather", because "an active SAR instrument transmits its own microwave signal". A radar image shows how surfaces scatter microwaves. A ship shows up as a bright point, but nothing in it looks like a photograph.
+
+The licence matters. Copernicus data comes with a legal notice. Its users "shall have a free, full and open access", and anyone publishing data that has been "adapted or modified" must say **"Contains modified Copernicus Sentinel data [Year]"**. The lab's pictures are modified data (cropped and stretched), so the notice goes into the report. Commercial imagery comes under a contract. Who may see it, when and at what resolution is the company's decision, and your investigation can only go where its archive has been.
+
+#### The catalogue: STAC, assets and checksums
+
+Nobody browses satellite images file by file. You ask a catalogue. Most modern catalogues speak **STAC** (SpatioTemporal Asset Catalog): you send a place, a time window and a collection, and each image comes back as an *item*, a JSON record with a footprint, properties (time, cloud, sun angles) and *assets* (the files, one per band plus metadata).
+
+The lab asks two independent catalogues the same question: Element 84's **Earth Search** (files hosted on AWS) and Copernicus's own **Data Space Ecosystem**. Both return the same six images. Read them as two witnesses, not as confirmation of each other. Both are copies of ESA's production. They agree on which images exist. On when those images were taken, they disagree, as the next section shows.
+
+The STAC *file* extension adds \`file:checksum\` to each asset, written as a **multihash**: a self-describing hash whose first byte names the algorithm. \`12\` is SHA2-256 and \`20\` is the length, 32 bytes. So \`1220…\` followed by 64 hex digits is an ordinary SHA-256 with a two-byte label. The lab hashes the metadata file it downloaded and compares it to the catalogue's value, as in S3.2: know what the file should be before trusting it.
+
+Two limits follow. First, the lab fetches pixels by **range request**: a Cloud-Optimised GeoTIFF keeps a table of where each 1024 × 1024 block of pixels starts, so a reader can fetch one block and not a 190 MB file. The catalogue's checksum is for the whole file, so it cannot check one block. The lab logs exactly which bytes it read, and that becomes the chain of custody. Second, a catalogue's licence field can mislead. Earth Search says \`"license": "proprietary"\`. The STAC spec now deprecates that word in favour of \`other\`, meaning "not a standard licence: follow the link", and the link goes to the Copernicus legal notice.
+
+#### Three clocks in one image
+
+The 24 March image carries at least three times:
+
+| Where | Time (UTC) | What it is |
+|---|---|---|
+| The product name \`S2A_MSIL2A_20210324T082611_…\` | 08:26:11 | The **datatake** start. SentiWiki: "the first date … is the datatake start sensing time" |
+| The datastrip ID \`…_S20210324T083627_…\` | 08:36:27 | The start of the strip of processing that contains the tile |
+| The tile's own \`SENSING_TIME\` | 08:41:47 | The time this 110 km tile was imaged |
+
+A datatake is one long continuous recording along the orbit. The satellite had been imaging for more than 15 minutes, starting well to the north, before it reached Suez. The Copernicus catalogue gives the item's \`datetime\` as the datatake start, 08:26:11. Earth Search gives the tile time, 08:41:47. Neither item says which of the clocks it used.
+
+**The sun settles it.** The tile's metadata records where the sun was in the sky (azimuth 144.92°, elevation 56.34°), because processing the image into reflectance uses it. The lab computes the sun's position for each candidate time with the NOAA Solar Calculator's method (from Meeus's *Astronomical Algorithms*). At 08:41:47 the result matches the metadata to 0.01°. At 08:26:11 it misses by 5.8°. The sun's azimuth moves about 0.4° a minute at that hour (Drill 1), so the sun angles can date an image, or a photo's shadows, to within minutes.
+
+The lab first tested its sun formula on a known answer. The tile's four corners, given in latitude and longitude, had to convert to the tile's published UTM grid, and they do, within 1 m. That is S3.2's rule applied to arithmetic: check a tool before believing it. Drill 1 shows why. A shorter formula, widely copied, is 0.5° off here, which at this hour is more than a minute of time.
+
+**Reprocessing** is a fourth clock. The second date in the product name, 20230605T154634, is when ESA *reprocessed* the image, in June 2023. All Sentinel-2 data from 2015 to 2021 was reprocessed as **Collection-1** with processing baseline 05.00, "to ensure consistent time series". Since baseline 04.00, the stored numbers carry an offset. The product metadata says \`BOA_ADD_OFFSET\` = −1000 and a quantification value of 10000, so reflectance = (value − 1000) / 10000. The pixels you download today are not the ones someone downloaded in 2021. Record the product ID and the baseline, not just "a Sentinel-2 image of 24 March".
+
+#### Change detection: what changed, and what only looks changed
+
+Comparing two images is where most mistakes happen, because many things other than the ground change between two passes:
+
+- **Clouds, haze and dust.** Clouds are bright in every band, and a cloud of the right size looks like an object. On 14 March the lab's window holds a 345 m bright patch, before any grounding. It is cloud.
+- **The cloud figure in a catalogue is for the whole tile.** The 24 March tile is listed at 2.95% cloud. Inside the lab's 1.2 km window, the image's own **Scene Classification Layer** (SCL) flags 72% as cloud or haze. (The ship had run aground in a sandstorm the day before, according to Wikipedia.) Always measure cloud over your area, not the tile's.
+- **The SCL is itself a classifier.** Its classes are listed in the product metadata: 0 no data, 1 saturated or defective, 2 dark feature/shadow, 3 cloud shadow, 4 vegetation, 5 not vegetated, 6 water, 7 unclassified, 8 cloud (medium probability), 9 cloud (high probability), 10 thin cirrus, 11 snow/ice. A large bright ship can be labelled "cloud", and dust can too. The lab treats a flagged date as *not usable by the rule* and then says separately what the pixels are consistent with.
+- **Season and sun angle.** Compare images from the same season and time of day. Sentinel-2's fixed 10:30 crossing helps.
+- **The display.** An image stretched to fill the screen hides haze, because every image looks equally crisp. The lab's pictures use one fixed stretch for every date.
+- **The threshold.** "Bright" means brighter than something by some amount. Say what, and check whether the answer survives a different amount (Drill 2). On 29 March the patch survives four times the threshold. On 24 March it does not.
+
+The lab's rule, written before the results were seen:
+
+1. **Baseline:** the clearest date (19 March) defines where water is.
+2. **Level:** each date's water level is its median over those water pixels, so haze that brightens everything does not count as an object.
+3. **Object:** at least 100 connected pixels and 200 m long, more than 500 above that level.
+4. **Usable:** less than 10% of the window flagged as cloud.
+
+On 29 March at 08:41 UTC, an object about 419 m long lies across the canal at 27° to its axis, still aground (Wikipedia: freed at 13:05 UTC that day). A ship passing through would lie along the canal. On 19 March, 3 and 8 April there is none. On 24 March the window is flagged, and a patch 69 m from the 29 March object is a **lead**, not a finding.
+
+#### Mosaics and missing imagery
+
+Map platforms show a **mosaic**: the best available image for each area, stitched together from different dates and sources. A mosaic has no single date. BuzzFeed News found one area of Xinjiang where "the most recent publicly available high-resolution imagery" was from 2006. Look for the imagery date the platform gives (Google Earth has a time slider for past imagery), and never write "satellite images show" of a mosaic without it.
+
+Missing imagery can be evidence too. The case study is about a map platform that blanked out certain places, and about how those blanks were read.
+
+#### What each kind of statement is worth
+
+Use S2.7's tags:
+
+| Statement | Tag | Why |
+|---|---|---|
+| "Sentinel-2 imaged this point on these dates" (two catalogues agree) | STRONG | Two independent services, same archive |
+| "The tile was imaged at 08:41:47 UTC" (sun check matches) | STRONG | The metadata's own sun angles agree |
+| "These pixels, in this band, at this threshold, show a bright patch N m long" | STRONG, for the pixels | Anyone can repeat it with the same bytes |
+| "The patch is the *Ever Given*" | ONE-WAY | From news and AIS (S3.5), not from 10 m pixels |
+| A patch on a date the cloud mask flags | LEAD | Could be the object, could be cloud or dust |
+| "Satellite images show…" from an undated mosaic | CONTEXT at best | No date, no sensor, no way to repeat it |
+
+#### Ethics
+
+- **Resolution is a privacy boundary.** At 10 m you cannot see people, and this course does not use sharper imagery of homes or people. At 50 cm a single pixel is smaller than a car: treat sub-metre imagery of homes with the same care as S2.6's accounts.
+- **Credit and licence.** Say which satellite, which product, and carry the licence notice.
+- **Say what the pixels cannot say.** Most of a good imagery report is limits: resolution, cloud, date and who named the object.`,
+    lab: {
+      mac: `# LAB: what a satellite image proves, when it was taken, and what changed (Apple Silicon)
+# ETHICS: this lab looks at a canal, a ship and open data only. Sentinel-2 pixels are 10 m across:
+# no person, vehicle or face can be seen in them, and the lab does not try.
+# LICENCE: Copernicus Sentinel data is free, full and open. The lab's pictures are modified data, so
+# anything you publish from them must say "Contains modified Copernicus Sentinel data 2021".
+# LIMITS: the lab reads 12 small pieces (about 12 MB in all) of 12 large image files by HTTP range
+# requests, not whole files (each full band is up to 190 MB). No account and no key are needed.
+# NO NEW TOOL: curl, openssl and python3 (standard library only), as in Level 2. No GDAL.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s3_6 && cd ~/scouts-case/s3_6 || exit 1
+rm -rf evidence pictures collection_log.tsv scope.txt collect_tiles.py satellite_check.py facts.txt report.md \\
+  check_report.sh SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence pictures
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S3.6 satellite imagery and change (Suez Canal, March 2021)
+question:     What does a satellite image prove, when was it taken, and what changed between images?
+              A. two catalogues, one place, one month: which images exist, and when were they taken?
+              B. the sun as a clock: which of the catalogues' times matches the sun angles in the image?
+              C. the file: does the metadata we downloaded match the checksum the catalogue publishes?
+              D. the pixels: one 1.2 km window of the canal on six dates; what changed, and on which dates
+                 can the pixels be trusted at all?
+              E. 2020: how BuzzFeed News used imagery, and gaps in imagery, to find camps in Xinjiang
+authorised:   self (open satellite data, public catalogues, public pages)
+in scope:     earth-search.aws.element84.com (1 search); stac.dataspace.copernicus.eu (1 search);
+              e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com (1 metadata file, 12 byte ranges);
+              en.wikipedia.org (3 fixed revisions); www.buzzfeednews.com (1 page)
+out of scope: any image of people or homes; any commercial imagery; tasking or buying any image
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+keep() {  # id source  (the file evidence/<id> is already written, or missing)
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+get() {  # id url   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"
+  keep "$1" "$2"
+}
+# A. The same question to two catalogues: every Sentinel-2 L2A image covering one point, 10 Mar - 10 Apr 2021.
+#    The point is the Wikipedia coordinate of the 2021 obstruction (item004); the box is 20 m wide.
+get item001.json "https://earth-search.aws.element84.com/v1/search?collections=sentinel-2-c1-l2a&bbox=32.5799,30.0174,32.5801,30.0176&datetime=2021-03-10T00:00:00Z/2021-04-10T00:00:00Z&limit=50"
+get item002.json "https://stac.dataspace.copernicus.eu/v1/search?collections=sentinel-2-l2a&bbox=32.5799,30.0174,32.5801,30.0176&datetime=2021-03-10T00:00:00Z/2021-04-10T00:00:00Z&limit=50"
+# C. One image's own metadata file (24 March), at the address the first catalogue gives for it.
+get item003.xml https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/36/R/VU/2021/3/S2A_T36RVU_20210324T083627_L2A/metadata.xml
+# Context: fixed revisions of two Wikipedia articles (the event, the ship).
+get item004.txt "https://en.wikipedia.org/w/index.php?oldid=1374040554&action=raw"
+get item005.txt "https://en.wikipedia.org/w/index.php?oldid=1373511495&action=raw"
+# E. The case: BuzzFeed News' methodology article (2020), and the 2021 Pulitzer citation.
+get item006.html https://www.buzzfeednews.com/article/alison_killing/satellite-images-investigation-xinjiang-detention-camps
+get item007.txt "https://en.wikipedia.org/w/index.php?oldid=1365830173&action=raw"
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab"; exit 1; }
+
+# D. Pixels. A Cloud-Optimised GeoTIFF keeps a table of where each 1024 x 1024 block starts, in its first
+#    bytes. So: fetch the first 64 KB, read the table, then fetch only the one block holding the window.
+#    Each evidence file is those two byte ranges, joined, and the log says which ranges they were.
+cat > collect_tiles.py <<'PY'
+import json, struct, hashlib, datetime, urllib.request, sys
+ANALYST, UA = sys.argv[1], sys.argv[2]
+E, N = 459499, 3320799          # the Wikipedia point in UTM zone 36N metres (checked in step 3)
+def rng(url, a, b):
+    rq = urllib.request.Request(url, headers={"Range": "bytes=%d-%d" % (a, b), "User-Agent": UA})
+    for n in range(5):
+        try:
+            with urllib.request.urlopen(rq, timeout=120) as r:
+                d = r.read()
+            if r.status == 206 and len(d) == b - a + 1: return d
+        except OSError: pass
+    raise SystemExit("STOP: range request failed: " + url)
+def tags(h):
+    assert h[:4] == b"II*\\x00", "not a little-endian classic TIFF"
+    off = struct.unpack("<I", h[4:8])[0]; t = {}
+    for i in range(struct.unpack("<H", h[off:off + 2])[0]):
+        tag, typ, cnt, v = struct.unpack("<HHII", h[off + 2 + 12 * i: off + 14 + 12 * i])
+        f = {3: "H", 4: "I", 12: "d"}.get(typ)
+        if f is None: continue
+        sz = struct.calcsize(f) * cnt
+        raw = h[off + 10 + 12 * i: off + 14 + 12 * i] if sz <= 4 else h[v:v + sz]
+        t[tag] = struct.unpack("<" + f * cnt, raw[:sz])
+    return t
+items = json.load(open("evidence/item001.json"))["features"]
+items.sort(key=lambda f: f["properties"]["datetime"])
+n = 8
+for band, key in (("B08", "nir"), ("SCL", "scl")):
+    for f in items:
+        url = f["assets"][key]["href"]
+        h = rng(url, 0, 65535); t = tags(h)
+        sx, sy = t[33550][:2]; x0, y0 = t[33922][3:5]; tw, th = t[322][0], t[323][0]
+        col, row = int((E - x0) // sx), int((y0 - N) // sy)
+        k = (row // th) * ((t[256][0] + tw - 1) // tw) + col // tw
+        a = t[324][k]; b = a + t[325][k] - 1
+        name = "item%03d.%s.bin" % (n, band.lower())
+        open("evidence/" + name, "wb").write(h + rng(url, a, b))
+        sha = hashlib.sha256(open("evidence/" + name, "rb").read()).hexdigest()
+        with open("collection_log.tsv", "a") as lg:
+            lg.write("%s\\t%s\\t%s\\t%s bytes=0-65535,%d-%d\\t%s\\n" % (name,
+                datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), ANALYST, url, a, b, sha))
+        n += 1
+PY
+python3 collect_tiles.py "$ANALYST" "$UA" || { echo "STOP: collect_tiles.py failed"; exit 1; }
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+
+# 3. Read. One script, standard library only; it writes facts.txt and four pictures.
+cat > satellite_check.py <<'PY'
+import json, re, struct, zlib, array, math, hashlib, datetime as dt, glob, html
+out = open("facts.txt", "w")
+def say(s): print(s); out.write(s + "\\n")
+def ts(s):  # ISO 8601 UTC with any number of fraction digits (python 3.9's fromisoformat takes neither)
+    m = re.match(r"(\\d{4})-(\\d\\d)-(\\d\\d)T(\\d\\d):(\\d\\d):(\\d\\d)(?:\\.(\\d+))?Z$", s)
+    return dt.datetime(*map(int, m.groups()[:6]), int((m.group(7) or "0")[:6].ljust(6, "0")), tzinfo=dt.timezone.utc)
+ES = json.load(open("evidence/item001.json"))["features"]; ES.sort(key=lambda f: f["properties"]["datetime"])
+CD = json.load(open("evidence/item002.json"))["features"]; CD.sort(key=lambda f: f["properties"]["datetime"])
+
+# --- A. Two catalogues ---
+say("A. two catalogues, one point, 10 Mar - 10 Apr 2021")
+say("item001  Earth Search: %d images | item002  Copernicus: %d images" % (len(ES), len(CD)))
+for e, c in zip(ES, CD):
+    pe, pc = e["properties"], c["properties"]
+    te, tc = ts(pe["datetime"]), ts(pc["datetime"])
+    say("  %s  Earth Search %s | Copernicus %s | apart %5.1f min | cloud %6.2f%% (whole 110 km tile)" % (
+        te.strftime("%d %b"), te.strftime("%H:%M:%S"), tc.strftime("%H:%M:%S"),
+        (te - tc).total_seconds() / 60, pe["eo:cloud_cover"]))
+days = sorted({f["properties"]["datetime"][:10] for f in ES + CD})
+say("  a claimed 'Sentinel-2 image of 26 March 2021' here: %s" % ("FOUND" if "2021-03-26" in days else
+    "NO such image in either catalogue (the dates are " + ", ".join(d[8:] for d in days) + ")"))
+
+# --- B. The sun as a clock ---
+def sun(t, lat, lon):  # NOAA Solar Calculator method (Meeus), no refraction; t in UTC
+    jd = (t - dt.datetime(2000, 1, 1, 12, tzinfo=dt.timezone.utc)).total_seconds() / 86400 + 2451545.0
+    T = (jd - 2451545) / 36525; R, D = math.radians, math.degrees
+    L0 = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360; M = 357.52911 + T * (35999.05029 - 0.0001537 * T)
+    e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T)
+    C = (math.sin(R(M)) * (1.914602 - T * (0.004817 + 0.000014 * T)) + math.sin(R(2 * M)) * (0.019993 - 0.000101 * T)
+         + math.sin(R(3 * M)) * 0.000289)
+    om = 125.04 - 1934.136 * T; lam = L0 + C - 0.00569 - 0.00478 * math.sin(R(om))
+    eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * math.cos(R(om))
+    dec = math.asin(math.sin(R(eps)) * math.sin(R(lam))); y = math.tan(R(eps / 2)) ** 2
+    eqt = 4 * D(y * math.sin(2 * R(L0)) - 2 * e * math.sin(R(M)) + 4 * e * y * math.sin(R(M)) * math.cos(2 * R(L0))
+                - 0.5 * y * y * math.sin(4 * R(L0)) - 1.25 * e * e * math.sin(2 * R(M)))
+    mins = t.hour * 60 + t.minute + (t.second + t.microsecond / 1e6) / 60
+    h = R((mins + eqt + 4 * lon) / 4 - 180); p = R(lat)
+    el = D(math.asin(math.sin(p) * math.sin(dec) + math.cos(p) * math.cos(dec) * math.cos(h)))
+    az = (D(math.atan2(math.sin(h), math.cos(h) * math.sin(p) - math.tan(dec) * math.cos(p))) + 180) % 360
+    return el, az
+x = open("evidence/item003.xml").read()
+st = re.search(r"<SENSING_TIME[^>]*>([^<]+)<", x).group(1)
+zen, azi = map(float, re.search(r"<Mean_Sun_Angle>\\s*<ZENITH_ANGLE[^>]*>([\\d.]+)</ZENITH_ANGLE>\\s*"
+                                 r"<AZIMUTH_ANGLE[^>]*>([\\d.]+)<", x).groups())
+e24 = [f for f in ES if f["id"] == "S2A_T36RVU_20210324T083627_L2A"][0]
+c24 = [f for f in CD if f["properties"]["datetime"].startswith("2021-03-24")][0]
+ring = e24["geometry"]["coordinates"][0][:4]
+clon, clat = sum(p[0] for p in ring) / 4, sum(p[1] for p in ring) / 4
+say("B. the sun as a clock (24 March; the image's own metadata, item003)")
+say("item003  sun in metadata: elevation %.2f, azimuth %.2f | tile centre %.4f N %.4f E" % (90 - zen, azi, clat, clon))
+for label, s in (("item003 SENSING_TIME ", st), ("item001 Earth Search ", e24["properties"]["datetime"]),
+                 ("item002 Copernicus   ", c24["properties"]["datetime"])):
+    t = ts(s)
+    el, az = sun(t, clat, clon)
+    d = max(abs(el - (90 - zen)), abs(az - azi))
+    say("  %s %s -> sun %.2f / %.2f | off by %.2f deg -> %s" % (label, t.strftime("%H:%M:%S"), el, az, d,
+        "MATCH" if d < 0.05 else "NO MATCH"))
+pn = e24["properties"]["s2:product_uri"]
+say("  product name %s: its first time, %s, is the datatake start (sentiwiki), not this tile" % (pn[:26] + "...", pn[11:26]))
+
+# --- C. The file against the catalogue's checksum ---
+mh = e24["assets"]["granule_metadata"]["file:checksum"]
+got = "1220" + hashlib.sha256(open("evidence/item003.xml", "rb").read()).hexdigest()
+say("C. checksum (multihash: 12 = sha2-256, 20 = 32 bytes)")
+say("item003  catalogue %s... | file %s... -> %s" % (mh[:20], got[:20], "MATCH" if mh == got else "DIFFERENT"))
+
+# --- D. Pixels ---
+def utm36(lat, lon):  # Krueger series, WGS 84, zone 36 (central meridian 33 E)
+    a = 6378137.0; f = 1 / 298.257223563; n = f / (2 - f); A = a / (1 + n) * (1 + n * n / 4 + n ** 4 / 64)
+    al = [n / 2 - 2 * n * n / 3 + 5 * n ** 3 / 16, 13 * n * n / 48 - 3 * n ** 3 / 5, 61 * n ** 3 / 240]
+    phi, lam = math.radians(lat), math.radians(lon - 33); e = 2 * math.sqrt(n) / (1 + n)
+    t = math.sinh(math.atanh(math.sin(phi)) - e * math.atanh(e * math.sin(phi)))
+    xi, eta = math.atan2(t, math.cos(lam)), math.atanh(math.sin(lam) / math.sqrt(1 + t * t))
+    X = eta + sum(al[j] * math.cos(2 * (j + 1) * xi) * math.sinh(2 * (j + 1) * eta) for j in range(3))
+    Y = xi + sum(al[j] * math.sin(2 * (j + 1) * xi) * math.cosh(2 * (j + 1) * eta) for j in range(3))
+    return 500000 + 0.9996 * A * X, 0.9996 * A * Y
+say("D. pixels: a 1.2 km window, 10 m pixels, band B08 (near infrared), on six dates")
+worst = max(abs(u - v) for (lon, lat), c in zip(ring, [(399960, 3400020), (399960, 3290220), (509760, 3290220),
+            (509760, 3400020)]) for u, v in zip(utm36(lat, lon), c))
+say("  known answer: the tile's 4 corners (item001) convert to its UTM grid to within %.1f m" % worst)
+w = open("evidence/item004.txt").read()
+lat, lon = map(float, re.search(r"coord = \\{\\{coord\\|([\\d.]+)\\|([\\d.]+)\\}\\}", w).groups())
+E, N = utm36(lat, lon)
+say("item004  point %.4f N %.4f E -> E %.0f N %.0f (zone 36N)" % (lat, lon, E, N))
+def window(path, half):
+    d = open(path, "rb").read(); h = d[:65536]
+    off = struct.unpack("<I", h[4:8])[0]; t = {}
+    for i in range(struct.unpack("<H", h[off:off + 2])[0]):
+        tag, typ, cnt, v = struct.unpack("<HHII", h[off + 2 + 12 * i: off + 14 + 12 * i])
+        f = {3: "H", 4: "I", 12: "d"}.get(typ)
+        if f is None: continue
+        sz = struct.calcsize(f) * cnt
+        raw = h[off + 10 + 12 * i: off + 14 + 12 * i] if sz <= 4 else h[v:v + sz]
+        t[tag] = struct.unpack("<" + f * cnt, raw[:sz])
+    assert t[259][0] == 8 and t[277][0] == 1 and t.get(317, (1,))[0] == 2   # deflate, 1 band, predictor 2
+    tw, th, bps = t[322][0], t[323][0], t[258][0]
+    sx, sy = t[33550][:2]; x0, y0 = t[33922][3:5]
+    col, row = int((E - x0) // sx), int((y0 - N) // sy)
+    assert (col - half) // tw == (col + half) // tw and (row - half) // th == (row + half) // th
+    px = array.array("H" if bps == 16 else "B", zlib.decompress(d[65536:])); m = (1 << bps) - 1
+    for yy in range(th):                                    # undo horizontal differencing
+        b = yy * tw
+        for xx in range(1, tw): px[b + xx] = (px[b + xx] + px[b + xx - 1]) & m
+    c0, r0 = col % tw, row % th
+    return [[px[(r0 + r) * tw + c0 + c] for c in range(-half, half)] for r in range(-half, half)]
+B08 = [window(p, 60) for p in sorted(glob.glob("evidence/item*.b08.bin"))]
+SCL = [window(p, 30) for p in sorted(glob.glob("evidence/item*.scl.bin"))]
+S = 120; base = [i for i, f in enumerate(ES) if f["properties"]["datetime"].startswith("2021-03-19")][0]
+water = [(r, c) for r in range(S) for c in range(S) if B08[base][r][c] < 2000]
+wn = len(water); cy = sum(p[0] for p in water) / wn; cx = sum(p[1] for p in water) / wn
+def axis(pts, cy, cx):
+    n = len(pts); syy = sum((p[0] - cy) ** 2 for p in pts) / n; sxx = sum((p[1] - cx) ** 2 for p in pts) / n
+    sxy = sum((p[0] - cy) * (p[1] - cx) for p in pts) / n
+    lam = (sxx + syy) / 2 + math.sqrt(((sxx - syy) / 2) ** 2 + sxy ** 2)
+    return (90 + math.degrees(0.5 * math.atan2(2 * sxy, sxx - syy))) % 180, math.sqrt(12 * lam) * 10
+canal, _ = axis(water, cy, cx)
+say("  water mask from the clearest date (19 Mar): %d pixels (%.2f km2), canal axis %.0f deg" % (wn, wn / 1e4, canal))
+wset = set(water); rows = []
+for i, f in enumerate(ES):
+    g = B08[i]; lvl = sorted(g[r][c] for r, c in water)[wn // 2]
+    bright = {(r, c) for r, c in water if g[r][c] > lvl + 500}
+    big = []; seen = set()
+    for p in bright:
+        if p in seen: continue
+        st = [p]; seen.add(p); comp = []
+        while st:
+            y, x_ = st.pop(); comp.append((y, x_))
+            for q in ((y + a, x_ + b) for a in (-1, 0, 1) for b in (-1, 0, 1)):
+                if q in bright and q not in seen: seen.add(q); st.append(q)
+        if len(comp) > len(big): big = comp
+    cl = sum(1 for r in SCL[i] for v in r if v in (8, 9, 10)) / 3600 * 100
+    n = len(big); oy = sum(p[0] for p in big) / n; ox = sum(p[1] for p in big) / n
+    ang, length = axis(big, oy, ox) if n > 1 else (0, 0)
+    off = abs((ang - canal + 90) % 180 - 90)
+    obj = n >= 100 and length >= 200
+    verdict = "FLAGGED (cloud mask %d%%)" % round(cl) if cl >= 10 else ("OBJECT" if obj else "NO LARGE OBJECT")
+    rows.append(dict(d=f["properties"]["datetime"][:10], n=n, ox=(ox - S / 2) * 10, oy=(S / 2 - oy) * 10,
+                     L=length, off=off, cl=cl, v=verdict, obj=obj))
+    shape = ("%3.0f m long, %2.0f deg to canal, centre %+4.0f m E %+4.0f m N" % (length, off, (ox - S / 2) * 10,
+             (S / 2 - oy) * 10)) if n >= 10 else "too small to measure"
+    say("  %s  cloud flags in window %3.0f%% | water level %4d | largest bright patch %3d px, %s -> %s" % (
+        f["properties"]["datetime"][5:10], cl, lvl, n, shape, verdict))
+ref = max((r for r in rows if r["v"] == "OBJECT"), key=lambda r: r["L"])
+for r in rows:
+    if r["v"].startswith("FLAGGED") and r["obj"]:
+        dist = math.hypot(r["ox"] - ref["ox"], r["oy"] - ref["oy"])
+        say("  %s  flagged patch vs the %s object: centres %.0f m apart, lengths %.0f / %.0f m -> %s" % (
+            r["d"][5:], ref["d"][5:], dist, r["L"], ref["L"], "CONSISTENT (a lead)" if dist < 150 else "NOT the same place"))
+ln = float(re.search(r"\\| length = \\{\\{convert\\|([\\d.]+)\\|m", open("evidence/item005.txt").read()).group(1))
+say("item005  Ever Given length %.2f m (Wikipedia, citing ABS) | the %s patch: %.0f m" % (ln, ref["d"][5:], ref["L"]))
+g = re.search(r"duration = \\{\\{time interval\\|([^|]+)\\|([^|]+)\\|", w).groups()
+say("item004  aground %s UTC to %s UTC | 'partially refloated but bow still stuck' (29 Mar) %s" % (g + (
+    "present" if "partially refloated but bow still stuck" in w else "ABSENT",)))
+
+# Pictures: fixed stretch (0-6000) for every date, so haze looks like haze. PNG, standard library only.
+def png(path, g):
+    raw = b"".join(b"\\x00" + bytes(max(0, min(255, v * 255 // 6000)) for v in r) for r in g)
+    ch = lambda k, d: struct.pack(">I", len(d)) + k + d + struct.pack(">I", zlib.crc32(k + d))
+    open(path, "wb").write(b"\\x89PNG\\r\\n\\x1a\\n" + ch(b"IHDR", struct.pack(">IIBBBBB", S, S, 8, 0, 0, 0, 0))
+                            + ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b""))
+json.dump({"dates": [f["properties"]["datetime"][:10] for f in ES], "b08": B08, "scl": SCL},
+          open("pictures/windows.json", "w"))                   # for the drills
+for i, f in enumerate(ES):
+    if f["properties"]["datetime"][5:10] in ("03-19", "03-24", "03-29", "04-03"):
+        png("pictures/b08_%s.png" % f["properties"]["datetime"][:10], B08[i])
+
+# --- E. The case ---
+say("E. the case")
+b = html.unescape(re.sub(r"<[^>]+>", " ", open("evidence/item006.html").read()))
+for ph in ("5 million masked tiles", "428 locations", "photographed in high resolution since 2006",
+           "weren’t used in city centers", "14 locations identified by other researchers"):
+    say("item006  '%s' %s" % (ph, "present" if ph in b else "ABSENT"))
+p = open("evidence/item007.txt").read()
+ph = "satellite imagery and architectural expertise, as well as interviews with two dozen former prisoners"
+say("item007  '%s' %s" % (ph, "present" if ph in p else "ABSENT"))
+out.close()
+PY
+python3 satellite_check.py || { echo "STOP: satellite_check.py failed"; exit 1; }
+
+# 4. Report. Every line carries S2.7's strength tag and the items it rests on.
+cat > report.md <<'REPORT'
+# S3.6 satellite imagery and change
+
+## Question
+What does a satellite image prove, when was it taken, and what changed in the Suez Canal between 14 March and 8 April 2021?
+
+## Findings
+- STRONG (item001, item002): Two catalogues list the same six Sentinel-2 images of this point between 10 March and 10 April 2021: 14, 19, 24 and 29 March, and 3 and 8 April. Neither lists one for 26 March. An image captioned "Sentinel-2, 26 March 2021" of this place is mislabelled, or from another satellite.
+- STRONG (item003, item001): The 24 March image was taken over this tile at 08:41:47 UTC. The sun angles in its own metadata match that time to within 0.01 degrees. The Copernicus catalogue's time, 08:26:11, is when the satellite started that strip of imaging, and it misses the sun by 5.8 degrees.
+- STRONG (item003, item001): The metadata file I read is the file the catalogue describes: its SHA-256 equals the catalogue's published checksum.
+- STRONG (item009, item011, item012, item013, item015, item017, item018, item019): With no cloud flags over the window, there was no bright patch of 100 pixels or more in the canal on 19 March, 3 April or 8 April. On 29 March at 08:41 UTC there was one about 419 m long, lying 27 degrees across the canal, 105 m south of the reference point.
+- LEAD (item010, item016): On 24 March the image's own cloud mask flags 72% of the window, so by the rule these pixels do not count. A patch 363 m long lies 69 m from the 29 March one. It is consistent with the same object, seen through dust, and it is not a finding on its own.
+- CONTEXT (item008, item014): On 14 March a 345 m patch lies under a 52% cloud mask, 599 m from the 29 March object, before any grounding. That is cloud, and it is why the rule exists.
+- ONE-WAY (item004, item005): Wikipedia says the Ever Given, 399.94 m long, was aground at this point from 05:40 UTC on 23 March to 13:05 UTC on 29 March, and cites a report that the ship was partly refloated on 29 March with its bow still stuck. That is what gives the patch a name. The pixels cannot.
+- CONTEXT (item001, item016): The catalogue's cloud figure covers the whole 110 km tile: 2.95% on 24 March, while 72% of this window was flagged.
+- CONTEXT (item006, item007): BuzzFeed News found 428 locations in Xinjiang from about 5 million masked map tiles, and the Pulitzer board's 2021 citation names satellite imagery together with interviews with two dozen former prisoners.
+
+## Limits
+Pixels here are 10 m across. A patch of bright pixels is not a ship's name, cargo or crew, and the 419 m length includes anything bright touching it. Only one band and one window were read, and each block was fetched by range, so its hash cannot be checked against the whole-file checksum: the log records which bytes were read. Contains modified Copernicus Sentinel data 2021.
+REPORT
+
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}
+[ -f "$R" ] && [ -f collection_log.tsv ] && [ -f facts.txt ] || { echo "UNKNOWN: report, log or facts missing"; exit 2; }
+bad=0
+for id in $(grep -o 'item[0-9][0-9][0-9]' "$R" | sort -u); do
+  h=$(awk -F'\\t' -v i="$id" 'index($1, i) == 1 {h = $5} END {print h}' collection_log.tsv)
+  f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+  if [ -z "$h" ] || [ -z "$f" ] || [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "FAIL: $id cited but missing or changed"; bad=1; fi
+done
+# Pixels never name a ship; a start-of-strip time is never the time of the image; a tile's cloud figure is
+# never the cloud over your window.
+grep -niE '^- STRONG.*(Ever Given|the ship|a ship|vessel)' "$R" && { echo "FAIL: a STRONG line names an object from pixels"; bad=1; }
+grep -niE '08:26:11.*(taken|acquired|captured|imaged) at' "$R" && { echo "FAIL: a datatake start read as the image time"; bad=1; }
+grep -niE '(2\\.95|tile).*(clear|cloud-free|no cloud)' "$R" && { echo "FAIL: a tile's cloud figure read as the window's"; bad=1; }
+grep -q '^## Limits' "$R" || { echo "FAIL: no Limits section"; bad=1; }
+grep -q 'Contains modified Copernicus Sentinel data 2021' "$R" || { echo "FAIL: no Copernicus notice"; bad=1; }
+# Hand-typed lines must agree with facts.txt (S1.7).
+grep -q "26 March 2021' here: NO such image in either catalogue" facts.txt || { echo "FAIL: report says no 26 March image; facts.txt disagrees"; bad=1; }
+grep -q '^  item003 SENSING_TIME  08:41:47 .*-> MATCH' facts.txt && grep -q '^  item002 Copernicus    08:26:11 .*off by 5\\.79 deg -> NO MATCH' facts.txt ||
+  { echo "FAIL: report cites the sun check; facts.txt disagrees"; bad=1; }
+grep -q '^item003  catalogue .* -> MATCH' facts.txt || { echo "FAIL: report says the checksum matches; facts.txt disagrees"; bad=1; }
+for d in 03-19 04-03 04-08; do grep -q "^  $d  cloud flags in window   0% .*-> NO LARGE OBJECT" facts.txt || { echo "FAIL: report says $d had no object; facts.txt disagrees"; bad=1; }; done
+grep -q '^  03-29  .* 419 m long, 27 deg to canal, centre   +3 m E -105 m N -> OBJECT' facts.txt || { echo "FAIL: report cites the 29 March object; facts.txt disagrees"; bad=1; }
+grep -q '^  03-24  cloud flags in window  72%' facts.txt && grep -q '^  03-24  flagged patch .* 69 m apart.*CONSISTENT' facts.txt ||
+  { echo "FAIL: report cites the 24 March lead; facts.txt disagrees"; bad=1; }
+grep -q '^  03-14  flagged patch .* 599 m apart.*NOT the same place' facts.txt || { echo "FAIL: report cites the 14 March cloud; facts.txt disagrees"; bad=1; }
+grep -q "^item004  aground 23 March 2021 05:40 UTC to 29 March 2021 13:05 UTC .* present" facts.txt || { echo "FAIL: report cites Wikipedia's times; facts.txt disagrees"; bad=1; }
+[ "$(grep -c '^item00[67]  .* present$' facts.txt)" = 6 ] || { echo "FAIL: report cites the case pages; facts.txt disagrees"; bad=1; }
+[ $bad -eq 0 ] && echo "report OK: every cited item is in the log and unchanged; no pixel read as a name"
+exit $bad
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 5. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv collect_tiles.py satellite_check.py facts.txt report.md check_report.sh \\
+  pictures/* evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H 'Content-Type: application/timestamp-query' \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It reads the pixels in python3, seals with openssl, and checks its own
+# report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s3_6 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in keep(), inside the check_report.sh heredoc, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl and python3 3.9 or later (the lab was run with 3.9 and 3.11). On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+item001.json 2026-09-30T08:21:26Z da6f07e87c24
+item002.json 2026-09-30T08:23:16Z de6b63225cdc
+item003.xml 2026-09-30T08:23:23Z 2f82491199c4
+item004.txt 2026-09-30T08:23:24Z 5d2bee3eb0f0
+item005.txt 2026-09-30T08:23:25Z 9e8604885004
+item006.html 2026-09-30T08:23:42Z cb2873cd3666
+item007.txt 2026-09-30T08:23:43Z 7f262868eaf5
+item008.b08.bin 2026-09-30T08:23:47Z d0385da023a2
+item009.b08.bin 2026-09-30T08:23:53Z 7600d68e73dc
+item010.b08.bin 2026-09-30T08:23:58Z 26e57b7ad60b
+item011.b08.bin 2026-09-30T08:24:07Z 2c133b5dd306
+item012.b08.bin 2026-09-30T08:24:13Z 21fc99caed66
+item013.b08.bin 2026-09-30T08:24:19Z c4a45d9f39ad
+item014.scl.bin 2026-09-30T08:24:21Z 26db04c75c7d
+item015.scl.bin 2026-09-30T08:24:24Z 559e7518ff3f
+item016.scl.bin 2026-09-30T08:24:27Z a383d22a60e5
+item017.scl.bin 2026-09-30T08:24:30Z 1a3d1972ac3d
+item018.scl.bin 2026-09-30T08:24:33Z 94ba9c8a456e
+item019.scl.bin 2026-09-30T08:24:36Z 4a098d56f6c9
+\`\`\`
+
+The collection log: your times will differ, and every line must end in a hash, never \`FAILED\`. Every hash should match these: the catalogue searches cover a closed month in 2021, the image files are archived, and the three Wikipedia pages are fixed revisions. If item001 or item002 differs, look at why before going on: a catalogue that has re-indexed or reprocessed its items is a finding in itself (read the Copernicus \`updated\` field). The Copernicus search can take a minute or two.
+
+\`\`\`text
+A. two catalogues, one point, 10 Mar - 10 Apr 2021
+item001  Earth Search: 6 images | item002  Copernicus: 6 images
+  14 Mar  Earth Search 08:41:48 | Copernicus 08:27:21 | apart  14.5 min | cloud  94.28% (whole 110 km tile)
+  19 Mar  Earth Search 08:41:48 | Copernicus 08:26:39 | apart  15.2 min | cloud   0.08% (whole 110 km tile)
+  24 Mar  Earth Search 08:41:47 | Copernicus 08:26:11 | apart  15.6 min | cloud   2.95% (whole 110 km tile)
+  29 Mar  Earth Search 08:41:47 | Copernicus 08:25:59 | apart  15.8 min | cloud  21.34% (whole 110 km tile)
+  03 Apr  Earth Search 08:41:45 | Copernicus 08:26:01 | apart  15.7 min | cloud   2.37% (whole 110 km tile)
+  08 Apr  Earth Search 08:41:46 | Copernicus 08:25:59 | apart  15.8 min | cloud   0.61% (whole 110 km tile)
+  a claimed 'Sentinel-2 image of 26 March 2021' here: NO such image in either catalogue (the dates are 14, 19, 24, 29, 03, 08)
+B. the sun as a clock (24 March; the image's own metadata, item003)
+item003  sun in metadata: elevation 56.34, azimuth 144.92 | tile centre 30.2356 N 32.5309 E
+  item003 SENSING_TIME  08:41:47 -> sun 56.34 / 144.93 | off by 0.01 deg -> MATCH
+  item001 Earth Search  08:41:47 -> sun 56.34 / 144.93 | off by 0.01 deg -> MATCH
+  item002 Copernicus    08:26:11 -> sun 54.26 / 139.13 | off by 5.79 deg -> NO MATCH
+  product name S2A_MSIL2A_20210324T082611...: its first time, 20210324T082611, is the datatake start (sentiwiki), not this tile
+C. checksum (multihash: 12 = sha2-256, 20 = 32 bytes)
+item003  catalogue 12202f82491199c4f81b... | file 12202f82491199c4f81b... -> MATCH
+D. pixels: a 1.2 km window, 10 m pixels, band B08 (near infrared), on six dates
+  known answer: the tile's 4 corners (item001) convert to its UTM grid to within 1.0 m
+item004  point 30.0175 N 32.5800 E -> E 459499 N 3320799 (zone 36N)
+  water mask from the clearest date (19 Mar): 3335 pixels (0.33 km2), canal axis 171 deg
+  03-14  cloud flags in window  52% | water level 2380 | largest bright patch 561 px, 345 m long, 30 deg to canal, centre -145 m E +476 m N -> FLAGGED (cloud mask 52%)
+  03-19  cloud flags in window   0% | water level 1456 | largest bright patch   1 px, too small to measure -> NO LARGE OBJECT
+  03-24  cloud flags in window  72% | water level 3730 | largest bright patch 191 px, 363 m long, 40 deg to canal, centre  -10 m E  -37 m N -> FLAGGED (cloud mask 72%)
+  03-29  cloud flags in window   3% | water level 1391 | largest bright patch 396 px, 419 m long, 27 deg to canal, centre   +3 m E -105 m N -> OBJECT
+  04-03  cloud flags in window   0% | water level  952 | largest bright patch  19 px, 160 m long,  2 deg to canal, centre  +26 m E +492 m N -> NO LARGE OBJECT
+  04-08  cloud flags in window   0% | water level 1284 | largest bright patch  24 px,  56 m long, 71 deg to canal, centre -148 m E +585 m N -> NO LARGE OBJECT
+  03-14  flagged patch vs the 03-29 object: centres 599 m apart, lengths 345 / 419 m -> NOT the same place
+  03-24  flagged patch vs the 03-29 object: centres 69 m apart, lengths 363 / 419 m -> CONSISTENT (a lead)
+item005  Ever Given length 399.94 m (Wikipedia, citing ABS) | the 03-29 patch: 419 m
+item004  aground 23 March 2021 05:40 UTC to 29 March 2021 13:05 UTC | 'partially refloated but bow still stuck' (29 Mar) present
+E. the case
+item006  '5 million masked tiles' present
+item006  '428 locations' present
+item006  'photographed in high resolution since 2006' present
+item006  'weren’t used in city centers' present
+item006  '14 locations identified by other researchers' present
+item007  'satellite imagery and architectural expertise, as well as interviews with two dozen former prisoners' present
+\`\`\`
+
+What to compare:
+
+- **A.** Six images in each catalogue, and Earth Search's times about 15 minutes after Copernicus's on every date. The cloud figures are the catalogue's, for the whole tile.
+- **B.** Earth Search and \`SENSING_TIME\` must say MATCH, and Copernicus NO MATCH. If your sun numbers differ in the second decimal place, compare the tile centre first.
+- **C.** MATCH. A DIFFERENT here means the file you have is not the one the catalogue describes: stop and find out why.
+- **D.** Every line must match, number for number: the bytes are fixed, and the arithmetic has no randomness. The pictures folder now holds four PNGs (19, 24 and 29 March, 3 April), all with the same fixed stretch. Open them in Preview and compare 24 March with 29 March.
+- **E.** Every phrase must be \`present\`. If BuzzFeed News changes its page, item006's hash changes and a phrase may go ABSENT. The report check will then FAIL on purpose.
+
+\`\`\`text
+report OK: every cited item is in the log and unchanged; no pixel read as a name
+Verification: OK
+Time stamp: Sep 30 08:24:39 2026 GMT
+sealed files: 31
+31
+\`\`\`
+
+The seal lists 31 files: the scope, the log, the two scripts, the facts, the report, its check script, the four pictures and \`windows.json\`, and 19 evidence items. The timestamp line shows your own run's time.`
+      }
+    },
+    caseStudy: {
+      title: "2020: blanked-out map tiles and the camps in Xinjiang",
+      body: `**What happened.** On 27 August 2020, BuzzFeed News published an investigation by Megha Rajagopalan, Alison Killing and Christo Buschek into the detention of Muslims in Xinjiang, China. With it came a methodology article by Killing: "Blanked-Out Spots On China’s Maps Helped Us Uncover Xinjiang’s Camps". In 2021 the three won the Pulitzer Prize for International Reporting. The citation, as given on Wikipedia, credits stories that "used satellite imagery and architectural expertise, as well as interviews with two dozen former prisoners". The imagery was one strand of evidence among several.
+
+**The signal was a gap.** Working on the Chinese platform Baidu Maps near a camp whose location was already known, the team noticed that "plain light gray tiles would appear over the camp location. They disappeared as you zoomed in further". They first ruled out an ordinary fault: "Usually when a map platform can’t display a tile, it serves a standard blank tile, which is watermarked. These blank tiles are also a darker color than the tiles we had noticed over the camps." Then they tested the idea on known cases before using it: "Of the six camps that we used in our feasibility study, five had blank tiles at their location at zoom level 18 in Baidu". For the sixth, "a person who had visited the site in 2019 said it had closed". They also found where the method would fail: "the blank tiles weren’t used in city centers". Baidu "did not respond to repeated requests for comment."
+
+**From 5 million gaps to 428 locations.** "In total there were 5 million masked tiles across Xinjiang", covering "any area of even the slightest strategic importance — military bases and training grounds, prisons, power plants, but also mines and some commercial and industrial facilities." A masked tile was a LEAD and nothing more. Most of them were not camps. The team narrowed the search by reasoning about what a prison needs: roads, power, a town nearby. "This left us with around 50,000 locations to look at." They then checked each one against actual imagery: "We analyzed the masked locations by comparing them to up-to-date imagery from Google Earth, the European Space Agency’s Sentinel Hub, and Planet Labs." After "looking at 10,000 mask tile locations", they knew what the facilities looked like and where they tended to be. "In total we identified 428 locations in Xinjiang bearing the hallmarks of prisons and detention centers."
+
+**Where the imagery ran out.** In some counties, the newest public high-resolution image was years old. For one site, "the most recent publicly available high-resolution imagery" in Google Earth dated from 2006. "Where there was no public high-resolution imagery, we used medium-resolution imagery from Planet Labs and Sentinel to locate likely sites. Planet was then kind enough to give us access to high-resolution imagery for these locations and to task a satellite to capture new imagery of some areas that hadn’t been photographed in high resolution since 2006." Open 10 m imagery, the kind the lab reads, was enough to find a large new compound. Identifying what it was took sharper imagery and a company's cooperation.
+
+**What they would not claim.** The article is precise about its own strength. Of the 428 locations, they believed 315 were in current use, and they counted separately "39 camps that we believe are probably closed and 11 that have closed". Where fencing had been removed they wrote "suggests", not "shows". And "There are a further 14 locations identified by other researchers, but where our team has only been able to check the satellite evidence, which in these cases is weak. These 14 are not included in our list."
+
+**What it teaches.**
+
+- **A gap in imagery can be data.** It is a LEAD: it says someone chose to hide something, not what. The masked tiles pointed at prisons and at power plants alike.
+- **Test the method on known answers first.** Six known camps, five with masks, and one explained exception, before any new claim. That is the lab's corner test and sun check, done with a map.
+- **Know where the method stops.** No masks in city centres, so no mask did not mean no camp.
+- **The imagery date is part of the evidence.** A 2006 image cannot show a camp built in 2018. Record the date for every image you cite (see the lab's three clocks).
+- **Independent strands.** Imagery found the buildings; architectural analysis read what they were; former detainees described what happened inside. The Pulitzer citation names all three.
+- **Leave out what you cannot support.** Fourteen locations others had published were left out because the satellite evidence was weak. Saying so openly is what makes the other 428 believable.`
+    },
+    challenges: [{
+      q: `A post goes viral with a satellite image of a military base, captioned "new aircraft shelters built last week". The image carries a small "© Google" watermark and no date. Your editor wants to run it with the caption. What do you check, in what order, and what could you write?`,
+      a: `**An undated image from a map platform is a mosaic until shown otherwise.**
+
+1. **Find the image date.** Open the same place in Google Earth and use the time slider for past imagery, or find the provider's own date. A mosaic can mix years, and the caption's "last week" needs an image from last week.
+2. **Find a before and an after you can date.** Search an open catalogue (Sentinel-2, Landsat) for images of the place over the past month. At 10 m you will not see shelters, but you will see new ground cleared or large new roofs. Use the same satellite, the same season and a fixed stretch for both.
+3. **Check the conditions on each date.** Measure cloud over the site, not the tile's figure. A bright new patch on a cloudy date is a LEAD at most.
+4. **Check the sun, if the image has shadows.** Their direction dates the image to within minutes on a known day. Shadows that point the wrong way for the claimed date and the satellite's pass time mean the date is wrong.
+5. **Name what the pixels cannot.** Pixels show structures, not whose they are or what they are for.
+
+**What you could write:** "Open Sentinel-2 imagery shows new construction at [site] between [date 1] and [date 2]. The image circulating online could not be dated." **What you must not write:** "built last week" from an undated mosaic.`
+    }, {
+      q: `A colleague compares two Sentinel-2 images of a port, three months apart, and writes: "Satellite images show a large new warehouse, because the area is much brighter in the second image". The first image is from January, the second from April. What is wrong with the reasoning, and what would you do?`,
+      a: `**"Brighter" has several causes, and only one of them is a building.**
+
+- **Season and sun.** In January the sun is lower: longer shadows and darker surfaces. Sentinel-2 always passes at about 10:30 local solar time, but the sun's height at that time changes through the year. Compare the same season, or the same season a year earlier as a control.
+- **Cloud, haze and dust.** Measure them over the area itself, with the image's scene classification layer. A tile's cloud figure can say 3% while the area is 70% flagged, as on the lab's 24 March.
+- **Display.** Two images stretched separately for the screen do not have comparable brightness. Compare the numbers, or use one fixed stretch.
+- **Processing.** Check the baseline. Data processed since baseline 04.00 carries an offset of 1000, and mixing old and new products without allowing for it creates false change.
+- **Threshold.** Say how much brighter, and test a few thresholds (Drill 2).
+
+**Then:** find a third image, on another clear date after the change, to show that it lasts. Look at the shape, not just the brightness: a building has straight edges and a footprint that stays put. Write it as "a bright rectangular feature about N by M m appears between [dates]", and leave "warehouse" to a source that knows what it is.`
+    }, {
+      q: `Someone sends you a Sentinel-2 image and says: "The file name says 20210324T082611, so it was taken at 08:26 UTC on 24 March. Here are shadows proving a car was parked there at 08:26." Using only what the lab did, explain what is wrong, and what the image can and cannot show.`,
+      a: `**Two errors: the time and the car.**
+
+- **The time in the name is the datatake start.** SentiWiki says the first date in a product name "is the datatake start sensing time". The satellite had been imaging for over 15 minutes before it reached Suez. The tile's own \`SENSING_TIME\`, 08:41:47, is the one the sun angles in its metadata agree with, to 0.01°. At 08:26:11 they miss by 5.8°. The Copernicus catalogue gives the product time as the item's time, so reading it from a catalogue does not make it right either.
+- **A car is smaller than one pixel.** Sentinel-2's sharpest bands are 10 m, and one pixel is one number for 100 m². A car cannot be seen, and neither can a car's shadow. Any "car" in such an image is a bright pixel with an interpretation added to it.
+
+**What the image can show:** large features (the lab's 400 m ship is about 40 × 6 pixels), their position to about a pixel, and change between dated images under a stated rule. **What it cannot show:** anything smaller than a few pixels, identity, or anything that happened between passes.`
+    }],
+    quiz: ["What does one 10 m Sentinel-2 pixel measure, and why can a car not be seen in it? About how many pixels does the Ever Given cover?", "Why does the lab use band B08 (near infrared) to find a ship in a canal?", "Sentinel-2 bands are not taken at the same instant. What does that do to a fast-moving aircraft in an image?", "What does Sentinel-2's 10:30 mean local solar time mean for comparing images, and for what it can never show?", "What is a STAC item, and what are its assets? Why are two catalogues returning the same six images not two independent observations?", "What is a multihash? Decode the first four hex digits of the lab's checksum.", "Why can the catalogue's checksum not verify the byte ranges the lab read, and what does the lab record instead?", "Name the three times carried by the 24 March image. Which one is the time the tile was imaged, and how did the lab prove it?", "What did the lab test its coordinate and sun arithmetic against before trusting it, and what did Drill 1 show about a shorter formula?", "What is Collection-1, what does baseline 05.00 mean, and how do you turn a stored L2A value into reflectance?", "The 24 March tile is listed at 2.95% cloud. What did the lab measure over its own window, and what is the lesson?", "State the lab's four-part change rule. Why was it written before the results were seen?", "Why is the 24 March patch a LEAD and not a finding, even though it lies 69 m from the 29 March object? What did Drill 2 add?", "What names the object in the 29 March image, and why can the pixels not do it?", "What does the Copernicus legal notice require when you publish a cropped, stretched Sentinel-2 image?", "What was the signal BuzzFeed News used in Xinjiang, how did they test it before relying on it, and where did it fail?", "Why did BuzzFeed News leave 14 locations out of their list, and what does that teach about reporting imagery evidence?"],
+    workbench: `> **What this trains.** The lab dated one image by the sun, applied one change rule, and asked one catalogue about one satellite. Here you run the sun backwards to a time, see whether the change survives a different threshold, and ask which other satellites were overhead.
+
+#### 🟢 Drill 1 — the sun as a clock, run backwards ~2 min
+
+**Goal.** Find the time at which the sun had the angles recorded in the 24 March image's metadata, without looking at any timestamp.
+
+**Done when.** You can say how precisely sun angles date an image, and why the formula you use has to be tested first.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+# Drill 1: the sun as a clock, run backwards. Offline, standard library only.
+python3 - <<'PY'
+import math, datetime as dt
+R, D = math.radians, math.degrees
+def sun(t, lat, lon):          # the lab's function (NOAA Solar Calculator method, after Meeus)
+    jd = (t - dt.datetime(2000, 1, 1, 12)).total_seconds() / 86400 + 2451545.0; T = (jd - 2451545) / 36525
+    L0 = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360; M = 357.52911 + T * (35999.05029 - 0.0001537 * T)
+    e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T)
+    C = (math.sin(R(M)) * (1.914602 - T * (0.004817 + 0.000014 * T)) + math.sin(R(2 * M)) * (0.019993 - 0.000101 * T)
+         + math.sin(R(3 * M)) * 0.000289)
+    om = 125.04 - 1934.136 * T; lam = L0 + C - 0.00569 - 0.00478 * math.sin(R(om))
+    eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * math.cos(R(om))
+    dec = math.asin(math.sin(R(eps)) * math.sin(R(lam))); y = math.tan(R(eps / 2)) ** 2
+    eqt = 4 * D(y * math.sin(2 * R(L0)) - 2 * e * math.sin(R(M)) + 4 * e * y * math.sin(R(M)) * math.cos(2 * R(L0))
+                - 0.5 * y * y * math.sin(4 * R(L0)) - 1.25 * e * e * math.sin(2 * R(M)))
+    h = R((t.hour * 60 + t.minute + t.second / 60 + eqt + 4 * lon) / 4 - 180); p = R(lat)
+    el = D(math.asin(math.sin(p) * math.sin(dec) + math.cos(p) * math.cos(dec) * math.cos(h)))
+    az = (D(math.atan2(math.sin(h), math.cos(h) * math.sin(p) - math.tan(dec) * math.cos(p))) + 180) % 360
+    return el, az
+def short(t, lat, lon):        # a shorter, widely copied approximation (fractional-year series)
+    g = 2 * math.pi / 365 * (t.timetuple().tm_yday - 1 + (t.hour + t.minute / 60 - 12) / 24)
+    eqt = 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g) - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+    d = (0.006918 - 0.399912 * math.cos(g) + 0.070257 * math.sin(g) - 0.006758 * math.cos(2 * g) + 0.000907 * math.sin(2 * g)
+         - 0.002697 * math.cos(3 * g) + 0.00148 * math.sin(3 * g))
+    h = R((t.hour * 60 + t.minute + t.second / 60 + eqt + 4 * lon) / 4 - 180); p = R(lat)
+    el = D(math.asin(math.sin(p) * math.sin(d) + math.cos(p) * math.cos(d) * math.cos(h)))
+    az = (D(math.atan2(math.sin(h), math.cos(h) * math.sin(p) - math.tan(d) * math.cos(p))) + 180) % 360
+    return el, az
+lat, lon, AZ, EL = 30.2356, 32.5309, 144.921683736509, 90 - 33.6582450071843   # the lab's item003 and tile centre
+lo, hi = dt.datetime(2021, 3, 24, 8, 0), dt.datetime(2021, 3, 24, 9, 0)
+while (hi - lo).total_seconds() > 1:                     # the azimuth grows through the morning: bisect on it
+    mid = lo + (hi - lo) / 2
+    if sun(mid, lat, lon)[1] < AZ: lo = mid
+    else: hi = mid
+print("time at which the sun had the metadata's azimuth:", lo.strftime("%H:%M:%S"), "UTC")
+print("elevation then: %.2f (metadata %.2f)" % (sun(lo, lat, lon)[0], EL))
+a1, a2 = sun(dt.datetime(2021, 3, 24, 8, 41), lat, lon)[1], sun(dt.datetime(2021, 3, 24, 8, 42), lat, lon)[1]
+print("azimuth change per minute at that hour: %.2f deg" % (a2 - a1))
+t = dt.datetime(2021, 3, 24, 8, 41, 47)
+print("short formula at 08:41:47: elevation %.2f, azimuth %.2f -> off by %.2f deg" % (short(t, lat, lon) + (
+    max(abs(short(t, lat, lon)[0] - EL), abs(short(t, lat, lon)[1] - AZ)),)))
+PY
+\`\`\`
+
+It prints (offline, so every run is the same):
+
+\`\`\`text
+time at which the sun had the metadata's azimuth: 08:41:46 UTC
+elevation then: 56.34 (metadata 56.34)
+azimuth change per minute at that hour: 0.39 deg
+short formula at 08:41:47: elevation 55.82, azimuth 145.08 -> off by 0.53 deg
+\`\`\`
+
+- **The sun alone gives 08:41:46 to 08:41:47.** The bisection stops within one second of the tile's \`SENSING_TIME\`, 08:41:47, and nowhere near the 08:26:11 in the product name.
+- **About 0.4 degrees a minute.** At that hour the sun's azimuth moves about 0.39° a minute. An image's sun angles, or a photo's shadow directions measured to a degree or so, date it to within a few minutes on a known day.
+- **A short formula was 0.5 degrees out.** That is more than a minute of time, from a formula that looks fine and is copied widely. The lab's version matched the metadata to 0.01° only after it had been checked. S3.2's rule: test a tool on a known answer before you trust its output.
+
+</details>
+
+#### 🟡 Drill 2 — does the answer survive a different threshold? ~1 min
+
+**Goal.** The lab called a pixel "bright" when it was 500 above that date's water level. Try 250, 1000 and 2000, and see which results hold.
+
+**Done when.** You can say which of the lab's findings depend on the threshold, and what that means for how you tag them.
+
+<details><summary>Walkthrough</summary>
+
+Run the lab first: this drill reads its \`pictures/windows.json\`.
+
+\`\`\`bash
+# Drill 2: does the answer survive a different threshold? Offline: reads the lab's pictures/windows.json.
+cd ~/scouts-case/s3_6 || exit 1
+python3 - <<'PY'
+import json, math
+w = json.load(open("pictures/windows.json")); S = 120
+base = w["dates"].index("2021-03-19")
+water = [(r, c) for r in range(S) for c in range(S) if w["b08"][base][r][c] < 2000]
+def largest(g, k):
+    lvl = sorted(g[r][c] for r, c in water)[len(water) // 2]
+    bright = {(r, c) for r, c in water if g[r][c] > lvl + k}; seen = set(); big = []
+    for p in bright:
+        if p in seen: continue
+        st = [p]; seen.add(p); comp = []
+        while st:
+            y, x = st.pop(); comp.append((y, x))
+            for q in ((y + a, x + b) for a in (-1, 0, 1) for b in (-1, 0, 1)):
+                if q in bright and q not in seen: seen.add(q); st.append(q)
+        if len(comp) > len(big): big = comp
+    return len(big)
+ks = (250, 500, 1000, 2000)
+print("largest bright patch (pixels) when 'bright' means N above that date's water level")
+print("date        cloud%  " + "".join("N=%-6d" % k for k in ks))
+for i, d in enumerate(w["dates"]):
+    cl = sum(v in (8, 9, 10) for r in w["scl"][i] for v in r) / 36
+    print("%s  %5.0f   " % (d, cl) + "".join("%-8d" % largest(w["b08"][i], k) for k in ks))
+PY
+\`\`\`
+
+It prints:
+
+\`\`\`text
+largest bright patch (pixels) when 'bright' means N above that date's water level
+date        cloud%  N=250   N=500   N=1000  N=2000  
+2021-03-14     52   848     561     25      0       
+2021-03-19      0   3       1       0       0       
+2021-03-24     72   271     191     23      0       
+2021-03-29      3   621     396     289     118     
+2021-04-03      0   34      19      6       4       
+2021-04-08      0   29      24      17      12      
+\`\`\`
+
+- **Only 29 March survives.** Its patch is still 289 pixels at N=1000 and 118 at N=2000. It is far brighter than the water, and no reasonable threshold makes it go away.
+- **The 24 March lead collapses.** 191 pixels at the lab's threshold, 23 at N=1000. The patch is real in the data, but it is only slightly brighter than the hazy water around it. That matches the lab's tag, LEAD, and it is why a flagged date needs a second source.
+- **So does the 14 March cloud,** from 561 to 25. Brightness contrast alone did not separate the ship from the cloud at the lab's threshold. The cloud mask and the location did.
+- **Report the threshold.** A finding that holds at every threshold can be stated plainly. A finding that exists at only one is a choice made by the analyst, and the report has to say so.
+
+</details>
+
+#### 🔴 Drill 3 — who else was overhead? ~2 min
+
+**Goal.** The lab showed that Sentinel-2 took no image of this point on 26 March. Ask the same catalogue about Landsat and about Sentinel-1 radar for the week of the grounding.
+
+**Done when.** You can say what "no Sentinel-2 image that day" rules out, and what a claimed 26 March image could be instead.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+# Drill 3: which open satellites saw this point between 23 and 29 March 2021? Three catalogue searches.
+python3 - <<'PY'
+import json, urllib.request
+Q = ("https://earth-search.aws.element84.com/v1/search?collections=<c>&bbox=32.5799,30.0174,32.5801,30.0176"
+     "&datetime=2021-03-23T00:00:00Z/2021-03-30T00:00:00Z&limit=50")
+rows = []
+for c in ("sentinel-2-c1-l2a", "landsat-c2-l2", "sentinel-1-grd"):
+    rq = urllib.request.Request(Q.replace("<c>", c), headers={"User-Agent": "CyberScoutsLab/1.0"})
+    for f in json.load(urllib.request.urlopen(rq, timeout=120))["features"]:
+        p = f["properties"]
+        rows.append((p["datetime"][:19], p.get("platform", "?"), c, p.get("eo:cloud_cover"),
+                     p.get("view:sun_azimuth"), p.get("view:sun_elevation")))
+for t, plat, c, cc, az, el in sorted(rows):
+    sun = "sun az %5.1f el %4.1f, shadows point %5.1f" % (az, el, (az + 180) % 360) if az is not None else "radar: no sun needed"
+    cloud = "cloud %5.1f%%" % cc if cc is not None else "cloud   n/a "
+    print("%s UTC  %-12s %-18s %s | %s" % (t.replace("T", " "), plat, c, cloud, sun))
+PY
+\`\`\`
+
+It prints (three live searches of a closed week in 2021; they should not change):
+
+\`\`\`text
+2021-03-24 08:41:47 UTC  sentinel-2a  sentinel-2-c1-l2a  cloud   3.0% | sun az 144.9 el 56.3, shadows point 324.9
+2021-03-24 15:56:09 UTC  sentinel-1b  sentinel-1-grd     cloud   n/a  | radar: no sun needed
+2021-03-25 15:48:35 UTC  sentinel-1a  sentinel-1-grd     cloud   n/a  | radar: no sun needed
+2021-03-26 07:36:01 UTC  landsat-7    landsat-c2-l2      cloud  46.0% | sun az 122.8 el 46.2, shadows point 302.8
+2021-03-27 03:44:22 UTC  sentinel-1b  sentinel-1-grd     cloud   n/a  | radar: no sun needed
+2021-03-27 08:17:28 UTC  landsat-8    landsat-c2-l2      cloud  12.2% | sun az 136.6 el 54.6, shadows point 316.6
+2021-03-29 08:41:47 UTC  sentinel-2b  sentinel-2-c1-l2a  cloud  21.3% | sun az 143.7 el 58.2, shadows point 323.7
+\`\`\`
+
+- **There is a 26 March image, and it is Landsat 7.** The lab's finding was about Sentinel-2 only, and that is how the report worded it. A "26 March satellite image" of the canal could be this 30 m Landsat 7 scene, 46% cloudy. Since 2003 its images have had stripes of missing data: USGS says the "Scan Line Corrector (SLC) failure" in May 2003 was permanent.
+- **Its shadows point another way.** At 07:36 UTC the sun was at azimuth 122.8°, so shadows point to 302.8°. In Sentinel-2's 08:41 images they point to about 324°. A photo whose shadows fall at about 325° was not taken at 07:36 that day, whatever its caption says.
+- **Radar saw the canal three times that week.** Sentinel-1 passed on 24, 25 and 27 March, day and night, whatever the dust. Its images are not photographs, but a ship-sized bright return across the canal would be independent evidence on dates the optical images cannot help.
+- **"No image" is a statement about one catalogue and one collection.** Name both, as the lab's report does.
+
+</details>`,
+    tracker: ["Ran the lab: every item hashed, no FAILED line, report OK, timestamp verified", "Found the same six images in two catalogues and showed that no Sentinel-2 image exists for the claimed date", "Dated an image by the sun, and showed which catalogue time was the datatake start", "Checked a downloaded file against the catalogue's multihash checksum", "Read one window of pixels on six dates by range requests, and applied a change rule written in advance", "Did Drill 2 and Drill 3: tested the rule at four thresholds, and found which other satellites were overhead"]
   }]
 };
 

@@ -1271,6 +1271,10 @@ TOPIC_ANCHORS = {
         "mmsi": ["S3.5"],
         "multilateration": ["S3.5"],
         "aivdm": ["S3.5"],
+        "stac": ["S3.6"],
+        "multihash": ["S3.6"],
+        "datatake": ["S3.6"],
+        "scene classification": ["S3.6"],
     },
 }
 
