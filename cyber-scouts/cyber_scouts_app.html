@@ -856,7 +856,7 @@ Level 3 adds judgement: how far to trust a source, how to test competing explana
 | S3.2 | Preservation: capturing and checking your own web evidence | ✅ available |
 | S3.3 | Public ledgers: tracing cryptocurrency, and where tracing stops | ✅ available |
 | S3.4 | Internet-wide scan data: what a banner proves | ✅ available |
-| — | Transport tracking: aircraft and ships | planned |
+| S3.5 | Transport tracking: aircraft and ships | ✅ available |
 | — | Satellite imagery: change over time | planned |
 | — | Capstone: an investigation file, from plan to finding | planned |
 
@@ -8317,7 +8317,7 @@ UA="CyberScoutsLab/1.0"
 command -v wget >/dev/null || { echo "STOP: wget is not installed - run: brew install wget"; exit 1; }
 mkdir -p ~/scouts-case/s3_2 && cd ~/scouts-case/s3_2 || exit 1
 rm -rf evidence working validation collection_log.tsv known_answers.tsv warc_check.py facts.txt \\
-  report.md check_report.sh SEAL.* timestamp_log.tsv && mkdir evidence working validation
+  report.md check_report.sh SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv && mkdir evidence working validation
 
 # 1. The question and the scope, written before the first request.
 cat > scope.txt <<'SCOPE'
@@ -8954,8 +8954,8 @@ UA="CyberScoutsLab/1.0"
 BS=https://eth.blockscout.com          # explorer (Blockscout): an indexer's reading of the chain
 NODE=https://ethereum-rpc.publicnode.com   # a public node: the chain itself, no index in between
 mkdir -p ~/scouts-case/s3_3 && cd ~/scouts-case/s3_3 || exit 1
-rm -rf evidence collection_log.tsv ledger_check.py facts.txt report.md check_report.sh SEAL.* \\
-  timestamp_log.tsv freetsa_* && mkdir evidence
+rm -rf evidence collection_log.tsv ledger_check.py facts.txt report.md check_report.sh SEAL.sha256 SEAL.tsq \\
+  SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
 
 # 1. The question and the scope, written before the first request.
 cat > scope.txt <<'SCOPE'
@@ -9539,7 +9539,7 @@ ANALYST=analyst01                      # a role name, not your real name
 UA="CyberScoutsLab/1.0"
 mkdir -p ~/scouts-case/s3_4 && cd ~/scouts-case/s3_4 || exit 1
 rm -rf evidence collection_log.tsv banner_server.py port.txt scan_check.py facts.txt report.md \\
-  check_report.sh SEAL.* timestamp_log.tsv freetsa_* && mkdir evidence
+  check_report.sh SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
 
 # 1. The question and the scope, written before the first request.
 cat > scope.txt <<'SCOPE'
@@ -10116,6 +10116,691 @@ change in 'vulnerable': -48%; change in 'answering SSL': -23%
 
 </details>`,
     tracker: ["Ran the lab: every item hashed, no FAILED line, report OK, timestamp verified", "Can explain why a banner is a claim, and saw CVEDB list 81 CVEs for a Python server", "Can say why 'No information available' is not 'closed', using the two identical 404s", "Joined scan records to ownership (RIPEstat) and names (DNS) before naming whose service it is", "Did Drill 2: the list follows the string, and its floor is other products", "Did Drill 3: recomputed the Heartbleed counts and can state each one's unit, test and date"]
+  }, {
+    id: "s3_5",
+    level: 3,
+    num: "S3.5",
+    title: "Transport Tracking — What a Transponder Proves, Whose Address It Is, and Where a Track Comes From",
+    objective: `Take aircraft and ship tracking apart without receiving or transmitting anything. Decode three published ADS-B frames and two AIS sentences with a few dozen lines of standard-library Python, check the results against their published answers, and then forge one of each that passes every check a receiver applies. Link a US registration mark to its broadcast address with arithmetic, confirm it against the FAA registry for two government aircraft, and see why a registry match is not always possible. Count, without naming, where the positions in one live snapshot came from and how old they were. Then read the June 2021 case in which two warships moored in Odessa were tracked off Sevastopol, and tag every statement with S2.7's strengths.`,
+    theory: `#### What this module adds
+
+Flight-tracking and ship-tracking websites look like surveillance. They are closer to a noticeboard. Every dot on them started as a message that an aircraft or ship sent about itself, which somebody's receiver picked up and an aggregator put on a map. This module asks three questions of such a dot. What did the message prove? Whose identity does its address point to? And how did the position get onto the map?
+
+The lab receives nothing by radio and transmits nothing. It decodes messages that textbooks publish, looks up two government aircraft in a public registry, and counts, without naming, the aircraft in one live snapshot.
+
+#### ADS-B: an aircraft describing itself
+
+Many aircraft carry a Mode S transponder that broadcasts **ADS-B** (Automatic Dependent Surveillance–Broadcast) messages on 1090 MHz. Junzi Sun's open textbook *The 1090 MHz Riddle* (mode-s.org) is the reference the lab follows. An ADS-B message is 112 bits, written as 28 hex digits:
+
+| Bits | Field | In the lab's first frame |
+|---|---|---|
+| 1–5 | Downlink format (17 = ADS-B) | 17 |
+| 9–32 | **ICAO address**: 24 bits that identify the transponder | 4840D6 |
+| 33–88 | The message: a type code, then a callsign, a position, a velocity… | type code 4 = identification: \`KLM1023_\` |
+| 89–112 | Parity: a 24-bit CRC | remainder 000000 |
+
+"Dependent" is the key word. The position in the message is the aircraft's own navigation fix, usually from GNSS. The ground did not measure it. A receiver learns only what the transponder chose to say.
+
+**The CRC.** The book's error-control chapter gives the generator polynomial as \`1FFF409\` in hex. A receiver divides the whole frame by it. A remainder of zero means the 112 bits arrived as they were sent, and any other remainder means they were damaged on the way. That is all it means. Anyone who can build a frame can compute the parity for it, because no key is involved. The lab makes one: the KLM aircraft's own address, a new callsign, and a remainder of zero. Strohmeier, Lenders and Martinovic's survey of ADS-B security (arXiv 1307.3664, 2013) opens with "the inherent lack of security measures in the ADS-B protocol".
+
+**Two decoder habits to check.** A single position message is ambiguous. Positions are sent as alternating "even" and "odd" CPR frames, and a global position needs one of each. The book warns that "in rare cases, wrong positions can be calculated" and recommends a "reasonable test": is the position within the receiver's range, and do several pairs agree? The second habit is worse. The lab flips one bit in a frame. The CRC rejects it, but the callsign still decodes perfectly. A tool that prints the decode without the CRC result shows noise as fact. The current pyModeS (3.x) decodes that damaged frame too, and marks it \`crc_valid: False\`.
+
+**Tools change under you.** The book's code examples call \`pms.tell()\` and \`pms.adsb.callsign()\`. In pyModeS 3.6.0 those names are gone: the module raises \`AttributeError\`, and decoding goes through \`pms.decode()\` instead. As in S3.2, test a tool on a known answer before you trust its output. The lab's decoder is a few dozen lines of standard-library Python, and it reproduces the book's answers.
+
+#### How a position reaches a public map
+
+Aggregators such as the OpenSky Network collect messages from receivers run by volunteers. OpenSky's REST API labels every aircraft's position with a \`position_source\`:
+
+| Value | Source | What it is |
+|---|---|---|
+| 0 | ADS-B | the aircraft's own report |
+| 1 | ASTERIX | a feed in the air-traffic-control data format |
+| 2 | MLAT | **multilateration**: computed by the network from the times several receivers heard the same message |
+| 3 | FLARM | a separate collision-warning system used by gliders and light aircraft |
+
+An MLAT position is measured, not claimed, so it is the one independent check on where a transponder actually was. It needs several receivers in range, so it exists only where coverage is dense.
+
+**Time.** Each aircraft row has two times of its own: \`time_position\` (the last position update) and \`last_contact\` (the last message of any kind). OpenSky's documentation says \`time_position\` "can be null if no position report was received by OpenSky within the past 15s". In a snapshot taken while this module was written, the API served positions minutes old instead. One aircraft on the ground in the London box had a position 937 seconds old, and its \`last_contact\` was that same second. A dot is where the aircraft was at its own timestamp, not where it is now. Compare the times before you write "was at".
+
+**Country.** OpenSky's \`origin_country\` is, in its own words, "inferred from the ICAO 24-bit address". The addresses are allocated in blocks to states of registry. The field tells you where the aircraft is registered, not the airline's home, the route or the crew. In the lab's snapshot, every aircraft labelled "United States" has an address in the US block A00000–AFFFFF.
+
+#### From address to owner
+
+In the US, the arithmetic linking a registration mark (an "N-number") to an ICAO address is fixed. N1 is A00001, and the numbers count upward through every allowed mark to N99999, which is ADF7C7. The lab's converter reproduced the FAA registry's code for all 13 marks tried, of every shape (N1, N5, N10, N100, N7Z, N12AB, N1234A, N12345, N2002X, N42RF, N43RF, N806NA, N99999). The registry prints the code in **octal** as well as hex: N1's "Mode S Code" is \`50000001\`. Read an octal code as hex and you have the wrong aircraft.
+
+A registry entry names a **registered owner**. That may be a government, an airline, a trust company, or a person. It never tells you who was on board. The lab uses two NOAA hurricane-hunter aircraft, N42RF and N43RF, registered to the US Department of Commerce. Their two records give the same street and ZIP code, with county POLK on one and BROWARD on the other. A registry is typed by people, so check a field against another field before you rely on it.
+
+**Addresses that do not lead back.** Two FAA programmes limit what an address tells you:
+
+- **PIA** (Privacy ICAO Address) lets an eligible US aircraft broadcast "an alternate, temporary ICAO aircraft address, which will not be assigned to the owner in the CAR" (the Civil Aviation Registry). A PIA "may be re-issued to other aircraft over time". Aircraft must use their registered address on flights leaving US sovereign airspace.
+- **LADD** (Limiting Aircraft Data Displayed) filters an aircraft from the FAA's own data feed, and subscribing flight-tracking vendors must honour it. The FAA's PIA page says plainly that LADD "does not impact the ADS-B broadcast data": the aircraft is still transmitting.
+
+So the absence of a registry match is not evidence of anything hidden. The address may be a PIA, or it may belong to another country's registry.
+
+#### AIS: a ship describing itself
+
+Ships broadcast **AIS** (Automatic Identification System). IMO's rules require it "aboard all ships of 300 gross tonnage and upwards engaged on international voyages, cargo ships of 500 gross tonnage and upwards not engaged on international voyages and all passenger ships irrespective of size". Ships must keep it on "except where international agreements, rules or standards provide for the protection of navigational information", and a flag state may exempt some ships.
+
+AIS reaches a computer as NMEA 0183 text. The gpsd project's *AIVDM/AIVDO protocol decoding* guide, which the lab follows, uses this example:
+
+\`\`\`text
+!AIVDM,1,1,,B,177KQJ5000G?tO\`K>RA1wUbN0TKH,0*5C
+\`\`\`
+
+The sixth field is the message, six bits per character. \`*5C\` is a checksum, an XOR of the characters, so it catches transmission errors and nothing else.
+
+Inside the message:
+
+- **MMSI**, the Maritime Mobile Service Identity: nine digits identifying the ship's radio. The US Coast Guard's navigation centre (NAVCEN) says MMSIs are "regulated and managed internationally by the International Telecommunications Union" and "nationally by the Federal Communications Commission". gpsd's guide expands the acronym as "Mobile Marine Service Identifier". NAVCEN's form is the right one.
+- The first three digits of a ship's MMSI are its **MID** (Maritime Identification Digits), which name the country that issued the number. That country is the flag state. It is not where the ship is, and not who owns it. The lab's first ship has MID 477, Hong Kong, and is moored on the US west coast. ITU's own MID table rejects scripted requests, so the lab reads a fixed revision of Wikipedia's copy of it, a secondary source graded as one.
+- The position, speed and navigation status, all from the ship's own equipment.
+
+The **IMO number** is a ship's seven-digit hull number with a check digit. The first six digits are multiplied by 7, 6, 5, 4, 3 and 2, and the last digit of the sum must equal the seventh. \`4907878\` passes. The check catches typing errors, not false claims.
+
+Global Fishing Watch's data analyst Bjorn Bergman described the ways an AIS position goes wrong to Euronews in June 2021. Some units give "offset or flipped coordinate values", putting ships "in the Himalayas, over Antarctica". Some ships receive "manipulated or scrambled GPS information". And "It's also possible for an AIS track to be entirely simulated and imputed into the data stream from a terrestrial AIS receiver". That third route is the one the case study turns on.
+
+#### What each kind of statement is worth
+
+Use S2.7's tags:
+
+| Statement | Tag | Why |
+|---|---|---|
+| "The frame's CRC remainder is zero" | STRONG, for the bits | It proves the frame arrived intact, and nothing about who sent it |
+| "The address is registered to X" | STRONG, for the registry | Only if the aircraft used its registered address (see PIA) |
+| "The aircraft / ship was at P at time T" | ONE-WAY | A self-report, relayed by receivers you cannot inspect |
+| An MLAT position | ONE-WAY, independent | Measured by the network, not claimed |
+| A position with an independent observation (a webcam, a photo, a port log) | STRONG when they agree | Two routes to one fact |
+| "No track" or "the track stops" | LEAD | A coverage gap, a switched-off unit or a filter, and they look the same |
+
+#### Ethics
+
+- **Never transmit.** Sending on 1090 MHz or on the AIS channels without authorisation endangers aircraft and ships, and it is a crime almost everywhere. The lab's two forged messages live in a text file.
+- **Aircraft and ships are not people.** Following a private aircraft is following its owner. Respect PIA and LADD as expressed choices. Name registered owners only when they are organisations, and never infer who was on board.
+- **Report the observation you have.** "AIS placed the ship at P" is different from "the ship was at P".`,
+    lab: {
+      mac: `# LAB: what a transponder broadcast proves, whose address it is, and where a track comes from (Apple Silicon)
+# ETHICS: this lab receives nothing by radio and transmits nothing. Transmitting on 1090 MHz or on the
+# AIS channels without a licence is a crime almost everywhere. The two forged messages below are bytes in
+# a text file on your Mac, and they never leave it. Live aircraft are COUNTED, never named: no callsign
+# or address from the live snapshot is printed. Registry lookups are for two government aircraft only.
+# LIMITS: OpenSky allows 400 anonymous credits a day; the lab spends 1. The FAA registry and the two
+# 2021 news pages are fetched once each.
+# NO NEW TOOL: curl, jq, openssl and python3 (standard library only), as in Level 2.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s3_5 && cd ~/scouts-case/s3_5 || exit 1
+rm -rf evidence collection_log.tsv forged.txt transport_check.py facts.txt report.md check_report.sh \\
+  SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S3.5 transport tracking (ADS-B and AIS)
+question:     What does an aircraft or ship broadcast prove, whose identity does its address point to,
+              and how does a position get onto a public map?
+              A. a known answer: decode three published ADS-B frames; then break one, and forge one
+              B. address to owner: two government aircraft in the FAA registry, and the arithmetic
+                 that links a US registration mark to its broadcast address
+              C. a live snapshot: where the positions on a public map come from (counts only)
+              D. AIS: decode two published ship messages; flag state from the MMSI; forge one
+              E. June 2021: two warships in Odessa, their AIS tracks at Sevastopol
+authorised:   self (published messages, public registries, one public API snapshot)
+in scope:     mode-s.org (2 pages); registry.faa.gov (N42RF, N43RF); opensky-network.org (1 request,
+              a 0.4 x 1.0 degree box around Heathrow); gpsd.gitlab.io (1 page); en.wikipedia.org (1 fixed
+              revision); web.archive.org (2 captures of 2021 news pages)
+out of scope: receiving or transmitting on any radio channel; following any live aircraft or ship;
+              naming any person; any aircraft registration other than N42RF and N43RF
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+keep() {  # id source  (the file evidence/<id> is already written, or missing)
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+get() {  # id url   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"
+  keep "$1" "$2"
+}
+
+# A. Three ADS-B frames with published answers (Junzi Sun, "The 1090 MHz Riddle", mode-s.org).
+get item001.html https://mode-s.org/1090mhz/content/ads-b/1-basics.html
+get item002.html https://mode-s.org/1090mhz/content/ads-b/3-airborne-position.html
+# B. Two NOAA hurricane-hunter aircraft (owner: US Department of Commerce), and nothing else.
+get item003.html "https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=N42RF"
+sleep 2
+get item004.html "https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=N43RF"
+# C. One live snapshot: a 0.4 x 1.0 degree box (1 credit). extended=1 adds the category field.
+get item005.json "https://opensky-network.org/api/states/all?lamin=51.3&lomin=-0.7&lamax=51.7&lomax=0.3&extended=1"
+# D. Published AIS sentences (gpsd's AIVDM guide) and a fixed revision of Wikipedia's MID table.
+get item006.html https://gpsd.gitlab.io/gpsd/AIVDM.html
+get item007.txt "https://en.wikipedia.org/w/index.php?oldid=1366124502&action=raw"
+# E. The June 2021 reports, as first published (Wayback id_ captures: the archived bytes, no banner).
+get item008.html "https://web.archive.org/web/20210623020324id_/https://news.usni.org/2021/06/21/positions-of-two-nato-ships-were-falsified-near-russian-black-sea-naval-base"
+sleep 5
+get item009.html "https://web.archive.org/web/20210630130651id_/https://www.euronews.com/next/2021/06/28/hms-defender-ais-spoofing-is-opening-up-a-new-front-in-the-war-on-reality"
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab"; exit 1; }
+
+# 3. Read. One script, standard library only; it writes facts.txt and forged.txt.
+cat > transport_check.py <<'PY'
+import html, json, math, re
+from functools import reduce
+out = []
+def say(*a): out.append(" ".join(str(x) for x in a))
+def T(f):
+    try: t = open("evidence/" + f, encoding="utf-8", errors="replace").read()
+    except OSError: return ""
+    t = re.sub(r"<script.*?<\/script>|<style.*?</style>", " ", t, flags=re.S)
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", t)).split())
+
+# --- ADS-B (Mode S downlink format 17): 112 bits = 28 hex digits ---
+def crc_rem(h):  # remainder of the whole frame over the generator 0x1FFF409 (mode-s.org, error control)
+    b = int(h, 16)
+    for i in range(len(h) * 4 - 1, 23, -1):
+        if b >> i & 1: b ^= 0x1FFF409 << (i - 24)
+    return b
+def parity(h):   # the 24 parity bits for the first 88 bits: what any sender computes
+    return crc_rem(h[:22] + "000000")
+def bits(h): return bin(int(h, 16))[2:].zfill(len(h) * 4)
+CS = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ#####_###############0123456789######"
+def callsign(h): me = bits(h)[32:88]; return "".join(CS[int(me[8 + 6 * i:14 + 6 * i], 2)] for i in range(8))
+def NL(lat):
+    if abs(lat) >= 87: return 1 if abs(lat) > 87 else 2
+    return math.floor(2 * math.pi / math.acos(1 - (1 - math.cos(math.pi / 30)) / math.cos(math.pi / 180 * lat) ** 2))
+def cpr(h): me = bits(h)[32:88]; return int(me[22:39], 2) / 2 ** 17, int(me[39:56], 2) / 2 ** 17
+def position(even, odd):  # the even frame is the newer one here, as in the book's example
+    (la0, lo0), (la1, lo1) = cpr(even), cpr(odd)
+    j = math.floor(59 * la0 - 60 * la1 + 0.5)
+    lat0, lat1 = 360 / 60 * (j % 60 + la0), 360 / 59 * (j % 59 + la1)
+    lat0, lat1 = [x - 360 if x >= 270 else x for x in (lat0, lat1)]
+    if NL(lat0) != NL(lat1): return None          # the pair straddles a zone boundary: no answer
+    nl = NL(lat0); m = math.floor(lo0 * (nl - 1) - lo1 * nl + 0.5)
+    lon = 360 / max(nl, 1) * (m % max(nl, 1) + lo0)
+    return round(lat0, 5), round(lon - 360 if lon >= 180 else lon, 5)
+def altitude(h): a = bits(h)[40:52]; return int(a[:7] + a[8:], 2) * 25 - 1000 if a[7] == "1" else None
+
+say("A. ADS-B: three published frames")
+t1, t2 = T("item001.html"), T("item002.html")
+f = sorted(set(re.findall(r"8D[0-9A-F]{26}", t1 + " " + t2)))
+ident = "8D4840D6202CC371C32CE0576098"; even, odd = "8D40621D58C382D690C8AC2863A7", "8D40621D58C386435CC412692AD6"
+if not all(x in f for x in (ident, even, odd)): say("item001/item002  UNKNOWN: the published frames are not on the pages")
+else:
+    for h in (ident, even, odd):
+        say("item001/item002  %s  DF %d  address %s  type code %d  CRC remainder %06X" % (h, int(bits(h)[:5], 2), h[2:8], int(bits(h)[32:37], 2), crc_rem(h)))
+    book_cs = re.search(r"Callsign: (\\w+)", t1); book_pos = re.search(r"Output: \\(([\\d.]+), ([\\d.]+)\\)", t2)
+    say("item001  callsign decoded %s | the book says %s" % (callsign(ident), book_cs.group(1) if book_cs else "?"))
+    p = position(even, odd)
+    say("item002  position decoded %s, %s at %s ft | the book says %s, %s" % (p[0], p[1], altitude(even), *(book_pos.groups() if book_pos else ("?", "?"))))
+    bad = ident[:-1] + format(int(ident[-1], 16) ^ 1, "X")
+    say("broken   one bit flipped: CRC remainder %06X -> REJECT, although it still decodes as %s" % (crc_rem(bad), callsign(bad)))
+    # The forgery: the same aircraft address, a different callsign, and correct parity. No key needed.
+    me = bits(ident)[32:40] + "".join(format(CS.index(c), "06b") for c in "SCOUTS01")
+    body = ident[:8] + format(int(me, 2), "014X")
+    forged = body + format(parity(body + "000000"), "06X")
+    open("forged.txt", "w").write("ADS-B %s  (made on this Mac; never transmitted)\\n" % forged)
+    say("forged   %s  address %s  callsign %s  CRC remainder %06X -> ACCEPT" % (forged, forged[2:8], callsign(forged), crc_rem(forged)))
+
+say("B. Address to owner: the FAA registry")
+L = "ABCDEFGHJKLMNPQRSTUVWXYZ"                   # 24 letters: no I, no O
+def suffix(s): return 0 if not s else L.index(s[0]) * 25 + 1 + (L.index(s[1]) + 1 if len(s) > 1 else 0)
+def n_to_icao(reg):
+    s = reg.upper().removeprefix("N"); v = 0xA00001 + (int(s[0]) - 1) * 101711
+    for i, size in enumerate([10111, 951, 35], start=1):
+        if len(s) == i: return v
+        if s[i].isalpha(): return v + suffix(s[i:])
+        v += int(s[i]) * size + 601
+    return v if len(s) == 4 else v + (L.index(s[4]) + 1 if s[4].isalpha() else int(s[4]) + 25)
+for item, reg in (("item003", "N42RF"), ("item004", "N43RF")):
+    t = T(item + ".html"); t = t[t.find("Data Updated Each"):]    # the record, not the site menu
+    g = lambda k, nxt: (re.search(re.escape(k) + r" (.*?) " + re.escape(nxt), t) or [None, "?"])[1]
+    o, x = g("Mode S Code (base 8 / Oct)", "MFR Year"), g("Mode S Code (Base 16 / Hex)", "Type Registration")
+    if o == "?" or x == "?": say(item, " UNKNOWN: no Mode S code on the page (blocked, or the record changed)"); continue
+    say("%s  %s  owner %s | %s | model %s | Mode S oct %s = hex %06X | page hex %s | computed from the mark %06X -> %s" % (
+        item, reg, g("Registered Owner Name", "Street"), g("Type Registration", "Fractional Owner"), g("Model", "Expiration Date"),
+        o, int(o, 8), x, n_to_icao(reg), "MATCH" if int(o, 8) == int(x, 16) == n_to_icao(reg) else "DIFF"))
+    say("%s  address fields: county %s | zip %s" % (item, g("County", "Zip Code"), g("Zip Code", "Country")))
+
+say("C. A live snapshot: where the positions come from (counts only)")
+try: d = json.load(open("evidence/item005.json"))
+except (OSError, ValueError): d = None
+if not d or d.get("states") is None: say("item005  UNKNOWN: no snapshot (limit reached, or no aircraft in the box)")
+else:
+    S = d["states"]; SRC = {0: "ADS-B", 1: "ASTERIX", 2: "MLAT", 3: "FLARM"}
+    src = {}; ctry = {}; us_block = us_n = 0
+    for s in S:
+        src[SRC.get(s[16], s[16])] = src.get(SRC.get(s[16], s[16]), 0) + 1; ctry[s[2]] = ctry.get(s[2], 0) + 1
+        if s[2] == "United States": us_n += 1; us_block += 0xA00000 <= int(s[0], 16) <= 0xAFFFFF
+    say("item005  snapshot time %d | aircraft %d | on the ground %d | no position %d" % (d["time"], len(S), sum(1 for s in S if s[8]), sum(1 for s in S if s[5] is None)))
+    say("item005  position source: %s" % ", ".join("%s %d" % kv for kv in sorted(src.items(), key=lambda kv: -kv[1])))
+    say("item005  countries (from the address block, not the route): %s" % ", ".join("%s %d" % kv for kv in sorted(ctry.items(), key=lambda kv: (-kv[1], kv[0]))[:4]))
+    say("item005  'United States' rows whose address is in A00000-AFFFFF: %d of %d" % (us_block, us_n))
+    old = [(d["time"] - s[3], s[8]) for s in S if s[3] is not None and d["time"] - s[3] > 15]
+    say("item005  positions older than 15 s: %d (on the ground %d, airborne %d) | oldest %s s | the docs say such a position 'can be null'" % (
+        len(old), sum(1 for a, g in old if g), sum(1 for a, g in old if not g), max((a for a, g in old), default="-")))
+
+say("D. AIS: two published ship messages")
+def nmea_ok(s): body, star = s[1:].split("*"); return format(reduce(lambda a, c: a ^ ord(c), body, 0), "02X") == star[:2].upper()
+def nmea_sum(body): return format(reduce(lambda a, c: a ^ ord(c), body, 0), "02X")
+def six(p): return "".join(format(ord(c) - 48 - (8 if ord(c) - 48 > 40 else 0), "06b") for c in p)
+def unsix(b): b += "0" * (-len(b) % 6); return "".join(chr(v + 48 + (8 if v > 39 else 0)) for v in (int(b[i:i + 6], 2) for i in range(0, len(b), 6)))
+def sgn(b, i, n): v = int(b[i:i + n], 2); return v - (1 << n) if v >> (n - 1) else v
+def ais1(s):
+    b = six(s.split(",")[5])
+    return dict(type=int(b[:6], 2), mmsi=int(b[8:38], 2), status=int(b[38:42], 2), sog=int(b[50:60], 2) / 10,
+                lat=round(sgn(b, 89, 27) / 600000, 5), lon=round(sgn(b, 61, 28) / 600000, 5))
+mid = {}
+for m in re.finditer(r"\\{\\{flag\\|([^}|]+)\\}\\}[^\\n]*\\n\\|\\s*([\\d; ]+)", open("evidence/item007.txt", errors="replace").read() if T("item007.txt") else ""):
+    for n in re.findall(r"\\d{3}", m.group(2)): mid[n] = m.group(1)
+ta = T("item006.html")
+for s in ("!AIVDM,1,1,,B,177KQJ5000G?tO\`K>RA1wUbN0TKH,0*5C", "!AIVDM,1,1,,B,15N4cJ\`005Jrek0H@9n\`DW5608EP,0*13"):
+    if s not in ta: say("item006  UNKNOWN: sentence not on the page"); continue
+    a = ais1(s)
+    say("item006  checksum %s | type %d | MMSI %d | MID %s -> %s (item007) | lat %s lon %s | speed %s kn | status %d" % (
+        "OK" if nmea_ok(s) else "BAD", a["type"], a["mmsi"], str(a["mmsi"])[:3], mid.get(str(a["mmsi"])[:3], "UNKNOWN"), a["lat"], a["lon"], a["sog"], a["status"]))
+    if a["mmsi"] == 477553000: first = s
+# The forgery: the first ship's message, with the MMSI and position swapped for the case's warship.
+b = six(first.split(",")[5])
+b = b[:8] + format(244942000, "030b") + b[38:61] + format(round(33.50 * 600000) & (2**28 - 1), "028b") + format(round(44.62 * 600000) & (2**27 - 1), "027b") + b[116:]
+body = "AIVDM,1,1,,B,%s,0" % unsix(b); fake = "!%s*%s" % (body, nmea_sum(body))
+open("forged.txt", "a").write("AIS   %s  (made on this Mac; never transmitted)\\n" % fake)
+a = ais1(fake)
+say("forged   checksum %s | MMSI %d | MID %s -> %s | lat %s lon %s -> ACCEPT" % ("OK" if nmea_ok(fake) else "BAD", a["mmsi"], str(a["mmsi"])[:3], mid.get(str(a["mmsi"])[:3], "UNKNOWN"), a["lat"], a["lon"]))
+def imo_ok(n): s = str(n); return len(s) == 7 and sum(int(c) * w for c, w in zip(s[:6], range(7, 1, -1))) % 10 == int(s[6])
+say("IMO check digit: 4907878 %s | 4907879 %s" % ("valid" if imo_ok(4907878) else "invalid", "valid" if imo_ok(4907879) else "invalid"))
+
+say("E. June 2021")
+t = T("item008.html")
+for k in ("moored 180 miles away", "receiver station in Chornomorsk", "MMSI 244942000", "IMO 4907878", "It is unclear how the false AIS data was introduced"):
+    say("item008  USNI, 21 Jun:", ("'%s' present" % k) if k in t else "'%s' NOT FOUND" % k)
+t = T("item009.html")
+for k in ("roughly 300 km away", "entirely simulated", "Ships above a certain size are required to transmit AIS data"):
+    say("item009  Euronews, 28 Jun:", ("'%s' present" % k) if k in t else "'%s' NOT FOUND" % k)
+say("units: 180 statute miles = %.0f km | 180 nautical miles = %.0f km" % (180 * 1.609344, 180 * 1.852))
+open("facts.txt", "w").write("\\n".join(out) + "\\n")
+print("\\n".join(out))
+PY
+python3 transport_check.py || { echo "STOP: transport_check.py failed"; exit 1; }
+grep -qE 'UNKNOWN|NOT FOUND' facts.txt && echo "NOTE: an UNKNOWN or NOT FOUND above is a missing answer, not a finding"
+
+# 4. Report. Every line carries S2.7's strength tag and the items it rests on.
+cat > report.md <<'REPORT'
+# S3.5 transport tracking
+
+## A. ADS-B: what a frame proves
+- STRONG (item001, item002): my decoder gives the book's published answers for all three frames: callsign KLM1023, and 52.2572, 3.91937 at 38000 ft. The decoder passed a known-answer test (S3.2).
+- ONE-WAY (item001): a CRC remainder of zero proves the 112 bits arrived as they were sent. It says nothing about who sent them: forged.txt holds a frame I made with the same aircraft address, a new callsign and a zero remainder.
+- LEAD (item001): a flipped bit is rejected by the CRC, but the frame still decodes to a plausible callsign. A tool that shows a decode without the CRC shows noise as fact.
+
+## B. Address to owner
+- STRONG (item003, item004): for both aircraft, the registry's octal code, its hex code and the address computed from the registration mark agree. Both are registered to the US Department of Commerce, type Government.
+- ONE-WAY (item003, item004): a broadcast address leads to this record only if the aircraft uses its registered address. The FAA's PIA programme gives US aircraft an alternate address that is not assigned to the owner in the registry.
+- CONTEXT (item003, item004): the two records give the same street and ZIP code with different counties. Registry fields are typed by people.
+
+## C. Where a map's positions come from
+- ONE-WAY (item005): a position whose source is ADS-B is the aircraft's own report, relayed by volunteers' receivers. A position whose source is MLAT is computed by receivers from arrival times. The snapshot's counts are in facts.txt.
+- CONTEXT (item005): "origin country" is inferred from the address block. It is the state of registry, not the airline's home or the route.
+- LEAD (item005): a position carries its own time. The snapshot served positions older than the 15 seconds the documentation describes, most of them on the ground. facts.txt has the count.
+
+## D. AIS: what a ship message proves
+- STRONG (item006, item007): both published sentences pass the NMEA checksum. The first ship's MMSI begins 477, Hong Kong's MID, and its reported position is on the US west coast. The MID is the flag state that issued the number, not where the ship is or who owns it.
+- ONE-WAY (item006): a checksum is an XOR anyone can compute. forged.txt holds a sentence with the Dutch warship's MMSI from the case at Sevastopol's latitude and longitude, and it passes.
+- CONTEXT: IMO 4907878 passes the check digit and 4907879 fails. A check digit catches typing errors, not false claims.
+
+## E. June 2021
+- ONE-WAY (item008): USNI News reported AIS tracks placing HMS Defender and HNLMS Evertsen off Sevastopol while webcams showed them in Odessa. The positions reached MarineTraffic through a receiver station in Chornomorsk, and USNI said it was unclear how the false data was introduced.
+- CONTEXT (item008, item009): USNI wrote "180 miles" and Euronews "roughly 300 km". 180 statute miles is 290 km and 180 nautical miles is 333 km. A distance in a report needs its unit.
+
+## Limits
+Nothing here was received by radio or transmitted. Every position is a claim by a transmitter or a computation by someone's receivers, relayed by an aggregator I cannot inspect. An address or an MMSI points to a registry entry, and the entry points to a registered owner, not to a person on board. No live aircraft was followed or named.
+REPORT
+
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+# usage: check_report.sh [report]   - run from the case folder
+R=\${1:-report.md}
+[ -f "$R" ] && [ -f collection_log.tsv ] && [ -f facts.txt ] || { echo "UNKNOWN: report, log or facts missing"; exit 2; }
+bad=0
+for id in $(grep -o 'item[0-9][0-9][0-9]' "$R" | sort -u); do
+  h=$(awk -F'\\t' -v i="$id" 'index($1, i) == 1 {h = $5} END {print h}' collection_log.tsv)
+  f=$(ls evidence/"$id".* 2>/dev/null | head -1)
+  if [ -z "$h" ] || [ -z "$f" ] || [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" != "$h" ]; then echo "FAIL: $id cited but missing or changed"; bad=1; fi
+done
+# A broadcast is never STRONG evidence of where a vehicle was; a checksum is never proof of a sender;
+# a flag state is never an owner.
+grep -niE '^- STRONG.*(sailed|flew|was at|were at|was in|were in) ' "$R" && { echo "FAIL: a STRONG line places a vehicle from its own broadcast"; bad=1; }
+grep -niE '(CRC|checksum).*(proves|shows|confirms).*(genuine|authentic|sent by the|came from the)' "$R" && { echo "FAIL: a checksum read as proof of the sender"; bad=1; }
+grep -niE '(MID|flag state).*(owned by|owner is|owner was)' "$R" && { echo "FAIL: a flag state read as an owner"; bad=1; }
+grep -q '^## Limits' "$R" || { echo "FAIL: no Limits section"; bad=1; }
+# Hand-typed lines must agree with facts.txt (S1.7).
+grep -q '^item001  callsign decoded KLM1023_ | the book says KLM1023_' facts.txt || { echo "FAIL: report cites the KLM1023 known answer; facts.txt disagrees"; bad=1; }
+grep -q '^forged   8D4840D6.* CRC remainder 000000 -> ACCEPT' facts.txt || { echo "FAIL: report cites a forged ADS-B frame that passes; facts.txt disagrees"; bad=1; }
+for n in item003 item004; do grep -q "^$n .*DEPARTMENT OF COMMERCE | Government .*-> MATCH" facts.txt || { echo "FAIL: report says $n matches; facts.txt disagrees"; bad=1; }; done
+[ "$(grep -c '^item00[34]  address fields: county [A-Z]* | zip 33811-2836' facts.txt)" = 2 ] &&
+  [ "$(grep '^item00[34]  address fields' facts.txt | awk '{print $5}' | sort -u | wc -l | tr -d ' ')" = 2 ] ||
+  { echo "FAIL: report says the counties differ for one ZIP code; facts.txt disagrees"; bad=1; }
+grep -q '^item006  checksum OK .*MMSI 477553000 .*-> Hong Kong' facts.txt || { echo "FAIL: report says MID 477 is Hong Kong; facts.txt disagrees"; bad=1; }
+grep -q '^forged   checksum OK | MMSI 244942000' facts.txt || { echo "FAIL: report cites a forged AIS sentence that passes; facts.txt disagrees"; bad=1; }
+grep -q "^item008 .*'receiver station in Chornomorsk' present" facts.txt || { echo "FAIL: report cites USNI on Chornomorsk; facts.txt disagrees"; bad=1; }
+grep -q "^item009 .*'roughly 300 km away' present" facts.txt || { echo "FAIL: report cites Euronews' 300 km; facts.txt disagrees"; bad=1; }
+[ $bad -eq 0 ] && echo "report OK: every cited item is in the log and unchanged; no broadcast read as proof"
+exit $bad
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 5. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv transport_check.py facts.txt forged.txt report.md check_report.sh evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H 'Content-Type: application/timestamp-query' \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It decodes messages in python3, seals with openssl, and checks its own
+# report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s3_5 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in keep(), inside the check_report.sh heredoc, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl and python3 3.9 or later (the lab uses str.removeprefix). On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+item001.html 2026-09-30T07:06:23Z 560358647ef8
+item002.html 2026-09-30T07:06:24Z 006c4ce1dfc1
+item003.html 2026-09-30T07:06:30Z c2a48f7d8a3c
+item004.html 2026-09-30T07:06:34Z f943e217ef91
+item005.json 2026-09-30T07:06:34Z 8272ca7ab54d
+item006.html 2026-09-30T07:06:37Z c1395e3c6902
+item007.txt 2026-09-30T07:06:37Z 8bef257eadf3
+item008.html 2026-09-30T07:06:39Z ca4d13975dc3
+item009.html 2026-09-30T07:06:46Z ba7737f8801f
+\`\`\`
+
+The collection log: your times and hashes will differ for item005 (a live snapshot) and may differ for the two registry pages, which carry the date of their last update. The mode-s.org, gpsd and Wikipedia pages and the two Wayback captures should keep their hashes. Every line must end in a hash, never \`FAILED\`. If item008 or item009 fails, the Wayback Machine was slow, offline or redirecting to a different capture. The lab refuses a different capture on purpose, so wait an hour and rerun.
+
+\`\`\`text
+A. ADS-B: three published frames
+item001/item002  8D4840D6202CC371C32CE0576098  DF 17  address 4840D6  type code 4  CRC remainder 000000
+item001/item002  8D40621D58C382D690C8AC2863A7  DF 17  address 40621D  type code 11  CRC remainder 000000
+item001/item002  8D40621D58C386435CC412692AD6  DF 17  address 40621D  type code 11  CRC remainder 000000
+item001  callsign decoded KLM1023_ | the book says KLM1023_
+item002  position decoded 52.2572, 3.91937 at 38000 ft | the book says 52.2572, 3.91937
+broken   one bit flipped: CRC remainder 000001 -> REJECT, although it still decodes as KLM1023_
+forged   8D4840D6204C33D5513C31B46D69  address 4840D6  callsign SCOUTS01  CRC remainder 000000 -> ACCEPT
+B. Address to owner: the FAA registry
+item003  N42RF  owner UNITED STATES DEPARTMENT OF COMMERCE | Government | model WP-3D | Mode S oct 51175303 = hex A4FAC3 | page hex A4FAC3 | computed from the mark A4FAC3 -> MATCH
+item003  address fields: county POLK | zip 33811-2836
+item004  N43RF  owner UNITED STATES DEPARTMENT OF COMMERCE | Government | model WP-3D | Mode S oct 51221102 = hex A52242 | page hex A52242 | computed from the mark A52242 -> MATCH
+item004  address fields: county BROWARD | zip 33811-2836
+C. A live snapshot: where the positions come from (counts only)
+item005  snapshot time 1790751976 | aircraft 50 | on the ground 23 | no position 0
+item005  position source: ADS-B 50
+item005  countries (from the address block, not the route): United Kingdom 32, Germany 3, Ireland 3, United States 3
+item005  'United States' rows whose address is in A00000-AFFFFF: 3 of 3
+item005  positions older than 15 s: 12 (on the ground 12, airborne 0) | oldest 274 s | the docs say such a position 'can be null'
+D. AIS: two published ship messages
+item006  checksum OK | type 1 | MMSI 477553000 | MID 477 -> Hong Kong (item007) | lat 47.58283 lon -122.34583 | speed 0.0 kn | status 5
+item006  checksum OK | type 1 | MMSI 367078250 | MID 367 -> United States of America (item007) | lat 42.38415 lon -71.05947 | speed 0.5 kn | status 8
+forged   checksum OK | MMSI 244942000 | MID 244 -> Netherlands | lat 44.62 lon 33.5 -> ACCEPT
+IMO check digit: 4907878 valid | 4907879 invalid
+E. June 2021
+item008  USNI, 21 Jun: 'moored 180 miles away' present
+item008  USNI, 21 Jun: 'receiver station in Chornomorsk' present
+item008  USNI, 21 Jun: 'MMSI 244942000' present
+item008  USNI, 21 Jun: 'IMO 4907878' present
+item008  USNI, 21 Jun: 'It is unclear how the false AIS data was introduced' present
+item009  Euronews, 28 Jun: 'roughly 300 km away' present
+item009  Euronews, 28 Jun: 'entirely simulated' present
+item009  Euronews, 28 Jun: 'Ships above a certain size are required to transmit AIS data' present
+units: 180 statute miles = 290 km | 180 nautical miles = 333 km
+\`\`\`
+
+What to compare:
+
+- **A.** Every line must match: these are published messages, and the forged frame is computed, not random.
+- **B.** Both lines must say MATCH. The county fields are the registry's own text: if the FAA corrects one, the report check will FAIL on purpose, because the report says they differ.
+- **C.** Every number here is live, so yours will differ. Most positions will say ADS-B; MLAT appears only where several receivers hear the same aircraft. "positions older than 15 s" may be 0 at night, when the airports are quiet.
+- **D.** Every line must match.
+- **E.** The 2021 pages do not change: every phrase must be \`present\`.
+
+\`\`\`text
+report OK: every cited item is in the log and unchanged; no broadcast read as proof
+Verification: OK
+Time stamp: Sep 30 07:06:48 2026 GMT
+sealed files: 16
+16
+\`\`\`
+
+The seal lists 16 files: the scope, the log, the check script, the facts, the forged messages, the report, its check script, and 9 evidence items. The timestamp line shows your own run's time.`
+      }
+    },
+    caseStudy: {
+      title: "June 2021: two warships in Odessa, two AIS tracks at Sevastopol",
+      body: `**What happened.** On 21 June 2021, USNI News published a report by H I Sutton: "The tracking data of two NATO warships was faked off the coast of a Russian controlled naval base in the Black Sea while the actual ships were moored 180 miles away." The Royal Navy destroyer HMS Defender and the Dutch frigate HNLMS Evertsen had "pulled into Odessa in Ukraine on June 18". According to AIS, "the pair left Odessa just before midnight on June 18", sailed "directly to Sevastopol", and approached "to within two nautical miles of the harbor entrance", which is home to the headquarters of Russia's Black Sea fleet.
+
+**How the claim was tested.** USNI did not argue with the track. It set a different kind of observation against it. "Live webcam feeds show that they did not leave Odessa". The feeds were broadcast on YouTube by Odessa Online, and "Screenshots archived by third party weather sites like Windy.com show the two warships present in Odessa overnight." The tracks "were confirmed as false by Dutch naval warfare news site Marineschepen.nl". An independent observation at the same time outranks a self-report, and that is the whole of this module's table in one story.
+
+**Where the data came from.** "The AIS positions were shared with AIS aggregator MarineTraffic.com by a receiver station in Chornomorsk, close to Odessa. Other AIS aggregators also reported the false positions." HMS Defender was shown under IMO 4907878, and HNLMS Evertsen as "Netherlands Warship," MMSI 244942000. The lab shows why none of that settles anything. 4907878 passes the IMO check digit, 244 is the Netherlands' MID, and a sentence carrying that MMSI and a Sevastopol position, made on your own Mac, passes every check a receiver applies. USNI was careful about what it did not know: "It is unclear how the false AIS data was introduced to the feed."
+
+**The same story, a week later.** Euronews (Tom Bateman, 28 June) put the ships "roughly 300 km away" in Odessa. USNI said "180 miles". The two are consistent only if USNI meant statute miles (290 km). In nautical miles, the sea's usual unit and the one USNI used for "two nautical miles", 180 is 333 km. Neither article states its unit for the long distance, so a report that copies either number should give the unit and say whose number it is.
+
+Euronews quoted Global Fishing Watch's data analyst Bjorn Bergman on how AIS positions go wrong, including that "It's also possible for an AIS track to be entirely simulated and imputed into the data stream from a terrestrial AIS receiver". That is the route the Chornomorsk detail points to, but neither article shows it happened that way. Watch one line in the same article: "Global Fishing Watch told Euronews Next that faking a ship's position was complicated but possible." Those are Euronews's words summarising the organisation, not a quotation. Do not put quotation marks around them. The naval analyst Anders Puck Nielsen offered a motive, "virtual naval diplomacy". That is an interpretation, and it should be reported as one, under his name.
+
+**What to take from it.**
+
+1. A track is a sequence of claims. The ship's own transmitter, a receiver's owner or anyone in between could be its author, and the map does not say which.
+2. An aggregator is a relay. "MarineTraffic showed" is a true statement about MarineTraffic. Name the receiver when you can, as USNI did here.
+3. Test a track against something that is not AIS: a camera, a port record, a satellite image, or a crew's own statement, each with its own time.
+4. Identity fields are not proof of identity. An MMSI, an IMO number and a name can all be copied into a false message.
+5. Units and quotation marks are evidence too. Carry them over exactly.`
+    },
+    challenges: [{
+      q: `A post goes viral: a screenshot of a flight-tracking site shows a government jet circling a city for two hours, with the caption "they are watching the protest". Your editor asks whether you can run it. What do you check, in what order, and what could you write?`,
+      a: `**The screenshot is a claim about a map, which is itself a relay of claims.**
+
+1. **Get the data, not the picture.** Note the site, the time shown and the aircraft's address or registration. Look for the same track on a second aggregator (S3.1: are they independent, or fed by the same receivers?).
+2. **Where did the positions come from?** An aggregator that labels position sources (OpenSky: ADS-B, MLAT…) tells you whether the orbit is the aircraft's own report or a network measurement. Check the position times: a stale position repeated looks like loitering.
+3. **Whose aircraft?** Look up the address or mark in the right registry. A US address converts to a mark by arithmetic, but a PIA aircraft's address will not match, and an address outside the US block belongs to another country. The registry gives a **registered owner**, which may be a lessor or a trust, not the operator.
+4. **What was it doing?** Nothing in ADS-B says why an aircraft flew a pattern. Survey, training, medical and police work all produce orbits.
+
+**What you could write:** "Public flight-tracking data, which relies on the aircraft's own broadcasts, shows an aircraft registered to [owner] flying repeated circles over [area] between [times]. The data does not show the purpose of the flight." **What you must not write:** "they are watching the protest", unless a source with knowledge of the flight says so, and then as that source's claim.`
+    }, {
+      q: `A ship-tracking site shows a tanker's AIS track stopping in the middle of the sea for three days, then starting again 200 km away. A colleague writes "the tanker switched off its transponder to hide a ship-to-ship transfer". What is wrong with that sentence, and what would you write instead?`,
+      a: `**A gap in a track is a LEAD, not a finding.** At least four things produce the same gap:
+
+- **Coverage:** no receiver in range of the ship at the time, on shore or in orbit.
+- **The aggregator:** filtering, a feed outage or a paid tier the free view does not show.
+- **Equipment:** a fault, or a power problem on board.
+- **The crew:** the unit was switched off or set to low power. IMO's rules allow this "where international agreements, rules or standards provide for the protection of navigational information".
+
+And "to hide a ship-to-ship transfer" adds a motive and an event that nothing in the track shows.
+
+**Instead:** "The tanker's AIS track, as shown by [aggregator], has no positions between [T1] and [T2]. It resumes about 200 km away. The data does not show why." Then look for evidence that is not AIS: satellite imagery of the area in the gap, other ships' tracks nearby, port records. Report the gap with its dates and its source, and let each piece of evidence carry its own tag.`
+    }, {
+      q: `Someone sends you an ADS-B message in hex and says: "The CRC checks out, so this is definitely the aircraft with address 4840D6." Using only what the lab did, explain what the CRC proves, and what it would take to show that a message really came from that aircraft.`,
+      a: `**The CRC proves that the 112 bits were not damaged on the way. That is all.** Drill 1 measured it: every one- and two-bit error in the frame was caught, and none of 200,000 random frames passed by chance. But the lab's forged frame carried address 4840D6 and a zero remainder, and it was made in one line without any key. There is nothing secret in the parity, so it cannot identify a sender.
+
+**Evidence that a message came from a particular aircraft is always from outside the message:**
+
+- **Multilateration:** several receivers timing the same message can compute where the transmitter was. If that position agrees with the reported one, the report is corroborated. It does not become proof.
+- **Consistency over time:** positions, speeds and altitudes that make physical sense, and that match the aircraft's filed flight or its known type.
+- **An independent observation:** a photograph, an air-traffic-control recording, an airport's movement log, each with its own time.
+
+So the most you can say from one message is "A message received at [time] claimed to be from address 4840D6 and was not damaged in transmission."`
+    }],
+    quiz: ["How many bits is an ADS-B message, and which bits hold the ICAO address, the message and the parity? What did type code 4 mean in the lab's first frame?", "What does a CRC remainder of zero prove about a frame, and what does it not prove? How did the lab show the difference?", "The lab flipped one bit in the KLM frame. What did the CRC say, and what did the callsign decoder say? Why does that matter for tools?", "What happened when the book's pyModeS examples were tried on pyModeS 3.6.0, and which earlier module's rule does that illustrate?", "What do OpenSky's position_source values 0 and 2 mean, and why is an MLAT position a different kind of evidence from an ADS-B one?", "OpenSky's docs describe time_position as null after 15 s without a position. What did the lab's snapshot show instead, and what should you compare before writing 'was at'?", "What is origin_country in OpenSky's data inferred from, and what does it not tell you?", "How is a US N-number linked to an ICAO address? Why does the FAA registry's 'base 8' code matter, and how did the lab and Drill 3 test the converter?", "What is a PIA, and what does LADD do and not do? Why is 'no registry match' not evidence that something is hidden?", "What did the two NOAA registry records disagree about, and what general lesson does that teach?", "Which ships must carry AIS under IMO's rules, and when may they switch it off?", "What is an MMSI, what do its first three digits mean, and what do they not mean? What did the lab's first ship show?", "What does an NMEA checksum or an IMO check digit catch, and what can't it catch?", "In the case study, what evidence showed the AIS tracks were false, and how did the positions reach MarineTraffic according to USNI?", "USNI said '180 miles' and Euronews 'roughly 300 km'. What did Drill 2 compute, and what should a report do with such numbers?", "Which sentence in the Euronews article looks like a Global Fishing Watch quote but is not, and why does it matter?"],
+    workbench: `> **What this trains.** The lab decoded a few messages and checked two registry records. Here you measure what a checksum can and cannot catch, put a unit back on a distance in the case, and test the lab's registry arithmetic against every mark it could ever be given.
+
+#### 🟢 Drill 1 — what the CRC catches ~2 min
+
+**Goal.** Measure the ADS-B parity check: every damaged copy of one frame, and a large pile of random frames.
+
+**Done when.** You can say what a zero remainder rules out and what it cannot rule out.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+# Drill 1: what the CRC catches, and what it does not. Offline, standard library only.
+python3 - <<'PY'
+import random
+def rem(h):
+    b = int(h, 16)
+    for i in range(len(h) * 4 - 1, 23, -1):
+        if b >> i & 1: b ^= 0x1FFF409 << (i - 24)
+    return b
+f = "8D4840D6202CC371C32CE0576098"          # the lab's KLM1023 frame
+n = int(f, 16)
+one = sum(rem(format(n ^ (1 << i), "028X")) != 0 for i in range(112))
+two = sum(rem(format(n ^ (1 << i) ^ (1 << j), "028X")) != 0 for i in range(112) for j in range(i + 1, 112))
+print("frame remainder:", format(rem(f), "06X"))
+print("single-bit changes caught: %d of 112" % one)
+print("two-bit changes caught:    %d of %d" % (two, 112 * 111 // 2))
+random.seed(1090)                           # fixed seed: the same "random" frames on every run
+hits = sum(rem("8D" + format(random.getrandbits(104), "026X")) == 0 for _ in range(200000))
+print("random frames passing by chance: %d of 200000 (expected about %.3f)" % (hits, 200000 / 2**24))
+PY
+\`\`\`
+
+It prints (the seed is fixed, so every run is the same):
+
+\`\`\`text
+frame remainder: 000000
+single-bit changes caught: 112 of 112
+two-bit changes caught:    6216 of 6216
+random frames passing by chance: 0 of 200000 (expected about 0.012)
+\`\`\`
+
+- **Every one- and two-bit error is caught.** Damage on the way is what the CRC is for, and it does that job completely here.
+- **Chance alone almost never passes.** About 1 frame in 16.8 million (2^24) has a zero remainder by accident, and none of 200,000 did.
+- **So a zero remainder rules out noise, not a person.** The lab's forged frame was not a lucky guess. It was computed, in one line, and anyone can do the same. A CRC is a seal against accidents, not a signature.
+
+</details>
+
+#### 🟡 Drill 2 — 180 miles or 300 km? ~3 min
+
+**Goal.** Compute the Odessa–Sevastopol distance yourself and see which reading of the two articles it supports.
+
+**Done when.** You can say which unit makes USNI's "180 miles" fit, and why your own figure has an error bar.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+# Drill 2: 180 miles or 300 km? Two coordinates from Wikidata, one great-circle distance.
+UA="CyberScoutsLab/1.0"
+curl -sf --retry 3 -m 60 -A "$UA" -o d2_wikidata.json \\
+  "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q1874|Q7525&props=labels|claims&languages=en&format=json" ||
+  { echo "UNKNOWN: Wikidata did not answer"; exit 2; }
+python3 - <<'PY'
+import json, math
+d = json.load(open("d2_wikidata.json"))["entities"]
+p = {}
+for q in ("Q1874", "Q7525"):
+    c = d[q]["claims"]["P625"][0]["mainsnak"]["datavalue"]["value"]
+    name = d[q]["labels"]["en"]["value"]
+    p[q] = (c["latitude"], c["longitude"])
+    print("%s %-10s %.5f, %.5f  precision %s deg (about %.2f km)" % (q, name, c["latitude"], c["longitude"], c["precision"], c["precision"] * 111.2))
+(a, b), (c, e) = p["Q1874"], p["Q7525"]
+h = math.sin(math.radians(c - a) / 2) ** 2 + math.cos(math.radians(a)) * math.cos(math.radians(c)) * math.sin(math.radians(e - b) / 2) ** 2
+km = 2 * 6371.0088 * math.asin(math.sqrt(h))
+print("great circle: %.0f km = %.0f statute miles = %.0f nautical miles" % (km, km / 1.609344, km / 1.852))
+print("USNI '180 miles' read as statute: %.0f km | as nautical: %.0f km | Euronews: 'roughly 300 km'" % (180 * 1.609344, 180 * 1.852))
+PY
+\`\`\`
+
+It prints (Wikidata can be edited, so check the coordinates if your numbers differ):
+
+\`\`\`text
+Q1874 Odesa      46.47747, 30.73262  precision 0.13044778146083 deg (about 14.51 km)
+Q7525 Sevastopol 44.60500, 33.52250  precision 0.0002777777777777778 deg (about 0.03 km)
+great circle: 301 km = 187 statute miles = 162 nautical miles
+USNI '180 miles' read as statute: 290 km | as nautical: 333 km | Euronews: 'roughly 300 km'
+\`\`\`
+
+- **Euronews' "roughly 300 km" fits the straight line.** USNI's "180 miles" is closer as statute miles (290 km) than as nautical miles (333 km), and the straight line is 187 statute miles. Neither article said which unit it meant, and your report should.
+- **Read the precision field.** Odesa's coordinate is stated to about 0.13 degrees, roughly 14 km. It is a city's point, not a berth. A distance between two cities is good to the nearest ten kilometres or so, not to the kilometre.
+- **Ships do not sail great circles through land,** and the AIS track in the case did not have to be physically possible at all. The distance tests the articles' wording, not the track.
+
+</details>
+
+#### 🔴 Drill 3 — test the tool over its whole range ~2 min
+
+**Goal.** The lab checked its N-number arithmetic against the FAA registry for 13 marks. Check it against every possible mark instead.
+
+**Done when.** You can say how many US marks exist, which addresses they use, and what this proves and does not prove about the converter.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+# Drill 3: validate the lab's N-number converter over every US mark, not only the 13 checked by hand.
+python3 - <<'PY'
+from itertools import product
+L = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+def suffix(s): return 0 if not s else L.index(s[0]) * 25 + 1 + (L.index(s[1]) + 1 if len(s) > 1 else 0)
+def n_to_icao(reg):                          # copied unchanged from the lab
+    s = reg.upper().removeprefix("N"); v = 0xA00001 + (int(s[0]) - 1) * 101711
+    for i, size in enumerate([10111, 951, 35], start=1):
+        if len(s) == i: return v
+        if s[i].isalpha(): return v + suffix(s[i:])
+        v += int(s[i]) * size + 601
+    return v if len(s) == 4 else v + (L.index(s[4]) + 1 if s[4].isalpha() else int(s[4]) + 25)
+def marks():                                 # every mark: 1-5 characters, first a digit 1-9,
+    tails = [""] + list(L) + [a + b for a in L for b in L]      # up to two letters at the end
+    for n in range(1, 6):
+        for digits in product("0123456789", repeat=n):
+            if digits[0] == "0": continue
+            ds = "".join(digits)
+            for t in tails:
+                if n + len(t) <= 5: yield "N" + ds + t
+codes = {}
+for m in marks(): codes.setdefault(n_to_icao(m), []).append(m)
+lo, hi = min(codes), max(codes)
+print("marks: %d | distinct addresses: %d" % (sum(len(v) for v in codes.values()), len(codes)))
+print("lowest %06X (%s) | highest %06X (%s)" % (lo, codes[lo][0], hi, codes[hi][0]))
+print("gaps between them: %d" % (hi - lo + 1 - len(codes)))
+print("addresses shared by two marks: %d" % sum(1 for v in codes.values() if len(v) > 1))
+PY
+\`\`\`
+
+It prints:
+
+\`\`\`text
+marks: 915399 | distinct addresses: 915399
+lowest A00001 (N1) | highest ADF7C7 (N99999)
+gaps between them: 0
+addresses shared by two marks: 0
+\`\`\`
+
+- **One mark, one address, no holes.** 915,399 marks fill A00001 to ADF7C7 exactly, with no gaps and no collisions. A converter with an off-by-one error in any branch would have left a gap or a shared address somewhere.
+- **This proves the arithmetic is consistent, not that it is the FAA's.** A consistent function could still be consistently wrong. That is why the lab also compared it with registry records, and why this drill is the second test, not the only one. S3.2's rule applies: a known answer, then the full range.
+- **It says nothing about what an aircraft broadcasts.** A PIA aircraft sends an address the registry does not assign to its owner, and an aircraft on another country's register sends an address outside this block entirely.
+
+</details>`,
+    tracker: ["Ran the lab: every item hashed, no FAILED line, report OK, timestamp verified", "Decoded three ADS-B frames to the book's answers, and forged one that passes the CRC", "Linked two registration marks to their addresses and confirmed them in the FAA registry", "Counted where a live snapshot's positions came from and how old they were, without naming any aircraft", "Decoded two AIS sentences, read the flag state from the MMSI, and forged one that passes the checksum", "Did Drill 2 and Drill 3: put units back on the case's distances, and tested the converter over all 915,399 marks"]
   }]
 };
 

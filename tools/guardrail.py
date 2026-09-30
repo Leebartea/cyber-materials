@@ -948,6 +948,10 @@ BANNED = [
      "A backslash inside an f-string's {…} expression is a SyntaxError before Python 3.12, and the "
      "courses promise Python 3.9 or later: build the value in a variable first "
      "(Scouts ledger S3.1 defects: Drill 2)", "A111"),
+    (r"(?m)^[ \t]*rm -r?f [^\n#]*?(?:\\+\n[^\n#]*?)?[A-Za-z0-9_.]\*",
+     "zsh (the macOS default shell) aborts a whole command when an unquoted glob matches nothing, so "
+     "a first-run 'rm -rf … SEAL.* … && mkdir evidence' never creates the folder and every download "
+     "fails: name the files, or remove and recreate one folder (Scouts ledger S3.5 defects)", "A112"),
 ]
 
 
@@ -1263,6 +1267,10 @@ TOPIC_ANCHORS = {
         "internetdb": ["S3.4"],
         "greynoise": ["S3.4"],
         "cvedb": ["S3.4"],
+        "ads-b": ["S3.5"],
+        "mmsi": ["S3.5"],
+        "multilateration": ["S3.5"],
+        "aivdm": ["S3.5"],
     },
 }
 
