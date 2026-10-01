@@ -3716,8 +3716,14 @@ function Fmt($ts) { $ts -replace '^(....)(..)(..)(..)(..)(..)$', '$1-$2-$3T$4:$5
 "finding:  $U changed after $(Fmt $L.ts) and by $(Fmt $B.ts), as the archive captured it"`,
       linux: `# Identical to macOS with one substitution, in the lab and in the drills:
 #   sha256sum            instead of  shasum -a 256
-# Everything else (curl, awk, sed, python3, gunzip) behaves the same. The drills need
-# python3 3.9 or later for zoneinfo; most current distributions ship it.`,
+# Everything else (curl, awk, sed, python3, gunzip) behaves the same, with one layout difference:
+# step 3 pipes awk into uniq -c, and GNU uniq pads each count to 7 characters where the page
+# shows 4. The numbers are the same. To print the page's layout exactly, end that line with a
+# second awk:
+#   awk '{print $2, $5}' "$IDX" | uniq -c | awk '{c = $1; $1 = ""; printf "%4d%s\\n", c, $0}'
+# The drills need python3 3.9 or later for zoneinfo; most current distributions ship it. zoneinfo
+# reads the system's time-zone database: if Drill 2 prints ZoneInfoNotFoundError, install it
+# (sudo apt install tzdata).`,
       expected: {
         mac: `\`\`\`text
 item001  HTTP 200  fb0f477a10e7
@@ -4169,7 +4175,9 @@ $Day = $First.Substring(0, 10)
       linux: `# Identical to macOS with one substitution, in the lab and in the drills:
 #   sha256sum            instead of  shasum -a 256
 # Everything else (curl, jq, python3, awk) behaves the same. Install jq from your
-# distribution's packages if it is missing (for example: sudo apt install jq).`,
+# distribution's packages if it is missing (for example: sudo apt install jq).
+# One layout difference, in Drill 2: GNU uniq -c pads each count to 7 characters, so the line
+# reads "     27   AS17557" where the page shows "  27   AS17557". The number is the same.`,
       expected: {
         mac: `\`\`\`text
 item001  HTTP 200  736b9e4bfb8b
@@ -6039,11 +6047,14 @@ $D = Get-Distance $O (Get-DHash work\\viral_unmirrored.jpg)
 #   sha256sum / sha1sum      instead of  shasum -a 256 / shasum -a 1
 #   Pillow (Python)          instead of  sips      - install: sudo apt install python3-pil
 #   ffmpeg                   instead of  qlmanage  - install: sudo apt install ffmpeg
+# jq may need installing too (sudo apt install jq). curl and python3 behave the same.
 # In work/pic.py, replace the dhash function with this one (Pillow's "L" grey uses the same weights):
 #   from PIL import Image
 #   def dhash(path):
-#       px = list(Image.open(path).convert("L").resize((9, 8), Image.Resampling.LANCZOS).getdata())
+#       px = list(Image.open(path).convert("L").resize((9, 8), Image.LANCZOS).getdata())
 #       return "%016x" % int("".join("1" if px[y * 9 + x] < px[y * 9 + x + 1] else "0" for y in range(8) for x in range(8)), 2)
+# Write Image.LANCZOS, not Image.Resampling.LANCZOS: the second form fails with AttributeError on
+# Pillow 9.0.1, the version in Ubuntu 22.04. The first works on 9.0.1, 10.2.0 and 11.3.0.
 # Replace step 5's three sips lines with:
 #   python3 - <<'PY'
 #   from PIL import Image, ImageOps
@@ -6053,8 +6064,22 @@ $D = Get-Distance $O (Get-DHash work\\viral_unmirrored.jpg)
 #   PY
 # For the pixel sizes, use: python3 -c "from PIL import Image; print('%dx%d' % Image.open('FILE').size)"
 # For the frame, use: ffmpeg -loglevel error -y -i evidence/item007.mov -frames:v 1 work/frame1/item007.mov.png
+# The "frame:" line will not match the page's hashes: ffmpeg is a different tool from Quick Look and
+# writes the first frame, so expect different SHA-256 prefixes and possibly a different dHash. What
+# must match is the word "same" at the end of that line.
 # Pillow's filter is not sips's, so the distances differ a little. The Pillow code above, run on macOS
-# with Pillow 11.3.0, gave thumbnail 0, control 26, viral 38, mirrored back 5: the same verdicts.`,
+# with Pillow 11.3.0, gave thumbnail 0, control 26, viral 38, mirrored back 5: the same verdicts.
+# The drills use sips too. Drill 1 (mirror the original): Pillow drops the Exif block when it saves
+# unless you pass it on, and the drill fails without it. Use:
+#   python3 -c "from PIL import Image, ImageOps; im = Image.open('evidence/item002.jpg'); ImageOps.mirror(im).save('work/mirror_of_original.jpg', quality=90, exif=im.info['exif'])"
+# Drill 2 (crops): replace the W=, H= and sips -c lines, up to done, with:
+#   python3 - <<'PY'
+#   from PIL import Image
+#   im = Image.open("evidence/item003.jpg"); W, H = im.size
+#   for pct in (98, 95, 90, 85, 80, 70, 60, 50):
+#       cw, ch = W * pct // 100, H * pct // 100
+#       im.crop(((W - cw) // 2, (H - ch) // 2, (W - cw) // 2 + cw, (H - ch) // 2 + ch)).save(f"work/crops/c{pct}.jpg", quality=90)
+#   PY`,
       expected: {
         mac: `\`\`\`text
 item001  HTTP 200  722904c26df3
