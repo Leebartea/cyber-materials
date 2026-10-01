@@ -1637,6 +1637,7 @@ report.txt: FAILED
 shasum: WARNING: 1 computed checksum did NOT match
 exit: 1
 \`\`\`
+**Linux / WSL.** \`sha256sum\` takes the place of \`shasum -a 256\`. Run on Ubuntu 24.04 (GNU coreutils 9.4), the same steps printed \`report.txt: OK\`, \`exit: 0\`, \`report.txt: FAILED\`, then \`sha256sum: WARNING: 1 computed checksum did NOT match\` and \`exit: 1\` — the verdict lines and the exit codes are the same; only the summary line names the other tool.
 Changing \`12%\` to \`13%\` — a single character — makes \`report.txt: OK\` become \`report.txt: FAILED\`, and the exit code flips from \`0\` to \`1\`. That is the **avalanche effect**: a cryptographic hash is built so that any change to the input, however small, changes the output unpredictably and completely, so there is no "small edit" that slips through. A defender records these baselines for files that should never change (a config, a binary, an evidence file) and re-checks them; an unexplained \`FAILED\` is a tamper signal. On Linux/WSL2 the command is \`sha256sum report.txt > report.sha256\` and \`sha256sum -c report.sha256\` — identical behavior. Common wrong attempts: reading the two hashes side by side and comparing by eye (works for one file, hopeless for a directory — let \`-c\` and the exit code do it); hashing a *different* file than you baselined (wrong directory, a re-downloaded copy) and mistaking it for tampering; assuming a matching hash proves the file is *safe* — it only proves it is *unchanged since you recorded the baseline*, so the baseline is only as trustworthy as the moment you took it.
 </details>
 
@@ -4129,7 +4130,9 @@ sudo lsof -i :5000`,
       windows: `Get-NetTCPConnection -State Listen | Format-Table LocalAddress, LocalPort, OwningProcess
 # LocalAddress 0.0.0.0 = exposed to the network; 127.0.0.1 = localhost-only
 Get-Process -Id (Get-NetTCPConnection -LocalPort 3389).OwningProcess`,
-      linux: `sudo ss -tulpn      # -t TCP -u UDP -l listening -p process -n numeric
+      linux: `# nmap is installed in M0's Linux list (sudo apt install -y nmap); \`ss\` comes from iproute2
+# (sudo apt install -y iproute2 if \`ss\` is not found). Scan only your own loopback.
+sudo ss -tulpn      # -t TCP -u UDP -l listening -p process -n numeric
 # Address 0.0.0.0 = all interfaces (exposed); 127.0.0.1 = localhost-only
 nmap -sT -p- 127.0.0.1`,
       expected: {
@@ -5785,7 +5788,12 @@ brew install --cask wireshark
 sudo tcpdump -i lo0 -A 'tcp port 8080'`,
       windows: `# Same workflow; install Npcap with Wireshark.
 # Filter http > Follow HTTP Stream to read plaintext; filter tls for the encrypted case.`,
-      linux: `sudo usermod -aG wireshark $USER   # log out/in, then launch wireshark
+      linux: `# wireshark is installed in M0's Linux list (sudo apt install -y wireshark). It asks "Should
+# non-superusers be able to capture packets?" and the default is No: with No there is no
+# \`wireshark\` group, and the next line stops with "usermod: group 'wireshark' does not exist".
+# Answer Yes, or answer it afterwards with \`sudo dpkg-reconfigure wireshark-common\`.
+# tcpdump is not in M0's list: sudo apt install -y tcpdump
+sudo usermod -aG wireshark $USER   # log out/in, then launch wireshark
 # Same filters. CLI: sudo tcpdump -i lo -A 'tcp port 8080'`,
       expected: {
         mac: `\`\`\`text
