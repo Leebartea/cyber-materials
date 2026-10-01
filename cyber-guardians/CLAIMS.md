@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 20 modules, rows 142–170, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 22 modules, rows 142–172, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -462,10 +462,12 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
 | 168 | M6 | `ufw` is not in this container's base image (`command -v ufw` finds nothing); `apt install ufw` gives ufw 0.36.2 (`ufw version`). `sudo ufw enable` itself was not run: it would change this machine's firewall | `EXECUTED` | `apt-get install` and `ufw version`, run here | stable |
 | 169 | M6.5 | `cryptsetup` 2.7.0 and `mokutil` 0.6.0 are not in this container's base image; both install from the Ubuntu 24.04 archive. In this container `mokutil --sb-state` prints `EFI variables are not supported on this system` — a result the lab's `2>&1` shows rather than hides, and neither a pass nor a fail. Parts B and C (loop mounts and LUKS as root) were not run | `EXECUTED` | `apt-get install` and `--version`; the one `mokutil` call run here | stable |
 | 170 | M13.5 | `nmcli` (NetworkManager 1.46.0) and `iw` 6.7 are not in this container's base image; they come from `network-manager` and `iw`. No scan or capture was run: the container has no wireless interface | `EXECUTED` | `apt-get install` and `--version`, run here | stable |
+| 171 | M22.5 | The Linux block, marked "Not executed for this edition", runs on Ubuntu 24.04 (sleuthkit 4.12.1, dosfstools 4.2 `mkfs.fat`, mtools 4.0.43) and exits 0: `mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384` makes a 16,777,216-byte image; `fls -r` lists the volume label, `plan.txt`, `payroll_export.csv` with `*` (inode 7) and `$MBR`, `$FAT1`, `$FAT2`, `$OrphanFiles`; `fls -rd` lists only the deleted file; `istat` prints `Not Allocated` and the short name `_AYROL~1.CSV`; `icat` prints the file's two CSV lines; the image hash is unchanged afterwards (`evidence.img: OK`). No `.fseventsd` entry and no `._` file exists, as the block's last comment says. The banner now says it was run | `EXECUTED` | the page's own block with the `sudo apt install` line removed and `<number-fls-printed>` replaced by 7, run in a scratch folder | stable |
+| 172 | M23.7 | The Linux block, also marked "Not executed", runs and exits 0 with one defect: `ZONE=$(timedatectl show -p Timezone --value)` prints `System has not been booted with systemd as init system (PID 1). Can't operate.` and exits 1 where systemd is not PID 1, leaves `ZONE` empty, and `fls -r -m / -z "" …` still exits 0 — and reads every FAT time as UTC, the same epochs as `-z Etc/UTC` (`1790872494`), where a +05:30 zone moves them by 19,800 s (`1790852694`). The block now reads `readlink /etc/localtime` as the Mac block does and stops with a message if that is empty. `mactime` prints two `Old package separator "'" deprecated` warnings on stderr (Perl 5.38 on Ubuntu 24.04); the timeline CSV is unaffected. `fls -r` shows no `.fseventsd`, so "step 6 has no Linux equivalent" holds. Run here under a UTC zone only: the offsets above came from `fls -z` with named zones, not from a machine in another zone | `EXECUTED` | the page's own block with the `sudo apt install` line removed; `timedatectl` run without systemd; `fls -z` with an empty, a UTC and a +05:30 zone | stable |
 
 ## Fixes applied in this pass
 
-**Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; eight defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
+**Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; nine defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
 
 1. **M0's Linux apt line named a Kali-only package.** `apt install -y aircrack-ng nikto gobuster wordlists`
    ends `E: Unable to locate package wordlists` on Ubuntu 24.04 and installs none of the four. The package
@@ -491,6 +493,11 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
    `cryptsetup`, `mokutil`, `iw` and `nmcli` are not in a minimal Ubuntu 24.04 image and M0's list named
    only some of them. M0 now installs `dnsutils traceroute iproute2`; the other labs say which package
    gives the command (rows 166–170).
+9. **M23.7's Linux block read the zone with `timedatectl`, which fails without systemd and left `ZONE`
+   empty.** `fls` then took every FAT time as UTC and printed no error, so a timeline from a stick written
+   in another zone came out shifted by that zone's offset. The block now reads `/etc/localtime` as the Mac
+   block does and stops if it gets nothing. M22.5's and M23.7's Linux blocks had been marked "Not executed
+   for this edition"; both now ran (rows 171–172).
 
 The drills that existed only for macOS now have a Linux form that was run: M16.5 (`dscl`), M15
 (`ipconfig getifaddr`), M18.5 (`log show`, `defaults`, `LaunchAgents`, `launchctl`), M25.5 (`arp -a`) and

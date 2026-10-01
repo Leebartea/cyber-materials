@@ -9332,8 +9332,8 @@ Get-ChildItem C:\\Windows\\Prefetch -Filter *.pf | Sort-Object LastWriteTime -De
 # 4. Run keys: what starts at logon (ATT&CK T1547.001).
 Get-ItemProperty HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run
 Get-ItemProperty HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`,
-      linux: `# ⚠️ Not executed for this edition. mkfs.fat and mtools syntax is from their manuals; the
-# fls/istat/icat commands are the ones run on macOS. The image has no partition table here, so there is no -o 1.
+      linux: `# Run on Ubuntu 24.04 (sleuthkit 4.12.1, dosfstools 4.2, mtools 4.0.43): every command below ran and the
+# comments say what it printed. The image has no partition table here, so there is no -o 1.
 sudo apt install sleuthkit dosfstools mtools
 mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384      # -C creates the image file; 16384 x 1 KiB = 16 MiB
 echo "Q3 acquisition plan - internal" > plan.txt
@@ -9342,7 +9342,11 @@ mcopy -i evidence.img plan.txt payroll_export.csv ::      # writes into the imag
 mdel -i evidence.img ::payroll_export.csv
 sha256sum evidence.img | tee evidence.img.sha256
 fls -r evidence.img && fls -rd evidence.img
+# -> fls -r lists the volume label, plan.txt, payroll_export.csv with a * (deleted) and the $MBR, $FAT1,
+#    $FAT2 and $OrphanFiles entries; fls -rd lists only the deleted file (inode 7 in this run)
 istat evidence.img <number-fls-printed> && icat evidence.img <number-fls-printed>
+# -> istat says "Not Allocated" and shows the short name with its first letter gone (_AYROL~1.CSV); icat
+#    prints the file's two CSV lines, so a deleted file is still recoverable from the image
 sha256sum -c evidence.img.sha256
 # You will find no .fseventsd and no ._ files: those were macOS writing to the volume.
 # Their absence is itself a clue to which operating system last had the stick.`,
@@ -10893,8 +10897,8 @@ wsl --install -d Ubuntu          # once, then open the Ubuntu shell and follow t
 #   Select\\Current            -> which ControlSet00x was in use
 #   ControlSet00x\\Control\\TimeZoneInformation\\TimeZoneKeyName  -> e.g. "W. Europe Standard Time"
 # CurrentControlSet exists only on a live system; a hive you are examining does not have it.`,
-      linux: `# ⚠️ Not executed for this edition. mkfs.fat and mtools syntax is from their manuals. fls and mactime
-# are the same Sleuth Kit tools as the macOS block. mtools writes no .fseventsd, so step 6 has no Linux
+      linux: `# Run on Ubuntu 24.04 (sleuthkit 4.12.1, dosfstools 4.2, mtools 4.0.43). fls and mactime are the same
+# Sleuth Kit tools as the macOS block. mtools writes no .fseventsd, so step 6 has no Linux
 # equivalent: the deletion cannot be bracketed from this image at all. That is the lesson of step 6.
 sudo apt install sleuthkit dosfstools mtools
 mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384        # no partition table: drop "-o 1" below
@@ -10905,9 +10909,13 @@ printf 'name,iban\\nA. Jones,GB00TEST00000000000001\\n' > p.csv && mcopy -i evid
 date -u +"%H:%M:%SZ  deleted payroll_export.csv" | tee -a groundtruth.txt
 mdel -i evidence.img ::payroll_export.csv
 sha256sum evidence.img | tee evidence.img.sha256
-ZONE=$(timedatectl show -p Timezone --value)
+# The zone of the machine that WROTE the image: FAT stores local time. timedatectl needs systemd, and where it
+# is missing it prints "System has not been booted with systemd as init system" and leaves ZONE empty, and
+# fls then reads every FAT time as UTC without a word. So read the link instead, and stop if it gives nothing.
+ZONE=$(readlink /etc/localtime | sed 's#.*zoneinfo/##')
+[ -n "$ZONE" ] || { echo "STOP: /etc/localtime is not a link to a zone file - set ZONE by hand (Area/City) first"; exit 1; }
 fls -r -m / -z "$ZONE" evidence.img > bodyfile.txt
-mactime -b bodyfile.txt -y -d
+mactime -b bodyfile.txt -y -d   # Ubuntu 24.04's Perl adds two "Old package separator" warnings on stderr; they are harmless
 sha256sum -c evidence.img.sha256`,
       expected: {
         mac: `\`\`\`text
