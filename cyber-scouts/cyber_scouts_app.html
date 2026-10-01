@@ -883,14 +883,14 @@ Level 4 follows networks of actors: the companies, code, servers and accounts be
 | # | Topic | Status |
 |---|---|---|
 | S4.1 | Sanctions lists and company registers: what a listing proves | ✅ available |
-| — | Public code and repositories: what a commit's author field proves | planned |
+| S4.2 | Public code and repositories: what a commit's author field proves | ✅ available |
 | — | Phishing infrastructure: pivoting on pages, icons and certificates | planned |
 | — | Threat-intelligence feeds: what an indicator proves, and when it goes stale | planned |
 | — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
 | — | Reproducible pipelines: collection you can run again | planned |
 | — | Capstone: an infrastructure attribution file | planned |
 
-S4.1 needs no new tools.
+S4.1 needs no new tools. S4.2 adds one, git, which macOS ships with its Command Line Tools.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -13360,6 +13360,897 @@ what joins them on the list: a 'successor' statement made by OFAC (item003), not
 
 </details>`,
     tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Joined a sanctions record to a company register by identifier, and graded the link", "Found that the listed company had been renamed and deleted, and wrote what the register does not show", "Showed that a name screen on the current name misses the listing, and why", "Did Drill 1: checked a list's \"UN designation\" label against the UN's own list", "Did Drills 2 and 3: tested fuzzy matching at five thresholds, and compared a company with its successor"]
+  }, {
+    id: "s4_2",
+    level: 4,
+    num: "S4.2",
+    title: "Public Code & Repositories — What a Commit Proves, What a Signature Proves, and Whose Name Is on It",
+    objective: `Read the history of XZ Utils up to release 5.6.1, the release found in March 2024 to carry a backdoor, and find out what it proves about the co-maintainer who made it, "Jia Tan". Check that the copy you read is the one the project publishes, by recomputing every commit id. Separate author from committer, and read the commits' time zones as clock settings. Verify the release signatures yourself, in Python, and find that seven releases were signed with one key and five commits by GitHub. Make a commit with every field invented, to see what git checks. Then read how two commits arrived under two PHP maintainers' names in 2021, and how the project's own reading of its records changed twice, and tag every record with S2.7's strengths.`,
+    theory: `#### What this module adds
+
+S4.1 joined official records made by governments. Public code is the opposite kind of record: almost everything in it is written by the person it describes. A **commit** (one saved change in a git repository) carries a name, an e-mail address, a date and a time zone, and git takes all four from whoever runs it. Some records in a repository are harder to write than that: a commit's id, a cryptographic signature, and a platform's own log of who used which account.
+
+The lab reads the history of **XZ Utils**, in its own words "a complete C99 implementation of the .xz file format". In March 2024 its releases 5.6.0 and 5.6.1 were found to carry a backdoor, reported under the subject "backdoor in upstream xz/liblzma leading to ssh server compromise" (CVE-2024-3094). The releases were made by a co-maintainer who used the name **Jia Tan**. The lab asks what the repository proves about that persona, and finds that it proves a great deal about a key and an account, and almost nothing about a person.
+
+#### What is in a commit
+
+| Field | Who writes it | What checks it |
+|---|---|---|
+| **author** name, address, date and zone | Whoever made the change, from their git settings or the command line | Nothing |
+| **committer** name, address, date and zone | Whoever put the change into the history | Nothing |
+| message, including lines like "Signed-off-by:" | The committer | Nothing: it is text |
+| **parent** and **tree** (the previous commit and the files) | git | git: they are ids, so they must match the content |
+| **id** (the commit's hash) | git, from all of the above | Anyone: recompute it |
+| **signature** (optional) | Whoever holds a private key | Anyone with the public key |
+
+The lab's step 3 is a known-answer test (S3.2's rule: test the tool on an answer you already know). It writes a commit by "Ada Example", dated 2005 at +0800, on your Mac. git accepts every field, and the commit gets the same id on every computer: \`15d8076009863b54df39f09fe60ccb30f9155818\`. Drill 1 goes further: an author date in 2099, a committer date in 1999, two zones twelve hours apart, and a "Signed-off-by" for a third person. git's own strict check (\`git fsck --strict\`) finds nothing wrong with any of it.
+
+#### What a commit id proves
+
+A commit id is the SHA-1 hash of the commit's bytes: its tree, its parents, both identity lines and the message. Change one character, even \`+0800\` to \`+0200\`, and the id changes. Because each commit names its parent by id, one id pins the whole history behind it.
+
+So an id proves **integrity**, not authorship. The lab recomputes all 2,330 ids from their bytes, and they match. It also asks two hosts for tag v5.6.1: GitHub, and the maintainer's own server, git.tukaani.org. Both give the same ids. That proves the copy you read is the one the project publishes, which is worth proving: in S3.2's terms, it is the integrity check before analysis. It proves nothing about who typed the names inside.
+
+(git can also use SHA-256. The lab asks for SHA-1 so that your known answer matches this module's.)
+
+#### Author and committer
+
+git keeps two identities on every commit. In Pro Git's words: "The author is the person who originally wrote the work, whereas the committer is the person who last applied the work." When a maintainer applies someone's patch, the author line keeps the contributor's name, date and zone, and the committer line gets the maintainer's.
+
+Read the two separately. Of the persona's 453 commits in this history, the maintainer committed 38. Their committer zones (+0200 and +0300) are the maintainer's, not the persona's. An analyst who reads "all the dates on Jia Tan's commits" without splitting the fields mixes two people's clocks.
+
+#### Time zones are clock settings
+
+The zone on a commit (\`+0800\`) is the offset of the clock on the machine that wrote it, at that moment. It is not a location. A traveller, a server in another country, a container set to UTC or a deliberate setting all change it. In this history, the persona's own commits (author and committer both the persona) give \`+0800\` 409 times out of 410. One commit, \`3d1fdddf\` of 27 June 2023, has an author date at \`+0300\`; it was committed 89 minutes later at \`+0800\`.
+
+The **instant** of each commit is a separate fact, and harder to arrange. Drill 3 sets the times against four zones' working days. In the zone the commits state, only 4% fall on a weekday between 09:00 and 18:00, and the busiest hour is 20:00. In UTC, 82% do; in Central and Eastern European time, 77% and 65%. That shows the stated zone and the working pattern disagree. It does not choose among the zones that fit, and it cannot tell one person with odd hours from several people, or a plan. Tag it **LEAD**, write the alternatives, and test them against each other (S3.1's competing hypotheses).
+
+#### What a signature proves
+
+A signature proves that whoever holds a particular private key signed these exact bytes. The key has a **fingerprint**, which is a hash of the public key, and the signature names it.
+
+- **Tags.** A tag is a named pointer to a release. Ten XZ release tags are signed. The lab checks every signature itself, in about 60 lines of Python, following the OpenPGP standard (RFC 9580, section 5.2.4). Seven tags, v5.4.2 to v5.6.1, verify with one key, \`22D465F2…FEA7F445\`. Three, before and after, verify with the maintainer's key, \`3690C240…69184620\`. Changing one byte of v5.6.1 makes its signature fail.
+- **The key's user id is typed too.** The key says "Jia Tan <jiat0218@gmail.com>". Whoever makes a key writes its user id. keys.openpgp.org publishes a key's name and address only after the address's owner confirms it by e-mail; the key server the lab uses (keyserver.ubuntu.com) states no such check. The lab got this key there; on 1 October 2026 the persona's key was not on keys.openpgp.org.
+- **What joins, and what does not.** The signatures join seven releases to one key holder: **STRONG**, because nobody without the private key could have made them. They do not join the key holder to a person.
+
+Commits can be signed too. Only 5 of the persona's 453 are, and the lab finds whose key signed them: GitHub's.
+
+#### What the platform adds
+
+GitHub adds two statements of its own, and they are worth very different amounts.
+
+- **Account links by address.** GitHub's documentation: it "links a commit to a user by matching the email address in the commit header to an email address on a GitHub account". The commit that added the backdoor's test files is unsigned, and GitHub shows it under the account JiaT75 because the address matches. That is GitHub repeating the author field: a **LEAD**. The 2021 PHP case below shows what it is worth.
+- **Web-flow signatures.** "GitHub will automatically use GPG to sign commits you make using the web interface." The five signed commits carry GitHub as committer and verify with GitHub's published key (github.com/web-flow.gpg). Here GitHub vouches for something it saw itself: the account JiaT75 made these five commits on github.com. That is **STRONG** for the account, and still says nothing about who used it.
+- **The badge.** GitHub marks a commit "Verified" when its signature checks out. An unsigned commit gets no status at all, unless the committer has turned on **vigilant mode** ("By default vigilant mode is not enabled"). No badge does not mean forged, and an unsigned commit under a famous name looks like any other.
+
+Platforms also get their own records wrong. The maintainer's page says GitHub closed the project's pull requests in April 2024 and showed them as closed by him: "GitHub just misattributed it to me." A platform's statement is the platform's claim, like any other.
+
+#### The repository is not the release
+
+The report that found the backdoor says one part of it was "*solely in the distributed tarballs*": the release archives, built and signed by the persona, carried a changed build file, \`m4/build-to-host.m4\`, that is not in git. The lab confirms that no such file exists at v5.6.1, and that the two test files it used are there, added by unsigned commits in February and March 2024.
+
+A repository proves what is in the repository. What people install is usually something built from it, and the two can differ. Check the artefact itself, or say that you did not.
+
+#### What each kind of statement is worth
+
+| Statement | Tag (S2.7) | Why |
+|---|---|---|
+| One id on two independent hosts, and every id recomputes | **STRONG** | Two hands serve one history, and the arithmetic checks |
+| Seven release tags verify with one key | **STRONG** | Only the holder of the private key could make them |
+| Commits signed by GitHub's web-flow key | **STRONG** (for the account) | GitHub saw the account make them |
+| Name, address, user id, "Signed-off-by" | **ONE-WAY** | Typed by the hand that made the record |
+| GitHub's account link on an unsigned commit | **LEAD** | It repeats the address field |
+| Time zone, and the hours of work | **LEAD** | A clock setting, and a pattern with several explanations |
+| Who committed a contributor's work | **CONTEXT** | Explains whose clock is on which line |
+
+#### Secrets in history
+
+Deleting a password from a file does not delete it from the repository. Every earlier version is still there, and anyone who clones the repository has all of them. Drill 2 shows it with a fake token: a search of the latest version finds nothing, and a search of every version finds it at once.
+
+GitHub's guidance for owners starts with the secret, not the history: "as a first step you need to revoke and/or rotate that secret". Rewriting the history comes after, if at all.
+
+For you, as an investigator, a secret in someone else's repository is out of scope, always:
+
+- **Do not use it, test it or share it.** Logging in with a found key is using someone else's credentials, whatever your reason. S1.1's computer-misuse rules apply.
+- **Report it privately**, to the owner's security contact or through the platform. On GitHub: "If a public repository has private vulnerability reporting enabled, anyone can submit a private vulnerability report to the repository maintainers." Say where the secret is, not what it is.
+- **Do not copy it into your evidence.** Record the commit id and the file name. The lab's scope says the same.
+
+#### Ethics
+
+- **Commit addresses are personal data.** Every clone carries every contributor's address. The lab counts other contributors and reads none of them. Name a person only if your question needs it, and say what the record proves about them: usually only that someone typed their name.
+- **Never forge a real person's identity**, even in a scratch repository. The drills use "Ada Example" and example.org for that reason. The PHP case shows what a forged name does to the real person.
+- **Do not download or build the backdoored releases.** The lab reads the history, not the code.`,
+    lab: {
+      mac: `# LAB: what a commit proves, what a signature proves, and whose name is on it (Apple Silicon)
+# ETHICS: the subject is a public repository and the persona "Jia Tan", named by the project's maintainer and in
+# public reporting. The lab reads no one else's identity: other contributors appear only as counts.
+# LIMITS: a partial copy of one public repository (about 4 MB of history, no file contents), three public keys,
+# five GitHub API answers (no account, no token: well inside the 60 an hour GitHub allows), and four public pages.
+# ONE NEW TOOL: git. macOS ships it with the Command Line Tools; if "git --version" offers to install them, accept.
+# Everything else is curl, openssl and python3 (standard library only), as in Level 3.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0   # your own git settings stay out of the lab
+mkdir -p ~/scouts-case/s4_2 && cd ~/scouts-case/s4_2 || exit 1
+rm -rf evidence xz.git kat scope.txt collection_log.tsv repo_read.py facts.txt report.md check_report.sh \\
+  SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.2 public code and repositories (XZ Utils, release 5.6.1)
+question:     What does a public repository prove about who wrote its code, and when, and where?
+              A. the history: is the copy we read the one the project published, and can we check every commit id?
+              B. the identity: which names and addresses does the persona use, and which key finds them all?
+              C. author and committer: who wrote each change, and who put it into the history?
+              D. the time zones: what do the commits' clock offsets say, and what can they not say?
+              E. the signatures: which releases and commits are signed, by which key, and do the signatures verify?
+              F. the platform: what does GitHub say about these commits, and on what basis?
+              G. the release: is the backdoor's trigger in the repository at all?
+              H. a known answer: what does git check when it writes a name, a date and a zone into a commit?
+              I. 2021: what happened when two commits arrived under two PHP maintainers' names?
+authorised:   self (a public repository, public keys, public pages, GitHub's public API)
+in scope:     github.com/tukaani-project/xz (history up to tag v5.6.1, no file contents); git.tukaani.org
+              (two references); keyserver.ubuntu.com (2 keys); github.com/web-flow.gpg; api.github.com
+              (4 commits, 1 account); www.openwall.com (1 post); tukaani.org (1 page); news-web.php.net (2 posts)
+out of scope: the identities of the other contributors; any e-mail address beyond counting it; the release
+              tarballs and the backdoor's code (do not download or build 5.6.0 or 5.6.1); any secret in any repository
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+keep() {  # id what   (logs a file this lab made from the repository)
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+get() {  # id url   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"; keep "$1" "$2"
+}
+GH=https://github.com/tukaani-project/xz.git
+# A. The release tag as each host serves it: GitHub, and the maintainer's own server.
+git ls-remote "$GH" 'refs/tags/v5.6.1*' > evidence/item001.txt; keep item001.txt "git ls-remote $GH refs/tags/v5.6.1*"
+git ls-remote https://git.tukaani.org/xz.git 'refs/tags/v5.6.1*' > evidence/item002.txt
+keep item002.txt "git ls-remote https://git.tukaani.org/xz.git refs/tags/v5.6.1*"
+# The history itself: commits, trees and tags, but no file contents (--filter=blob:none).
+git clone -q --bare --filter=blob:none "$GH" xz.git || { echo "STOP: the clone failed - rerun the lab"; exit 1; }
+R=$(git -C xz.git rev-parse 'v5.6.1^{commit}')
+git -C xz.git rev-list "$R" | sort | git -C xz.git cat-file --batch > evidence/item003.txt
+keep item003.txt "every commit reachable from v5.6.1 ($R), raw, sorted by id (git cat-file --batch)"
+printf '%s\\n' v5.4.0 v5.4.1 v5.4.2 v5.4.3 v5.4.4 v5.4.5 v5.4.6 v5.6.0 v5.6.1 v5.6.2 |
+  git -C xz.git cat-file --batch > evidence/item004.txt
+keep item004.txt "ten release tags v5.4.0-v5.6.2, raw (git cat-file --batch)"
+{ echo "# git ls-tree -r --name-only $R"; git -C xz.git ls-tree -r --name-only "$R"
+  echo "# git log --format=%H $R -- tests/files/bad-3-corrupt_lzma2.xz tests/files/good-large_compressed.lzma"
+  git -C xz.git log --format=%H "$R" -- tests/files/bad-3-corrupt_lzma2.xz tests/files/good-large_compressed.lzma
+} > evidence/item005.txt
+keep item005.txt "file names at v5.6.1, and the commits that touched the two test files"
+# E. The keys: the two fingerprints that step 3 finds in the tags' signatures, and GitHub's own signing keys.
+KS='https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x'
+get item006.asc "\${KS}22D465F2B4C173803B20C6DE59FCF207FEA7F445"
+get item007.asc "\${KS}3690C240CE51B4670D30AD1C38EE757D69184620"
+get item008.asc https://github.com/web-flow.gpg
+# F. What GitHub says: one commit made in its web interface, one that added the test files, and the account.
+API=https://api.github.com/repos/tukaani-project/xz/commits
+get item009.json "$API/62efd48a825e8f439e84c85e165d8774ddc68fd2"
+get item010.json "$API/cf44e4b7f5dfdbf8c78aef377c10f71e274f63c0"
+get item011.json https://api.github.com/users/JiaT75
+# G. The report that found it, and the maintainer's own page.
+get item012.html https://www.openwall.com/lists/oss-security/2024/03/29/4
+get item013.html https://tukaani.org/xz-backdoor/
+# I. The case (read in the module): PHP's two messages and GitHub's record of the two commits.
+get item014.html https://news-web.php.net/php.internals/113838
+get item015.html https://news-web.php.net/php.internals/113981
+get item016.json https://api.github.com/repos/php/php-src/commits/c730aa26bd52829a49f2ad284b181b7e82a68d7d
+get item017.json https://api.github.com/repos/php/php-src/commits/2b0f239b211c7544ebc7a4cd2c977a5b7a11ed8a
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab. If the failed items are
+  api.github.com ones, GitHub's limit without an account is 60 requests an hour, and each run uses 5: wait, then rerun"; exit 1; }
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+
+# 3. A known answer first (S3.2): make a commit whose every field you chose, in a scratch repository.
+#    Nothing leaves this Mac. Same bytes in, same id out, on any computer: compare yours with the module's.
+git init -q --object-format=sha1 --template= kat || exit 1
+( cd kat && printf 'hello\\n' > README && git add README &&
+  GIT_AUTHOR_NAME="Ada Example" GIT_AUTHOR_EMAIL=ada@example.org GIT_AUTHOR_DATE="2005-04-07T22:13:13+0800" \\
+  GIT_COMMITTER_NAME="Ada Example" GIT_COMMITTER_EMAIL=ada@example.org GIT_COMMITTER_DATE="2005-04-07T22:13:13+0800" \\
+  git commit -q -m "First commit" && git rev-parse HEAD > ../kat_id.txt && git cat-file commit HEAD > ../kat_commit.txt ) ||
+  { echo "STOP: git could not make the scratch commit"; exit 1; }
+
+# 4. Read. Only the saved files are read; nothing below touches the network.
+cat > repo_read.py <<'PY'
+import base64, datetime, hashlib, html, json, re, collections
+def raw(n): return open("evidence/" + n, "rb").read()
+def text(n):  # page text, one line per element, scripts and styles removed
+    t = re.sub(r"(?s)<(script|style)\\b.*?</\\1>", " ", raw(n).decode("utf-8", "replace"))
+    return "\\n".join(l.strip() for l in html.unescape(re.sub(r"<[^>]+>", "\\n", t)).split("\\n") if l.strip())
+def flat(s): return re.sub(r"\\s+", " ", s)
+def utc(ts): return datetime.datetime.fromtimestamp(int(ts), datetime.timezone.utc)
+out = []
+def p(s=""): out.append(s)
+
+# OpenPGP, enough to check an RSA signature with the standard library (RFC 9580 section 5.2.4).
+def dearmor(a):
+    a = a[a.index("-----BEGIN"):]; body = a.split("\\n\\n", 1)[1]
+    return base64.b64decode("".join(l for l in body.split("\\n") if l and not l.startswith(("=", "-----"))))
+def packets(b):
+    i = 0
+    while i < len(b):
+        h = b[i]; i += 1
+        if h & 0x40:
+            t = h & 0x3f; l = b[i]; i += 1
+            if 192 <= l < 224: l = ((l - 192) << 8) + b[i] + 192; i += 1
+            elif l == 255: l = int.from_bytes(b[i:i + 4], "big"); i += 4
+        else:
+            t = (h >> 2) & 0xf; n = [1, 2, 4][h & 3]; l = int.from_bytes(b[i:i + n], "big"); i += n
+        yield t, b[i:i + l]; i += l
+def mpi(b, i):
+    n = (int.from_bytes(b[i:i + 2], "big") + 7) // 8
+    return int.from_bytes(b[i + 2:i + 2 + n], "big"), i + 2 + n
+def subpackets(s):
+    j = 0
+    while j < len(s):
+        l = s[j]; j += 1
+        if 192 <= l < 255: l = ((l - 192) << 8) + s[j] + 192; j += 1
+        elif l == 255: l = int.from_bytes(s[j:j + 4], "big"); j += 4
+        yield s[j] & 0x7f, s[j + 1:j + l]; j += l
+def keys(armored):  # every primary RSA key in a file: fingerprint, creation date, n, e, user ids
+    ks = []
+    for blk in re.findall(r"(?s)-----BEGIN PGP PUBLIC KEY BLOCK-----.*?-----END PGP PUBLIC KEY BLOCK-----", armored):
+        for t, b in packets(dearmor(blk)):
+            if t == 6:
+                assert b[0] == 4 and b[5] == 1, "v4 RSA keys only"
+                k = {"fpr": hashlib.sha1(b"\\x99" + len(b).to_bytes(2, "big") + b).hexdigest().upper(),
+                     "created": utc(int.from_bytes(b[1:5], "big")).strftime("%Y-%m-%d"), "uids": []}
+                k["n"], i = mpi(b, 6); k["e"], _ = mpi(b, i); ks.append(k)
+            if t == 13 and ks: ks[-1]["uids"].append(b.decode("utf-8", "replace"))
+    return ks
+DI = {8: ("sha256", "3031300d060960864801650304020105000420"), 10: ("sha512", "3051300d060960864801650304020305000440")}
+def signature(armored):
+    t, b = next(packets(dearmor(armored)))
+    assert t == 2 and b[0] == 4, "v4 signatures only"
+    hl = int.from_bytes(b[4:6], "big"); ul = int.from_bytes(b[6 + hl:8 + hl], "big")
+    s = {"hashalg": b[3], "hashed": b[:6 + hl], "fpr": "", "keyid": ""}
+    for ty, d in list(subpackets(b[6:6 + hl])) + list(subpackets(b[8 + hl:8 + hl + ul])):
+        if ty == 33: s["fpr"] = d[1:].hex().upper()
+        if ty == 16: s["keyid"] = d.hex().upper()
+        if ty == 2: s["time"] = utc(int.from_bytes(d, "big"))
+    r = b[8 + hl + ul:]; s["left16"] = r[:2]; s["sig"], _ = mpi(r, 2)
+    return s
+def verify(data, s, k):  # RSA with PKCS#1 v1.5 padding: the only kind these keys make
+    name, prefix = DI[s["hashalg"]]
+    h = hashlib.new(name, data + s["hashed"] + b"\\x04\\xff" + len(s["hashed"]).to_bytes(4, "big")).digest()
+    if h[:2] != s["left16"]: return False
+    em = pow(s["sig"], k["e"], k["n"]).to_bytes((k["n"].bit_length() + 7) // 8, "big")
+    t = bytes.fromhex(prefix) + h
+    return em == b"\\x00\\x01" + b"\\xff" * (len(em) - len(t) - 3) + b"\\x00" + t
+def objects(n):  # git cat-file --batch output: (id, type, bytes)
+    b = raw(n); i = 0; objs = []
+    while i < len(b):
+        j = b.index(b"\\n", i); oid, typ, size = b[i:j].decode().split(); size = int(size)
+        objs.append((oid, typ, b[j + 1:j + 1 + size])); i = j + 1 + size + 1
+    return objs
+def gitid(typ, body): return hashlib.sha1(b"%s %d\\x00" % (typ.encode(), len(body)) + body).hexdigest()
+def person(line):  # "Name <email> 1234567890 +0800"
+    m = re.match(r"(.*) <(.*)> (\\d+) ([+-]\\d{4})$", line)
+    return {"name": m.group(1), "email": m.group(2).lower(), "ts": int(m.group(3)), "tz": m.group(4)}
+def commit(body):
+    head, _, msg = body.decode("utf-8", "replace").partition("\\n\\n"); c = {"msg": msg, "sig": "", "signed": ""}
+    keep, sig, ins = [], [], False
+    for l in head.split("\\n"):
+        if l.startswith("gpgsig "): ins = True; sig.append(l[7:]); continue
+        if ins and l.startswith(" "): sig.append(l[1:]); continue
+        ins = False; keep.append(l)
+        k, _, v = l.partition(" ")
+        if k in ("author", "committer"): c[k] = person(v)
+    if sig: c["sig"] = "\\n".join(sig); c["signed"] = "\\n".join(keep) + "\\n\\n" + msg
+    return c
+
+# A. The history.
+ref = lambda n: dict(l.split("\\t")[::-1] for l in raw(n).decode().strip().split("\\n"))
+g, t = ref("item001.txt"), ref("item002.txt")
+p("A. The history (items 001-003)")
+p("   tag v5.6.1 on GitHub:        %s -> commit %s" % (g["refs/tags/v5.6.1"][:12], g["refs/tags/v5.6.1^{}"]))
+p("   tag v5.6.1 on git.tukaani.org: %s -> commit %s" % (t["refs/tags/v5.6.1"][:12], t["refs/tags/v5.6.1^{}"]))
+p("   the two hosts agree: " + ("YES" if g == t else "NO"))
+C = objects("item003.txt")
+p("   commits read: %d; ids recomputed from their bytes: %d match" % (len(C), sum(gitid(ty, b) == o for o, ty, b in C)))
+p("   newest commit is the tag's: " + ("YES" if g["refs/tags/v5.6.1^{}"] in [o for o, _, _ in C] else "NO"))
+cm = {o: commit(b) for o, _, b in C}
+
+# B. The identity. Start from one address the persona used, then see which names and addresses go with it.
+tags = {}
+for o, ty, b in objects("item004.txt"):
+    s = b.decode(); i = s.index("-----BEGIN PGP SIGNATURE-----")
+    tags[re.search(r"^tag (\\S+)", s, re.M).group(1)] = (person(re.search(r"^tagger (.*)$", s, re.M).group(1)), s[:i].encode(), signature(s[i:]))
+seed = tags["v5.6.1"][0]["email"]
+mine = lambda x: x["email"] == seed or x["email"].split("@")[0] == "jiat75"
+J = {o: c for o, c in cm.items() if mine(c["author"])}
+p(); p("B. The identity (items 003, 004)")
+p("   address on the v5.6.1 tag:   " + seed)
+p("   names written with that address: " + ", ".join("%s %d" % kv for kv in collections.Counter(c["author"]["name"] for c in cm.values() if c["author"]["email"] == seed).most_common()))
+p("   the name 'jiat75' leads to a second address, jiat75@gmail.com: %d commit(s)" % sum(c["author"]["email"] == "jiat75@gmail.com" for c in cm.values()))
+p("   commits authored, by the two addresses: %d" % len(J))
+p("   commits authored, by the exact name 'Jia Tan': %d" % sum(c["author"]["name"] == "Jia Tan" for c in cm.values()))
+
+# C. Author and committer.
+who = lambda c: "the same address" if mine(c["committer"]) else ("GitHub" if c["committer"]["email"] == "noreply@github.com" else "the maintainer" if c["committer"]["email"] == "lasse.collin@tukaani.org" else "someone else")
+p(); p("C. Author and committer (item003)")
+for k, v in collections.Counter(who(c) for c in J.values()).most_common(): p("   authored by the persona, committed by %s: %d" % (k, v))
+p("   committed by the persona, authored by someone else: %d (by %d different names)" % (
+  sum(mine(c["committer"]) and not mine(c["author"]) for c in cm.values()),
+  len(set(c["author"]["name"] for c in cm.values() if mine(c["committer"]) and not mine(c["author"])))))
+
+# D. The time zones.
+S = {o: c for o, c in J.items() if mine(c["committer"])}
+p(); p("D. The time zones (item003)")
+p("   persona's own commits (author and committer both the persona): %d" % len(S))
+for k, v in sorted(collections.Counter((c["author"]["tz"], c["committer"]["tz"]) for c in S.values()).items()): p("     author %s, committer %s: %d" % (k + (v,)))
+odd = [(o, c) for o, c in S.items() if c["author"]["tz"] != "+0800"]
+for o, c in odd: p("     the odd one: %s, author %s %s, committed %s later at %s" % (o[:8], utc(c["author"]["ts"]).strftime("%Y-%m-%d %H:%M UTC"), c["author"]["tz"], str(datetime.timedelta(seconds=c["committer"]["ts"] - c["author"]["ts"])), c["committer"]["tz"]))
+L = [c for c in J.values() if who(c) == "the maintainer"]
+p("   persona's commits that the maintainer committed: %d; committer offsets %s" % (len(L), ", ".join("%s %d" % kv for kv in sorted(collections.Counter(c["committer"]["tz"] for c in L).items()))))
+
+# E. The signatures.
+K = {"item006": keys(raw("item006.asc").decode()), "item007": keys(raw("item007.asc").decode()), "item008": keys(raw("item008.asc").decode())}
+p(); p("E. The signatures (items 004, 006-008)")
+for n, ks in K.items():
+    for k in ks: p("   %s key %s, created %s, user id: %s" % (n, k["fpr"], k["created"], (k["uids"] or ["(none)"])[0]))
+for name, (tg, data, s) in tags.items():
+    ok = [n for n, ks in K.items() for k in ks if k["fpr"] == s["fpr"] and verify(data, s, k)]
+    p("   %-7s tagger %-13s %s  signed by ...%s  verifies with: %s" % (name, tg["name"], tg["tz"], s["fpr"][-16:], ", ".join(ok) or "NONE"))
+by_key = collections.Counter(s["fpr"] for _, _, s in tags.values())
+p("   tags per key: " + ", ".join("...%s %d" % (f[-16:], n) for f, n in by_key.items()))
+tam = tags["v5.6.1"]; p("   v5.6.1 with one byte changed verifies: " + ("YES" if verify(tam[1].replace(b"5.6.1", b"5.6.2", 1), tam[2], K["item006"][0]) else "NO"))
+sj = {o: signature(c["sig"]) for o, c in J.items() if c["sig"]}
+p("   persona's commits signed: %d of %d" % (len(sj), len(J)))
+for o, s in sorted(sj.items(), key=lambda x: J[x[0]]["author"]["ts"]):
+    ok = [n for n, ks in K.items() for k in ks if k["fpr"].endswith(s["keyid"]) and verify(J[o]["signed"].encode(), s, k)]
+    p("     %s %s committer %s, key ...%s, verifies with: %s" % (o[:8], utc(J[o]["author"]["ts"]).strftime("%Y-%m-%d"), J[o]["committer"]["name"], s["keyid"], ", ".join(ok) or "NONE"))
+
+# F. The platform.
+p(); p("F. What GitHub says (items 009-011)")
+for n in ("item009.json", "item010.json"):
+    d = json.loads(raw(n)); v = d["commit"]["verification"]
+    p("   %s %s verified: %s (%s); author login: %s; committer login: %s" % (n, d["sha"][:8], v["verified"], v["reason"], (d.get("author") or {}).get("login"), (d.get("committer") or {}).get("login")))
+u = json.loads(raw("item011.json"))
+p("   account %s id %s, created %s" % (u["login"], u["id"], u["created_at"][:10]))
+
+# G. The release.
+tree = raw("item005.txt").decode().split("# git log")[0].split("\\n")[1:]
+touch = raw("item005.txt").decode().split("# git log")[1].split("\\n")[1:]
+f = flat(text("item012.html")); tk = flat(text("item013.html"))
+p(); p("G. The release (items 005, 012, 013)")
+p("   files at v5.6.1: %d; m4/build-to-host.m4 among them: %s" % (len([x for x in tree if x]), "YES" if "m4/build-to-host.m4" in tree else "NO"))
+p("   the two test files among them: %s" % ("YES" if {"tests/files/bad-3-corrupt_lzma2.xz", "tests/files/good-large_compressed.lzma"} <= set(tree) else "NO"))
+for o in [x for x in touch if x]:
+    c = cm[o]; p("     touched by %s, author %s, %s, signed: %s" % (o[:8], c["author"]["name"], utc(c["author"]["ts"]).strftime("%Y-%m-%d"), "YES" if c["sig"] else "NO"))
+for ph in ["solely in the distributed tarballs", "nor is build-to-host used by xz in git"]: p("   item012 '%s': %s" % (ph, "present" if ph in f else "ABSENT"))
+for ph in ["Tarballs created by Jia Tan were signed by him.", "GitHub just misattributed it to me.", "Only I have had access to the main tukaani.org website, git.tukaani.org repositories"]:
+    p("   item013 '%s': %s" % (ph, "present" if ph in tk else "ABSENT"))
+
+# H. The known answer.
+kb = open("kat_commit.txt", "rb").read(); kid = open("kat_id.txt").read().strip()
+p(); p("H. The known answer (made by this lab)")
+p("   scratch commit id: %s (this module's: 15d8076009863b54df39f09fe60ccb30f9155818) -> %s" % (kid, "SAME" if kid == "15d8076009863b54df39f09fe60ccb30f9155818" else "DIFFERENT"))
+p("   id recomputed from its bytes: " + ("SAME" if gitid("commit", kb) == kid else "DIFFERENT"))
+p("   author written: " + re.search(rb"^author (.*)$", kb, re.M).group(1).decode())
+p("   the same bytes with +0800 changed to +0200: id %s" % gitid("commit", kb.replace(b"+0800", b"+0200")))
+
+# I. The case (read in the module): the phrases it relies on, and GitHub's record of the two commits.
+p(); p("I. The case (items 014-017)")
+a, b = flat(text("item014.html")), flat(text("item015.html"))
+for n, t, ph in [("item014", a, "two malicious commits were pushed to the php-src repo [1] from the names of Rasmus Lerdorf and myself"),
+                 ("item015", b, "We no longer believe the git.php.net server has been compromised."),
+                 ("item015", b, "Any account with access to the php-src repository could have performed the push under a false name."),
+                 ("item015", b, "the commits were indeed pushed using HTTPS and password-based authentication")]:
+    p("   %s '%s': %s" % (n, ph, "present" if ph in t else "ABSENT"))
+for n in ("item016.json", "item017.json"):
+    d = json.loads(raw(n)); c = d["commit"]
+    p("   %s %s author name %s; verified: %s (%s); GitHub login shown: %s" % (n, d["sha"][:8], c["author"]["name"], c["verification"]["verified"], c["verification"]["reason"], (d.get("author") or {}).get("login")))
+pt = "".join(f.get("patch", "") for f in json.loads(raw("item016.json"))["files"])
+p("   item016 adds code that reads a request header 'HTTP_USER_AGENTT': %s; and passes it to zend_eval_string: %s" % (
+  "YES" if "+" in pt and "HTTP_USER_AGENTT" in pt else "NO", "YES" if "zend_eval_string" in pt else "NO"))
+
+# J. One timeline from all of the above (dates as each record states them).
+p(); p("J. Timeline (each date as its own record states it)")
+first = min(J.values(), key=lambda c: c["author"]["ts"])
+web = min((J[o] for o in sj), key=lambda c: c["author"]["ts"])
+T = [(u["created_at"][:10], "item011", "GitHub account JiaT75 created"),
+     (utc(first["author"]["ts"]).strftime("%Y-%m-%d"), "item003", "earliest author date on a persona commit in this history"),
+     (K["item006"][0]["created"], "item006", "signing key ...%s created" % K["item006"][0]["fpr"][-16:]),
+     (utc(web["author"]["ts"]).strftime("%Y-%m-%d"), "item003", "first persona commit signed by GitHub's web-flow key"),
+     (tags["v5.4.2"][2]["time"].strftime("%Y-%m-%d"), "item004", "first release tag signed with the persona's key (v5.4.2)"),
+     (utc(cm[[x for x in touch if x][-1]]["author"]["ts"]).strftime("%Y-%m-%d"), "item005", "the test files are added"),
+     (tags["v5.6.0"][2]["time"].strftime("%Y-%m-%d"), "item004", "v5.6.0 tagged and signed"),
+     (tags["v5.6.1"][2]["time"].strftime("%Y-%m-%d"), "item004", "v5.6.1 tagged and signed"),
+     ("2024-03-29", "item012", "the backdoor reported on oss-security (the post's own Date line)"),
+     (tags["v5.6.2"][2]["time"].strftime("%Y-%m-%d"), "item004", "v5.6.2 tagged by the maintainer, his own key")]
+for d, i, w in sorted(T): p("   %s  %s  %s" % (d, i, w))
+open("facts.txt", "w").write("\\n".join(out) + "\\n"); print("\\n".join(out))
+PY
+python3 repo_read.py || { echo "STOP: the reader failed - a file has changed its layout; read it by hand"; exit 1; }
+grep -qE 'ABSENT|: NONE$|agree: NO$|DIFFERENT$' facts.txt && echo "NOTE: a line above says ABSENT, NONE, NO or DIFFERENT - read it before you write the report"
+
+# 5. The report. Every finding carries one of S2.7's link tags and cites its items. The figures in it are
+#    typed by hand, so step 6 checks each one against facts.txt.
+cat > report.md <<'REPORT'
+# S4.2 XZ Utils up to 5.6.1: what the repository shows about "Jia Tan"
+
+Question: what does a public repository prove about who wrote its code, and when, and where?
+Analyst: analyst01. Sources: a partial clone and 17 evidence items (collection_log.tsv).
+
+## Findings
+
+F1 [STRONG] (item001, item002, item003) The history read here is the one the project publishes. GitHub and
+the maintainer's own server give the same ids for tag v5.6.1, and all 2330 commit ids were recomputed from
+their bytes. The maintainer says only he had access to git.tukaani.org (item013), so two hands serve one history.
+F2 [STRONG] (item004, item006) Seven release tags, v5.4.2 to v5.6.1, including both backdoored releases,
+carry signatures that verify with one key, ...59FCF207FEA7F445. Whoever held that key's private half
+signed all seven. A signature joins releases to a key, not to a person.
+F3 [ONE-WAY] (item003, item004, item006) The name "Jia Tan" and the address jiat0218@gmail.com appear
+in 452 commits, on the tags and in the key's user id. Each was typed by the hand that made the record:
+together they show one consistent persona. None of them identifies a person.
+F4 [STRONG] (item003, item008, item009) 5 of the persona's 453 commits are signed with GitHub's web-flow key
+and verify here. GitHub signs commits made in its web interface, so GitHub vouches that the account
+JiaT75 made these five on github.com.
+F5 [LEAD] (item003, item010) The other commits are unsigned, including cf44e4b7, which added the two
+test files. GitHub shows them under JiaT75 because their author address matches the account (item010:
+verified False, unsigned). Anyone can write that address into a commit (H, and the 2021 PHP case).
+F6 [LEAD] (item003) The persona's own 410 commits all give +0800 as the committer's zone, and 409 give it
+as the author's. One, 3d1fdddf, has an author date at +0300. An offset is the setting of the clock on the
+machine that wrote the commit: it is a lead about that machine, not a location.
+F7 [CONTEXT] (item003) 38 of the persona's commits were committed by the maintainer. Their committer
+offsets (+0200 or +0300) are his, not the persona's: read the author and committer fields separately.
+F8 [ONE-WAY] (item005, item012) The backdoor's trigger is not in the repository. There is no
+m4/build-to-host.m4 at v5.6.1; the oss-security report says that part was solely in the distributed
+tarballs. The test files it used are in the repository, added by unsigned persona commits.
+F9 [CONTEXT] (kat_commit.txt) git wrote "Ada Example" at a 2005 date and +0800 into a commit on this Mac, and
+gave it the id 15d8076009863b54df39f09fe60ccb30f9155818: the same id as on every other computer. Nothing
+checked any of the three.
+
+## Assessment
+
+Likely: one key holder signed the seven releases (F2), and the account JiaT75 was used on github.com (F4).
+Confidence: high that these are one persona's records; none that they identify a person or a place.
+Rejected: "the commits show that Jia Tan worked in UTC+8" (F6: an offset is a clock setting; see Drill 3).
+Still open: who held the key and the account; whether one person or several used them; the release
+tarballs' own signatures (out of scope: do not download 5.6.0 or 5.6.1).
+REPORT
+
+# 6. Check the report: every finding tagged and cited, and every hand-typed figure found in facts.txt.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+R=report.md; bad=0
+[ -s facts.txt ] && [ -s "$R" ] || { echo "UNKNOWN: facts.txt or report.md is missing"; exit 2; }
+n=$(grep -cE '^F[0-9]+ \\[(STRONG|ONE-WAY|LEAD|CONTEXT)\\] \\((item[0-9]{3}|kat_commit)' "$R")
+[ "$n" -eq "$(grep -cE '^F[0-9]+ ' "$R")" ] || { echo "FAIL a finding has no tag or no item"; bad=$((bad + 1)); }
+# A name, an address or a time zone is written by whoever makes the record. None of them makes a STRONG link (S4.2).
+grep -E '^F[0-9]+ \\[STRONG\\]' "$R" | grep -qiE 'zone|offset|user id' && { echo "FAIL a STRONG finding rests on a self-written field"; bad=$((bad + 1)); }
+grep -q '^Rejected:' "$R" || { echo "FAIL the report does not name what it rejects"; bad=$((bad + 1)); }
+grep -q '^Still open:' "$R" || { echo "FAIL the report does not say what is still open"; bad=$((bad + 1)); }
+agree() { grep -qF -- "$2" facts.txt || { echo "$1 FAIL the report's figure is not in facts.txt: $2"; bad=$((bad + 1)); }; }
+agree F1 "the two hosts agree: YES"
+agree F1 "commits read: 2330; ids recomputed from their bytes: 2330 match"
+agree F1 "Only I have had access to the main tukaani.org website, git.tukaani.org repositories': present"
+agree F2 "tags per key: ...38EE757D69184620 3, ...59FCF207FEA7F445 7"
+agree F2 "v5.6.1  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006"
+agree F2 "v5.6.0  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006"
+agree F3 "names written with that address: Jia Tan 449, jiat75 2, Jia Cheong Tan 1"
+agree F3 "user id: Jia Tan <jiat0218@gmail.com>"
+agree F4 "persona's commits signed: 5 of 453"
+agree F4 "item009.json 62efd48a verified: True (valid); author login: JiaT75; committer login: web-flow"
+agree F5 "item010.json cf44e4b7 verified: False (unsigned); author login: JiaT75"
+agree F5 "touched by cf44e4b7, author Jia Tan, 2024-02-23, signed: NO"
+agree F6 "persona's own commits (author and committer both the persona): 410"
+agree F6 "author +0800, committer +0800: 409"
+agree F6 "the odd one: 3d1fdddf"
+agree F7 "persona's commits that the maintainer committed: 38"
+agree F8 "m4/build-to-host.m4 among them: NO"
+agree F8 "item012 'solely in the distributed tarballs': present"
+agree F9 "-> SAME"
+agree F9 "author written: Ada Example <ada@example.org> 1112883193 +0800"
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n tagged findings, every figure in facts.txt)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 7. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv kat_commit.txt kat_id.txt repo_read.py facts.txt report.md check_report.sh evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H 'Content-Type: application/timestamp-query' \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null ||
+  { echo "STOP: the timestamp did not verify - a TSA can refuse with HTTP 200 (Status: Rejected); rerun this step"; exit 1; }
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It reads the history with git, checks the signatures in python3, seals with
+# openssl, and checks its own report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3 git
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_2 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in keep(), inside the check_report.sh heredoc, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl, git (2.32 or later, for GIT_CONFIG_GLOBAL) and python3 3.9 or later
+# (the lab was run with Apple's git 2.54 and python 3.9, and with git 2.55 and python 3.11). On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3 git
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+item001.txt 2026-10-01T10:37:10Z 2d7ba4efe310
+item002.txt 2026-10-01T10:37:11Z 2d7ba4efe310
+item003.txt 2026-10-01T10:37:18Z 1977a5ba2a13
+item004.txt 2026-10-01T10:37:18Z f2cdce53686c
+item005.txt 2026-10-01T10:37:18Z 509db804deb9
+item006.asc 2026-10-01T10:37:19Z c982957c0b95
+item007.asc 2026-10-01T10:37:20Z 21f39c58c447
+item008.asc 2026-10-01T10:37:21Z 6e8af687f60c
+item009.json 2026-10-01T10:37:22Z 535e69f24d3a
+item010.json 2026-10-01T10:37:23Z 10b8bf73d9e6
+item011.json 2026-10-01T10:37:24Z a3c4879d7934
+item012.html 2026-10-01T10:37:25Z 1a117fd0cac8
+item013.html 2026-10-01T10:37:26Z 778df86bfd76
+item014.html 2026-10-01T10:37:27Z f1906b9c01fa
+item015.html 2026-10-01T10:37:28Z 8c989c2f9cbe
+item016.json 2026-10-01T10:37:29Z 4dc3c8a89681
+item017.json 2026-10-01T10:37:30Z 65ad81382ebb
+\`\`\`
+
+The collection log: your times will differ, and every line must end in a hash, never \`FAILED\`. While this module was written, all 17 hashes were the same on every run, and items 001 to 005 should match yours exactly: they are made from the repository's history, which the ids pin. If item003 or item004 differs, the history you cloned is not the one this module read, and section A will say so. The others are pages and API answers that can change without any change in what they say: item011 carries the account's follower count, the keys collect new signatures, and pages get edited.
+
+\`\`\`text
+A. The history (items 001-003)
+   tag v5.6.1 on GitHub:        1b7a78738112 -> commit fd1b975b7851e081ed6e5cf63df946cd5cbdbb94
+   tag v5.6.1 on git.tukaani.org: 1b7a78738112 -> commit fd1b975b7851e081ed6e5cf63df946cd5cbdbb94
+   the two hosts agree: YES
+   commits read: 2330; ids recomputed from their bytes: 2330 match
+   newest commit is the tag's: YES
+
+B. The identity (items 003, 004)
+   address on the v5.6.1 tag:   jiat0218@gmail.com
+   names written with that address: Jia Tan 449, jiat75 2, Jia Cheong Tan 1
+   the name 'jiat75' leads to a second address, jiat75@gmail.com: 1 commit(s)
+   commits authored, by the two addresses: 453
+   commits authored, by the exact name 'Jia Tan': 450
+
+C. Author and committer (item003)
+   authored by the persona, committed by the same address: 410
+   authored by the persona, committed by the maintainer: 38
+   authored by the persona, committed by GitHub: 5
+   committed by the persona, authored by someone else: 34 (by 6 different names)
+
+D. The time zones (item003)
+   persona's own commits (author and committer both the persona): 410
+     author +0300, committer +0800: 1
+     author +0800, committer +0800: 409
+     the odd one: 3d1fdddf, author 2023-06-27 14:27 UTC +0300, committed 1:28:57 later at +0800
+   persona's commits that the maintainer committed: 38; committer offsets +0200 19, +0300 19
+
+E. The signatures (items 004, 006-008)
+   item006 key 22D465F2B4C173803B20C6DE59FCF207FEA7F445, created 2022-12-28, user id: Jia Tan <jiat0218@gmail.com>
+   item007 key 3690C240CE51B4670D30AD1C38EE757D69184620, created 2010-10-24, user id: Lasse Collin <lasse.collin@tukaani.org>
+   item008 key 5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23, created 2017-08-16, user id: GitHub (web-flow commit signing) <noreply@github.com>
+   item008 key 968479A1AFF927E37D1A566BB5690EEEBB952194, created 2024-01-16, user id: GitHub <noreply@github.com>
+   v5.4.0  tagger Lasse Collin  +0200  signed by ...38EE757D69184620  verifies with: item007
+   v5.4.1  tagger Lasse Collin  +0200  signed by ...38EE757D69184620  verifies with: item007
+   v5.4.2  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.4.3  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.4.4  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.4.5  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.4.6  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.6.0  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.6.1  tagger Jia Tan       +0800  signed by ...59FCF207FEA7F445  verifies with: item006
+   v5.6.2  tagger Lasse Collin  +0300  signed by ...38EE757D69184620  verifies with: item007
+   tags per key: ...38EE757D69184620 3, ...59FCF207FEA7F445 7
+   v5.6.1 with one byte changed verifies: NO
+   persona's commits signed: 5 of 453
+     bb740e3b 2023-01-02 committer GitHub, key ...4AEE18F83AFDEB23, verifies with: item008
+     52380678 2023-01-04 committer GitHub, key ...4AEE18F83AFDEB23, verifies with: item008
+     6fd39664 2023-01-06 committer GitHub, key ...4AEE18F83AFDEB23, verifies with: item008
+     d1561c47 2023-01-11 committer GitHub, key ...4AEE18F83AFDEB23, verifies with: item008
+     62efd48a 2023-01-11 committer GitHub, key ...4AEE18F83AFDEB23, verifies with: item008
+
+F. What GitHub says (items 009-011)
+   item009.json 62efd48a verified: True (valid); author login: JiaT75; committer login: web-flow
+   item010.json cf44e4b7 verified: False (unsigned); author login: JiaT75; committer login: JiaT75
+   account JiaT75 id 78042786, created 2021-01-26
+
+G. The release (items 005, 012, 013)
+   files at v5.6.1: 510; m4/build-to-host.m4 among them: NO
+   the two test files among them: YES
+     touched by 74b138d2, author Jia Tan, 2024-03-09, signed: NO
+     touched by cf44e4b7, author Jia Tan, 2024-02-23, signed: NO
+   item012 'solely in the distributed tarballs': present
+   item012 'nor is build-to-host used by xz in git': present
+   item013 'Tarballs created by Jia Tan were signed by him.': present
+   item013 'GitHub just misattributed it to me.': present
+   item013 'Only I have had access to the main tukaani.org website, git.tukaani.org repositories': present
+
+H. The known answer (made by this lab)
+   scratch commit id: 15d8076009863b54df39f09fe60ccb30f9155818 (this module's: 15d8076009863b54df39f09fe60ccb30f9155818) -> SAME
+   id recomputed from its bytes: SAME
+   author written: Ada Example <ada@example.org> 1112883193 +0800
+   the same bytes with +0800 changed to +0200: id fa6eedd7a2eb4f0337dc8a6ee543a3782e6e9833
+
+I. The case (items 014-017)
+   item014 'two malicious commits were pushed to the php-src repo [1] from the names of Rasmus Lerdorf and myself': present
+   item015 'We no longer believe the git.php.net server has been compromised.': present
+   item015 'Any account with access to the php-src repository could have performed the push under a false name.': present
+   item015 'the commits were indeed pushed using HTTPS and password-based authentication': present
+   item016.json c730aa26 author name Rasmus Lerdorf; verified: False (unsigned); GitHub login shown: rlerdorf
+   item017.json 2b0f239b author name Nikita Popov; verified: False (unsigned); GitHub login shown: nikic
+   item016 adds code that reads a request header 'HTTP_USER_AGENTT': YES; and passes it to zend_eval_string: YES
+
+J. Timeline (each date as its own record states it)
+   2021-01-26  item011  GitHub account JiaT75 created
+   2022-01-28  item003  earliest author date on a persona commit in this history
+   2022-12-28  item006  signing key ...59FCF207FEA7F445 created
+   2023-01-02  item003  first persona commit signed by GitHub's web-flow key
+   2023-03-18  item004  first release tag signed with the persona's key (v5.4.2)
+   2024-02-23  item005  the test files are added
+   2024-02-24  item004  v5.6.0 tagged and signed
+   2024-03-09  item004  v5.6.1 tagged and signed
+   2024-03-29  item012  the backdoor reported on oss-security (the post's own Date line)
+   2024-05-29  item004  v5.6.2 tagged by the maintainer, his own key
+report check: PASS (9 tagged findings, every figure in facts.txt)
+\`\`\`
+
+What to compare:
+
+- **A.** Both hosts must give tag \`1b7a78738112\` and commit \`fd1b975b…\`, and all 2330 ids must match their bytes.
+- **B and C.** Your counts must be the same: they come from a fixed history. 453 commits by the two addresses, 450 by the exact name.
+- **D.** 410 own commits, 409 at \`+0800\` both ways, and the one at \`+0300\`.
+- **E.** Ten tags, each verifying with exactly one key: three with item007, seven with item006. The changed copy of v5.6.1 must say \`NO\`. Five signed commits, all verifying with item008. If a line says \`NONE\`, a key file has changed: compare its fingerprint with the line above it.
+- **F.** If GitHub ever changes its answer for the two commits, the report check fails on F4 or F5. Read item009 or item010 and update the report.
+- **G.** \`NO\` for \`m4/build-to-host.m4\` is the expected answer: the file is not in git. Every phrase must be \`present\`.
+- **H.** The scratch commit's id must be \`SAME\`. If it is not, something in your git changed the bytes: compare \`kat_commit.txt\` with these five lines, which are the whole commit:
+
+\`\`\`text
+tree 7d4a466af82cd6857c85c0296d5c23fc68cba887
+author Ada Example <ada@example.org> 1112883193 +0800
+committer Ada Example <ada@example.org> 1112883193 +0800
+
+First commit
+\`\`\`
+
+- **I.** Every phrase \`present\`, both commits \`unsigned\`, and both \`YES\`.
+
+\`\`\`text
+Verification: OK
+Time stamp: Oct  1 10:37:32 2026 GMT
+sealed files: 25
+25
+\`\`\`
+
+The seal lists 25 files: the scope, the log, the scratch commit and its id, the reader, the facts, the report, its check script, and 17 evidence items. The timestamp line shows your own run's time. If the lab stops with "the timestamp did not verify", the TSA refused this request: run step 7 again.`
+      }
+    },
+    caseStudy: {
+      title: "2021: two commits in other men's names — PHP's git server, a password database and three readings",
+      body: `On 28 March 2021 two commits arrived in php-src, the source code of the PHP language, one under the name of PHP's creator, Rasmus Lerdorf, and one under the name of a core developer, Nikita Popov. Neither man had written them. The case is told in two messages by Nikita Popov (lab items 014 and 015), and GitHub still holds both commits (items 016 and 017).
+
+**What the commits did.** The first changed one file, \`ext/zlib/zlib.c\`. It added code that looked for a request header named \`User-Agentt\` (two t's). If the header contained the word "zerodium", PHP would run the rest of it as code: a backdoor into any web server running that build. Its message was "[skip-ci] Fix typo", with a "Signed-off-by: Rasmus Lerdorf" line. The second, under Nikita Popov's name, put the same change back after it was reverted. The code also carries a string naming a company. Like the author line, that is the writer's statement. It is not evidence about the company named.
+
+**What the author field proved.** Nothing about Rasmus Lerdorf or Nikita Popov. git writes whatever name it is given (the lab's step 3), and "Signed-off-by" is a line of text. On GitHub today, both commits are unsigned (\`verified: False\`, reason \`unsigned\`), and GitHub still shows them under the accounts \`rlerdorf\` and \`nikic\`, because the addresses match. That is GitHub repeating the author field, five years on.
+
+**The first reading, and why it was wrong.** Nikita Popov's first reaction, he wrote later, was "to revert the change and revoke commit access for Rasmus' account, on the assumption that this was an individual account compromise". He then saw that "this action didn't really make sense": "Any account with access to the php-src repository could have performed the push under a false name." The name on a commit is not the account that pushed it.
+
+**The second reading, also revised.** He then looked at the logs of the server's SSH push system (gitolite), which records which account pushed. There were "no git-receive-pack entries for the two malicious commits". The commits had bypassed it, and this "was interpreted as likely evidence of a server compromise". The first message (28 March) said so: "everything points towards a compromise of the git.php.net server". PHP moved its code to GitHub, which until then had been a mirror, and required two-factor authentication for its members.
+
+**What the records finally showed.** The server also accepted pushes over HTTPS, with passwords checked against the php.net user database. Its web logs showed that "the commits were indeed pushed using HTTPS and password-based authentication". They also showed the pusher trying a few usernames for each man (\`rasmus@…\`, then \`rasmus\`; \`nikita.ppv\`, \`nikitappv\`, \`nikita\`, then \`nikic\`) and getting in at the right one. The update of 6 April said: "We no longer believe the git.php.net server has been compromised. However, it is possible that the master.php.net user database leaked." The passwords had been stored as "essentially a plain md5 hash". All were reset, and the new system stores them with bcrypt.
+
+**Tag each record with S2.7's strengths:**
+
+| Record | Tag | What it shows |
+|---|---|---|
+| The author name on the two commits | **ONE-WAY** | The pusher's choice of name: nothing about the man named |
+| GitHub's \`rlerdorf\` and \`nikic\` on the commits | **LEAD** | An address match; it repeats the author field |
+| The web server's log: user \`rasmus\` authenticated, then pushed | **STRONG** for the account | The server's own record of which credentials were used. It shows that Rasmus Lerdorf's account was used, not that he used it |
+| The missing gitolite entries | **CONTEXT** | True, and first read as a server compromise. It meant the push came another way |
+| "The user database may have leaked" | Still open | The project's own words: "possible", with no specific evidence |
+
+**The lesson for this module.** Three records each looked like an answer: the name, the platform's account link and the missing log entry. The name pointed at a victim, and the log, read first, pointed at the server. The record that answered the question was the one written by the system that checked a credential, and even that names an account, not a person. Like the lab's persona, the PHP pusher is known by what the records allow: one set of credentials, used twice, over HTTPS.`
+    },
+    challenges: [{
+      q: `A colleague's draft says: "The XZ backdoor was written by a Chinese developer: the commits are in UTC+8 and the name is Chinese." You are asked to review it before it goes out. What do you check, and what do you write instead?`,
+      a: `**Every part of that sentence rests on a field the persona typed.**
+
+1. **The name.** "Jia Tan" is in the author field, the tagger field and the key's user id. All three are written by whoever makes the record (lab F3: ONE-WAY). A name is not a nationality, and a chosen name is not even a name.
+2. **The zone.** \`+0800\` is the setting of a clock (theory, "Time zones are clock settings"). 409 of the persona's 410 own commits carry it; one carries \`+0300\`.
+3. **The hours.** Drill 3: in the stated zone, 4% of those commits fall in a weekday office day, and the busiest hour is 20:00. In UTC, 82% do. The hours fit several zones west of UTC+8 better than UTC+8 itself, and they cannot pick one.
+4. **What is actually strong.** Seven release tags verify with one key; five commits verify with GitHub's web-flow key for the account JiaT75. Those join the releases to a key holder and an account, not to a person or a country.
+
+What you write: "The releases were signed with a key, and the commits made under a persona, called Jia Tan. The commits state the time zone UTC+8, but their timing fits several European and African zones better. Nothing in the repository identifies the person or people behind the persona, or where they were." Then list the hypotheses, as Drill 3 does, and say none is established.`
+    }, {
+      q: `A developer messages you: "Someone pushed a commit to our project under my name. GitHub shows it on my profile, with my picture. How do I prove it wasn't me?" What do you tell them, and what records do you ask for?`,
+      a: `**The name and the picture prove nothing either way. Look for the records that someone other than the pusher wrote.**
+
+- **The commit itself.** Is it signed? If they sign their own commits, an unsigned commit under their name stands out, and so does a signature that does not verify with their key. If they turn on vigilant mode, GitHub marks unsigned commits that name them as committer "Unverified".
+- **Why GitHub shows it on their profile.** GitHub "links a commit to a user by matching the email address in the commit header". Anyone can type that address (lab step 3, Drill 1). The picture comes from the account link, not from the commit.
+- **Who pushed it.** The commit does not record the push. The hosting side may: the pull request that merged it, or the host's own logs, which the repository's owners may be able to read. On a self-hosted server, that is its access logs. The PHP case is the model: the server's log showed which credentials were used, over which protocol.
+- **Their own account.** Recent sign-ins, tokens and SSH keys. If their credentials were used, as PHP's were, that is an account compromise, and the fix is new credentials, not an argument about the commit.
+
+What you tell them: "The author line is typed by whoever makes the commit, so it cannot show who that was, and it cannot clear you either. Ask the repository's owners for the push record, check your own account's sign-ins and keys, and start signing your commits."`
+    }, {
+      q: `During an investigation you clone a company's public repository and notice, in a commit from two years ago, what looks like a live cloud access key that was later deleted from the file. Your manager suggests "just checking whether it still works". What do you do?`,
+      a: `**No. Testing it is using someone else's credentials.**
+
+1. **Do not use, test, copy or share it.** Logging in with a found key is access without permission, whatever the reason (S1.1). Whether it "still works" is the owner's question, not yours.
+2. **Record only where it is**: the repository, the commit id, the file name and the line number. Not the key itself. The commit id pins the exact bytes, so the owner can find it again.
+3. **Report it privately**, to the company's security contact (a \`security.txt\` file or a published address), or through GitHub's private vulnerability reporting if the repository has it enabled. Say where it is, not what it is.
+4. **Say what they must do first.** GitHub's guidance to owners: "as a first step you need to revoke and/or rotate that secret". Deleting it from the file did not remove it, as Drill 2 showed, and anyone who cloned the repository in two years may have it.
+5. **Write it in your log** as out of scope and reported, with the date. Your scope (lab step 1) already excludes "any secret in any repository".
+
+What you tell your manager: "It is in every clone of their history, so we assume it is known. Using it would be unauthorised access. I've reported it to their security contact, with the commit id and file, and noted it in the case log."`
+    }],
+    quiz: ["Name the six parts of a commit in this module's table. Which of them does git check, and which does it simply write?", "What does a commit id prove, and what does it not? Why does one id pin the whole history behind it?", "The lab asks GitHub and git.tukaani.org for tag v5.6.1. Why does it matter that the maintainer says only he had access to git.tukaani.org?", "Give Pro Git's definitions of author and committer. Why are 38 of the persona's commits dated +0200 or +0300 on the committer line?", "What is the time zone on a commit, technically? Name three things other than location that can set it.", "In the lab's step 3, git writes a commit by \"Ada Example\" in 2005. Why does every learner get the same id, and what does that known answer show?", "What does a verified signature on a release tag prove? Which seven tags verify with key ...59FCF207FEA7F445, and what joins that key to a person?", "Who writes the user id on an OpenPGP key? What does keys.openpgp.org do before it publishes one, and where did the lab get the persona's key?", "How does GitHub decide which account to show on a commit? What did it show on the unsigned commit that added the backdoor's test files, and what is that worth?", "What is a web-flow signature? What does it prove about the five signed commits, and what does it still not prove?", "What does GitHub show for an unsigned commit by default, and what changes when the committer turns on vigilant mode?", "The maintainer's page says GitHub closed the project's pull requests in April 2024 and showed them as closed by him. What does that teach about a platform's statements?", "Where was the backdoor's trigger, according to the report that found it? What did the lab check in the repository, and what is the general lesson?", "In Drill 1, git accepted a commit written in 2099 and committed in 1999. What does git fsck check, and what is a \"Signed-off-by\" line?", "In Drill 2, why did a search of the latest version miss the token? What must the owner do first, and what must you do if you find a real secret?", "In Drill 3, which zones do the persona's working hours fit, and why is the result a LEAD and not a location? Name three hypotheses.", "In the PHP case, why did revoking Rasmus Lerdorf's account not make sense, and which record finally showed how the commits were pushed?", "Tag the PHP case's records with S2.7's strengths. Why is the server's log STRONG for the account and not for the person?"],
+    workbench: `> **What this trains.** The lab read one repository's history and checked its signatures. Here you write a commit whose every field is false, find a secret that a later commit "removed", and test what the persona's working hours can and cannot tell you.
+
+#### 🟢 Drill 1 — every field is typed ~2 min
+
+**Goal.** Make one commit whose author, committer, dates, zones and "Signed-off-by" line are all different people and impossible times, and see what git says about it.
+
+**Done when.** You can list what git checks in a commit, and what it does not.
+
+<details><summary>Walkthrough</summary>
+
+Nothing here touches the network. The names are invented, on purpose: never forge a real person's identity, even in a scratch repository.
+
+\`\`\`bash
+cd ~/scouts-case/s4_2 && mkdir -p drill1 && cd drill1 && rm -rf demo || exit 1
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git init -q --object-format=sha1 --template= demo && cd demo || exit 1
+printf 'one\\n' > notes.txt && git add notes.txt
+GIT_AUTHOR_NAME="Bob Example" GIT_AUTHOR_EMAIL=bob@example.org GIT_AUTHOR_DATE="2099-12-31T23:59:59+1400" \\
+GIT_COMMITTER_NAME="Carol Example" GIT_COMMITTER_EMAIL=carol@example.org GIT_COMMITTER_DATE="1999-01-01T00:00:00-1200" \\
+  git commit -q -m "Fix typo" -m "Signed-off-by: Ada Example <ada@example.org>" || exit 1
+git log -1 --format='author:     %an <%ae> %ad%ncommitter:  %cn <%ce> %cd%ntrailers:   %(trailers:only,unfold)' --date=iso-strict
+git cat-file commit HEAD | head -4
+echo "fsck: $(git fsck --strict 2>&1 | head -3 | tr '\\n' ' ')"
+echo "commit id: $(git rev-parse HEAD)"
+\`\`\`
+
+It printed:
+
+\`\`\`text
+author:     Bob Example <bob@example.org> 2099-12-31T23:59:59+14:00
+committer:  Carol Example <carol@example.org> 1999-01-01T00:00:00-12:00
+trailers:   Signed-off-by: Ada Example <ada@example.org>
+
+tree 8faeb6afb911db3b97ef512d15f9bfe42ac16ce2
+author Bob Example <bob@example.org> 4102394399 +1400
+committer Carol Example <carol@example.org> 915192000 -1200
+
+fsck: 
+commit id: 886d95ecd33ccbc9fdf4239eb1431d66e787e326
+\`\`\`
+
+- **git accepted all of it.** A change written in 2099 was committed in 1999, by a second person, and "signed off" by a third. \`git fsck --strict\`, git's own consistency check, printed nothing: the commit is well formed.
+- **What git checks** is structure: that the tree and parent ids exist and match their content, and that the id matches the bytes. Your commit id is the same as the one above, on any computer, because every byte is.
+- **"Signed-off-by" is text.** git's manual: "The meaning of a signoff depends on the project to which you're committing", for example a statement that the committer may submit the work. The PHP case's forged commit carried one. It is a statement in the message, not a signature. Only a cryptographic signature (the lab's section E) proves who held a key.
+- **The zone is a number you type.** \`+1400\` is the furthest ahead of UTC that any place keeps (Kiritimati, in Kiribati), and \`-1200\` the furthest behind in the time-zone database. Both were set here without leaving the chair.
+
+</details>
+
+#### 🟡 Drill 2 — a secret that was "removed" ~2 min
+
+**Goal.** Commit a fake token, replace it in the next commit, and find it again.
+
+**Done when.** You can say why deleting a secret from a file does not remove it, what an owner must do first, and what you must do if you find one.
+
+<details><summary>Walkthrough</summary>
+
+The token is fake and says so. Never paste a real one, even into a scratch repository.
+
+\`\`\`bash
+cd ~/scouts-case/s4_2 && mkdir -p drill2 && cd drill2 && rm -rf demo || exit 1
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git init -q --object-format=sha1 --template= demo && cd demo || exit 1
+c() { GIT_AUTHOR_NAME="Ada Example" GIT_AUTHOR_EMAIL=ada@example.org GIT_AUTHOR_DATE="2026-01-0$2T12:00:00+0000" \\
+      GIT_COMMITTER_NAME="Ada Example" GIT_COMMITTER_DATE="2026-01-0$2T12:00:00+0000" \\
+      GIT_COMMITTER_EMAIL=ada@example.org git commit -q -m "$1"; }
+printf 'url=https://api.example.org\\ntoken=scouts-demo-0000-not-a-real-secret\\n' > settings.conf
+git add settings.conf && c "Add settings" 1
+printf 'url=https://api.example.org\\ntoken=\${API_TOKEN}\\n' > settings.conf
+git add settings.conf && c "Read the token from the environment" 2
+echo "1. the file today:";            cat settings.conf
+echo "2. search the latest version:"; git grep -n 'scouts-demo' HEAD || echo "   (nothing)"
+echo "3. search every version:";      git grep -n 'scouts-demo' $(git rev-list --all)
+echo "4. the commit that added it:";  git log -S'scouts-demo' --format='   %h %s' --reverse | head -1
+echo "5. the commit that removed it:"; git log -S'scouts-demo' --format='   %h %s' | head -1
+\`\`\`
+
+It printed:
+
+\`\`\`text
+1. the file today:
+url=https://api.example.org
+token=\${API_TOKEN}
+2. search the latest version:
+   (nothing)
+3. search every version:
+3c88f6bfc156216d200067d777aed96a4e600c40:settings.conf:2:token=scouts-demo-0000-not-a-real-secret
+4. the commit that added it:
+   3c88f6b Add settings
+5. the commit that removed it:
+   2d55eb6 Read the token from the environment
+\`\`\`
+
+- **The file is clean; the repository is not.** A search of the latest version finds nothing. A search of every version finds the token in the first commit. Anyone who clones the repository gets that commit too.
+- **\`git log -S\`** finds the commits where the number of times a string appears changes: the one that added it and the one that removed it.
+- **The owner's first step is the secret, not the history.** GitHub: "as a first step you need to revoke and/or rotate that secret". A secret that was ever pushed to a public repository must be treated as known.
+- **Your step, if you find a real one, is a report.** Do not use it, test it, copy it or share it. Record the repository, the commit id and the file name, and report privately to the owner (theory, "Secrets in history").
+
+</details>
+
+#### 🔴 Drill 3 — where was the clock? ~1 min
+
+**Goal.** The persona's commits say \`+0800\`. Set the instants of the persona's own commits against four zones' working days, and decide what the result is worth.
+
+**Done when.** You can say which zones the hours fit, why that is a LEAD and not a location, and what else would explain it.
+
+<details><summary>Walkthrough</summary>
+
+This reads the lab's item003. Nothing touches the network.
+
+\`\`\`bash
+cd ~/scouts-case/s4_2 || exit 1
+python3 - <<'PY'
+import re, datetime, collections
+from zoneinfo import ZoneInfo
+b = open("evidence/item003.txt", "rb").read().decode("utf-8", "replace")
+own = [int(a) for a, c in re.findall(r"^author .*<(?:jiat0218|jiat75)@gmail\\.com> (\\d+) [+-]\\d{4}\\ncommitter .*<(\\S+)> \\d+ [+-]\\d{4}$", b, re.M)
+       if c.lower() in ("jiat0218@gmail.com", "jiat75@gmail.com")]
+print("persona's own commits:", len(own), "| author offsets:", dict(collections.Counter(re.findall(r"^author .*<(?:jiat0218|jiat75)@gmail\\.com> \\d+ ([+-]\\d{4})\\ncommitter .*<(?:jiat0218|jiat75)@gmail\\.com>", b, re.M))))
+for name, z in [("UTC+8, as the commits say", datetime.timezone(datetime.timedelta(hours=8))),
+                ("UTC", datetime.timezone.utc),
+                ("CET (UTC+1, +2 in summer)", ZoneInfo("CET")),
+                ("EET (UTC+2, +3 in summer)", ZoneInfo("EET"))]:
+    t = [datetime.datetime.fromtimestamp(x, z) for x in own]
+    office = sum(9 <= d.hour < 18 and d.weekday() < 5 for d in t); night = sum(d.hour < 6 for d in t)
+    wkend = sum(d.weekday() >= 5 for d in t); peak = collections.Counter(d.hour for d in t).most_common(3)
+    print("%-26s weekday 09-18h: %3d (%2d%%) | 00-06h: %3d | Sat/Sun: %2d | busiest: %s" % (
+        name, office, round(100 * office / len(t)), night, wkend, ", ".join("%02dh %d" % h for h in peak)))
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+persona's own commits: 410 | author offsets: {'+0800': 409, '+0300': 1}
+UTC+8, as the commits say  weekday 09-18h:  15 ( 4%) | 00-06h:  68 | Sat/Sun: 68 | busiest: 20h 109, 21h 65, 23h 58
+UTC                        weekday 09-18h: 336 (82%) | 00-06h:  21 | Sat/Sun: 60 | busiest: 12h 109, 13h 65, 15h 58
+CET (UTC+1, +2 in summer)  weekday 09-18h: 314 (77%) | 00-06h:  19 | Sat/Sun: 60 | busiest: 14h 103, 16h 68, 13h 59
+EET (UTC+2, +3 in summer)  weekday 09-18h: 268 (65%) | 00-06h:  16 | Sat/Sun: 60 | busiest: 15h 103, 17h 68, 14h 59
+\`\`\`
+
+- **The stated zone and the hours disagree.** At \`+0800\`, 4% of the commits fall in a weekday office day, the busiest hour is 20:00, and 68 fall between midnight and 06:00. That pattern is possible, but unusual.
+- **The hours fit more than one zone.** UTC fits best by this measure, then Central and Eastern European time. A nine-hour window cannot pick one zone, and "office hours" is itself an assumption. An analyst who already believes in one zone will find it here.
+- **The one \`+0300\` commit adds a little.** In June, +0300 is Eastern European summer time, and the year-round offset of several other zones. One commit cannot choose among them.
+- **Write the alternatives, not a place.** H1: one person in UTC+8 who works evenings and nights. H2: one or more people working days a few hours west of UTC+8, with the clock set to +0800. H3: commit times chosen or scheduled on purpose. The data weigh against H1 and do not separate H2 from H3 (S3.1's competing hypotheses). Tag the result **LEAD**, as the report's F6 does.
+- **Why the instant is better evidence than the offset.** The offset is one setting, changed once. The instants are 410 separate events over nineteen months, and keeping them consistent with a false story takes effort. Effort is not proof, though: they can be scheduled.
+
+</details>`,
+    tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Recomputed every commit id and matched one tag on two independent hosts", "Verified ten release signatures and five commit signatures myself, and said what each joins", "Read author and committer separately, and wrote the time zones up as a LEAD", "Did Drills 1 and 2: wrote a commit with every field invented, and found a \"removed\" secret in history", "Did Drill 3: tested the persona's hours against four zones and wrote the competing hypotheses"]
   }]
 };
 

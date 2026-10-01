@@ -956,6 +956,11 @@ BANNED = [
      "A time-stamping authority can refuse a request with HTTP 200 and a token saying 'Status: Rejected', "
      "so curl -f succeeds and openssl ts -verify prints 'Verification: FAILED' while the script carries "
      "on: stop on the verify's exit status (Scouts ledger S3.7 defects)", "A113"),
+    # The source holds template-literal text, so a pattern's backslash appears doubled here.
+    (r"(?m)^[^\n]*\bgrep\b[^\n]*'[^'\n]*\$\\\\\|[^'\n]*'",
+     "In a basic grep pattern, macOS's BSD grep reads '$' before '\\|' as a literal '$', not as the end "
+     "of the line, so 'A\\| B$\\|C' never matches ' B' on a Mac and the warning it guards never prints: "
+     "use grep -E with 'A| B$|C' (Scouts ledger S4.2 defects)", "A114"),
 ]
 
 
@@ -1286,6 +1291,10 @@ TOPIC_ANCHORS = {
         "sdn list": ["S4.1"],
         "opensanctions": ["S4.1"],
         "delisting": ["S4.1"],
+        "web-flow": ["S4.2"],
+        "vigilant mode": ["S4.2"],
+        "signed-off-by": ["S4.2"],
+        "xz utils": ["S4.2"],
     },
 }
 
