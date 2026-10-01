@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-09-24 (Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-01 (Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -428,6 +428,15 @@ The local session reserved the next batch for the Linux sweep. The handover's "T
 | 141 | M11.5 | The lab itself runs unchanged on Linux: `grep -c ERROR app.log` prints `1`, and `find . -name "*.log"` into `xargs sed -i.bak` completes with no error, so the note's "Identical to macOS" holds for the lab and not for Build 1 | `EXECUTED` | the Linux variant's own commands, run here | stable |
 
 ## Fixes applied in this pass
+
+**Batch 12 (2026-10-01) — Linux variants; one note wrong, none of the labs changed.**
+
+1. **M11.5's Linux note said "Identical to macOS" while Build 1's `scan.sh` cannot run on GNU
+   tools.** `mktemp -t cgm115` stops with "too few X's in template" and, under `set -euo
+   pipefail`, ends the script; `stat -f '%Lp'` prints an error and file-system status, not the
+   mode. The page's prose already gave `stat -c '%a'` for Linux but not the `mktemp` form. The
+   note now gives both. Guard `A115` (a Linux note must name each macOS-only command its lab or
+   drills use) fires once on the old note and is clear on the fixed one.
 
 **Batch 11 (2026-09-24) — six defects caught while building M22.7; none shipped.**
 

@@ -1424,6 +1424,61 @@ SKIP_URL = re.compile(
 SSRF_PAYLOAD = re.compile(r"^https?://(0x[0-9a-f]+|\d{6,}|\[[0-9a-f:]*\]|0\d+)/?$", re.I)
 
 
+# ── 6b. Linux notes name the macOS-only commands a lab or its drills use ─────
+# Caught (Scouts ledger Batch 26, Guardians ledger Batch 12): a lab's Linux variant is often a
+# short note ("Same as macOS except ..."), and a note that stays silent about a command the Mac
+# script uses leaves a Linux or WSL learner with a script that stops. S1.6's Drill 2 used BSD
+# `date -j` while its note never mentioned `date`; M11.5's Build 1 used `stat -f '%Lp'` while its
+# note said "Identical to macOS". Only a note is checked: a Linux variant that is a script of its
+# own is expected to use Linux commands. The list is kept short so a hit is almost always real.
+LINUX_NOTE_CMDS = [
+    # (label, how the Mac script uses it, how a Linux note may name it or its replacement)
+    ("shasum", r"(?<![\w./-])shasum\b", r"(?<![\w./-])(?:shasum|sha\d+sum|md5sum)\b|openssl\s+dgst"),
+    ("sntp", r"(?<![\w./-])sntp\b", r"(?<![\w./-])(?:sntp|timedatectl|chronyc|ntpdate|ntpq)\b"),
+    ("date -j", r"(?<![\w./-])date\b[^\n|;&]*\s-j\b", r"(?<![\w./-])date\b"),
+    ("stat -f", r"(?<![\w./-])stat\s+(?:-\w+\s+)*-f\b", r"(?<![\w./-])stat\b"),
+    ("base64 -D", r"(?<![\w./-])base64\s+(?:-\w+\s+)*-D\b", r"(?<![\w./-])base64\b"),
+    ("sed -i ''", r"""(?<![\w./-])sed\s+(?:-\w+\s+)*-i\s*(?:''|"")""", r"(?<![\w./-])sed\b"),
+    ("pbcopy", r"(?<![\w./-])pbcopy\b", r"(?<![\w./-])(?:pbcopy|xclip|xsel|wl-copy)\b"),
+    ("open", r"""(?m)^[ \t]*open[ \t]+(?:-\w+[ \t]+)*(?:["'~./$]|https?:)""", r"(?<![\w./-])(?:open|xdg-open)\b"),
+]
+LINUX_NOTE_START = re.compile(r"#\s*(?:Identical\b|Same\s+as\b)", re.I)
+
+
+def _runnable_lines(text):
+    """Lines a learner would run: no whole-line comments."""
+    return "\n".join(l for l in (text or "").split("\n") if l.strip() and not l.lstrip().startswith("#"))
+
+
+def _fenced_code(md):
+    return "\n".join(m.group(1) for m in re.finditer(r"```[a-zA-Z]*\n(.*?)```", md or "", re.S))
+
+
+def check_linux_notes(curricula):
+    """A115: every Linux *note* names each macOS-only command its lab or drills use."""
+    hits, labs, notes = [], 0, 0
+    for name, cur in curricula.items():
+        for m in cur.get("modules", []):
+            lab = m.get("lab")
+            if not isinstance(lab, dict) or lab.get("kind") == "paper":
+                continue
+            mac, linux = lab.get("mac"), lab.get("linux")
+            if not isinstance(mac, str) or not isinstance(linux, str):
+                continue
+            labs += 1
+            if not LINUX_NOTE_START.match(linux.lstrip()):
+                continue  # a script of its own, not a note
+            notes += 1
+            used = _runnable_lines(mac) + "\n" + _runnable_lines(_fenced_code(m.get("workbench")))
+            for label, use, named in LINUX_NOTE_CMDS:
+                if re.search(use, used) and not re.search(named, linux):
+                    hits.append(f"{name} {m.get('id') or m.get('num')}: uses `{label}`, its Linux note never names it")
+    if hits:
+        warn("labs: linux-note coverage", "A115: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("labs: linux-note coverage", f"{notes} Linux notes of {labs} labs name every tracked macOS-only command ({len(LINUX_NOTE_CMDS)} tracked)")
+
+
 # RFC 2606 / RFC 6761 reserved names plus the course's fictional phishing/C2 domains.
 # These are supposed not to resolve — that is the point of using them in examples.
 FICTIONAL = re.compile(r"\.(example|invalid|test|local)(\b|/)|apple-verification|evil-c2", re.I)
@@ -1626,6 +1681,7 @@ def main():
         return self_test()
 
     sources = []
+    curricula = {}
     for name, path in COURSES.items():
         if not os.path.exists(path):
             fail(f"{name}: file", f"missing {path}")
@@ -1640,6 +1696,7 @@ def main():
         check_claims_ledger(name, src)
         cur = load_curriculum(name, src)
         if cur:
+            curricula[name] = cur
             check_counts(name, src, cur)
             check_crossrefs(name, cur)
             check_fences_and_escapes(name, cur)
@@ -1647,6 +1704,7 @@ def main():
             check_coverage(name, cur)
 
     check_attack_table_rot(sources)
+    check_linux_notes({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
 
     if not args.no_net:
         check_urls(sources)
