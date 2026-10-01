@@ -3392,6 +3392,7 @@ Select-String -Path $vhd -Pattern CANARY -Encoding unicode   # still present in 
 # ETHICS: your own machine, and throwaway image files you create here.
 
 # ---- PART A: the controls that still hold when someone else holds the machine
+# cryptsetup and mokutil are not in the base image: sudo apt install -y cryptsetup mokutil
 lsblk -o NAME,FSTYPE,MOUNTPOINT | grep -i crypt   # LUKS shows as crypto_LUKS / dm-crypt
 sudo cryptsetup status /dev/mapper/*              # cipher and key size, if LUKS is in use
 mokutil --sb-state 2>&1                           # -> SecureBoot enabled/disabled (UEFI systems)
@@ -6089,6 +6090,7 @@ netsh wlan show profile name="MyNet" key=clear   # inspect one profile's securit
 netsh wlan show wlanreport                 # generates an HTML connectivity/security report
 # Delete a risky saved network: netsh wlan delete profile name="SomeOldCafeWiFi"`,
       linux: `# Linux: read-only inventory, plus OPTIONAL cracking of YOUR OWN AP only.
+# nmcli comes from network-manager and iw from iw: sudo apt install -y network-manager iw
 nmcli dev wifi list                        # SSID, BSSID, CHAN, SECURITY column (read the SECURITY)
 iw dev wlan0 link                          # your current association detail
 iw dev wlan0 scan | grep -iE 'SSID|RSN|WPS|capability'   # cipher/PMF/WPS of nearby APs

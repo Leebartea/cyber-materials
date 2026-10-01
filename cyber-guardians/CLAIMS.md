@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 15 modules, rows 142–165, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 20 modules, rows 142–170, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -460,10 +460,12 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
 | 166 | M0, M0.5 | M0.5's Linux lab runs `dig` and `traceroute`, and later Linux labs run `ip` and `ss`; M0's Linux install list installed none of them and none is in this container's base image (`command -v` finds none). After `apt install`, `dig` is 9.18.39 (`dnsutils`), `traceroute` 2.1.5 and `ip`/`ss` come from `iproute2` 6.1.0. M0's list now installs `dnsutils traceroute iproute2` and M0.5 says where `dig` comes from | `EXECUTED` | `apt-get install` and `--version` for each, run here; no DNS or network query was sent | stable |
 | 167 | M2, M4 | M2's Linux lab runs `ip`, `ss`, `dig` and `traceroute`, and M4's runs `dig`; the packages are `iproute2`, `dnsutils` and `traceroute` (row 166), which M0's list now installs, and both labs now say where the commands come from | `EXECUTED` | as row 166 | stable |
 | 168 | M6 | `ufw` is not in this container's base image (`command -v ufw` finds nothing); `apt install ufw` gives ufw 0.36.2 (`ufw version`). `sudo ufw enable` itself was not run: it would change this machine's firewall | `EXECUTED` | `apt-get install` and `ufw version`, run here | stable |
+| 169 | M6.5 | `cryptsetup` 2.7.0 and `mokutil` 0.6.0 are not in this container's base image; both install from the Ubuntu 24.04 archive. In this container `mokutil --sb-state` prints `EFI variables are not supported on this system` — a result the lab's `2>&1` shows rather than hides, and neither a pass nor a fail. Parts B and C (loop mounts and LUKS as root) were not run | `EXECUTED` | `apt-get install` and `--version`; the one `mokutil` call run here | stable |
+| 170 | M13.5 | `nmcli` (NetworkManager 1.46.0) and `iw` 6.7 are not in this container's base image; they come from `network-manager` and `iw`. No scan or capture was run: the container has no wireless interface | `EXECUTED` | `apt-get install` and `--version`, run here | stable |
 
 ## Fixes applied in this pass
 
-**Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; seven defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
+**Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; eight defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
 
 1. **M0's Linux apt line named a Kali-only package.** `apt install -y aircrack-ng nikto gobuster wordlists`
    ends `E: Unable to locate package wordlists` on Ubuntu 24.04 and installs none of the four. The package
@@ -485,6 +487,10 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
    has `pipx` and the lab says to open a new terminal.
 7. **M1 and M0.5 showed only the macOS `shasum: WARNING` line.** GNU prints `sha256sum: WARNING`; both
    pages now show it next to the Mac line.
+8. **Linux labs ran commands nothing had installed.** `dig`, `traceroute`, `ip`, `ss`, `ufw`,
+   `cryptsetup`, `mokutil`, `iw` and `nmcli` are not in a minimal Ubuntu 24.04 image and M0's list named
+   only some of them. M0 now installs `dnsutils traceroute iproute2`; the other labs say which package
+   gives the command (rows 166–170).
 
 The drills that existed only for macOS now have a Linux form that was run: M16.5 (`dscl`), M15
 (`ipconfig getifaddr`), M18.5 (`log show`, `defaults`, `LaunchAgents`, `launchctl`), M25.5 (`arp -a`) and
