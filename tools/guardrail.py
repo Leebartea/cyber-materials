@@ -1295,6 +1295,9 @@ TOPIC_ANCHORS = {
         "vigilant mode": ["S4.2"],
         "signed-off-by": ["S4.2"],
         "xz utils": ["S4.2"],
+        "favicon hash": ["S4.3"],
+        "jarm": ["S4.3"],
+        "urlscan": ["S4.3"],
     },
 }
 

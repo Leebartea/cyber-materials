@@ -884,13 +884,13 @@ Level 4 follows networks of actors: the companies, code, servers and accounts be
 |---|---|---|
 | S4.1 | Sanctions lists and company registers: what a listing proves | ✅ available |
 | S4.2 | Public code and repositories: what a commit's author field proves | ✅ available |
-| — | Phishing infrastructure: pivoting on pages, icons and certificates | planned |
+| S4.3 | Phishing infrastructure: what a shared icon or TLS fingerprint proves | ✅ available |
 | — | Threat-intelligence feeds: what an indicator proves, and when it goes stale | planned |
 | — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
 | — | Reproducible pipelines: collection you can run again | planned |
 | — | Capstone: an infrastructure attribution file | planned |
 
-S4.1 needs no new tools. S4.2 adds one, git, which macOS ships with its Command Line Tools.
+S4.1 needs no new tools. S4.2 adds one, git, which macOS ships with its Command Line Tools. S4.3 needs no new tools.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -14251,6 +14251,583 @@ EET (UTC+2, +3 in summer)  weekday 09-18h: 268 (65%) | 00-06h:  16 | Sat/Sun: 60
 
 </details>`,
     tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Recomputed every commit id and matched one tag on two independent hosts", "Verified ten release signatures and five commit signatures myself, and said what each joins", "Read author and committer separately, and wrote the time zones up as a LEAD", "Did Drills 1 and 2: wrote a commit with every field invented, and found a \"removed\" secret in history", "Did Drill 3: tested the persona's hours against four zones and wrote the competing hypotheses"]
+  }, {
+    id: "s4_3",
+    level: 4,
+    num: "S4.3",
+    title: "Phishing Infrastructure — What a Shared Icon Proves, What a TLS Fingerprint Proves, and When a Match Is Just Common",
+    objective: `Compute a favicon hash yourself, from first principles, and test your code on six known answers. Read the README of Salesforce's JARM tool, check its two public files against pinned hashes, and decode its example fingerprint character by character with the tool's own functions: six of ten probes answered, and a tail you can only compare. Then work through twelve SYNTHETIC hosts and a synthetic reference sample, with a classifier that has four outcomes (LEAD-SHARED, SINGLETON, COMMON, UNKNOWN), and see why a match is worth only as much as the value is rare. No server is ever contacted. Finish with the README's own table, where one malware tool's fingerprint is shared by 303 ordinary sites, and tag every statement with S2.7's strengths.`,
+    theory: `#### What this module adds
+
+S4.2 read records that the person described had written: a commit's name, address and zone are typed by whoever makes it. This module reads the opposite kind. A **fingerprint** is a value that someone *computes* from what a page or server sends, so no one types it, and two pages that show the same value really did send matching bytes. The value is real. What it proves about the people is the question.
+
+The method has a name, the **pivot**: take one value from a page or server you already know about, ask which others show the same value, treat each answer as a new candidate, and repeat. Investigators use it because the operators of such pages can reuse a kit, an icon or a server setup. The lab teaches two fingerprints, one from a page and one from a server, and the habit that decides whether a pivot is any use: *how common is this value?*
+
+#### What this module does not do, and why
+
+- **It never sends a request to a server it studies.** The only network use is two downloads of public files from GitHub's file host. The lab's pages and servers are SYNTHETIC records, invented for teaching, on reserved example names. They are not real servers, real campaigns or real people.
+- **It cannot teach urlscan, Shodan or Censys from their own documentation.** Those sites were not reachable from the machine on which this module was written. Where the module talks about urlscan, it uses only what urlscan's official Python client says about itself (read 1 October 2026). Every other claim about what a search service does is marked **⚠️ UNVERIFIED**, or left out. Read the service's own pages before you rely on one.
+- **It names no actor.** The worked example is a table in a tool's own README. There is no incident, no campaign and no group in this module.
+
+#### The first fingerprint: a favicon hash
+
+A **favicon** is the small icon that a site serves for a browser to show in a tab. It is a file: a few hundred bytes to a few kilobytes. A page that imitates another may be copied from it, and the copy can keep the icon. So a **favicon hash**, a short number computed from the icon's bytes, can find other pages that serve the same file.
+
+The convention the lab uses is: take the icon's bytes, turn them into base64 text *with its line breaks*, hash that text with MurmurHash3 (32-bit), and read the answer as a signed number. Three facts about it matter more than the maths:
+
+| Fact | What the lab shows (step 3, A-lines) |
+|---|---|
+| **It is exact.** One changed bit gives a different number. | Drill 1: flip one bit of a 1,006-byte icon and the hash changes completely |
+| **It depends on bytes, not on the picture.** Saving the same picture again with another program changes the bytes. | A5: two icons drawn from the same seed, one with an extra text chunk, hash differently |
+| **It depends on the convention.** The same bytes hash differently with and without base64's line breaks. | A3 against A4, and Drill 1 with three bytes |
+
+So the same hash proves **the same file**. A different hash proves nothing about whether the pictures match. And a hash from another tool is comparable with yours only if the tool uses the same convention. Which services offer a search by icon hash, and which convention each one uses, is **⚠️ UNVERIFIED** here: check the service's own page before you compare numbers.
+
+The lab computes the hash itself, in about twenty lines of Python, and tests it first on six known answers (S3.2's rule: test the tool on an answer you already know). The six answers were computed with the \`mmh3\` package, version 5.3.1, from PyPI.
+
+#### The second fingerprint: JARM
+
+**JARM** is, in its README's words, "an active Transport Layer Security (TLS) server fingerprinting tool". TLS is the protocol that secures web connections. Salesforce published JARM; the lab reads the file as it stood on 1 October 2026 (the script says "Version 1.0 (November 2020)"), and checks both public files against pinned SHA-256 values before it uses them.
+
+What the script does, read from the code and run in the lab:
+
+- It sends **ten** differently built opening messages (TLS "ClientHello" packets) to a server. They differ in the protocol version they offer, the order of the ciphers, the application protocols they ask for, and the order of extensions. The default port is 443.
+- It reads each answer: which **cipher** (encryption method) the server chose, which **version** field it sent back, which application protocol and which extensions.
+- It writes **62 characters**. Each of the ten answers contributes three characters: two for the position of the chosen cipher in the tool's own list (the list has 69 entries), and one letter for the version field. That makes 30. The last 32 characters are the start of a SHA-256 hash of all the answers' application-protocol and extension text.
+- A probe that got no usable answer contributes \`000\`. If **any** probe times out (the socket waits 20 seconds), the script resets **all ten** answers to empty, and the result is **62 zeros**. So 62 zeros means "no usable answer", which includes "the server was slow". It does not mean "no TLS server here". The lab's B1b line checks that this rule is in the code.
+
+The lab's B2 lines take the README's own example, \`2ad2ad0002ad2ad00042d42d00000069d641f34fe76acdc05c40262f8815e5\`, and decode its first 30 characters: six of the ten probes got an answer, four got none. The last 32 cannot be decoded, only compared. B4 shows why that matters: two servers can share all of the first 30 characters and still differ in the last 32.
+
+**What a JARM value proves.** Two servers with the same value answered ten differently built probes in the same way. That points at the same TLS software with the same settings, a **configuration**, not a person. The README lists four uses, among them "Group disparate servers on the internet by configuration" and "Identify default applications or infrastructure". A configuration is shared by everyone who installs the same software the same way.
+
+**Active, so it has rules.** Running JARM yourself makes ten connections to the target. That is **active collection**: the server's owner can see it, and S1.1's rules apply. Run it only against servers you own or have written permission to test. Everything else in this module works on records someone else already collected.
+
+#### How much a match is worth: prevalence
+
+A match is only useful if the value is **rare**. Think of the telephone book: matching a surname proves little, and matching a rare name together with an address proves more. For a fingerprint, the same idea is its **prevalence**: out of a large reference sample of unrelated servers, how many show this value?
+
+The lab's exercise gives twelve SYNTHETIC hosts and a SYNTHETIC reference sample of 10,000 servers, with a count for each value. A classifier then gives each host-and-value pair one of **four** outcomes:
+
+| Outcome | Meaning | What you do with it |
+|---|---|---|
+| **LEAD-SHARED** | Rare in the reference sample, and at least two hosts in your case share it | A lead: worth following, not a conclusion |
+| **SINGLETON** | Rare, but only one host in your case has it | Nothing to pivot to yet |
+| **COMMON** | Many unrelated servers show it | Context at most. Never link hosts on it |
+| **UNKNOWN** | No value (the icon could not be fetched, or JARM gave 62 zeros) or no reference count | Write UNKNOWN and say what is missing. Never guess |
+
+Why four, not two? A two-way "pivot / not a pivot" classifier files a host with no value under "not a pivot", and then the table looks as if you had checked it. UNKNOWN keeps the missing data visible.
+
+The threshold between rare and common is **a choice**. The lab uses 5 in 10,000, a teaching figure and not a standard. Drill 2 moves it and shows which hosts change sides. Drill 3 shows what happens if you ignore prevalence altogether: linking on every shared value joins all twelve hosts into one cluster.
+
+Where does a real prevalence count come from? From the same kind of search service that holds the fingerprints, by counting how many hosts return the same value. How such services limit their counts and their queries is **⚠️ UNVERIFIED** here. If you cannot get a count, the value is UNKNOWN, whatever it looks like.
+
+#### urlscan: what its own client says
+
+urlscan.io is a service that scans web pages, and its client can fetch and search the results. This module read the README of its official Python client (\`urlscan-python\`, read 1 October 2026), and states only what that file says:
+
+- \`urlscan.Client("<your_api_key>")\` creates a client. The README's first example passes an API key.
+- \`client.scan("<url>", visibility="public")\` submits a URL; the result has a \`uuid\`. The README's examples all say \`visibility="public"\`. What the other values do is **⚠️ UNVERIFIED**.
+- \`client.search("page.domain:example.com")\` returns an iterator over results, and each result has an \`_id\`.
+- A separate \`Pro\` class reaches the pro endpoints.
+
+Everything else is **⚠️ UNVERIFIED** and not taught: which other query fields exist, whether search needs a key, rate limits, and how long results are kept.
+
+Two habits follow from the README alone, and one from method:
+
+- **A search hit is another party's observation, made at a time.** Record the result's id and date, and treat "not found" as "not found there, then".
+- **A scan is a request to a third party to look at a page.** Before you submit a URL, decide whether you are content for the page's operator to learn that someone looked, and which visibility you are choosing. That decision is yours and should be written in your scope.
+- **Do not enter anything into a phishing page, ever.** Not a test password, not a real one. A phishing page's form sends whatever you type to its operator.
+
+#### What each statement is worth
+
+| Statement | Tag (S2.7) | Why |
+|---|---|---|
+| "This icon file hashes to N" (you computed it, the known-answer test passed) | **STRONG** | Arithmetic on bytes you hold |
+| Two pages served byte-identical icons, and the value is rare | **LEAD** | Same file, many ways to get one: a shared kit, a copy, a stolen logo |
+| Two servers return the same JARM, and the value is rare | **LEAD** | Same TLS software and settings, which says little about who set it up |
+| A shared rare icon **and** a shared rare JARM on the same hosts | **LEAD**, stronger | Two measurements agree, but one kit or one installer can produce both |
+| A common value (icon of a popular framework, JARM of a big network's default) | **CONTEXT** | It describes the crowd, not your hosts |
+| 62 zeros, no icon, no reference count | **UNKNOWN** | Not a tag: write what is missing |
+| A record someone else wrote that names the account or operator | **STRONG** for the account | Not in this lab. It is what turns a lead into a finding (S4.2's pattern) |
+
+#### Ethics and method
+
+- **Infrastructure is not identity.** Servers that share a setup share software, a kit or a host. They do not have to share an owner, and the owner of a server can be a victim: a compromised site can serve a phishing page without its owner knowing.
+- **Do not publish a victim's page, a stolen credential or a log that holds either.** Record the address, the time and the fingerprint.
+- **Report, do not retaliate.** Send what you found to the abuse contact of the organisation being imitated or of the host. Do not probe the page, "take it down" yourself or try its login.
+- **Say what you did not check.** In a write-up, a missing prevalence count, a missing date or a value that came from a service you could not read belongs in the document, as UNKNOWN or **⚠️ UNVERIFIED**.`,
+    lab: {
+      mac: `# LAB: what a favicon hash, a TLS fingerprint and a shared value prove, and when one is not a pivot (Apple Silicon)
+# ETHICS: this lab never sends a request to any server it is studying. Its only network use is two downloads of
+# public files from github.com's file host. The hosts in the exercise are SYNTHETIC: invented records on reserved
+# example names, made for teaching. They are not real servers, real campaigns or real people.
+# WHY NO LIVE SCAN: jarm.py is an active tool. It sends ten probes to the server you point it at, so it is only for
+# servers you own or run. The lab reads its algorithm and uses its own hash function on records you can see.
+# NO NEW TOOL: curl, shasum and python3 (standard library only), as in Level 3. No key and no account.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s4_3 && cd ~/scouts-case/s4_3 || exit 1
+rm -rf evidence scope.txt collection_log.tsv pivots.py lablib.py __pycache__ && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.3 phishing-infrastructure pivots (favicon hash, TLS fingerprint)
+question:     When two pages share an icon or a TLS fingerprint, what does the match prove, and when is the value too common to use?
+sources:      jarm.py and its README (Salesforce, public, pinned by SHA-256); a synthetic exercise made by this lab
+out of scope: scanning any server; contacting any phishing page; any real person; any account, key or password
+collector:    analyst01
+SCOPE
+echo "scope written: $(wc -l < scope.txt | tr -d ' ') lines"
+
+# 2. Fetch the two public files, and refuse to go on if either differs from the copy this lab was written against.
+JARM_URL=https://raw.githubusercontent.com/salesforce/jarm/master/jarm.py
+README_URL=https://raw.githubusercontent.com/salesforce/jarm/master/README.md
+JARM_SHA=8b44d084d8fa49307d401a9be5ec4cd2e6fde6705ee913684d08c301f14524a1
+README_SHA=de93ec58e1fbe92d3620857d3e46ef308a4db23def0bbaec5003fcbd6f5af0b9
+for pair in "jarm.py:$JARM_URL:$JARM_SHA" "README.md:$README_URL:$README_SHA"; do
+  name=\${pair%%:*}; rest=\${pair#*:}; url=\${rest%:*}; want=\${rest##*:}
+  curl -sS -f -L --max-time 30 -A "$UA" -o "evidence/$name" "$url" || { echo "STOP: could not fetch $url"; exit 1; }
+  got=$(shasum -a 256 "evidence/$name" | cut -d' ' -f1)
+  if [ "$got" != "$want" ]; then
+    echo "STOP: $name has changed upstream."; echo "  this lab expects \${want:0:12}...  got \${got:0:12}..."
+    echo "  Read the new file before trusting any number below, and tell the course maintainer."; exit 1
+  fi
+  printf '%s\\t%s\\t%s\\t%s\\n' "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "\${got:0:12}" "$url" >> collection_log.tsv
+  echo "$name \${got:0:12} OK"
+done
+
+# 3. The analysis, in two files: lablib.py holds the functions and the synthetic records, pivots.py prints the results.
+# Standard library only. Nothing here prints a name, a path or a time.
+cat > lablib.py <<'PY'
+import base64, hashlib, re, struct, zlib
+
+def rotl(x, r): return ((x << r) | (x >> (32 - r))) & 0xFFFFFFFF
+def murmur3_32(data, seed=0):
+    h = seed; n = len(data) // 4 * 4
+    for (k,) in struct.iter_unpack("<I", data[:n]):
+        k = (k * 0xCC9E2D51) & 0xFFFFFFFF; k = rotl(k, 15); k = (k * 0x1B873593) & 0xFFFFFFFF
+        h ^= k; h = rotl(h, 13); h = (h * 5 + 0xE6546B64) & 0xFFFFFFFF
+    k = 0; tail = data[n:]
+    if len(tail) >= 3: k ^= tail[2] << 16
+    if len(tail) >= 2: k ^= tail[1] << 8
+    if len(tail) >= 1:
+        k ^= tail[0]; k = (k * 0xCC9E2D51) & 0xFFFFFFFF; k = rotl(k, 15); k = (k * 0x1B873593) & 0xFFFFFFFF; h ^= k
+    h ^= len(data); h ^= h >> 16; h = (h * 0x85EBCA6B) & 0xFFFFFFFF; h ^= h >> 13
+    h = (h * 0xC2B2AE35) & 0xFFFFFFFF; h ^= h >> 16
+    return h
+def signed(u): return u - (1 << 32) if u & 0x80000000 else u
+
+def favicon_hash(raw):                  # the convention: hash the base64 text, with its line breaks
+    return signed(murmur3_32(base64.encodebytes(raw)))
+def favicon_hash_flat(raw):             # the same bytes, base64 without line breaks
+    return signed(murmur3_32(base64.b64encode(raw)))
+
+def png(seed, extra_chunk=None):
+    """A 16x16 RGBA PNG, drawn from a seed. Synthetic: it depicts nothing."""
+    rows, x = b"", seed
+    for _ in range(16):
+        row = b"\\x00"
+        for _ in range(16):
+            x = (x * 1103515245 + 12345) & 0x7FFFFFFF
+            row += bytes([(x >> 16) & 255, (x >> 8) & 255, x & 255, 255])
+        rows += row
+    def chunk(t, d): return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    out = b"\\x89PNG\\r\\n\\x1a\\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0))
+    if extra_chunk: out += chunk(b"tEXt", extra_chunk)
+    return out + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b"")
+
+ICON = {"kit": png(101), "default": png(202), "other": png(303)}
+ICON["kit_resaved"] = png(101, b"Software\\x00editor")      # the SAME picture, saved again by another program
+
+# Only the three hash functions are taken from jarm.py; nothing in it is run, and nothing is sent.
+SRC = open("evidence/jarm.py").read()
+_s, _e = SRC.index("#Custom fuzzy hash"), SRC.index("def ParseNumber")
+_ns = {}
+exec("import codecs, hashlib\\n" + SRC[_s:_e], _ns)
+jarm_hash, cipher_bytes, version_byte = _ns["jarm_hash"], _ns["cipher_bytes"], _ns["version_byte"]
+ZEROS = "0" * 62
+
+def raw(cipher, ver, alpn, ext, answered=10):
+    return ",".join(["%s|%s|%s|%s" % (cipher, ver, alpn, ext)] * answered + ["|||"] * (10 - answered))
+STACK = {"A": raw("c02f", "0303", "http/1.1", "ff01-0000-000b"),     # a common web-server default
+         "B": raw("c030", "0303", "h2", "ff01-0017-002b-0033", 8),  # the stack the "kit" hosts run
+         "C": raw("1301", "0304", "h2", "002b-0033", 10),          # a big content network's default
+         "-": ",".join(["|||"] * 10)}                       # no usable answer: refused, silent or timed out
+JARM = {k: jarm_hash(v) for k, v in STACK.items()}
+HOSTS = [  # name, favicon, jarm stack ("-" = no usable TLS answer; "?" = the icon could not be fetched)
+  ("login-a.example.org", "kit", "B"), ("login-b.example.org", "kit", "B"), ("login-c.example.org", "kit", "B"),
+  ("login-d.example.org", "kit_resaved", "B"), ("portal-1.example.net", "default", "B"), ("portal-2.example.net", "default", "B"),
+  ("shop-1.example.com", "other", "C"), ("shop-2.example.com", "other", "C"), ("shop-3.example.com", "default", "C"),
+  ("blog.example.com", "other", "A"), ("old-1.example.net", "default", "-"), ("old-2.example.net", "?", "A")]
+REF_N = 10000    # SYNTHETIC reference sample: how many of 10,000 unrelated hosts show each value
+REF = {("jarm", JARM["A"]): 2210, ("jarm", JARM["B"]): 0, ("jarm", JARM["C"]): 1840,
+       ("icon", favicon_hash(ICON["default"])): 910, ("icon", favicon_hash(ICON["kit"])): 0,
+       ("icon", favicon_hash(ICON["kit_resaved"])): 0, ("icon", favicon_hash(ICON["other"])): 0}
+RARE = 5         # a TEACHING threshold, not a standard: at most 5 in 10,000 counts as rare here
+
+def value(feature, host):
+    name, icon, stack = host
+    if feature == "icon": return None if icon == "?" else favicon_hash(ICON[icon])
+    return JARM[stack]
+def classify(feature, v, hosts, rare=RARE):
+    if v is None or v == ZEROS: return "UNKNOWN"        # no value: say so, never guess
+    if (feature, v) not in REF: return "UNKNOWN"         # no reference count: cannot judge prevalence
+    if REF[(feature, v)] > rare: return "COMMON"
+    n = sum(1 for h in hosts if value(feature, h) == v)
+    return "LEAD-SHARED" if n >= 2 else "SINGLETON"
+PY
+cat > pivots.py <<'PY'
+import json, re, sys
+from lablib import *
+
+# ---- part A: a favicon hash, from first principles ----
+# Known-answer test (S3.2's rule): values computed with the mmh3 package, version 5.3.1.
+KAT = [(b"", 0), (b"a", 1009084850), (b"abc", -1277324294), (b"test", -1167338989),
+       (b"Hello, world!", -1070186941), (b"The quick brown fox jumps over the lazy dog", 776992547)]
+bad = [(m, want, signed(murmur3_32(m))) for m, want in KAT if signed(murmur3_32(m)) != want]
+print("A1 murmur3 known-answer test:", "PASS (%d of %d)" % (len(KAT) - len(bad), len(KAT)) if not bad else "FAIL %r" % bad)
+if bad: sys.exit(1)
+print("A2 icon sizes (bytes):", {k: len(v) for k, v in ICON.items()})
+print("A3 favicon hash, line breaks kept:  ", {k: favicon_hash(v) for k, v in ICON.items()})
+print("A4 same bytes, no line breaks:      ", {k: favicon_hash_flat(v) for k, v in list(ICON.items())[:2]})
+print("A5 kit and kit_resaved draw the same picture (same seed), but their bytes differ by one text chunk:")
+print("   same bytes =", ICON["kit"] == ICON["kit_resaved"], "| same hash =", favicon_hash(ICON["kit"]) == favicon_hash(ICON["kit_resaved"]))
+
+# ---- part B: a JARM fingerprint, read with the tool's own functions ----
+print("B1 ten empty answers ->", "62 zeros" if jarm_hash(",".join(["|||"] * 10)) == ZEROS else "NOT zeros")
+print("B1b in the tool's own source, a timeout on ANY probe resets all ten answers to empty:",
+      'jarm = "|||,|||,|||,|||,|||,|||,|||,|||,|||,|||"' in SRC[SRC.index("def main"):], "(so 62 zeros is also what a slow server gives)")
+readme = open("evidence/README.md").read()
+example = re.search(r"JARM: ([0-9a-f]{62})", readme).group(1)
+print("B2 the README's example fingerprint has", len(example), "characters:")
+print("   first 30 =", example[:30], " last 32 =", example[30:])
+def vfield(ch): return "no answer" if ch == "0" else "field 030%d (letter %s)" % ("abcdef".index(ch), ch)
+lst = re.search(r"list = \\[(.*?)\\]\\n", SRC[SRC.index("#Fuzzy hash for ciphers"):], re.S).group(1)
+codes = [a + b for a, b in re.findall(r'b["\\']\\\\x([0-9a-f]{2})\\\\x([0-9a-f]{2})["\\']', lst)]
+inv = {cipher_bytes(c): c for c in codes}               # ask the tool's own function for each cipher's two-character code
+print("   the tool's cipher list has", len(codes), "entries; each probe's cipher is written as its position in that list")
+for n, g in enumerate([example[i:i + 3] for i in range(0, 30, 3)], 1):
+    print("   probe %2d  %s -> cipher %-5s version %s" % (n, g, inv.get(g[:2], "none" if g[:2] == "00" else "?"), vfield(g[2])))
+print("B3 probes answered:", sum(1 for i in range(10) if example[i*3:i*3+3] != "000"), "of 10")
+print("B4 the last 32 characters are a SHA-256 prefix of the answers' ALPN and extension text.")
+a = ",".join(["c02f|0303|h2|0017-ff01"] * 10); b = ",".join(["c02f|0303|h2|0017-ff01-000b"] * 10)
+print("   two servers that share all of the first 30 and differ in the last 32:", jarm_hash(a)[:30] == jarm_hash(b)[:30] and jarm_hash(a)[30:] != jarm_hash(b)[30:])
+rows = re.findall(r"\\| ([A-Za-z0-9 ]+?) \\| \`([0-9a-f]{62})\` \\| (\\d+) \\|", readme)
+print("B5 the README's own table: how many Alexa Top 1M sites share each tool's fingerprint (README: 'as of Oct. 2020')")
+for name, fp, overlap in rows:
+    print("   %-14s probes answered %2d of 10   overlap %s" % (name, sum(1 for i in range(10) if fp[i*3:i*3+3] != "000"), overlap))
+
+# ---- part C: the exercise. SYNTHETIC records, and a classifier with four outcomes ----
+print("C1 each host, each feature (ICON = favicon hash, TLS = JARM):")
+res = {}
+for h in HOSTS:
+    for f in ("icon", "jarm"):
+        res[(h[0], f)] = classify(f, value(f, h), HOSTS)
+    print("   %-22s ICON %-12s TLS %-12s" % (h[0], res[(h[0], "icon")], res[(h[0], "jarm")]))
+cnt = {}
+for v in res.values(): cnt[v] = cnt.get(v, 0) + 1
+print("C2 totals:", dict(sorted(cnt.items())))
+both = [h[0] for h in HOSTS if res[(h[0], "icon")] == "LEAD-SHARED" and res[(h[0], "jarm")] == "LEAD-SHARED"]
+print("C3 hosts with a shared RARE icon AND a shared RARE TLS value:", len(both))
+only_tls = [h[0] for h in HOSTS if res[(h[0], "jarm")] == "LEAD-SHARED" and h[0] not in both]
+print("C4 shared rare TLS value but not a rare shared icon (the icon was changed, or is a common one):", len(only_tls))
+json.dump({"icon_hashes": {k: favicon_hash(v) for k, v in ICON.items()}, "jarm": JARM, "totals": cnt},
+          open("evidence/results.json", "w"), sort_keys=True)
+PY
+python3 pivots.py > evidence/pivots_output.txt || { echo "STOP: the analysis failed; see above"; cat evidence/pivots_output.txt; exit 1; }
+cat evidence/pivots_output.txt
+echo
+echo "evidence sha256 (first 12): $(shasum -a 256 evidence/pivots_output.txt | cut -c1-12)  $(shasum -a 256 evidence/results.json | cut -c1-12)"`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script that reads two downloads, hashes them with a checksum tool, and runs python3.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_3 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it in both places: step 2 (the pinned-hash check) and the last line (the evidence hashes).
+# One command does both:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl and python3 3.9 or later. The lab was run on Linux with python 3.11, in zsh 5.9 and in bash.
+# On Debian or Ubuntu:
+#   sudo apt install -y curl python3
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+scope written: 5 lines
+jarm.py 8b44d084d8fa OK
+README.md de93ec58e1fb OK
+A1 murmur3 known-answer test: PASS (6 of 6)
+A2 icon sizes (bytes): {'kit': 1006, 'default': 1007, 'other': 1004, 'kit_resaved': 1033}
+A3 favicon hash, line breaks kept:   {'kit': 1855407929, 'default': -1575053349, 'other': -646031742, 'kit_resaved': -616659398}
+A4 same bytes, no line breaks:       {'kit': 1102741697, 'default': -1776708277}
+A5 kit and kit_resaved draw the same picture (same seed), but their bytes differ by one text chunk:
+   same bytes = False | same hash = False
+B1 ten empty answers -> 62 zeros
+B1b in the tool's own source, a timeout on ANY probe resets all ten answers to empty: True (so 62 zeros is also what a slow server gives)
+B2 the README's example fingerprint has 62 characters:
+   first 30 = 2ad2ad0002ad2ad00042d42d000000  last 32 = 69d641f34fe76acdc05c40262f8815e5
+   the tool's cipher list has 69 entries; each probe's cipher is written as its position in that list
+   probe  1  2ad -> cipher c030  version field 0303 (letter d)
+   probe  2  2ad -> cipher c030  version field 0303 (letter d)
+   probe  3  000 -> cipher none  version no answer
+   probe  4  2ad -> cipher c030  version field 0303 (letter d)
+   probe  5  2ad -> cipher c030  version field 0303 (letter d)
+   probe  6  000 -> cipher none  version no answer
+   probe  7  42d -> cipher 1302  version field 0303 (letter d)
+   probe  8  42d -> cipher 1302  version field 0303 (letter d)
+   probe  9  000 -> cipher none  version no answer
+   probe 10  000 -> cipher none  version no answer
+B3 probes answered: 6 of 10
+B4 the last 32 characters are a SHA-256 prefix of the answers' ALPN and extension text.
+   two servers that share all of the first 30 and differ in the last 32: True
+B5 the README's own table: how many Alexa Top 1M sites share each tool's fingerprint (README: 'as of Oct. 2020')
+   Trickbot       probes answered 10 of 10   overlap 0
+   AsyncRAT       probes answered  9 of 10   overlap 0
+   Metasploit     probes answered  7 of 10   overlap 0
+   Cobalt Strike  probes answered  9 of 10   overlap 0
+   Merlin C2      probes answered 10 of 10   overlap 303
+C1 each host, each feature (ICON = favicon hash, TLS = JARM):
+   login-a.example.org    ICON LEAD-SHARED  TLS LEAD-SHARED 
+   login-b.example.org    ICON LEAD-SHARED  TLS LEAD-SHARED 
+   login-c.example.org    ICON LEAD-SHARED  TLS LEAD-SHARED 
+   login-d.example.org    ICON SINGLETON    TLS LEAD-SHARED 
+   portal-1.example.net   ICON COMMON       TLS LEAD-SHARED 
+   portal-2.example.net   ICON COMMON       TLS LEAD-SHARED 
+   shop-1.example.com     ICON LEAD-SHARED  TLS COMMON      
+   shop-2.example.com     ICON LEAD-SHARED  TLS COMMON      
+   shop-3.example.com     ICON COMMON       TLS COMMON      
+   blog.example.com       ICON LEAD-SHARED  TLS COMMON      
+   old-1.example.net      ICON COMMON       TLS UNKNOWN     
+   old-2.example.net      ICON UNKNOWN      TLS COMMON      
+C2 totals: {'COMMON': 9, 'LEAD-SHARED': 12, 'SINGLETON': 1, 'UNKNOWN': 2}
+C3 hosts with a shared RARE icon AND a shared RARE TLS value: 3
+C4 shared rare TLS value but not a rare shared icon (the icon was changed, or is a common one): 3
+
+evidence sha256 (first 12): e0428b1d1072  22e24e019da1
+\`\`\`
+
+The two evidence hashes on the last line are the first 12 characters of the SHA-256 of your output and of the results file. They are the same for every learner, because every value in the exercise is fixed. If either differs, the lab stopped earlier: read the first line that does not begin with a letter and a digit (A1, B2, C3) or an item name, and fix that first. The README line is pinned to the file as it stood on 1 October 2026; if the lab prints "STOP: ... has changed upstream", the tool has changed since this module was written, and the numbers below are not guaranteed.`
+      }
+    },
+    caseStudy: {
+      title: "Worked example: a tool's own table — five fingerprints, and one that 303 ordinary sites share",
+      body: `This is not an incident. It names no actor and no campaign. It is a table in the README of the JARM tool, read on 1 October 2026 (SHA-256 begins \`de93ec58e1fb\`, pinned in lab step 2), and it is chosen because the authors' own numbers show what the module teaches.
+
+**What the README says.** After describing the tool, it says: "Malware command and control (C2) and malicious servers are configured by their creators like any other server and then deployed across their fleet. These therefore tend to produce unique JARM fingerprints." Below it is a table of five malware and offensive tools and the fingerprint each produced, with a column headed "Overlap with Alexa Top 1M". The sentence that introduces the table says the figures are "as of Oct. 2020". The README does not define the column further. This module reads it as the number of sites in that list of one million whose JARM value is the same.
+
+**What lab line B5 prints from that table.**
+
+| Tool | Probes answered (of 10) | Overlap |
+|---|---|---|
+| Trickbot | 10 | 0 |
+| AsyncRAT | 9 | 0 |
+| Metasploit | 7 | 0 |
+| Cobalt Strike | 9 | 0 |
+| Merlin C2 | 10 | **303** |
+
+**What the README concludes, and where it stops being true.** "With little to no overlap of the Alexa Top 1M Websites, it should be unlikely for a host within an organization to connect to a server with these JARM fingerprints." Four of the five rows support that sentence. The fifth does not, by the README's own figure: on this reading, a defender who blocked Merlin's value would have blocked 303 ordinary sites, in a list of one million, on the day the table was made.
+
+**Three things the table shows without anyone being named.**
+
+- **Prevalence is part of the fingerprint.** The same 62 characters are a strong lead when 0 ordinary sites share them and a poor one when 303 do. A value you cannot count is UNKNOWN, as lab step 3's classifier says.
+- **A fingerprint describes a configuration.** Merlin's value is shared because 303 ordinary sites are configured alike, not because they have anything to do with it. This is the module's central point in one row.
+- **Numbers have dates.** The overlap counts are "as of Oct. 2020". The jarm.py in the lab says "Version 1.0 (November 2020)". Neither says anything about 2026. Before you use a value from a table like this, count it again against a current sample, or write UNKNOWN.
+
+**Tag each statement with S2.7's strengths:**
+
+| Statement | Tag | Why |
+|---|---|---|
+| "Trickbot's value is \`22b22b09…\` and it has 0 overlap" (README, Oct. 2020) | **CONTEXT** | A dated observation by the tool's authors, about a sample you do not hold |
+| "A server that returns this value has the same TLS configuration as Trickbot's server" | **LEAD** | Same configuration, which says nothing about the operator |
+| "Merlin's value has overlap 303" | **CONTEXT** | It tells you the value is common, which is what you needed to know |
+| "These tend to produce unique JARM fingerprints" | **ONE-WAY** | The authors' claim, with five rows as support. Their own table has an exception |
+| "I computed the same hash from the same bytes" (your lab, known-answer test passed) | **STRONG** | Arithmetic on bytes you hold |
+
+**The lesson for this module.** The fingerprint is easy to compute and easy to match. The work is in the count. Ask of every value: how many others show it, in which sample, and on what date? If nobody can tell you, say UNKNOWN. And ask the same question of your own pivot, before it joins two hosts, since a match on a common value joins every host that has it.`
+    },
+    challenges: [{
+      q: `A colleague's draft says: "Three phishing pages serve the same favicon, so they are run by the same actor." You are asked to review it before it goes out. What do you check, and what do you write instead?`,
+      a: `**A shared icon proves a shared file. It does not prove a shared operator.**
+
+1. **How common is the value?** Ask for the count. A framework's default icon, a popular brand's logo that was copied, or a kit that was sold on, are all shared by people who never met. With no count, the value is UNKNOWN (theory, "How much a match is worth"; lab C1).
+2. **Which bytes, and which convention?** The hash depends on the exact bytes and on how they were turned into text. A different tool's number is only comparable under the same convention (lab A3 against A4). A re-saved copy of the same picture hashes differently (A5), so "different hashes" does not clear a host either.
+3. **What else agrees?** Lab C3 shows the stronger case: a rare icon **and** a rare TLS value on the same hosts. Even then, one kit or one installer can produce both, so it is still a **LEAD**.
+4. **What would be strong?** A record someone else wrote that names the account or operator, as in S4.2's PHP case. The pivot gives candidates, and the record gives the finding.
+
+What you write: "Three pages served an icon with the same hash. We could not establish how common that icon is. The pages share a file, which is consistent with a shared kit or a copy. Nothing so far identifies who operates them." Then say what would change that: a rare value, a second independent match, or a record that names an operator.`
+    }, {
+      q: `A vendor blog says: "This JARM value identifies the XYZ malware's servers. Block it." What do you ask before you add it to a blocklist?`,
+      a: `**Ask how many ordinary servers share it, on which date, and how that was counted.**
+
+- **Prevalence.** The README of JARM itself lists five tools. Four of them had no overlap with the Alexa Top 1M "as of Oct. 2020", and one, Merlin C2, overlapped with **303** sites (case study). A blocklist built on Merlin's value would have blocked 303 ordinary sites, on this module's reading of the column.
+- **The date and the sample.** A count from 2020 does not describe 2026, and a count against one list does not describe another. Run your own count, or write UNKNOWN.
+- **Which part matched.** The first 30 characters record ciphers and versions, the last 32 are a hash of application-protocol and extension text, and the two halves can differ independently (lab B4). A match on all 62 is a stricter claim than a match on 30. Ask which the vendor used.
+- **What a match is.** The same TLS configuration. A defender who blocks on it is accepting every server with that configuration.
+- **What a miss is.** An attacker who changes the server's TLS settings changes the value. A fingerprint finds default and careless setups.
+
+What you tell the team: "Add it to a watch list, not a block list, until we have a current count. Log what matches and review it."`
+    }, {
+      q: `You are told to check whether a suspicious page's server "looks like" a known one, and you are about to run jarm.py against the page's address. The result comes back as 62 zeros. What do you do, and what do you write?`,
+      a: `**First, should you have run it? Then: 62 zeros is UNKNOWN, not "no TLS".**
+
+1. **Authorisation.** jarm.py sends ten probes to the target (theory, "Active, so it has rules"). If the server is not yours and you have no written permission, do not run it. Look for a record that someone else already collected, and write down where it came from and when.
+2. **What the zeros mean.** In the tool's own source, a timeout on any one probe sets all ten answers to empty (lab B1b), and a refused connection, a port that does not speak TLS, or an alert from the server give empty answers too (the source returns an empty answer for anything that is not a server hello). 62 zeros means "no usable answer", and the lab's classifier treats it as UNKNOWN.
+3. **What you do not do.** You do not conclude that the page has no TLS, that it is "clean", or that it is different from the known server. You also do not retry in a loop: ten more probes each time is ten more requests to someone's server.
+4. **What you write.** "No usable TLS answer on [date] from [source]. UNKNOWN. Not compared with the known value." Add what you would need: a second, independent record taken at another time.`
+    }],
+    quiz: ["What is a pivot? Describe its three steps, and say what a \"candidate\" is.", "A favicon hash proves the same file. Why does it not prove the same picture, and why does it not prove the same operator?", "What does the lab's convention hash, step by step? Why do lab lines A3 and A4 print different numbers for the same icon?", "What did the lab's known-answer test show, and why is it run before anything else?", "How many probes does jarm.py send? Name three things that differ between them.", "Decode the first three characters of the README's example fingerprint. What does `000` mean, and what are the last 32 characters?", "Why can two servers share the first 30 characters of a JARM value and still differ in the last 32 (lab B4)?", "In the tool's source, what happens to the other nine answers if one probe times out? What follows for how you read 62 zeros?", "Why does the lab never run jarm.py against a server? Whose servers could you run it against?", "What is \"prevalence\", and why is a value with no prevalence count UNKNOWN?", "Name the lab classifier's four outcomes and say what you do with each. Why four and not two?", "In Drill 2, which hosts change from COMMON to \"shared rare TLS\" as the threshold rises, and what does that show about the threshold?", "In Drill 3, why does linking on every shared value give one cluster of twelve hosts, and what does linking only on LEAD-SHARED values give?", "What does the README's own table show about Merlin C2, and what does it say about the sentence that follows the table?", "What does the urlscan-python README say about `visibility`, and what is still ⚠️ UNVERIFIED?", "Tag each with S2.7's strengths: a rare shared icon; a rare shared JARM; both on the same hosts; a common JARM; 62 zeros; a record naming the account that served the page."],
+    workbench: `> **What this trains.** The lab computed one fingerprint, decoded another, and sorted twelve synthetic hosts. Here you change one bit of an icon, move the rarity threshold and watch hosts change sides, and link hosts on every shared value to see what ignoring prevalence does. Nothing here touches the network.
+
+#### 🟢 Drill 1 — one bit, one convention ~2 min
+
+**Goal.** Hash three bytes two ways, then flip one bit in the lab's 1,006-byte kit icon and hash it again.
+
+**Done when.** You can say what the favicon hash depends on, and why a hash from another tool is only comparable if it uses the same convention.
+
+<details><summary>Walkthrough</summary>
+
+Run this after the lab, so that \`lablib.py\` and the evidence folder exist.
+
+\`\`\`bash
+cd ~/scouts-case/s4_3 || exit 1
+python3 - <<'PY'
+import sys; sys.path.insert(0, ".")
+from lablib import *
+print("3 bytes, line break kept:", favicon_hash(b"abc"), "| no line break:", favicon_hash_flat(b"abc"))
+print("the kit icon:", len(ICON["kit"]), "bytes ->", base64.encodebytes(ICON["kit"]).count(b"\\n"), "lines of base64")
+icon = bytearray(ICON["kit"]); icon[len(icon) // 2] ^= 1          # flip one bit in the middle
+print("kit icon, unchanged:    ", favicon_hash(ICON["kit"]))
+print("kit icon, one bit flipped:", favicon_hash(bytes(icon)))
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+3 bytes, line break kept: -868969266 | no line break: 1956776731
+the kit icon: 1006 bytes -> 18 lines of base64
+kit icon, unchanged:     1855407929
+kit icon, one bit flipped: 1173519445
+\`\`\`
+
+- **Two conventions, two numbers.** base64's \`encodebytes\` ends every answer with a line break, and \`b64encode\` does not, so even three bytes hash differently. A hash is a number about *text*, and the text depends on the convention.
+- **The icon is 18 lines of base64.** The convention keeps a line break after every 76 characters, so a bigger icon differs from its flat version in more places.
+- **One bit changed the whole number.** The hash is exact: it cannot tell a small change from a large one. That is why the same hash means "same file", and why a different hash does not mean "different picture" (lab A5).
+
+</details>
+
+#### 🟡 Drill 2 — move the line between rare and common ~3 min
+
+**Goal.** Run the classifier at five thresholds, from "rare means 0 in 10,000" up to "rare means 2,300 in 10,000", and see which hosts change.
+
+**Done when.** You can explain why the threshold is a choice, which value the lab's synthetic sample says is most common, and why a pivot needs a count from outside your own case.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_3 || exit 1
+python3 - <<'PY'
+import sys; sys.path.insert(0, ".")
+from lablib import *
+for rare in (0, 5, 1000, 2000, 2300):
+    labels = [classify(f, value(f, h), HOSTS, rare) for h in HOSTS for f in ("icon", "jarm")]
+    c = {k: labels.count(k) for k in ("LEAD-SHARED", "SINGLETON", "COMMON", "UNKNOWN")}
+    tls = sorted(h[0].split(".")[0] for h in HOSTS if classify("jarm", value("jarm", h), HOSTS, rare) == "LEAD-SHARED")
+    print("rare <= %4d of 10,000: %s" % (rare, c)); print("      hosts with a shared 'rare' TLS value:", ", ".join(tls))
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+rare <=    0 of 10,000: {'LEAD-SHARED': 12, 'SINGLETON': 1, 'COMMON': 9, 'UNKNOWN': 2}
+      hosts with a shared 'rare' TLS value: login-a, login-b, login-c, login-d, portal-1, portal-2
+rare <=    5 of 10,000: {'LEAD-SHARED': 12, 'SINGLETON': 1, 'COMMON': 9, 'UNKNOWN': 2}
+      hosts with a shared 'rare' TLS value: login-a, login-b, login-c, login-d, portal-1, portal-2
+rare <= 1000 of 10,000: {'LEAD-SHARED': 16, 'SINGLETON': 1, 'COMMON': 5, 'UNKNOWN': 2}
+      hosts with a shared 'rare' TLS value: login-a, login-b, login-c, login-d, portal-1, portal-2
+rare <= 2000 of 10,000: {'LEAD-SHARED': 19, 'SINGLETON': 1, 'COMMON': 2, 'UNKNOWN': 2}
+      hosts with a shared 'rare' TLS value: login-a, login-b, login-c, login-d, portal-1, portal-2, shop-1, shop-2, shop-3
+rare <= 2300 of 10,000: {'LEAD-SHARED': 21, 'SINGLETON': 1, 'COMMON': 0, 'UNKNOWN': 2}
+      hosts with a shared 'rare' TLS value: blog, login-a, login-b, login-c, login-d, old-2, portal-1, portal-2, shop-1, shop-2, shop-3
+\`\`\`
+
+- **At 0 and at 5 nothing changes.** In the synthetic sample, every value you can treat as a lead has a count of 0, and every common one has a count of 910 or more. That gap is built into the exercise. In real data the middle is crowded, and the threshold decides.
+- **At 1,000 the default icon (910) becomes "rare".** Four hosts that share only a default icon (portal-1, portal-2, shop-3 and old-1) become LEAD-SHARED. LEAD-SHARED goes from 12 to 16, and four COMMON labels turn into leads.
+- **At 2,000 the big network's JARM (1,840) becomes "rare".** shop-1, shop-2 and shop-3 appear as a "cluster" with a shared rare TLS value. They share the default of a service that 1,840 of 10,000 unrelated servers also use.
+- **At 2,300 every value passes.** COMMON falls to 0. The classifier now links blog and old-2 on the most common JARM in the sample.
+- **What to take away.** The rule was never broken. The threshold moved, and a lead appeared where there was a crowd. Write your threshold, and the sample it came from, in the report.
+
+</details>
+
+#### 🔴 Drill 3 — link on everything, then on the rare ~4 min
+
+**Goal.** Join hosts into clusters twice: once on every value two hosts share, once only on LEAD-SHARED values. Compare the clusters.
+
+**Done when.** You can write, for each cluster of the second run, what it shows, two other explanations, and what would raise it above a LEAD.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_3 || exit 1
+python3 - <<'PY'
+import sys; sys.path.insert(0, ".")
+from lablib import *
+def clusters(use):
+    parent = {h[0]: h[0] for h in HOSTS}
+    def find(x):
+        while parent[x] != x: x = parent[x]
+        return x
+    for f in ("icon", "jarm"):
+        seen = {}
+        for h in HOSTS:
+            v = value(f, h)
+            if v is None or v == ZEROS or not use(classify(f, v, HOSTS)): continue
+            if v in seen: parent[find(h[0])] = find(seen[v])
+            else: seen[v] = h[0]
+    groups = {}
+    for h in HOSTS: groups.setdefault(find(h[0]), []).append(h[0].split(".")[0])
+    return sorted(groups.values(), key=lambda g: (-len(g), g))
+print("link on every shared value (COMMON ones too):")
+for g in clusters(lambda c: True): print("  ", len(g), g)
+print("link only on LEAD-SHARED values:")
+for g in clusters(lambda c: c == "LEAD-SHARED"): print("  ", len(g), g)
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+link on every shared value (COMMON ones too):
+   12 ['login-a', 'login-b', 'login-c', 'login-d', 'portal-1', 'portal-2', 'shop-1', 'shop-2', 'shop-3', 'blog', 'old-1', 'old-2']
+link only on LEAD-SHARED values:
+   6 ['login-a', 'login-b', 'login-c', 'login-d', 'portal-1', 'portal-2']
+   3 ['shop-1', 'shop-2', 'blog']
+   1 ['old-1']
+   1 ['old-2']
+   1 ['shop-3']
+\`\`\`
+
+- **Linking on every value gives one cluster of twelve.** The common icon joins portal-1, portal-2, shop-3 and old-1 to each other, the common TLS values join the rest, and all twelve hosts end up in one blob. A cluster that holds every host answers no question.
+- **Linking only on LEAD-SHARED values gives two clusters and three loose hosts.** The cluster of six (login-a to login-d, portal-1 and portal-2) shares one rare TLS value. Four of the six are kit pages: three share the kit icon's hash, and the fourth, login-d, is a re-saved copy that hashes differently, so only the TLS value ties it back. The cluster of three (shop-1, shop-2 and blog) shares one rare icon on **different** TLS stacks.
+- **Write the hypotheses, not a name.** For the six: one operator running one kit on one server setup; or several buyers of the same kit and hosting; or one host's default. For the three: one site template used on different hosts, or one operator who moves between hosts. The data separate neither pair (S3.1's competing hypotheses).
+- **Tag them.** Both clusters are **LEAD**. The six are stronger because two values agree, and still one kit or one installer can produce both. What would raise either one is a record that someone else wrote and that names an account or an operator, as S4.2's web server log did for the PHP pushes. Nothing in this lab provides one.
+- **The data were built to show the shapes.** Real clusters are messier, and a rare value is rarely 0 in 10,000.
+
+</details>`,
+    tracker: ["Ran the lab: both public files matched their pinned hashes, the known-answer test passed, and I read the whole output", "Computed a favicon hash myself and saw that one bit, a re-saved copy and the base64 convention each change it", "Decoded the README's example JARM value and explained 000, the 30 and the 32, and what 62 zeros can mean", "Classified twelve synthetic hosts into four outcomes and explained why UNKNOWN exists", "Did Drills 1 and 2: changed one bit of an icon, and moved the rarity threshold to see hosts change sides", "Did Drill 3: linked hosts on every shared value and on rare ones only, and wrote what each cluster does and does not show"]
   }]
 };
 
