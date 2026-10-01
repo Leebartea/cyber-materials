@@ -887,10 +887,10 @@ Level 4 follows networks of actors: the companies, code, servers and accounts be
 | S4.3 | Phishing infrastructure: what a shared icon or TLS fingerprint proves | ✅ available |
 | — | Threat-intelligence feeds: what an indicator proves, and when it goes stale | planned |
 | — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
-| — | Reproducible pipelines: collection you can run again | planned |
+| S4.6 | Reproducible pipelines: rerun it and get the same bytes, and what "the same" proves | ✅ available |
 | — | Capstone: an infrastructure attribution file | planned |
 
-S4.1 needs no new tools. S4.2 adds one, git, which macOS ships with its Command Line Tools. S4.3 needs no new tools.
+S4.1 needs no new tools. S4.2 adds one, git, which macOS ships with its Command Line Tools. S4.3 needs no new tools. S4.6 needs none either: git, from S4.2, appears in one drill.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -14828,6 +14828,618 @@ link only on LEAD-SHARED values:
 
 </details>`,
     tracker: ["Ran the lab: both public files matched their pinned hashes, the known-answer test passed, and I read the whole output", "Computed a favicon hash myself and saw that one bit, a re-saved copy and the base64 convention each change it", "Decoded the README's example JARM value and explained 000, the 30 and the 32, and what 62 zeros can mean", "Classified twelve synthetic hosts into four outcomes and explained why UNKNOWN exists", "Did Drills 1 and 2: changed one bit of an icon, and moved the rarity threshold to see hosts change sides", "Did Drill 3: linked hosts on every shared value and on rare ones only, and wrote what each cluster does and does not show"]
+  }, {
+    id: "s4_6",
+    level: 4,
+    num: "S4.6",
+    title: "Reproducible Pipelines — Rerun It, Get the Same Bytes, and Know What “the Same” Proves",
+    objective: `Hash one public software module, golang.org/x/sync version 0.1.0, three ways: from the zip the Go module proxy serves, from the record the Go checksum database returns, and by your own code, tested first against a recipe the Go source documents. Wrap the steps in a small pipeline that writes a run manifest, run it twice under two different hash seeds, and see the rerun check say PASS. Then inject two deliberate leaks, a set of strings and a wall-clock time, and watch the check say FAIL and name the key. See why re-zipping the same files gives the same h1 but changing one byte does not, and why the tree head the log returned must never be pinned: in the run that wrote this module, six identical requests returned five different values, not rising. Finish by saying exactly what a match proves, and what it does not.`,
+    theory: `#### What this module adds
+
+As in S3.2, one capture is made trustworthy by testing the tool on an answer you already know and by sealing what it collected. This module asks a different question about a whole investigation: **can someone else rerun it and get the same bytes, and what does "the same" prove?** A finding that only you can reproduce is a claim about your machine. A finding that a stranger can rerun, and compare byte for byte, is something they can check.
+
+The lab works on one public software module, \`golang.org/x/sync\` version v0.1.0, because its records are public, small, and published by a service that makes them checkable. It does not make a claim about that module's authors or about whether its code is safe. The module is the specimen. The skill is the pipeline around it.
+
+#### Four things that must be the same
+
+| What must be the same | How you pin it | What a pin proves | What it does not |
+|---|---|---|---|
+| **The inputs** | A SHA-256 for every file you fetch, checked before you use it | These are the bytes that were hashed when the pin was written | That the bytes are true, or that the source has not changed since |
+| **The tools** | A tag or version, and a hash of the file | You ran the same code | That the code is correct (S3.2's known-answer test is for that) |
+| **The procedure** | A manifest that lists the steps and the command lines | Someone can follow the same steps | That the steps were wise |
+| **The outputs** | A hash of each result, and a byte-for-byte comparison of the manifest | The rerun produced the same bytes | That the bytes mean what you think |
+
+Everything in the lab's \`pins.tsv\` is a pin of the first two kinds: five files, each fetched from a tag and refused if its SHA-256 differs. A file at a tag should not change. If one does, the lab stops, and you read what came back before you trust anything.
+
+#### What the h1 hash covers
+
+Go records the content of every module with a hash it calls **h1**. The Go source (\`hash.go\`, golang/mod tag v0.20.0, read 1 October 2026) says these hashes "are recorded in go.sum files and in the Go checksum database, to allow verifying that a newly-downloaded module has the expected content". The recipe it documents is, in shell terms, \`sha256sum $(find . -type f | sort) | sha256sum\`, and in its words: "h1:" followed by the base64 of the SHA-256 of a summary with one line per file, each line the file's SHA-256 in hexadecimal, two spaces, the file name and a newline, in sorted order of name.
+
+For a zip file the same source says: "Only the file names and their contents are included in the hash: the exact zip file format encoding, compression method, per-file modification times, and other metadata are ignored."
+
+That sentence is the lesson. **There are two different hashes of "the same" zip.** A hash of the zip's bytes changes if anything changes, even the compression level or the modification times. A hash of its content does not. Lab step 7 re-zips the module's files at two compression levels with different dates: the bytes differ, and the h1 does not. Add one byte to one file, and the h1 changes. Before you say two things are "the same", say which of the two you compared.
+
+#### The lab's three records
+
+The lab fetches three things from public services, none of them pinned by hash, and compares them with values fixed in advance:
+
+1. **The zip** from the Go module proxy: 21 files, 27,781 bytes on the day it was written. It computes the h1 from the files inside.
+2. **The module's \`go.mod\` file** from the same proxy: 25 bytes, and its own h1.
+3. **The checksum database's answer** for this module and version: two record lines (one for the zip, one for the \`go.mod\` file) and a tree head.
+
+The two record lines, and the expected h1 values, are the only things pinned: \`h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=\` for the zip and \`h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=\` for \`go.mod\`. The tree head is not pinned, for a reason that follows.
+
+#### What a match proves, and what it does not
+
+By Go's own documentation (cmd/go, tag go1.21.0), the \`go\` command "defaults to validating downloaded modules, regardless of source, against the public Go checksum database at sum.golang.org", and "both services" (the proxy and the database) "are operated by the Go team at Google". Go's source calls the database server's log a transparency log. As in S1.3, what a public log gives you is the chance to notice a change. The noticing is a separate step.
+
+This lab does not take that step, and so the claim has to be narrow. **Without verifying the signed tree head and the log's consistency, a match proves only that the zip equals what the log told this client, over TLS, on this occasion. It does not prove that the log is honest, that its answer is the same one other clients saw, or that the code is safe.**
+
+- **The signature is not checked. ⚠️ UNVERIFIED.** The answer ends with a signature line, in the "signed note" format that \`note.go\` (golang/mod tag v0.20.0) describes. Its comment says "The text should be ignored unless the note is signed by a trusted server key and the signature has been verified using the server's public key", and that the only key type is Ed25519. The lab uses only Python's standard library, in which this module's author found no Ed25519 verifier (the Python docs were not reachable to confirm that, ⚠️ UNVERIFIED), so the lab does not verify the signature. The \`go\` command's documented default is to validate downloads against the database; how it checks the signature is in its source, which this module did not read. Until the signature is verified, the tree head is text.
+- **Log consistency is not checked.** The lab does not compare the tree head with an earlier one, or ask for a proof.
+- **The two records come from one operator.** The proxy and the checksum database are run by the same team. Their agreement is weaker evidence than two organisations agreeing.
+
+#### The tree head: not pinnable, and not even rising
+
+The checksum database's answer contains a tree head: a tree size and a root hash, then a signature. A tree head is a snapshot of a log that grows. You would expect later answers to carry bigger sizes.
+
+On 1 October 2026 they did not. Drill 3 sends the same request six times, one second apart. In the run that wrote this module, the tree sizes came back as 66199902, 66209183, 66209078, 66207642, 66209338 and 66207642: five different values, and the third is smaller than the second. Some replies carried an \`age\` header (6992, 1446, 6 and 1448 seconds), and every reply carried \`cache-control: public, max-age=10800\`. That is **consistent with** caches answering with older tree heads, but this module did not verify the cause. What follows from the observation does not depend on the cause:
+
+- **Never pin a tree head.** It changes from one request to the next.
+- **Never read a smaller tree size as "the log shrank".** Without a proof, a smaller size means only that a different (older) answer arrived.
+- **Put it in the manifest's volatile part.** The lab writes it to \`observed.json\`, which the rerun check does not compare, and keeps the portable \`manifest.json\` free of it.
+
+#### Making the pipeline deterministic
+
+A pipeline is **deterministic** if the same inputs always give the same output bytes. These are the places where it usually is not, and what the lab does about each:
+
+| Source of difference | What the lab does | Checked against |
+|---|---|---|
+| Wall-clock time in a result | Never writes one into \`manifest.json\` | Leak 2 in lab step 6 puts one in on purpose |
+| The order of a set of strings | Never iterates a set into a result; sorts | Leak 1, with two hash seeds |
+| The order of a dictionary's keys | Writes JSON with \`sort_keys=True\` | Python's docs: "If *sort_keys* is true (default: \`False\`), then the output of dictionaries will be sorted by key." (CPython tag v3.9.18, \`json.rst\`) |
+| Where the machine differs | Keeps versions in a separate \`environment.json\`, so \`manifest.json\` is identical on every machine | Lab step 5 |
+
+Python randomises the hashes of strings, and so the order of a set of strings, on each start, unless told otherwise. The docs for \`PYTHONHASHSEED\` (tag v3.9.18, \`cmdline.rst\`): "If this variable is not set or set to \`random\`, a random value is used to seed the hashes of str and bytes objects", and set to an integer, "it is used as a fixed seed". That gives the lab a reliable test: run the pipeline under seed 1 and seed 2. A deterministic pipeline does not care. An unsorted set of strings does. An unsorted *dictionary* does not, in Python 3.7 and later, because its order is the order of insertion (Drill 1 shows both).
+
+#### The run manifest and the rerun check
+
+A **run manifest** is the pipeline's own account of what it did: the pins, each input and its h1, the log's records, the command, and a verdict. The lab's has three parts, each with a different job:
+
+| File | Holds | Compared on a rerun? |
+|---|---|---|
+| \`manifest.json\` | Pins, inputs, expected and recorded values, verdict. Identical on every machine | Byte for byte |
+| \`environment.json\` | Python version and system name | Noted, not required to match across machines |
+| \`observed.json\` | Zip and \`go.mod\` byte hashes, the log's record number, and the tree head | Never |
+
+The **rerun check** has three outcomes, not two:
+
+| Outcome | Meaning | What you do |
+|---|---|---|
+| **PASS** | The two manifests are byte-identical | Say what the match covers: these inputs, this procedure |
+| **FAIL** | The manifests differ. The check names the keys that differ | Find the cause before you say anything else. The leaks in step 6 are two causes |
+| **STOP** | A manifest is missing, empty or not valid JSON, so nothing was compared | A missing comparison is not a pass. Fix it and rerun |
+
+The same three outcomes appear in the pipeline's own verdict. A **FAIL** there means the computed hash does not match the pinned value or the log's record. A **STOP** means an input is missing, a pin changed or the log's answer was not the expected shape.
+
+#### Where reproducibility ends
+
+Live sources change. A web page changes, a service rewrites its answer, a tree head grows. Four habits follow, and the lab shows the first three:
+
+- **Pin what you can pin**, by tag and by hash.
+- **Separate what you cannot pin** into volatile fields, and say that they are volatile.
+- **Check, and stop on, a changed pin**, and never "update the hash to make it pass".
+- **Keep your own copy of anything you cannot fetch again**, with its hash and the date you fetched it. Whether a public archive holds a copy is its own record, with its own date, and you should say that you asked.
+
+A deterministic archive is part of this too. Drill 2 shows \`git archive\` of a commit, which per git's documentation (tag v2.39.0, \`git-archive.txt\`) uses "the commit time as recorded in the referenced commit object" as the modification time. Archive the same commit twice, and the bytes match. Archive a tree id, which has no commit, and "the current time is used", so the bytes differ from second to second.
+
+#### Ethics and method
+
+- **A match is not a verdict on the code.** The lab never reads or runs the module it hashes.
+- **Say which records you used and what you did not check.** In a report, "the pipeline reproduced" is a statement about the pipeline. "The code is genuine" is a different claim, and this lab does not support it.
+- **Publish manifests, not secrets.** A manifest holds hashes, names and versions. It should never hold a key, a token, a path under your home directory, a user name or a time zone name.
+- **Do not edit a pin to make a check pass.** A failed pin is the finding.`,
+    lab: {
+      mac: `# LAB: rerun a small investigation pipeline and get the same bytes, and find out what "the same" proves (Apple Silicon)
+# ETHICS: public data only. The only network use is eight downloads of public files: three from the Go module
+# proxy and checksum database, five documentation or source files pinned to a tag. No account, no key, no page about
+# any person. Nothing here is a claim about who wrote the code you hash.
+# NO NEW TOOL: curl, shasum, git and python3 3.9 or later (standard library only), as in S4.2.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
+mkdir -p ~/scouts-case/s4_6 && cd ~/scouts-case/s4_6 || exit 1
+rm -rf inputs run1 run2 run3 run4 evidence scope.txt collection_log.tsv pins.tsv expected.tsv lablib.py pipeline.py check_rerun.py kat __pycache__ && mkdir inputs evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.6 reproducible pipelines (one public Go module, golang.org/x/sync v0.1.0)
+question:     Can someone else rerun this pipeline and get the same bytes, and what does a match prove?
+sources:      the Go module proxy and checksum database (public); five documentation files pinned to a tag
+out of scope: any private module; any account, key or password; any claim about who wrote the code
+collector:    analyst01
+SCOPE
+echo "scope written: $(wc -l < scope.txt | tr -d ' ') lines"
+
+# 2. The lock file. Five documentation or source files, each pinned by tag and by SHA-256. A changed file stops the lab.
+printf '%s\\t%s\\t%s\\n' \\
+  hash.go     https://raw.githubusercontent.com/golang/mod/v0.20.0/sumdb/dirhash/hash.go 73a2fa2d8ea712e3d4d5545c8548daa290428a62a8219ca10cb21a55f5d7d21b \\
+  note.go     https://raw.githubusercontent.com/golang/mod/v0.20.0/sumdb/note/note.go ea0ff6ad32e4d9d664eff16a5e64554d9eb2906401a61232027f13753ccee924 \\
+  json.rst    https://raw.githubusercontent.com/python/cpython/v3.9.18/Doc/library/json.rst 42718db689e6a7f69a5b261bcb480805aa062356de84c04a8771588cb4c5ea80 \\
+  cmdline.rst https://raw.githubusercontent.com/python/cpython/v3.9.18/Doc/using/cmdline.rst 58ef076ff367e7975d00983a7575a73944ae3a846ac00f5497af79f76aa75289 \\
+  git-archive.txt https://raw.githubusercontent.com/git/git/v2.39.0/Documentation/git-archive.txt b858fb2c5410c6479319189f8cb2c45319d855d27dbd96f17fa38665da243bd4 > pins.tsv
+while IFS="$(printf '\\t')" read -r name url want; do
+  curl -sS -f -L --max-time 30 -A "$UA" -o "inputs/$name" "$url" || { echo "STOP: could not fetch $url"; exit 1; }
+  got=$(shasum -a 256 "inputs/$name" | cut -d' ' -f1)
+  if [ "$got" != "$want" ]; then
+    echo "STOP: $name does not match its pin."; echo "  pinned \${want:0:12}...  got \${got:0:12}..."
+    echo "  A file at a tag should not change. Read what came back before trusting any number below."; exit 1
+  fi
+  printf '%s\\t%s\\t%s\\t%s\\n' "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "\${got:0:12}" "$url" >> collection_log.tsv
+  echo "pinned $name \${got:0:12} OK"
+done < pins.tsv
+
+# 3. The three live files. They are NOT pinned by hash. What is pinned is what they must contain: the expected h1 values and the
+# two record lines. The answer's tree head is not pinned: it changes, and it is not even monotonic (Drill 3).
+# (The h1 hash is the one go.sum files use. Section "What the hash covers" in the theory explains it.)
+fetch() {  # fetch URL FILE FIRST-BYTES-REGEX: a 200 with the wrong body is still a failure
+  curl -sS -f -L --max-time 60 -A "$UA" -o "$2" "$1" || { echo "STOP: could not fetch $1"; exit 1; }
+  head -c 64 "$2" | grep -aEq "$3" || { echo "STOP: $2 does not look like what $1 should return"; exit 1; }
+}
+fetch https://proxy.golang.org/golang.org/x/sync/@v/v0.1.0.zip inputs/sync.zip '^PK'
+fetch https://proxy.golang.org/golang.org/x/sync/@v/v0.1.0.mod inputs/sync.mod '^module golang.org/x/sync'
+fetch https://sum.golang.org/lookup/golang.org/x/sync@v0.1.0 inputs/lookup.txt '^[0-9]+$'
+echo "live files: zip $(wc -c < inputs/sync.zip | tr -d ' ') bytes, mod $(wc -c < inputs/sync.mod | tr -d ' ') bytes, lookup $(wc -l < inputs/lookup.txt | tr -d ' ') lines"
+printf '%s\\t%s\\n' zip_h1 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o= mod_h1 h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM= \\
+  record_zip 'golang.org/x/sync v0.1.0 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=' \\
+  record_mod 'golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=' > expected.tsv
+
+# 4. The code, in three files. Standard library only. Nothing here prints a name, a path or a time.
+cat > lablib.py <<'PY'
+import base64, hashlib, json, os, platform, subprocess, sys, tempfile, zipfile
+
+def h1(entries):
+    """Go's "h1:" directory hash (inputs/hash.go, Hash1): SHA-256 over lines "<sha256 of file>  <name>\\\\n", names in byte order."""
+    h = hashlib.sha256()
+    for name, data in sorted(entries, key=lambda e: e[0].encode("utf-8")):
+        h.update(("%s  %s\\n" % (hashlib.sha256(data).hexdigest(), name)).encode("utf-8"))
+    return "h1:" + base64.b64encode(h.digest()).decode("ascii")
+
+def zip_entries(path):
+    z = zipfile.ZipFile(path)
+    return [(n, z.read(n)) for n in z.namelist()]
+
+def read_tsv(path):
+    out = {}
+    for line in open(path, encoding="utf-8").read().splitlines():
+        k, v = line.split("\\t", 1)
+        out[k] = v
+    return out
+
+def parse_lookup(text):
+    """The checksum database's answer: a record number and two record lines, a blank line, the tree head, a blank line, a signature line. Returns None if it is not that shape."""
+    parts = text.split("\\n\\n")
+    if len(parts) < 3: return None
+    head = parts[0].split("\\n")
+    tree = parts[1].split("\\n")
+    if len(head) != 3 or not head[0].isdigit() or len(tree) != 3 or tree[0] != "go.sum database tree" or not tree[1].isdigit(): return None
+    if not parts[2].startswith("\\u2014 sum.golang.org "): return None
+    return {"record_id": int(head[0]), "records": head[1:], "tree_size": int(tree[1]), "tree_root": tree[2]}
+
+def canonical(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\\n"
+
+def sha256_file(path):
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+PY
+cat > pipeline.py <<'PY'
+import os, sys, time
+from lablib import *
+# usage: python3 pipeline.py OUTDIR [--leak time|set]
+out = sys.argv[1]; leak = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == "--leak" else None
+os.makedirs(out, exist_ok=True)
+def stop(msg):
+    print("STOP:", msg); sys.exit(2)
+exp = read_tsv("expected.tsv")
+pins = [l.split("\\t") for l in open("pins.tsv", encoding="utf-8").read().splitlines()]
+for name, _, want in pins:                                   # every pinned file must still match its pin
+    if not os.path.exists("inputs/" + name): stop("pinned file missing: " + name)
+    if sha256_file("inputs/" + name) != want: stop("pinned file changed: " + name)
+for need in ("sync.zip", "sync.mod", "lookup.txt"):
+    if not os.path.exists("inputs/" + need): stop("input missing: " + need)
+look = parse_lookup(open("inputs/lookup.txt", encoding="utf-8").read())
+if look is None: stop("the checksum database's answer is not the expected shape")
+entries = zip_entries("inputs/sync.zip")
+zip_h1 = h1(entries)
+mod_h1 = h1([("go.mod", open("inputs/sync.mod", "rb").read())])
+rec_zip, rec_mod = look["records"]
+problems = []
+if zip_h1 != exp["zip_h1"]: problems.append("zip content differs from the pinned expected h1")
+if mod_h1 != exp["mod_h1"]: problems.append("go.mod differs from the pinned expected h1")
+if rec_zip != exp["record_zip"] or rec_mod != exp["record_mod"]: problems.append("the log's record lines differ from the pinned lines")
+if rec_zip != "golang.org/x/sync v0.1.0 " + zip_h1: problems.append("zip content does not match the log's record")
+if rec_mod != "golang.org/x/sync v0.1.0/go.mod " + mod_h1: problems.append("go.mod does not match the log's record")
+verdict = "PASS" if not problems else "FAIL"
+manifest = {                                                 # portable: identical on every machine
+    "format": 1,
+    "pins": sorted([{"name": n, "sha256": w} for n, _, w in pins], key=lambda p: p["name"]),
+    "inputs": [{"name": "sync.zip", "entries": len(entries), "h1": zip_h1}, {"name": "sync.mod", "h1": mod_h1}],
+    "log_records": [rec_zip, rec_mod],
+    "commands": ["python3 pipeline.py OUTDIR"],
+    "verdict": verdict, "problems": problems,
+}
+if leak == "time": manifest["generated"] = repr(time.time())            # a wall-clock value in a result
+if leak == "set": manifest["entry_names"] = list({n for n, _ in entries})  # a set of strings, iterated in hash order
+environment = {"python": "%d.%d.%d" % sys.version_info[:3], "system": platform.system()}   # differs by machine, same on a rerun
+observed = {"zip_bytes_sha256": sha256_file("inputs/sync.zip"), "mod_bytes_sha256": sha256_file("inputs/sync.mod"),
+            "record_id": look["record_id"], "tree_size": look["tree_size"], "tree_root": look["tree_root"]}          # volatile: never compared
+open(os.path.join(out, "manifest.json"), "w", encoding="utf-8").write(canonical(manifest))
+open(os.path.join(out, "environment.json"), "w", encoding="utf-8").write(canonical(environment))
+open(os.path.join(out, "observed.json"), "w", encoding="utf-8").write(canonical(observed))
+print("%s: zip %s | go.mod %s" % (verdict, zip_h1[:19] + "...", mod_h1[:19] + "..."))
+for p in problems: print("  -", p)
+sys.exit(0 if verdict == "PASS" else 1)
+PY
+cat > check_rerun.py <<'PY'
+import json, sys
+# usage: python3 check_rerun.py DIR_A DIR_B   ->  PASS (exit 0), FAIL (exit 1), STOP (exit 2)
+a, b = sys.argv[1], sys.argv[2]
+def load(d, f):
+    try: return open("%s/%s" % (d, f), "rb").read()
+    except OSError: return None
+ma, mb = load(a, "manifest.json"), load(b, "manifest.json")
+if ma is None or mb is None or not ma or not mb:
+    print("STOP: a manifest is missing or empty; nothing was compared"); sys.exit(2)
+try: ja, jb = json.loads(ma), json.loads(mb)
+except ValueError:
+    print("STOP: a manifest is not valid JSON; nothing was compared"); sys.exit(2)
+if ma == mb:
+    print("PASS: the two manifests are byte-identical (%d bytes)" % len(ma))
+    ea, eb = load(a, "environment.json"), load(b, "environment.json")
+    print("      environment.json:", "identical" if ea == eb else "DIFFERENT (a different machine or tool version)")
+    print("      observed.json: not compared (it holds volatile fields)")
+    sys.exit(0)
+keys = sorted(k for k in set(ja) | set(jb) if ja.get(k) != jb.get(k))
+print("FAIL: the manifests differ, in key(s): " + ", ".join(keys)); sys.exit(1)
+PY
+
+# 4b. Known-answer test (S3.2's rule): test the h1 function on an answer you can get another way. hash.go documents the
+# shell recipe "sha256sum $(find . -type f | sort) | sha256sum". Run that recipe on two tiny files and compare.
+mkdir -p kat/x && printf 'one\\n' > kat/x/a.txt && printf 'two\\n' > kat/x/b.txt
+SHELL_HEX=$(cd kat && shasum -a 256 x/a.txt x/b.txt | shasum -a 256 | cut -d' ' -f1)
+python3 - "$SHELL_HEX" <<'PY'
+import sys, base64
+sys.path.insert(0, ".")
+from lablib import *
+mine = base64.b64decode(h1([("x/a.txt", b"one\\n"), ("x/b.txt", b"two\\n")])[3:]).hex()
+print("A1 known-answer test, h1 against the documented shell recipe:", "PASS" if mine == sys.argv[1] else "FAIL")
+sys.exit(0 if mine == sys.argv[1] else 1)
+PY
+[ $? -eq 0 ] || { echo "STOP: the h1 function disagrees with the documented recipe; do not trust any result below"; exit 1; }
+
+# 5. The pipeline, run twice with two different hash seeds. A pipeline that is truly deterministic does not care.
+PYTHONHASHSEED=1 python3 pipeline.py run1; r1=$?; echo "  (exit $r1)"
+PYTHONHASHSEED=2 python3 pipeline.py run2; r2=$?; echo "  (exit $r2)"
+[ "$r1$r2" = "00" ] || { echo "STOP: the clean pipeline did not PASS twice, so there is nothing to compare"; exit 1; }
+python3 check_rerun.py run1 run2
+echo "manifest sha256 (first 12): $(shasum -a 256 run1/manifest.json | cut -c1-12)"
+
+# 6. Two deliberate leaks. The rerun check must catch each one, and say what differed.
+PYTHONHASHSEED=1 python3 pipeline.py run3 --leak set > /dev/null; PYTHONHASHSEED=2 python3 pipeline.py run4 --leak set > /dev/null
+echo "leak 1, a set of strings, seeds 1 and 2:"; python3 check_rerun.py run3 run4
+PYTHONHASHSEED=1 python3 pipeline.py run3 --leak time > /dev/null; PYTHONHASHSEED=1 python3 pipeline.py run4 --leak time > /dev/null
+echo "leak 2, a wall-clock time, same seed:"; python3 check_rerun.py run3 run4
+echo "a missing manifest:"; python3 check_rerun.py run1 run_does_not_exist
+
+# 7. What the h1 hash covers: the content of the files, not the bytes of the zip file.
+python3 - <<'PY'
+import sys, zipfile, io
+sys.path.insert(0, ".")
+from lablib import *
+entries = zip_entries("inputs/sync.zip")
+def rezip(items, level, stamp):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=level) as z:
+        for name, data in items:
+            zi = zipfile.ZipInfo(name, date_time=stamp); zi.compress_type = zipfile.ZIP_DEFLATED; z.writestr(zi, data)
+    return buf.getvalue()
+a = rezip(entries, 1, (2001, 1, 1, 0, 0, 0)); b = rezip(entries, 9, (2020, 6, 15, 12, 30, 0))
+open("evidence/a.zip", "wb").write(a); open("evidence/b.zip", "wb").write(b)
+ha, hb = h1(zip_entries("evidence/a.zip")), h1(zip_entries("evidence/b.zip"))
+print("S1 same files, two zip encodings: bytes equal =", a == b, "| h1 equal =", ha == hb, "| equals the log's value =", ha == read_tsv("expected.tsv")["zip_h1"])
+changed = list(entries)
+changed[0] = (changed[0][0], changed[0][1] + b"x")          # one byte added to one file
+print("S2 one byte added to one file: h1 equal =", h1(changed) == ha)
+PY
+[ $? -eq 0 ] || { echo "STOP: the zip experiment failed; see above"; exit 1; }
+
+# 8. The documented sentences this module relies on, found in the pinned files (S3.2's habit: tie each claim to a page you read).
+python3 - <<'PY'
+import re
+def flat(name): return re.sub(r"\\s+", " ", re.sub(r"(?m)^\\s*//\\s?", "", open("inputs/" + name, encoding="utf-8").read()))
+checks = [("hash.go", "Only the file names and their contents are included in the hash"),
+          ("hash.go", "per-file modification times, and other metadata are ignored"),
+          ("note.go", "The text should be ignored unless the note is signed by a trusted server key and the signature has been verified"),
+          ("note.go", "There is only one key type, Ed25519 with algorithm identifier 1."),
+          ("json.rst", "If *sort_keys* is true (default: \`\`False\`\`), then the output of dictionaries will be sorted by key."),
+          ("cmdline.rst", "If this variable is not set or set to \`\`random\`\`, a random value is used to seed the hashes of str and bytes objects."),
+          ("git-archive.txt", "In the first case the current time is used as the modification time of each file in the archive.")]
+for name, text in checks:
+    ok = text in flat(name)
+    print("D%d %-15s %s" % (checks.index((name, text)) + 1, name, "found" if ok else "NOT FOUND"))
+    if not ok: raise SystemExit("STOP: a documented sentence is missing from the pinned file")
+PY
+[ $? -eq 0 ] || { echo "STOP: a pinned file no longer says what this module says it says"; exit 1; }
+
+echo
+echo "evidence: manifest $(shasum -a 256 run1/manifest.json | cut -c1-12)  lookup record lines $(sed -n 2,3p inputs/lookup.txt | shasum -a 256 | cut -c1-12)"`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a shell script that fetches files, hashes them with a checksum tool, runs python3 and uses git in Drill 2.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl python3 git
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_6 inside Ubuntu. Drills 1 and 3 run unchanged; Drill 2 needs the same sed.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in the pinned-file check (step 2), the known-answer test (4b), the evidence lines, and
+# Drill 2. One command does it for the lab:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, git (2.32 or later) and python3 3.9 or later. The lab was run on Linux with python 3.11, git 2.43, in zsh
+# 5.9 and in bash; it uses nothing newer than python 3.9. On Debian or Ubuntu:
+#   sudo apt install -y curl python3 git
+# Drills 1 and 3 use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+scope written: 5 lines
+pinned hash.go 73a2fa2d8ea7 OK
+pinned note.go ea0ff6ad32e4 OK
+pinned json.rst 42718db689e6 OK
+pinned cmdline.rst 58ef076ff367 OK
+pinned git-archive.txt b858fb2c5410 OK
+live files: zip 27781 bytes, mod 25 bytes, lookup 9 lines
+A1 known-answer test, h1 against the documented shell recipe: PASS
+PASS: zip h1:wsuoTGHzEhffawBO... | go.mod h1:RxMgew5VJxzue5/j...
+  (exit 0)
+PASS: zip h1:wsuoTGHzEhffawBO... | go.mod h1:RxMgew5VJxzue5/j...
+  (exit 0)
+PASS: the two manifests are byte-identical (930 bytes)
+      environment.json: identical
+      observed.json: not compared (it holds volatile fields)
+manifest sha256 (first 12): e72c71a94da4
+leak 1, a set of strings, seeds 1 and 2:
+FAIL: the manifests differ, in key(s): entry_names
+leak 2, a wall-clock time, same seed:
+FAIL: the manifests differ, in key(s): generated
+a missing manifest:
+STOP: a manifest is missing or empty; nothing was compared
+S1 same files, two zip encodings: bytes equal = False | h1 equal = True | equals the log's value = True
+S2 one byte added to one file: h1 equal = False
+D1 hash.go         found
+D2 hash.go         found
+D3 note.go         found
+D4 note.go         found
+D5 json.rst        found
+D6 cmdline.rst     found
+D7 git-archive.txt found
+
+evidence: manifest e72c71a94da4  lookup record lines c1d97320da97
+\`\`\`
+
+The last line holds two values that are the same for every learner: the first 12 characters of the SHA-256 of the manifest your first run wrote, and of the two record lines the checksum database returned. If the manifest hash differs, the pipeline changed between you and this module: stop and compare. If a line begins "STOP", read it: the pinned files are fixed at a tag, and a changed one means the source was altered or the download was damaged. The numbers 27781 and 25 are the byte counts of the zip and the go.mod file served by the proxy; if they differ, the proxy now serves something else and the pinned h1 values will say so.`
+      }
+    },
+    caseStudy: {
+      title: "One module, three records: what the proxy served, what the log said, and what you computed",
+      body: `This is not an incident, and it names no one. It is one small, public software module, read on 1 October 2026 and chosen because its records are public and checkable: **golang.org/x/sync version v0.1.0**.
+
+**What the three records say.**
+
+| Record | From | What it says |
+|---|---|---|
+| \`v0.1.0.info\` | The Go module proxy | Version v0.1.0; time 2022-09-29T20:41:14Z; the origin is a git repository at go.googlesource.com/sync, ref refs/tags/v0.1.0, commit 8fcdb60fdcc0539c5e357b2308249e4e752147f1 |
+| \`v0.1.0.zip\` | The Go module proxy | 21 files, 27,781 bytes. Its content hashes to \`h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=\` (the lab computes this) |
+| \`golang.org/x/sync v0.1.0 h1:wsuoTGHz…\` and \`…/go.mod h1:RxMgew5V…\` | The checksum database | Two record lines, for the zip and the \`go.mod\` file, in an answer that begins with the record's number (13544323) |
+
+The \`.info\` file is the proxy's own statement about where the version came from. The lab does not check it against the git repository, which it never contacts, so the commit hash is the proxy's claim.
+
+**What the lab shows.** The zip's content hashes to the value in the checksum database's record, and the \`go.mod\` file hashes to the value in the other record. Both match the values pinned in the lab before the first request. Re-zipping the same files, at a different compression level and with different dates, gives different bytes and the same h1. One added byte changes it.
+
+**What the match proves, and what it does not.**
+
+- **It proves** that the zip the proxy served to this client has the content the checksum database's answer recorded, on this occasion, over TLS.
+- **It does not prove that the log is honest.** The signature line was not verified (⚠️ UNVERIFIED in this module), the log's consistency was not checked, and the answer you get may have been served from a cache (Drill 3).
+- **It does not prove independence.** The proxy and the checksum database are operated by the same team (cmd/go docs, tag go1.21.0).
+- **It does not prove the code is safe,** or say anything about who wrote it. The lab never reads the module's source.
+- **It proves something about the pipeline.** Run under two hash seeds, the pipeline wrote byte-identical manifests: the procedure does not depend on the machine's randomness, or on time.
+
+**The observation that surprised the author.** Six identical requests to the checksum database, one second apart, returned tree heads with different sizes, and the sizes did not rise (Drill 3). A pipeline that pinned the tree head would have failed on its second run. A pipeline that read "size went down" as "the log shrank" would have reported something that nobody has shown. This is how a live source behaves, and the answer is to put its volatile fields in a file the rerun check never compares.
+
+**Tag each statement with S2.7's strengths:**
+
+| Statement | Tag | Why |
+|---|---|---|
+| "I computed this h1 from these files, and my function passed its known-answer test" | **STRONG** | Arithmetic on bytes you hold |
+| "The zip's h1 equals the value I pinned before fetching" | **STRONG** | A value fixed in advance, checked by you |
+| "The zip's h1 equals the log's record line" | **LEAD** | The log's word, from the proxy's operator, with the signature and consistency unchecked |
+| "The proxy says this version came from commit 8fcdb60f…" | **ONE-WAY** | The proxy's own statement; the lab does not check it |
+| "Two reruns, two hash seeds, byte-identical manifests" | **STRONG** | You ran it twice and compared the bytes |
+| "The tree size was larger last time, so the log shrank" | Not supported | A different, older answer is the likelier reading, and it was not verified |
+
+**The lesson for this module.** "The same" always has an object. The same zip bytes, the same content, the same manifest and the same log are four different claims, and a pipeline that says which one it compared can be checked. One that does not cannot.`
+    },
+    challenges: [{
+      q: `A colleague's report says: "We reran the pipeline and the output hash was identical, so the result is verified." You are asked to review it. What do you ask, and what do you write instead?`,
+      a: `**A matching rerun proves the pipeline repeats. It does not prove that what it computed is true.**
+
+1. **What was compared?** The same zip bytes, the same content, the same manifest, or the same log? They are four different claims (lab step 7 gives bytes that differ and an h1 that does not).
+2. **Were the inputs pinned?** If the pipeline fetched a live source and the hash matched, which part of it is the input and which the answer? A pin fixed *before* the first fetch is a prediction. A hash taken after is a record.
+3. **Were two runs enough?** The lab runs under two hash seeds and compares bytes, so a leak that depends on a random start-up value shows up. Two runs under the same seed would not have shown it (Drill 1).
+4. **What does the match not cover?** The signature and the log's consistency (⚠️ UNVERIFIED in this module), the honesty of the source, and whether the code is safe.
+
+What you write: "Two reruns on two machines produced byte-identical manifests. Inputs were pinned by hash and tag. The log's signature and consistency were not checked. This shows the procedure repeats; it does not show the module is genuine or safe."`
+    }, {
+      q: `A teammate pins the checksum database's tree head in the lab's lock file "so the check is stricter". The next day the lab stops with a mismatch. What went wrong, and what do you change?`,
+      a: `**A tree head is a volatile field. A pin on it fails on a run where nothing is wrong.**
+
+- **Why it fails.** Drill 3: six identical requests returned five different tree sizes, and some were smaller than the one before. The log grows, and the answer you get may be a cached older one. A pinned head will match only on the day it was written, or by luck.
+- **Why it is not stricter.** The stricter claim would be that this log is consistent with an earlier one. That needs a signature check and a proof, not a pinned string. The lab does neither (⚠️ UNVERIFIED).
+- **What you change.** Remove the tree head from the pins. Pin the two record lines and the expected h1 values, which do not change. Keep the tree head in \`observed.json\`, which the rerun check does not compare. Do not edit a pin to make a check pass.
+- **What you tell the team.** "The pin made the pipeline fail on correct runs. The record lines are the stable claim, and they are still pinned."`
+    }, {
+      q: `You rerun a pipeline from a colleague and the rerun check prints STOP, not PASS or FAIL. Your manager says "so nothing failed, then". What do you say?`,
+      a: `**STOP is not a pass. It means nothing was compared.**
+
+- **What the three outcomes mean.** PASS: the manifests are byte-identical. FAIL: they differ, and the check names the keys. STOP: a manifest was missing, empty or not valid JSON, or a pinned file or input changed, so there was nothing, or nothing trustworthy, to compare.
+- **Why a two-way check would be wrong.** A check that prints only "same" or "different" files a missing manifest under one of them. Under "different" it looks like a finding. Under "same" it is a lie. The lab's check gives the missing case its own outcome and its own exit code.
+- **What you do.** Find out why: a missing file, an input that did not download, a changed pin. Fix the cause and rerun. If the pin changed, read what came back before you touch the pin.
+- **What you write.** "The check stopped: [reason]. No comparison was made. Rerun after [fix]." Never write "passed".`
+    }],
+    quiz: ["What are the four things that must be the same for a pipeline to be repeatable? Say how each one is pinned and what a pin does not prove.", "What does the h1 hash cover when it is computed over a zip file, and what does it ignore? Quote the sentence in hash.go that says so.", "Lab step 7 gives two zips with different bytes and the same h1. What is the difference between a hash of bytes and a hash of content, and why must a report say which one it compared?", "What did the lab's known-answer test compare the h1 function against, and why is that comparison independent of the function?", "What are the lab's three records, and which values are pinned? Why is the tree head not one of them?", "In Drill 3, six identical requests returned five different tree sizes, and some were smaller than the one before. What may you conclude, and what may you not?", "Without verifying the signed tree head and the log's consistency, what does a match between the zip's h1 and the log's record line prove? Give three things it does not prove.", "Why is the agreement between the Go module proxy and the checksum database weaker evidence than two separate organisations agreeing?", "In Drill 1, why does a set of strings change under a different PYTHONHASHSEED, and a dictionary and a sorted list do not?", "What did the pipeline's two leaks put into manifest.json, and what did the rerun check print for each?", "What is the difference between manifest.json, environment.json and observed.json? Which does the rerun check compare, and why is that right?", "The rerun check has three outcomes. What does each mean, and why would a two-way check mislead on a missing manifest?", "In Drill 2, why do two archives of the same commit match, and two archives of a tree id, two seconds apart, not?", "Where does reproducibility end for a live source? Name two habits that follow.", "Tag each with S2.7's strengths: \"I computed this h1 myself and the function passed its known-answer test\"; \"the h1 equals the log's record line\"; \"the proxy says this came from commit 8fcdb60f\"; \"two reruns under two seeds gave identical manifests\".", "Why must you never edit a pin to make a check pass?"],
+    workbench: `> **What this trains.** The lab ran a pipeline twice and caught two leaks. Here you see why a set of strings is the leak that matters, what \`git archive\` does with time, and how a live source's volatile field behaves when you ask for it six times. Drills 1 and 2 touch no network. Drill 3 sends six requests to one public service.
+
+#### 🟢 Drill 1 — which orders depend on the seed? ~2 min
+
+**Goal.** Run the same four orderings under two hash seeds and see which of them change.
+
+**Done when.** You can say which of a set, a sorted list, a dictionary and sorted JSON depends on the seed, and why the lab's pipeline sorts everything it writes.
+
+<details><summary>Walkthrough</summary>
+
+Run this after the lab, so that the case folder exists.
+
+\`\`\`bash
+cd ~/scouts-case/s4_6 || exit 1
+NAMES='alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima'
+for seed in 1 2; do
+  PYTHONHASHSEED=$seed python3 -c "
+import json
+names = '$NAMES'.split()
+print('set      ', ','.join(set(names)))
+print('sorted   ', ','.join(sorted(set(names))))
+print('dict     ', ','.join({n: 1 for n in names}))
+print('json     ', json.dumps({n: 1 for n in names}, sort_keys=True))
+" > seed$seed.txt
+done
+for kind in set sorted dict json; do
+  if [ "$(grep "^$kind " seed1.txt)" = "$(grep "^$kind " seed2.txt)" ]; then echo "$kind: same under seeds 1 and 2"; else echo "$kind: DIFFERENT under seeds 1 and 2"; fi
+done
+\`\`\`
+
+It printed:
+
+\`\`\`text
+set: DIFFERENT under seeds 1 and 2
+sorted: same under seeds 1 and 2
+dict: same under seeds 1 and 2
+json: same under seeds 1 and 2
+\`\`\`
+
+- **Only the set depends on the seed.** Python seeds the hashes of strings at start-up (the pinned \`cmdline.rst\`), and a set is ordered by those hashes. Twelve names can come out in a different order every run.
+- **The dictionary does not.** In Python 3.7 and later it keeps insertion order, so an *unsorted dictionary* is not the leak. The lab's "unsorted" leak is therefore a set, not a dictionary.
+- **Sorting, and \`sort_keys=True\`, remove the dependence.** The pipeline sorts every list it writes and writes JSON with sorted keys, so its manifest is the same under every seed. That is why lab step 5 can run it under two.
+- **The test is a comparison, not a look.** A set might happen to come out the same under two seeds. Twelve names make that very unlikely, and the lab's leak uses all 21 file names.
+
+</details>
+
+#### 🟡 Drill 2 — a commit has a time, a tree does not ~3 min
+
+**Goal.** Archive one commit twice, archive its tree id twice two seconds apart, and amend the commit's date to see what each does.
+
+**Done when.** You can say why archiving a commit is repeatable and archiving a tree id is not, and what changes the archive's bytes while the content stays the same.
+
+<details><summary>Walkthrough</summary>
+
+The names are invented, on purpose, as in S4.2. The commit date is fixed so that every learner makes the same commit.
+
+\`\`\`bash
+cd ~/scouts-case/s4_6 && rm -rf drill2 && mkdir drill2 && cd drill2 || exit 1
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME="Ada Example" GIT_AUTHOR_EMAIL=ada@example.org GIT_COMMITTER_NAME="Ada Example" GIT_COMMITTER_EMAIL=ada@example.org
+git init -q demo && cd demo || exit 1
+printf 'one\\n' > a.txt && git add a.txt
+GIT_AUTHOR_DATE="2001-01-01T00:00:00+0000" GIT_COMMITTER_DATE="2001-01-01T00:00:00+0000" git commit -q -m "one" || exit 1
+arch() { git archive --format=tar "$1" | shasum -a 256 | cut -c1-12; }
+same() { if [ "$2" = "$3" ]; then echo "$1: same"; else echo "$1: DIFFERENT"; fi; }
+same "archive of the commit, twice" "$(arch HEAD)" "$(arch HEAD)"
+T1=$(arch 'HEAD^{tree}'); sleep 2; T2=$(arch 'HEAD^{tree}')
+same "archive of the tree id, 2 s apart" "$T1" "$T2"
+TREE_BEFORE=$(git rev-parse 'HEAD^{tree}'); A1=$(arch HEAD)
+GIT_COMMITTER_DATE="2002-02-02T00:00:00+0000" git commit -q --amend --no-edit --date="2001-01-01T00:00:00+0000" || exit 1
+same "tree id before and after amending the commit" "$TREE_BEFORE" "$(git rev-parse 'HEAD^{tree}')"
+same "archive of the commit before and after amending it" "$A1" "$(arch HEAD)"
+\`\`\`
+
+It printed:
+
+\`\`\`text
+archive of the commit, twice: same
+archive of the tree id, 2 s apart: DIFFERENT
+tree id before and after amending the commit: same
+archive of the commit before and after amending it: DIFFERENT
+\`\`\`
+
+- **A commit gives repeatable bytes.** git's documentation (tag v2.39.0): for a commit or tag id, "the commit time as recorded in the referenced commit object is used" as each file's modification time. Two archives of the same commit are the same bytes, on the same version of git.
+- **A tree id does not.** For a tree id, "the current time is used". Two seconds apart, the archives differ although the files do not.
+- **The content did not change, and the archive did.** Amending the commit's date leaves the tree id alone, and the archive of the commit changes. A hash of an archive is a hash of the files *and* of the metadata that went into it, as in lab step 7.
+- **The tools' versions matter.** The lab prints only "same" or "DIFFERENT" because the bytes of a tar file can differ between versions of git. Record the version, as the lab's \`environment.json\` does for Python.
+
+</details>
+
+#### 🔴 Drill 3 — the volatile field, six times ~3 min
+
+**Goal.** Ask the checksum database for the same record six times, one second apart, and compare what is stable with what is not.
+
+**Done when.** You can say which parts of the answer belong in a pinned manifest and which in a volatile file, and why "the tree size went down" is not a finding.
+
+<details><summary>Walkthrough</summary>
+
+This sends six requests to sum.golang.org. It needs no key. The numbers below are from the run that wrote this module. **Yours will differ**, and whether yours rise will differ too; the first line should not.
+
+\`\`\`bash
+cd ~/scouts-case/s4_6 || exit 1
+URL=https://sum.golang.org/lookup/golang.org/x/sync@v0.1.0
+PIN=$(printf '%s\\n%s\\n' "$(grep '^record_zip' expected.tsv | cut -f2)" "$(grep '^record_mod' expected.tsv | cut -f2)")
+SAME=yes; SIZES=""; AGES=""
+for i in 1 2 3 4 5 6; do
+  curl -sS -f --max-time 30 -D "hdr$i.txt" -o "look$i.txt" "$URL" || { echo "STOP: fetch $i failed"; exit 1; }
+  [ "$(sed -n 2,3p look$i.txt)" = "$PIN" ] || SAME=NO
+  SIZES="$SIZES $(sed -n 6p look$i.txt)"
+  a=$(grep -i '^age:' hdr$i.txt | cut -d' ' -f2 | tr -d '\\r'); AGES="$AGES \${a:--}"
+  sleep 1
+done
+echo "record lines equal to the pinned lines in all 6 fetches: $SAME"
+echo "tree sizes, in fetch order:$SIZES"
+echo "age headers, in fetch order:$AGES"
+echo "cache-control: $(grep -i '^cache-control:' hdr1.txt | cut -d' ' -f2- | tr -d '\\r')"
+\`\`\`
+
+It printed:
+
+\`\`\`text
+record lines equal to the pinned lines in all 6 fetches: yes
+tree sizes, in fetch order: 66199902 66209183 66209078 66207642 66209338 66207642
+age headers, in fetch order: 6992 - - 1446 6 1448
+cache-control: public, max-age=10800
+\`\`\`
+
+- **The record lines never moved.** In all six answers, the two lines that matter are the pinned lines. This is what the pipeline pins.
+- **The tree sizes did.** Five different values in six answers, and the third is smaller than the second. In this run the age headers (6992, 1446, 6, 1448 seconds on the answers that carried one) and the \`cache-control\` line are consistent with caches serving older tree heads. That is a reading, and it was not verified.
+- **What goes where.** The record lines, the h1 values and the pins go in \`manifest.json\`. The tree size and root hash go in \`observed.json\`, which the rerun check never compares. Pinning the tree head would make the pipeline fail on a run that did nothing wrong.
+- **What you may not conclude.** A smaller tree size than before is not "the log shrank". It is a different answer. To say anything about the log you would need the signature verified and a proof that the earlier head is a prefix of the later one, and this lab does neither (⚠️ UNVERIFIED).
+- **What you may conclude.** A rerun check that compared the tree head would be comparing the cache. Yours should not.
+
+</details>`,
+    tracker: ["Ran the lab: five pinned files and three live files fetched, the known-answer test passed, and the pipeline said PASS twice under two hash seeds", "Computed an h1 myself and saw that re-zipping the same files keeps it and one added byte changes it", "Ran the two leaks and read what the rerun check said for each, including the STOP for a missing manifest", "Did Drill 1: found which orderings depend on the hash seed", "Did Drill 2: compared git archive of a commit and of a tree id, and amended a date", "Did Drill 3: asked for the same record six times, and wrote what is pinned and what is volatile"]
   }]
 };
 
