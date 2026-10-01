@@ -7984,7 +7984,9 @@ wsl --install
 # One command does all of them:
 #   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
 # Tools: curl and python3 3.9 or later (Level 2 already uses both). No jq or dig in this lab.
-# Everything else (awk, sed, grep, the three Python scripts) behaves the same.`,
+# Everything else (awk, sed, grep, the three Python scripts) behaves the same.
+# One layout difference, in Drill 1: wc -l < cf_captures.txt prints the bare number where the page
+# shows it padded with spaces. It is the same number.`,
       expected: {
         mac: `\`\`\`text
 item001 2026-09-28T16:10:47Z ec5b3cbc225a
@@ -8670,6 +8672,14 @@ wsl --install
 #   sudo apt install -y wget curl openssl python3
 # Your distribution's Wget will be a different version from the one this module tested. Run the
 # known-answer test and report what YOUR version does: that is the result your report may rely on.
+# Ubuntu 24.04's Wget 1.21.4 printed the same validation table as the page's 1.25.0 (block digests
+# 4/4 PASS; payload digests 2/4 PASS; fails on /chunked and /chunked-gzip). Its tool lines read
+# "GNU Wget 1.21.4" and "Wget/1.21.4 (linux-gnu)" where the page shows 1.25.0 and darwin24.1.0.
+# The two gzip rows of known_answers.tsv will not match the page. They hash bytes made by Python's
+# gzip.compress, and the gzip header's OS byte depends on your Python version (3.12.3 printed
+# sha1:HZVZC4U4..., 3.10.20 and 3.13.14 printed sha1:Q2JFDQML...). The checker compares with your own
+# known answers, so the validation table is the same either way. The /plain and /chunked rows match.
+# Drill 1 prints its uniq -c counts padded to 7 characters, where the page pads them to 4.
 # Drill 3's part 2 looks for Chrome at its macOS path; on Linux it prints "skip part 2".`,
       expected: {
         mac: `\`\`\`text
