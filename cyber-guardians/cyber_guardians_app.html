@@ -8180,8 +8180,28 @@ trivy fs .                                # brew install trivy - deps, IaC, secr
       windows: `scoop install nuclei && nuclei -update-templates
 nuclei -u http://192.168.56.20
 npm audit --audit-level=high`,
-      linux: `nuclei -update-templates && nuclei -u http://192.168.56.20
-npm audit --audit-level=high; pip-audit; trivy fs .`,
+      linux: `# LAB: Scan a target AND your own dependencies (Ubuntu 24.04 / WSL)
+mkdir -p ~/cyber-journal/m19 && cd ~/cyber-journal/m19
+
+# nuclei is not in Ubuntu's archive. Its README installs it with Go. Ubuntu's own Go (1.22.2) is
+# older than nuclei v3.11.1 needs, but it downloads the toolchain the module asks for (go1.26.8)
+# by itself: the first build took about four minutes and left a 190 MB binary.
+sudo apt install -y golang-go
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1
+export PATH="$PATH:$(go env GOPATH)/bin"
+nuclei -version                   # -> [INF] Nuclei Engine Version: v3.11.1
+nuclei -update-templates && nuclei -u http://192.168.56.20     # YOUR lab target only (Module 15)
+
+# pip-audit is not in Ubuntu's archive either, and Ubuntu protects its system Python: a plain
+# \`pip install\` stops with "error: externally-managed-environment". pipx runs it from PyPI in its
+# own environment (pinned: pip-audit 2.10.1, which needs Python 3.10 or newer):
+sudo apt install -y pipx
+pipx run --spec pip-audit==2.10.1 pip-audit -r requirements.txt    # YOUR project's file
+# -> "Found N known vulnerabilities in M packages", a Name / Version / ID / Fix Versions table,
+#    and exit status 1. Without -r it audits pipx's own throwaway environment, not your project.
+
+npm audit --audit-level=high
+trivy fs .`,
       expected: {
         mac: `\`\`\`text
 $ nuclei -u http://192.168.56.20
@@ -8433,7 +8453,9 @@ brew install --cask burp-suite        # ARM64-native macOS build
 #   See another user's data? IDOR. Document it, then write the server-side fix above.`,
       windows: `# Same PortSwigger installer (.exe). Separate Firefox profile, proxy 127.0.0.1:8080, install CA.
 # Work the same Academy lab order; do the IDOR Repeater drill.`,
-      linux: `# .sh installer or: sudo apt install burpsuite . Same proxy + CA setup, same labs.`,
+      linux: `# Burp Community is not in Ubuntu 24.04's apt archive: \`sudo apt install burpsuite\` ends with
+# "E: Unable to locate package burpsuite". Download the Linux installer from PortSwigger and run
+# the .sh installer, as in M0's Linux list. Same proxy + CA setup, same labs.`,
       expected: {
         mac: `\`\`\`text
 Proxy > HTTP history
