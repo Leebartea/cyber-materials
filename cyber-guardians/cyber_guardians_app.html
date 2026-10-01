@@ -1852,6 +1852,12 @@ shasum -a 256 -c baseline.sha256                 # verify against the baseline
 acct.txt: FAILED
 shasum: WARNING: 1 computed checksum did NOT match
 \`\`\`
+**Linux / WSL.** The tool is \`sha256sum\` and its summary line names it: \`sha256sum: WARNING: 1 computed checksum did NOT match\`. With \`sha256sum\` in place of \`shasum -a 256\` and \`sed -i 's/100/999/'\` (no \`''\`), the drill printed this on Ubuntu 24.04 (GNU coreutils 9.4), and \`sha256sum -c\` exited 1 just as \`shasum -c\` does:
+\`\`\`
+23759873421adc26e77d9a0c707dbce43023de50196138816ffad3988216e9c4  acct.txt
+acct.txt: FAILED
+sha256sum: WARNING: 1 computed checksum did NOT match
+\`\`\`
 Line 1 is \`tee\` echoing the baseline as it saves it — that hash is reproducible, so **yours should match these 64 characters exactly**, because \`echo "Balance: 100"\` produces the same 13 bytes on every machine. Lines 2-3 are the verification failing after the tamper.
 
 Two details worth having: \`shasum -c\` prints **two** lines on failure, the per-file verdict and a summary, and it **exits 1**. That exit code is the part a script uses — \`shasum -a 256 -c baseline.sha256 || alert\` is a tamper alarm in one line, and it never needs a human to read either line. Check it with \`echo $?\` right after the command.
@@ -3678,7 +3684,10 @@ Get-ChildItem -Force
 Get-Content log.txt | Select-String "error"
 # chmod 600 equivalent (owner full, remove inheritance):
 icacls .env /inheritance:r /grant:r "$env:USERNAME:F"`,
-      linux: `# Identical to macOS (Linux is where Unix came from)
+      linux: `# Same as macOS, except the log: \`tail -f /var/log/system.log\` is macOS's file and here prints
+# "tail: cannot open '/var/log/system.log' for reading: No such file or directory". On a systemd
+# machine \`journalctl -f\` follows the journal instead (Ctrl+C to stop); where journald is not
+# running it prints "No journal files were found."
 grep -ri "password" ~ ; find ~ -name "*.pem" 2>/dev/null
 chmod 600 .env && ls -l .env`,
       expected: {
@@ -3793,6 +3802,22 @@ Second — and this is why the command reads \`-d 1\` rather than the more obvio
 There is a practical reason too, worth knowing before you point this at your home folder. \`du\` must walk everything to add it up, so **\`du -ah ~\` on a real home directory can run for many minutes** — mine took nine, and returned a nesting chain through a messaging app's media cache. Start from a bounded directory. And note that depth-limiting shortens the *output*, not the *traversal*: \`-d 1\` on a 500 GB home folder is still slow, it just prints less.
 
 Common wrong attempts: \`sort\` without \`-h\` (a lexical sort puts \`9K\` above \`2G\`); forgetting \`grep -v grep\` (your own grep process inflates the count by one); no \`2>/dev/null\`, so permission-denied noise buries the answer. Each stage *transforms* the previous stage's output — the Unix philosophy: small tools, one job each, composed. This is the same muscle you use to read logs and hunt processes for the rest of the course.
+
+**Linux / WSL form.** Don't assume \`~/Documents\` exists: a fresh Linux account may not have one, and \`du\` on a missing folder prints its error to stderr — which \`2>/dev/null\` throws away, so the pipeline prints *nothing at all* and looks like an empty folder rather than a missing one. Measure a tree you build yourself instead, in a throwaway folder from \`mktemp -d\`:
+
+\`\`\`bash
+cd "$(mktemp -d)" && mkdir -p venv/lib my-first-project LatestBot project
+head -c 15M /dev/zero > venv/lib/blob.bin; head -c 2M /dev/zero > my-first-project/data.bin; head -c 1M /dev/zero > LatestBot/data.bin
+du -h -d 1 . 2>/dev/null | sort -hr | head -5
+\`\`\`
+\`\`\`
+19M	.
+16M	./venv
+2.1M	./my-first-project
+1.1M	./LatestBot
+4.0K	./project
+\`\`\`
+Run on Ubuntu 24.04 with GNU coreutils 9.4; the \`ps\` line runs unchanged. Three things differ from the Mac output. The paths are Linux paths — a Linux home is \`/home/<you>\`, not \`/Users/you\`, and here the tree is relative to the folder you are standing in. GNU \`du\` reports the disk blocks a directory uses, so the empty \`./project\` shows \`4.0K\`, not the Mac's \`0B\`. And the nesting trap reproduces exactly: \`du -ah . | sort -hr | head -5\` printed \`19M .\`, then \`16M ./venv/lib\`, \`16M ./venv\` and \`15M ./venv/lib/blob.bin\` — one 15M file restated through each parent.
 </details>
 
 #### 🔴 Break & Defend — create a secret file with no race window ~12 min
@@ -4335,7 +4360,12 @@ gpg --list-keys
 # Cert view: browser DevTools > Security, or Test-NetConnection`,
       linux: `sudo apt install gnupg
 gpg --full-generate-key
-echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noout -dates`,
+echo | openssl s_client -connect github.com:443 2>/dev/null | openssl x509 -noout -dates
+echo -n "hello" | sha256sum   # one-wayness/avalanche (ties to Module 3)
+# -> 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  -
+#    the digest macOS's \`shasum -a 256\` prints for "hello"; GNU coreutils ships sha256sum
+echo -n "hellp" | sha256sum   # one letter changed
+# -> fdd7585e08c4e2afd71dcabdb4636c89d557a3f42db9e2040c8bbd1708aa4ce7  -`,
       expected: {
         mac: `\`\`\`text
 $ gpg --list-keys
