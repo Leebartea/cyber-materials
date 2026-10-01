@@ -1204,7 +1204,7 @@ dir "$HOME\\CyberGuardians"`,
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 
 # ── STEP 2: Core development tools ───────────────────────────────
-sudo apt install -y git python3 python3-pip python3-venv nodejs npm
+sudo apt install -y git python3 python3-pip python3-venv pipx nodejs npm
 sudo apt install -y build-essential curl wget tree htop tmux jq
 # VS Code: install via Snap (or download .deb from code.visualstudio.com)
 sudo snap install code --classic
@@ -1212,7 +1212,11 @@ git --version && python3 --version && node --version
 
 # ── STEP 3: Security tools ────────────────────────────────────────
 sudo apt install -y nmap wireshark netcat-openbsd hashcat john
-sudo apt install -y aircrack-ng nikto gobuster wordlists
+# wireshark asks "Should non-superusers be able to capture packets?" (default No) — see the Linux
+# note in Module 13 before you answer.
+# \`wordlists\` is a Kali package and is not in Ubuntu's archive: with it on this line apt stops with
+# "E: Unable to locate package wordlists" and installs none of the four.
+sudo apt install -y aircrack-ng nikto gobuster
 # Burp Suite: download from portswigger.net/burp/communitydownload
 # Run the installer: chmod +x burpsuite_community_linux_*.sh && ./burpsuite_community_linux_*.sh
 # Bitwarden: snap
@@ -1225,8 +1229,11 @@ newgrp docker                           # apply group change in current session
 docker --version
 
 # ── STEP 5: Python libraries ─────────────────────────────────────
-pip3 install --user scapy requests cryptography pwntools
-pip3 install --user beautifulsoup4 dnspython impacket
+# Ubuntu 24.04 protects its system Python: \`pip3 install --user scapy ...\` stops with
+# "error: externally-managed-environment". Use the packaged versions instead:
+sudo apt install -y python3-scapy python3-requests python3-cryptography python3-pwntools
+sudo apt install -y python3-bs4 python3-dnspython python3-impacket
+python3 -c "import scapy; print('scapy OK')"
 
 # ── STEP 6: Firefox + extensions ─────────────────────────────────
 sudo snap install firefox
@@ -8747,7 +8754,8 @@ node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length
 # the CONCEPTS are identical on Apple Silicon - browser CTFs sidestep this nicely on M2).`,
       windows: `# WSL gives a real Linux gdb:  wsl --install ; then  sudo apt install gdb python3-pip ; pip install pwntools
 # Or just use the browser PicoCTF challenges.`,
-      linux: `sudo apt install gdb python3-pip && pip install pwntools
+      linux: `# \`pip install pwntools\` is refused on Ubuntu 24.04 (externally-managed-environment); use the package:
+sudo apt install -y gdb python3-pwntools
 node -e 'const b=Buffer.alloc(8); b.write("A".repeat(100)); console.log(b.length)'`,
       expected: {
         mac: `\`\`\`text
@@ -8969,7 +8977,10 @@ vol -f memory.raw windows.malware.malfind   # injected/hidden code (vol3 2.28 na
 shasum -a 256 -c memory.raw.sha256  # re-verify: evidence unchanged`,
       windows: `# Autopsy + Volatility work natively. FTK Imager (free) makes forensic disk copies.
 # Always hash before/after: Get-FileHash memory.raw -Algorithm SHA256`,
-      linux: `pipx install volatility3 && sudo apt install sleuthkit
+      linux: `# pipx is installed in M0's Linux list (sudo apt install -y pipx)
+pipx install volatility3 && sudo apt install sleuthkit
+# open a new terminal now: pipx puts \`vol\` in ~/.local/bin, which this shell's PATH does not have
+# yet (\`pipx ensurepath\` adds it if a new terminal still says "vol: command not found")
 sha256sum memory.raw | tee memory.raw.sha256
 vol -f memory.raw windows.pslist; sha256sum -c memory.raw.sha256`,
       expected: {
