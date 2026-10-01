@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 22 modules, rows 142–172, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 23 modules, rows 142–173, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -464,6 +464,7 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
 | 170 | M13.5 | `nmcli` (NetworkManager 1.46.0) and `iw` 6.7 are not in this container's base image; they come from `network-manager` and `iw`. No scan or capture was run: the container has no wireless interface | `EXECUTED` | `apt-get install` and `--version`, run here | stable |
 | 171 | M22.5 | The Linux block, marked "Not executed for this edition", runs on Ubuntu 24.04 (sleuthkit 4.12.1, dosfstools 4.2 `mkfs.fat`, mtools 4.0.43) and exits 0: `mkfs.fat -C -F 16 -n EVIDENCE evidence.img 16384` makes a 16,777,216-byte image; `fls -r` lists the volume label, `plan.txt`, `payroll_export.csv` with `*` (inode 7) and `$MBR`, `$FAT1`, `$FAT2`, `$OrphanFiles`; `fls -rd` lists only the deleted file; `istat` prints `Not Allocated` and the short name `_AYROL~1.CSV`; `icat` prints the file's two CSV lines; the image hash is unchanged afterwards (`evidence.img: OK`). No `.fseventsd` entry and no `._` file exists, as the block's last comment says. The banner now says it was run | `EXECUTED` | the page's own block with the `sudo apt install` line removed and `<number-fls-printed>` replaced by 7, run in a scratch folder | stable |
 | 172 | M23.7 | The Linux block, also marked "Not executed", runs and exits 0 with one defect: `ZONE=$(timedatectl show -p Timezone --value)` prints `System has not been booted with systemd as init system (PID 1). Can't operate.` and exits 1 where systemd is not PID 1, leaves `ZONE` empty, and `fls -r -m / -z "" …` still exits 0 — and reads every FAT time as UTC, the same epochs as `-z Etc/UTC` (`1790872494`), where a +05:30 zone moves them by 19,800 s (`1790852694`). The block now reads `readlink /etc/localtime` as the Mac block does and stops with a message if that is empty. `mactime` prints two `Old package separator "'" deprecated` warnings on stderr (Perl 5.38 on Ubuntu 24.04); the timeline CSV is unaffected. `fls -r` shows no `.fseventsd`, so "step 6 has no Linux equivalent" holds. Run here under a UTC zone only: the offsets above came from `fls -z` with named zones, not from a machine in another zone | `EXECUTED` | the page's own block with the `sudo apt install` line removed; `timedatectl` run without systemd; `fls -z` with an empty, a UTC and a +05:30 zone | stable |
+| 173 | M22.7 | M22.7's Linux block names only 7-Zip's own Linux build (7-zip.org, unreachable here). Ubuntu 24.04's `7zip` 23.01+dfsg-11 installs `7z`, `7za` and `7zr` (no `7zz`) and lists the Rar and Rar5 formats, but on an encrypted RAR5 test archive made with `rar` 7.00 (`-ma5 -pinfected`) `7z x -pinfected` stops with `ERROR: Unsupported Method : blob.vmem` and leaves a `blob.vmem` behind; after `apt install 7zip-rar` (23.01-4) it prints `Everything is Ok` and the extracted file's hash equals the original's. RAR4 could not be tried (`rar` 7.00 has no `-ma4`), so the lab's 2011 sample is untested. `python3 -m venv vol3 && ./vol3/bin/pip install -q volatility3==2.28.2` exits 0 under Python 3.12.3 and `vol` prints `Volatility 3 Framework 2.28.2`. The 31 MB sample itself is on MediaFire, which is unreachable, so the lab was not run | `EXECUTED` | the venv line run as written; the RAR5 test archive and `7z` run here | stable |
 
 ## Fixes applied in this pass
 
@@ -510,7 +511,8 @@ HUNT-002) is stated plainly as having no Linux twin.
 **Not verified, so not changed.** M19's `trivy fs .` line has no install step: every official trivy install
 source (the apt repository, `get.trivy.dev`, GitHub releases) was unreachable. `nuclei -update-templates`
 was not run for the same reason. M0's three `snap install` lines, its Burp download URL and the Windows/WSL
-claims were not checkable from here.
+claims were not checkable from here. M22.7's lab was not run (its sample is on MediaFire, unreachable); only its
+venv line and an apt route for 7-Zip were (row 173).
 
 **Batch 12 (2026-10-01) — Linux variants; one note wrong, none of the labs changed.**
 

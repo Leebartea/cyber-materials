@@ -9852,12 +9852,17 @@ wsl --install -d Ubuntu          # once, then open the Ubuntu shell and follow t
 # that trains the wrong habit. The Windows-native lesson is the one in step 8: on a live
 # system, AppInit_DLLs lives at HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows.`,
       linux: `# ⚠️ Not executed for this edition. Same image, same Volatility; only the tools around it differ.
+# Checked on Ubuntu 24.04 without the sample: the pinned venv install below, and extracting an encrypted
+# RAR5 archive with the apt route for 7-Zip.
 # 7-Zip's Linux build replaces the macOS one (see https://www.7-zip.org/download.html for the
 # current file name), sha256sum replaces shasum -a 256, and strings comes from binutils.
 sudo apt install python3-venv binutils
 mkdir -p ~/cyber-journal/m22_7 && cd ~/cyber-journal/m22_7
 sha256sum 0zapftis.rar          # must be 0ab81aec6d61593a03a7b6fbda9266af8dd9c8df1b6477faa880fafd19cb21b1
 7zz x -pinfected 0zapftis.rar   # after installing 7-Zip's Linux build
+# From Ubuntu's archive instead: sudo apt install 7zip 7zip-rar, then 7z x -pinfected 0zapftis.rar.
+# Without 7zip-rar, 7z stops with "ERROR: Unsupported Method" and leaves a damaged .vmem behind; with it
+# it prints "Everything is Ok". Tried on a RAR5 archive made for the test, not on this sample.
 sha256sum 0zapftis.vmem | tee 0zapftis.vmem.sha256
 python3 -m venv vol3 && ./vol3/bin/pip install -q volatility3==2.28.2
 # Then steps 4-10 of the macOS block unchanged (vol(), fetch_isf.py, find ... -delete, the plugins).
