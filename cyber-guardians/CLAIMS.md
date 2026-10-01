@@ -417,6 +417,16 @@ committed: the lab links to it and pins its hash.
 | 137 | M22.7 | Microsoft names the family Backdoor:Win32/R2d2.A with indicators `%windir%\System32\mfc42ul.dll` and `%windir%\System32\winsys32.sys` | `SOURCED` | Microsoft Security Intelligence encyclopedia entry (via search index; page is script-rendered) | stable |
 | 138 | M0 | Module count 44 → **45**; pace estimate 45 × 5–6 h ÷ 4 h/week = 56.25–67.5 → **~56–68 weeks** | `EXECUTED` | gate `module-count`; arithmetic | on every new module |
 
+## Batch 12 — Linux variants, static review of all 45 labs and one note fix (round 3, cloud session, branch cloud/r3-linux)
+
+The local session reserved the next batch for the Linux sweep. The handover's "TESTED" is this ledger's `EXECUTED`. Network policy of the sandbox allowed almost nothing, so the Guardians review was static for every lab; only labs that need nothing beyond the shell were run (M1 needs an interactive password prompt; M11.5 ran). One note was wrong in a way the course could not show: it said "Identical to macOS" while a drill's script fails on GNU tools. macOS was not available: nothing here is a claim about macOS.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 139 | M11.5 | On Linux (GNU coreutils 9.4, bash 5.2) Build 1's `mktemp -t cgm115` stops with `mktemp: too few X's in template 'cgm115'` and, under `set -euo pipefail`, the script ends; `mktemp -t cgm115.XXXXXX` makes a mode-600 file. `stat -f '%Lp' FILE` prints `stat: cannot read file system information for '%Lp': No such file or directory` and then file-system status for FILE; `stat -c '%a' FILE` prints `600` | `EXECUTED` | run here, Ubuntu 24.04 container; the drill's own script extracted from the module | stable |
+| 140 | M11.5 | With those two substitutions Build 1's script prints the page's expected output line for line (`matches: 2`, `temp mode: 600`, the usage line, `exit=2`, `cannot read: nope.log`, `exit=3`, then `matches: 2` and `temp mode: 600` for the file with a space in its name) | `EXECUTED` | run under bash 5.2 with HOME set to a scratch folder | stable |
+| 141 | M11.5 | The lab itself runs unchanged on Linux: `grep -c ERROR app.log` prints `1`, and `find . -name "*.log"` into `xargs sed -i.bak` completes with no error, so the note's "Identical to macOS" holds for the lab and not for Build 1 | `EXECUTED` | the Linux variant's own commands, run here | stable |
+
 ## Fixes applied in this pass
 
 **Batch 11 (2026-09-24) — six defects caught while building M22.7; none shipped.**

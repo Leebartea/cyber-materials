@@ -4801,6 +4801,9 @@ find . -name "*.log" | xargs sed -i.bak 's/db timeout/DB_TIMEOUT/g'
 wsl
 # then run the mac/linux commands above inside the WSL2 shell`,
       linux: `# Identical to macOS - Linux is where these tools come from.
+# One exception: Build 1's scan.sh uses two macOS forms. On Linux write
+#   tmp="$(mktemp -t cgm115.XXXXXX)"         # GNU mktemp stops with "too few X's in template" without the X's
+#   echo "temp mode: $(stat -c '%a' "$tmp")"   # on GNU stat, -f means "file system", so stat -f '%Lp' prints no mode
 mkdir -p ~/cyber-journal/m11_5 && cd ~/cyber-journal/m11_5
 printf 'INFO login ok\\nERROR db timeout\\n' > app.log
 grep -c ERROR app.log
