@@ -427,6 +427,17 @@ The local session reserved the next batch for the Linux sweep. The handover's "T
 | 140 | M11.5 | With those two substitutions Build 1's script prints the page's expected output line for line (`matches: 2`, `temp mode: 600`, the usage line, `exit=2`, `cannot read: nope.log`, `exit=3`, then `matches: 2` and `temp mode: 600` for the file with a space in its name) | `EXECUTED` | run under bash 5.2 with HOME set to a scratch folder | stable |
 | 141 | M11.5 | The lab itself runs unchanged on Linux: `grep -c ERROR app.log` prints `1`, and `find . -name "*.log"` into `xargs sed -i.bak` completes with no error, so the note's "Identical to macOS" holds for the lab and not for Build 1 | `EXECUTED` | the Linux variant's own commands, run here | stable |
 
+## Batch 13 — Linux gaps in the drills and installs (round 4, cloud session, branch cloud/r4)
+
+Round 3 found Linux gaps it could only list; round 4 closes them by running the Linux form. The handover's "TESTED" is this ledger's `EXECUTED`. The sandbox is an Ubuntu 24.04 container (Linux x86_64, bash 5.2.21, Python 3.11.15, Node 22.22.0) with no systemd as PID 1, outbound access only to the Ubuntu archive, pypi.org, raw.githubusercontent.com and the Go module proxy, and root as the working user; where a drill needs a non-root account the run used a throwaway `yourname` (admin group) and `guest` (none). No `lab.mac` string was touched. macOS was not available: nothing here is a claim about macOS.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 142 | M16.5 | `dscl` does not exist on Ubuntu 24.04; `id -nG \| tr ' ' '\n' \| grep -qxE 'sudo\|admin'` prints `yourname: IS an admin (standing privilege)` for an account in group `sudo` and `guest: standard user` for one in no admin group; the stock `/etc/sudoers` (sudo 1.9.15p5) has rules for both `%sudo` and `%admin` | `EXECUTED` | run here as both accounts; `/etc/sudoers` read as root | stable |
+| 143 | M16.5 | Drill 1's steps 1 and 3 run unchanged on Linux: with a passphrase-less ed25519 key (OpenSSH 9.6p1) and `export API_TOKEN=placeholder` in `~/.bashrc`, the three sections print `id_ed25519: NO PASSPHRASE — a standing credential`, the step-2 line, and `/home/yourname/.bashrc`; as `guest` (no key, no `.ssh`) steps 1 and 3 print nothing | `EXECUTED` | the page's own code blocks extracted and run, bash 5.2 | stable |
+| 144 | M15 | On Linux `hostname -I` (hostname 3.23) lists every non-loopback address; with no usable address it prints an empty line and exits 0 (run in a `unshare -n` network namespace), so Build 1's `[[ -n "$lan" ]]` test is the right one and the script prints `(no LAN address — Wi-Fi down)` there | `EXECUTED` | run here; `hostname --help` for `-I` | stable |
+| 145 | M15 | Build 1's `isolation-check.sh` with the one-line change prints `127.0.0.1:9301 REACHABLE` / `192.0.2.2:9301 refused` and `REACHABLE` / `REACHABLE` for 9302 against Node 22 listeners on `127.0.0.1` and `0.0.0.0` — the Mac page's four verdicts | `EXECUTED` | the page's own script with its Linux line, Python 3.11.15, Node 22.22.0 | stable |
+
 ## Fixes applied in this pass
 
 **Batch 12 (2026-10-01) — Linux variants; one note wrong, none of the labs changed.**

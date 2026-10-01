@@ -6676,7 +6676,7 @@ Common wrong attempts: reading \`localhost:PORT\` as safe without checking wheth
 <details>
 <summary>Nudge — open if you've been stuck more than four minutes</summary>
 
-\`ipconfig getifaddr en0\` prints your Wi-Fi address (it prints nothing and exits non-zero when Wi-Fi is down — handle that). For the probe, reuse the socket function from M12: \`connect_ex\` returns 0 for a successful connection and non-zero otherwise. Start the two test listeners in separate terminals so you can flip between them.
+\`ipconfig getifaddr en0\` prints your Wi-Fi address (it prints nothing and exits non-zero when Wi-Fi is down — handle that). On Linux the nearest one-liner is \`hostname -I | awk '{print $1}'\`; with no address it prints an empty line and still exits 0, so test the string, not the exit status. For the probe, reuse the socket function from M12: \`connect_ex\` returns 0 for a successful connection and non-zero otherwise. Start the two test listeners in separate terminals so you can flip between them.
 </details>
 
 <details>
@@ -6733,6 +6733,25 @@ Note \`connect_ex\` rather than \`connect\`: it returns an error *code* instead 
 **The other half of isolation.** This script checks *inbound*. A real lab check also confirms the target cannot reach **outbound** — from inside the target VM, \`curl -m 5 https://example.com\` should fail. Inbound isolation stops the internet reaching your vulnerable box; outbound isolation stops a compromised box phoning home, joining a botnet, or attacking someone else *from your IP address*, which is the part that turns your mistake into someone else's incident and your legal problem.
 
 Common wrong attempts: testing only \`127.0.0.1\` and declaring victory (loopback always works — it proves nothing about exposure, and this is the single most common false pass); using \`localhost\` for the LAN probe (that's loopback again); running the check from the *same* machine and assuming it equals an off-box test (it's a good proxy, but the authoritative test is from a second device on the Wi-Fi — do that once to calibrate your trust in the script); forgetting \`-m\`/timeout on the outbound curl so a *dropped* packet looks like a hang rather than a pass; and leaving the test listeners running afterwards — kill them, or your next inventory is confusing.
+
+**Linux / WSL form.** One line changes: \`ipconfig\` is macOS's, and on Linux \`hostname -I\` lists every non-loopback address of the machine, so take the first.
+
+\`\`\`bash
+lan="$(hostname -I 2>/dev/null | awk '{print $1}')"
+\`\`\`
+Everything else — the \`node\` listeners, the \`python3\` probe, the \`[[ -n "$lan" ]]\` test — runs as written. On Ubuntu 24.04 (bash 5.2, Python 3.11, Node 22) the script printed:
+
+\`\`\`
+== isolation report for port 9301 ==
+  127.0.0.1:9301         REACHABLE
+  192.0.2.2:9301         refused
+== isolation report for port 9302 ==
+  127.0.0.1:9302         REACHABLE
+  192.0.2.2:9302         REACHABLE
+\`\`\`
+The same four verdicts as the Mac run (\`192.0.2.2\` is this machine's address; yours will differ).
+
+**What differs from \`ipconfig getifaddr en0\`.** That command names one interface; \`hostname -I\` has no interface argument, so on a machine with a VPN, a Docker bridge or several adapters the *first* address may not be the one you meant. \`ip -br -4 addr\` lists each interface with its address (here \`eth0  UP  192.0.2.2/24\`), so you can pick one by name — \`ip\` comes from the \`iproute2\` package (\`sudo apt install -y iproute2\` if the command is missing). And \`hostname -I\` with no usable address prints an empty line and exits 0 rather than failing, which is why the script tests whether the string is empty: that is what prints \`(no LAN address — Wi-Fi down)\`.
 </details>
 
 #### 🔴 Break & Defend — networks, snapshots, and what makes this legal ~12 min
@@ -7178,6 +7197,21 @@ Three lines, three findings — and your machine will differ. **Read the shape r
 **Now answer the question honestly.** An unprotected SSH key means anything running as you — a malicious \`npm postinstall\`, a curl-pipe-bash you didn't read, a compromised VS Code extension — can copy that file and authenticate as you to every host that trusts it, **forever, with no prompt and no log entry that looks unusual**. Admin membership means the same code can escalate without a password prompt you'd notice. A token in \`.zshrc\` is exported into every process you launch. None of this requires an exploit; it's all just *reading files you can read*. That is what "standing access" costs, and notice how cheap the mitigations are: a passphrase on the key (plus \`ssh-add\` so you type it once per session), a separate admin account you \`su\` into deliberately, and secrets in the keychain or a manager instead of a dotfile.
 
 Common wrong attempts: treating file permissions as sufficient (\`0600\` stops *other users* — it does nothing against code running as **you**, which is the actual threat model here); assuming a passphrase-less key is fine "because it's only for GitHub" (that key is also your deploy access, and key reuse across hosts is near-universal); deleting keys in a panic before checking what depends on them — inventory, then plan; skipping the dotfile grep because "I use a .env file" (check that too, and check whether it's in a repo).
+
+**Linux / WSL form.** Steps 1 and 3 run unchanged. Step 2 does not: \`dscl\` is macOS's directory tool and does not exist on Linux, where group membership lives in \`/etc/group\` and \`id -nG\` lists the groups your own account is in. On Ubuntu the \`sudo\` group carries the admin rights (the default \`/etc/sudoers\` also has a rule for a group named \`admin\`), so step 2 becomes:
+
+\`\`\`bash
+id -nG | tr ' ' '\\n' | grep -qxE 'sudo|admin' \\
+  && echo "  $(whoami): IS an admin (standing privilege)" || echo "  $(whoami): standard user"
+\`\`\`
+\`\`\`
+  id_ed25519: NO PASSPHRASE — a standing credential
+  yourname: IS an admin (standing privilege)
+/home/yourname/.bashrc
+\`\`\`
+That is the whole drill with step 2 swapped in, run on Ubuntu 24.04 under bash 5.2 by a throwaway account that has a passphrase-less key and a placeholder \`export API_TOKEN=placeholder\` line in \`~/.bashrc\` — your machine will differ, so read the shape. A standard account prints \`guest: standard user\` for step 2. \`tr\` puts one group per line so \`grep -x\` can match whole names.
+
+**What differs from the Mac.** \`dscl\` reads the members of one named admin group; \`id -nG\` lists *your own* groups, and the name to look for is the distribution's choice (here \`sudo\`). A group is also only a proxy: a per-user line in \`/etc/sudoers\` or \`/etc/sudoers.d/\` grants the same rights with no group at all, and this test never reads sudoers — so read \`standard user\` as "no admin group", not "no sudo".
 </details>
 
 #### 🟡 Build 1 — write the policy decision point and watch the verdict invert ~16 min
