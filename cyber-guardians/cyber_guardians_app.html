@@ -2107,7 +2107,8 @@ Resolve-DnsName google.com
 tracert google.com
 Test-NetConnection google.com -Port 443
 Get-DnsClientServerAddress`,
-      linux: `# Linux
+      linux: `# Linux. \`ip\` and \`ss\` come from iproute2, \`dig\` from dnsutils, \`traceroute\` from traceroute:
+# all three are installed in M0's Linux list.
 ip addr
 ss -tn state established
 dig google.com +short
@@ -2624,7 +2625,8 @@ dig +short TXT _dmarc.apple.com              # p=reject means "drop spoofed mail
 Resolve-DnsName apple.com -Type TXT | Where-Object { $_.Strings -match "spf" }
 Resolve-DnsName _dmarc.apple.com -Type TXT
 # Report phishing via your email provider's built-in button.`,
-      linux: `# Thunderbird: Ctrl+U shows the source. mutt: press 'h' for headers.
+      linux: `# dig comes from dnsutils, installed in M0's Linux list.
+# Thunderbird: Ctrl+U shows the source. mutt: press 'h' for headers.
 grep -iE "Authentication-Results|spf=|dkim=|dmarc=" sample.eml
 dig +short TXT apple.com | grep -i spf
 dig +short TXT _dmarc.apple.com`,
@@ -3080,7 +3082,7 @@ sw_vers                   # macOS version - still supported?`,
 Get-MpComputerStatus | Select-Object AntivirusEnabled, RealTimeProtectionEnabled
 Enable-BitLocker -MountPoint "C:" -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector
 Get-NetFirewallProfile | Select-Object Name, Enabled`,
-      linux: `# Ubuntu
+      linux: `# Ubuntu (if \`ufw\` is missing: sudo apt install -y ufw)
 sudo ufw enable && sudo ufw status verbose
 sudo apt update && sudo apt upgrade -y
 sudo dpkg-reconfigure -plow unattended-upgrades   # auto security updates`,
