@@ -7877,7 +7877,18 @@ ps -eo ppid,pid,comm --sort=ppid | awk 'NR>1 {print $1, $2, $3}' | head -40
 ps -eo comm,ppid | awk '$1 == "bash" {print $2}' | while read ppid; do
   ps -p "$ppid" -o comm= 2>/dev/null
 done | sort | uniq -c | sort -rn
-# Anything unexpected here? That's your hunt finding.`,
+# Anything unexpected here? That's your hunt finding.
+
+# 6. The nearest Linux counterpart of macOS's \`log show\` is the systemd journal.
+#    It is NOT a process-creation log: it holds what the kernel and services logged,
+#    so 'exec' matches message text, not every program start (here it also matched
+#    the kernel line "NX (Execute Disable) protection: active").
+journalctl -g 'exec' --since '1 minute ago' --no-pager --no-hostname | head -20
+# -> where journald is not running (a container, for one) it prints
+#      No journal files were found.
+#      -- No entries --
+#    and exits 0: that means "nothing is recording", not "nothing happened".
+#    Process-creation events need a tool built to record them — step 1's Sysmon for Linux.`,
       expected: {
         mac: `\`\`\`text
 $ log show --predicate 'eventMessage contains "exec"' --last 1m --style compact | head -20
@@ -7957,6 +7968,27 @@ Then \`ls -1\` names them, one reverse-DNS-style plist per line (\`com.vendor.pr
 **Why persistence is the right place to hunt.** An attacker's foothold dies at reboot unless they establish persistence, so nearly every real intrusion has to touch one of a **small, enumerable set of locations** — which makes this a rare case where the defender's search space is genuinely bounded while the attacker's options are not. That asymmetry is why persistence hunting has such a high yield per hour. Note too that \`~/Library/LaunchAgents\` needs **no admin rights**: malware running as you can persist without ever prompting for a password, which is the M16.5 standing-access argument arriving from a different direction.
 
 Common wrong attempts: hunting only the user folder and missing \`LaunchDaemons\`, where the root-level persistence lives; treating a plist as safe because its name looks corporate (names are attacker-chosen — \`com.apple.\` prefixes are trivially forged, so read the \`ProgramArguments\` and check the actual binary path); deleting something unrecognised immediately (you'll break software and destroy evidence — identify first, and if it's genuinely suspicious, preserve it per M22); and concluding the hunt "failed" because nothing was malicious.
+
+**Linux / WSL form.** The locations differ because the service manager does. macOS's \`~/Library/LaunchAgents\` (runs as you, writable without admin rights) maps to per-user systemd units in \`~/.config/systemd/user/\`; \`/Library/LaunchDaemons\` (root, before login) maps to system units under \`/etc/systemd/system/\`; cron is cron on both. ATT&CK files these under the same parents as the Mac hypothesis — **T1543** (Create or Modify System Process) and **T1053** (Scheduled Task/Job). \`defaults read … ProgramArguments\` has no Linux twin to learn: a unit is a plain text file, and the line that names the command is \`ExecStart=\`.
+
+\`\`\`bash
+for d in "$HOME/.config/systemd/user" /etc/systemd/system; do
+  echo "$d: $(find "$d" -maxdepth 2 \\( -name '*.service' -o -name '*.timer' \\) 2>/dev/null | wc -l | tr -d ' ') unit(s)"
+done
+ls -1 "$HOME/.config/systemd/user" 2>/dev/null
+crontab -l 2>/dev/null || echo "no crontab for this user"
+
+# what does a given one actually run?
+grep -H '^ExecStart' "$HOME/.config/systemd/user/<name>.service" 2>/dev/null
+\`\`\`
+\`\`\`
+/home/yourname/.config/systemd/user: 1 unit(s)
+/etc/systemd/system: 16 unit(s)
+updater.service
+no crontab for this user
+/home/yourname/.config/systemd/user/updater.service:ExecStart=/usr/bin/true
+\`\`\`
+Run on Ubuntu 24.04 (bash 5.2) with a placeholder \`updater.service\` whose \`ExecStart\` is \`/usr/bin/true\` standing in for a user unit (with \`<name>\` filled in as \`updater\`); your counts will differ. Three things to read in it. The system count is 16 because \`-maxdepth 2\` reaches into the \`*.target.wants/\` folders, where an *enabled* system unit is a symlink — on this machine, one pointing at a file under \`/usr/lib/systemd/system/\` — so a unit being enabled is visible as a link, not as a file you were asked about. The user count is the one an attacker needs no password for, and the one to name line by line. And the \`crontab -l … || echo\` fallback hides a missing cron: \`crontab\` is **not installed** on this machine (\`command -v crontab\` prints nothing), yet the line still says \`no crontab for this user\` — so run \`command -v crontab\` before reading that line as a clean result.
 </details>
 
 #### 🟡 Build 1 — write Sigma-shaped rules and execute them ~16 min
@@ -8027,6 +8059,30 @@ Three rules, three hits, and the two benign events matched nothing — which is 
 **And note what these three rules have in common:** every binary involved — \`curl\`, \`osascript\`, \`launchctl\` — is a legitimate, signed, Apple-shipped tool. Nothing here is malware, so no signature-based product will alert, which is exactly the psexec problem from the module's challenge. **Living off the land** means the *behaviour* is the only indicator, which is precisely why hunting exists alongside alerting, and why these rules sit higher on the Pyramid of Pain (M16) than any hash or IP ever will.
 
 Common wrong attempts: hard-coding the patterns into \`if\` statements (works once, shareable never, and now a rule change is a code change); writing a rule with no false-positive field because you couldn't think of one — think harder, \`curl | bash\` is how half of developer tooling installs; matching on the process **name** alone (\`curl\` runs a thousand times a day; it's the *pipe into a shell* that matters); forgetting to test against benign events, so you never learn the rule's precision; and treating a hit as a verdict rather than the **start** of an investigation.
+
+**Linux / WSL form.** The engine and the fixture are plain Python over text, so Build 1 runs unchanged: on Ubuntu 24.04 under Python 3.11 the three rules above printed exactly the lines shown. Two of them are macOS-only by nature. \`osascript\` runs AppleScript, which exists only on macOS, and a Linux version of HUNT-002 would have to name whichever dialog tool your desktop uses — there is no single binary to put in the rule — so this drill has no Linux twin for it. \`launchctl\` loads launchd plists, and the nearest counterpart for HUNT-003 is starting a user systemd unit with \`systemctl --user enable\` or \`start\`. Add this rule to \`RULES\` and three more lines to \`proc_events.jsonl\`, then re-run:
+
+\`\`\`python
+ {"id":"HUNT-004","title":"User systemd unit enabled or started","attack":"T1543 Create or Modify System Process",
+  "detection":{"cmdline_re": r"systemctl\\b(?=.*--user)(?=.*\\b(?:enable|start)\\b)"},
+  "falsepositives":["package post-install scripts and tools that install their own user services"]},
+\`\`\`
+\`\`\`bash
+cat >> proc_events.jsonl <<'EOF'
+{"ts":"2026-07-25T09:08:00Z","parent":"bash","cmdline":"systemctl --user enable --now updater.service"}
+{"ts":"2026-07-25T09:09:00Z","parent":"bash","cmdline":"systemctl enable --user updater.service"}
+{"ts":"2026-07-25T09:10:00Z","parent":"zsh","cmdline":"systemctl status ssh"}
+EOF
+python3 hunt.py
+\`\`\`
+The new section at the end of the output:
+\`\`\`
+HUNT-004 User systemd unit enabled or started [T1543 Create or Modify System Process]
+   HIT  2026-07-25T09:08:00Z parent=bash systemctl --user enable --now updater.service
+   HIT  2026-07-25T09:09:00Z parent=bash systemctl enable --user updater.service
+   triage: package post-install scripts and tools that install their own user services
+\`\`\`
+Two hits, and \`systemctl status ssh\` matched nothing. The pattern is not a copy of HUNT-003's: \`launchctl load\` is one fixed phrase, but here the verb and \`--user\` can come in either order, so the rule uses two lookaheads and fires whichever order the line has them in (both fixture orders hit above), rather than one ordered pattern.
 </details>
 
 #### 🔴 Break & Defend — hypothesis vs rule, psexec, and validating your own blindness ~13 min
@@ -11949,6 +12005,10 @@ curl -s https://api.ipify.org
 # Log into your router admin → look for VLAN or Guest Network settings.
 # Ideal: IoT on a guest/isolated VLAN, computers on main network, no cross-VLAN routing.`,
       linux: `# IoT audit — Linux
+# nmap is installed in M0's Linux list (sudo apt install -y nmap); \`ip\` comes from iproute2.
+# Find your subnet first — the 192.168.1.0/24 below is an example. The address/prefix on
+# your real interface is the range to scan, and only ever your own network:
+ip -br -4 addr
 
 # 1. Network inventory:
 sudo nmap -sn 192.168.1.0/24 2>/dev/null | grep -E "Nmap scan|MAC"
@@ -12047,6 +12107,17 @@ Now turn a MAC into a vendor: the first three bytes are the **OUI**, so \`aa:bb:
 **Why this is where IoT security starts.** You cannot secure what you don't know exists, and the modern home or small-office network has quietly accumulated a dozen always-on computers you don't think of as computers: the router, a smart TV, a thermostat, cameras, a printer, voice assistants, a games console, maybe a fridge. Each runs firmware that is **rarely updated**, often ships with **default credentials**, and frequently exposes services you never asked for — and each sits on the **same flat network** as your laptop with your banking session and your work files. The passive ARP read is the first move because it's safe and it's the same inventory an attacker builds after landing on one device: *what else is here to pivot to?* The item you **can't** identify is the important one — an unexpected MAC could be a neighbour on your Wi-Fi (weak password, M3), a device you forgot, or an intruder; either way, "unknown device on my network" is a finding, not noise.
 
 Common wrong attempts: confusing the ARP cache with a full scan (it only shows hosts your machine has *recently talked to* — a deliberate \`nmap -sn\` sweep of the \`/24\` finds more, but do that only on your own network); ignoring the MAC and losing the vendor signal (the OUI is often the fastest way to identify a mystery device); assuming a device is safe because it's "just a lightbulb" (Mirai was built from cameras and DVRs — see the 🔴 section); and forgetting the router itself is a device with a login, which is Drill 2.
+
+**Linux / WSL form.** \`arp\` belongs to the older \`net-tools\` package, which a minimal Ubuntu does not install; the same kernel table is read by \`ip neigh\`, from the \`iproute2\` package (\`sudo apt install -y iproute2\` if the command is missing). It reads the cache without sending anything, and \`-4\` limits it to IPv4 neighbours:
+
+\`\`\`bash
+ip -4 neigh
+\`\`\`
+\`\`\`
+192.0.2.77 dev eth0 FAILED
+192.0.2.1 dev eth0 lladdr aa:bb:cc:11:22:33 REACHABLE
+\`\`\`
+Run on Ubuntu 24.04 with \`iproute2\` 6.1.0, MAC altered as above; \`192.0.2.77\` is an address nobody owns, probed once on purpose to produce the first line, and the interface is \`eth0\` rather than \`en0\`. **What differs from \`arp -an\`.** \`ip neigh\` prints the kernel's *state* for each entry — \`REACHABLE\` for the router above; \`ip neigh help\` lists the full set (\`delay failed incomplete noarp none permanent probe reachable stale\`). An address nobody answered showed as \`INCOMPLETE\` while the kernel was still asking and \`FAILED\` a few seconds later, whereas \`arp -an\` printed \`<incomplete>\` for both, so it hides the difference. Either way it is the Mac's \`(incomplete)\` reading: a stale or absent neighbour, not a stealthy one. Filter to your real LAN interface before hunting for intruders (\`ip -4 neigh show dev eth0\`; find its name with \`ip -br -4 addr\`), so you do not investigate your own virtual networks. Reading the OUI off a MAC works the same on Linux.
 </details>
 
 #### 🟡 Build 1 — catch a device shipping with default credentials ~13 min
