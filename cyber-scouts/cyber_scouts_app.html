@@ -6064,9 +6064,9 @@ $D = Get-Distance $O (Get-DHash work\\viral_unmirrored.jpg)
 #   PY
 # For the pixel sizes, use: python3 -c "from PIL import Image; print('%dx%d' % Image.open('FILE').size)"
 # For the frame, use: ffmpeg -loglevel error -y -i evidence/item007.mov -frames:v 1 work/frame1/item007.mov.png
-# The "frame:" line will not match the page's hashes: ffmpeg is a different tool from Quick Look and
-# writes the first frame, so expect different SHA-256 prefixes and possibly a different dHash. What
-# must match is the word "same" at the end of that line.
+# The "frame:" line on the page comes from Quick Look. ffmpeg is a different tool, so do not compare
+# its two hashes or its dHash with the page's. What the lab tests is the word "same" at the end of
+# that line: two grabs of one file must agree.
 # Pillow's filter is not sips's, so the distances differ a little. The Pillow code above, run on macOS
 # with Pillow 11.3.0, gave thumbnail 0, control 26, viral 38, mirrored back 5: the same verdicts.
 # The drills use sips too. Drill 1 (mirror the original): Pillow drops the Exif block when it saves
