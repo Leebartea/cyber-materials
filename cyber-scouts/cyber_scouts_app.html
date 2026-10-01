@@ -1061,7 +1061,12 @@ Copy-Item $env:TEMP\\item001.bak evidence\\item001.json; & $check`,
 #   sed -i 's/.../.../'  instead of  sed -i '' 's/.../.../'   (GNU sed takes no '' argument)
 # and for the clock check, use whichever time daemon your distribution runs:
 timedatectl show -p NTPSynchronized     # systemd: NTPSynchronized=yes is what you want
-chronyc tracking | grep 'System time'   # chrony: the offset from true time`,
+chronyc tracking | grep 'System time'   # chrony: the offset from true time
+# If neither works, skip the check: timedatectl needs systemd running (otherwise it prints
+# "System has not been booted with systemd") and chronyc needs chrony installed. If sntp is not
+# installed, the lab's own sntp line prints nothing and the lab carries on.
+# One output line differs: the tamper check prints "sha256sum: WARNING: 1 computed checksum did
+# NOT match" where the page shows "shasum: WARNING: ...". The OK / FAILED / OK lines are the same.`,
       expected: {
         mac: `\`\`\`text
 clock offset: +0.001567 s (+/- 0.001182)
@@ -1656,9 +1661,13 @@ Collect ct_log_list "https://www.gstatic.com/ct/log_list/v3/log_list.json" json
 Get-Content collection_log.tsv`,
       linux: `# Identical to macOS with three substitutions:
 #   sha256sum   instead of   shasum -a 256
-#   OSSL=openssl             (your distribution's OpenSSL 3 decodes CT fields; check: openssl version)
+#   OSSL=$(command -v openssl)   in place of the OSSL= line that uses brew. Keep the line after it:
+#                            it then stays quiet. (Writing OSSL=openssl makes it print a false
+#                            "OpenSSL 3 not found ... brew install", because it tests for a file
+#                            called openssl in the current folder.) Your distribution's OpenSSL 3
+#                            decodes the CT fields; check: openssl version
 #   xxd may need installing  (apt install xxd / dnf install vim-common)
-# jq, curl and base64 behave the same.`,
+# jq may need installing too (apt install jq / dnf install jq). curl and base64 behave the same.`,
       expected: {
         mac: `\`\`\`text
 entries: 16   distinct serial numbers: 9
@@ -1994,8 +2003,8 @@ $t = [System.Net.WebUtility]::HtmlDecode(((Get-Content evidence\\sec_ex31.htm -R
 Get-Content collection_log.tsv`,
       linux: `# Identical to macOS with one substitution:
 #   sha256sum   instead of   shasum -a 256
-# jq, curl, perl, comm and sed behave the same. The Exhibit 21.1 parser uses perl,
-# which most distributions install by default (check: perl -v).`,
+# curl, perl, comm and sed behave the same. jq may need installing (apt install jq / dnf install jq).
+# The Exhibit 21.1 parser uses perl, which most distributions install by default (check: perl -v).`,
       expected: {
         mac: `\`\`\`text
 name search "Apple Inc.": 24 records; exact legal name: HWUPKR0MPOU8FGXBT394
@@ -2355,8 +2364,9 @@ Import-Csv collection_log.tsv -Delimiter "\`t" -Header Id, Time, Analyst, Url, S
       linux: `# Identical to macOS with two substitutions:
 #   sha256sum   instead of   shasum -a 256
 #   sha1sum     instead of   shasum -a 1
-# jq, curl, awk and tr behave the same. \${H:0:5} is a bash expansion: run the lab
-# with bash, not sh (on Debian and Ubuntu, sh is dash and does not support it).`,
+# curl, awk and tr behave the same. jq may need installing (apt install jq / dnf install jq).
+# \${H:0:5} is a bash expansion: run the lab with bash, not sh (on Debian and Ubuntu, sh is dash
+# and does not support it).`,
       expected: {
         mac: `\`\`\`text
 breaches in the catalogue: 1038
@@ -2748,8 +2758,12 @@ Import-Csv collection_log.tsv -Delimiter "\`t" -Header Id, Time, Analyst, Url, S
       linux: `# Identical to macOS with two substitutions:
 #   sudo apt install libimage-exiftool-perl   instead of   brew install exiftool
 #   sha256sum / sha1sum                       instead of   shasum -a 256 / shasum -a 1
-# jq, curl and awk behave the same. The <<< here-strings are a bash feature: run the lab
-# with bash, not sh (on Debian and Ubuntu, sh is dash and does not support them).`,
+# curl and awk behave the same. jq may need installing (apt install jq / dnf install jq). The <<<
+# here-strings are a bash feature: run the lab with bash, not sh (on Debian and Ubuntu, sh is dash
+# and does not support them).
+# Drill 2 uses the macOS forms of date; the page gives the GNU ones. GNU date -d does not accept the
+# 2018:08:26 form that ExifTool prints: type it with dashes, as the page does. An unknown zone name
+# silently gives UTC+0000, so if London prints that, install the time-zone database (apt install tzdata).`,
       expected: {
         mac: `\`\`\`text
 SHA-1 matches the Commons record: c6bac702d58366bca4915ee5b970461f12929cec
@@ -3257,7 +3271,7 @@ if ($bad -eq 0) { "report check: PASS ($($Findings.Count) findings)" } else { "r
 "scope.txt", "collection_log.tsv", "evidence\\SHA256SUMS", "report.md" |
   ForEach-Object { "$(Get-Sha256 $_)  $_" } | Set-Content SEAL.sha256
 Get-Sha256 SEAL.sha256`,
-      linux: `# Identical to macOS with one substitution, in the lab and in check_report.sh:
+      linux: `# Identical to macOS with one substitution, in the lab, in check_report.sh and in Drill 3:
 #   sha256sum            instead of  shasum -a 256
 # Everything else (curl, jq, awk, sed, mktemp) behaves the same. Install jq with your
 # package manager if it is missing: sudo apt install jq  /  sudo dnf install jq`,
