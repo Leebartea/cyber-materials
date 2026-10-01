@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-10-01 (Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-01 (Batch 13 — Linux gaps closed by running the Linux form: 15 modules, rows 142–165, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -456,8 +456,45 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
 | 162 | M0 | M0's Linux list had a line that cannot run on Ubuntu 24.04: `apt-get install -s aircrack-ng nikto gobuster wordlists` ends `E: Unable to locate package wordlists` (exit 100) and apt installs none of the four. `wordlists` is not in `noble` (`apt-cache policy` finds no candidate); the course never refers to `/usr/share/wordlists` (0 hits in the app). The other packages on M0's Linux apt lines have candidates in `noble` (git 2.43.0, nmap 7.94, wireshark 4.2.2, hashcat 6.2.6, john 1.9.0, nikto 2.1.5, gobuster 3.6.0, docker.io 29.1.3, virtualbox 7.0.16, …); `qemu-kvm` is a virtual package that apt resolves to the `qemu-system-*` packages (`-s` plans the install). The snap lines (`code`, `bitwarden`, `firefox`) were not run: snapd is not available here | `EXECUTED` | `apt-cache policy` and `apt-get install -s` for every package named | stable |
 | 163 | M0, M21 | `pip3 install --user scapy …` and `pip install pwntools` fail on Ubuntu 24.04 with `error: externally-managed-environment` (pip 24.0, Python 3.12.3; shown with `python3.12 -m pip install --user scapy` as a non-root account). The archive carries the same libraries: `python3-scapy` 2.5.0, `python3-requests` 2.31.0, `python3-cryptography` 41.0.7, `python3-pwntools` 4.12.0, `python3-bs4` 4.12.3, `python3-dnspython` 2.6.1, `python3-impacket` 0.11.0 — all seven import under `/usr/bin/python3.12`; `gdb` 15.1 | `EXECUTED` | run here | stable |
 | 164 | M0, M22 | M22's Linux lab runs `pipx install volatility3` but nothing on the Linux side installed `pipx`; M0's list now has it (`pipx` 1.4.3-1, which depends on `python3-venv`). `pipx install volatility3` installs `vol` and `volshell` (Volatility 3 Framework 2.28.2) into `~/.local/bin`; the shell that ran it does not have that directory on its PATH, a new login shell does (`command -v vol` finds it), and `pipx ensurepath` prints `Success! Added … to the PATH` | `EXECUTED` | run here as a non-root account | next volatility3 release |
+| 165 | all labs | Guard A116 (a Linux lab must not run `pip install` against the system Python) reports PASS on this tree (70 Linux labs, none) and fires on a copy with the pre-fix Guardians file: three hits, M0 twice and M21 | `EXECUTED` | `python3 tools/guardrail.py --no-net` on the tree and on a scratch copy with the `76b1404` Guardians file | on every Linux-lab edit |
 
 ## Fixes applied in this pass
+
+**Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; seven defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
+
+1. **M0's Linux apt line named a Kali-only package.** `apt install -y aircrack-ng nikto gobuster wordlists`
+   ends `E: Unable to locate package wordlists` on Ubuntu 24.04 and installs none of the four. The package
+   is gone from the line and a comment says why; the course never used `/usr/share/wordlists`.
+2. **M0 and M21 installed Python libraries with `pip` into the system Python.** On Ubuntu 24.04
+   `pip3 install --user scapy …` stops with `error: externally-managed-environment`, so the libraries
+   never arrived. Both now use apt's `python3-*` packages (all seven import). Guard `A116` fires on the
+   pre-fix file (M0 twice, M21) and is clear on the fixed one.
+3. **M13's `usermod -aG wireshark` failed after a default install.** Wireshark's installer asks whether
+   non-superusers may capture and the default is No, which creates no `wireshark` group. The Linux note says
+   so and gives the `dpkg-reconfigure` fix; M0 points to it.
+4. **M20 told the learner to `sudo apt install burpsuite`.** There is no such package in Ubuntu 24.04.
+   The note now says to download PortSwigger's Linux installer; no URL was added because the site was
+   unreachable.
+5. **M7's drill assumed `~/Documents`, and its Linux note said "Identical to macOS" over a Mac lab that
+   tails `/var/log/system.log`.** With `2>/dev/null` a missing folder looks like an empty one. The drill has a
+   `mktemp -d` form with Linux output; the note names the log difference.
+6. **M22's Linux lab ran `pipx` without installing it, and `vol` was not on the shell's PATH.** M0's list now
+   has `pipx` and the lab says to open a new terminal.
+7. **M1 and M0.5 showed only the macOS `shasum: WARNING` line.** GNU prints `sha256sum: WARNING`; both
+   pages now show it next to the Mac line.
+
+The drills that existed only for macOS now have a Linux form that was run: M16.5 (`dscl`), M15
+(`ipconfig getifaddr`), M18.5 (`log show`, `defaults`, `LaunchAgents`, `launchctl`), M25.5 (`arp -a`) and
+M10 (`shasum` one-wayness). Two of them taught something the Mac form could not: M18.5's
+`crontab -l … || echo` fallback printed "no crontab" on a machine where `crontab` is not installed, and
+M19's bare `pipx run pip-audit` audits pipx's own throwaway environment rather than the learner's project.
+Where a Linux equivalent is not truly equivalent the page says what differs, and `osascript` (M18.5's
+HUNT-002) is stated plainly as having no Linux twin.
+
+**Not verified, so not changed.** M19's `trivy fs .` line has no install step: every official trivy install
+source (the apt repository, `get.trivy.dev`, GitHub releases) was unreachable. `nuclei -update-templates`
+was not run for the same reason. M0's three `snap install` lines, its Burp download URL and the Windows/WSL
+claims were not checkable from here.
 
 **Batch 12 (2026-10-01) — Linux variants; one note wrong, none of the labs changed.**
 

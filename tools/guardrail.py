@@ -1479,6 +1479,33 @@ def check_linux_notes(curricula):
         ok("labs: linux-note coverage", f"{notes} Linux notes of {labs} labs name every tracked macOS-only command ({len(LINUX_NOTE_CMDS)} tracked)")
 
 
+# ── 6c. Linux labs do not pip-install into the system Python ────────────────
+# Caught (Guardians ledger Batch 13): M0's Linux list ran `pip3 install --user scapy ...` and M21's
+# ran `pip install pwntools`. On Ubuntu 24.04 both stop with "error: externally-managed-environment"
+# (PEP 668), so the libraries the later modules relied on were never installed. `pipx`, a venv's
+# own `./venv/bin/pip` (the path prefix keeps it out of this pattern) and apt's `python3-*`
+# packages are the forms that work. Only runnable lines are checked, never comments.
+LINUX_PIP = re.compile(r"(?<![\w./-])(?:pip3?|python3?\s+-m\s+pip)\b[^\n|;&]*\binstall\b")
+
+
+def check_linux_pip(curricula):
+    """A116: no lab.linux runs `pip install` against the system Python."""
+    hits, labs = [], 0
+    for name, cur in curricula.items():
+        for m in cur.get("modules", []):
+            lab = m.get("lab")
+            if not isinstance(lab, dict) or not isinstance(lab.get("linux"), str):
+                continue
+            labs += 1
+            for line in _runnable_lines(lab["linux"]).split("\n"):
+                if LINUX_PIP.search(line):
+                    hits.append(f"{name} {m.get('id') or m.get('num')}: `{line.strip()[:60]}`")
+    if hits:
+        warn("labs: linux pip", "A116: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("labs: linux pip", f"{labs} Linux labs: none runs pip install against the system Python")
+
+
 # RFC 2606 / RFC 6761 reserved names plus the course's fictional phishing/C2 domains.
 # These are supposed not to resolve — that is the point of using them in examples.
 FICTIONAL = re.compile(r"\.(example|invalid|test|local)(\b|/)|apple-verification|evil-c2", re.I)
@@ -1705,6 +1732,7 @@ def main():
 
     check_attack_table_rot(sources)
     check_linux_notes({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    check_linux_pip({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
 
     if not args.no_net:
         check_urls(sources)
