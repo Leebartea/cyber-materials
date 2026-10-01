@@ -1282,6 +1282,10 @@ TOPIC_ANCHORS = {
         "route leak": ["S2.2", "S3.7"],
         "as_trans": ["S3.7"],
         "investigation plan": ["S3.7"],
+        "50 percent rule": ["S4.1"],
+        "sdn list": ["S4.1"],
+        "opensanctions": ["S4.1"],
+        "delisting": ["S4.1"],
     },
 }
 

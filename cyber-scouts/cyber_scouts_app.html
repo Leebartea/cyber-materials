@@ -501,6 +501,7 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
     --l1: #34d399;
     --l2: #22d3ee;
     --l3: #c084fc;
+    --l4: #fbbf24;
     --code-bg: #0d1321;
   }
   html, body { background: var(--bg); color: var(--text); font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
@@ -559,7 +560,7 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
   .nav-module.completed { color: var(--success); }
   .nav-module.completed.active { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); border-left-color: var(--success); }
   .progress-bar-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--l1), var(--l2) 50%, var(--l3)); border-radius: 999px; transition: width 0.4s ease; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--l1), var(--l2) 33%, var(--l3) 67%, var(--l4)); border-radius: 999px; transition: width 0.4s ease; }
   .link-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--text); padding: 7px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.12s; }
   .link-btn:hover { border-color: var(--accent); color: var(--accent); }
   .link-btn:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -638,6 +639,7 @@ button { background: none; border: 0; cursor: pointer; font: inherit; color: inh
     --l1: #059669;
     --l2: #0891b2;
     --l3: #7c3aed;
+    --l4: #b45309;
     --code-bg: #f1f5f9;
   }
   /* light mode: utility-class hardcoded-hex overrides */
@@ -770,6 +772,18 @@ const curriculum = {
       build: "One case folder per module, each with its scope, collection log, hashes and a grades file, ending in a full investigation file from plan to finding (the Level 3 capstone).",
       prereq: "Levels 1 and 2, especially the collection record, the report form and link strength (S2.7)."
     }
+  }, {
+    id: 4,
+    name: "Investigator",
+    tagline: "Networks of actors — the companies, code, servers and accounts behind an activity, and the records that tie them",
+    colorVar: "--l4",
+    weeks: "Weeks 22–28",
+    roadmap: {
+      promise: "Level 4 follows networks of actors. Levels 1 to 3 collected records, graded links and sources, and tested explanations against each other. Level 4 uses that discipline on the records that tie actors together: sanctions lists and company registers, public code, phishing infrastructure, threat-intelligence feeds and coordinated accounts. It ends with a reproducible pipeline and an attribution file that says exactly how far the evidence goes.",
+      canDo: ["Join records on identifiers rather than names, and grade every join", "Say what a list, a register, a feed or a takedown report proves, and what it only repeats", "Tell a renamed actor from a replaced one, and report each differently", "Write an attribution that names its weakest link and stops where the evidence stops"],
+      build: "One case folder per module, each with its scope, collection log, hashes, tagged findings and a checked report, ending in an infrastructure attribution file (the Level 4 capstone).",
+      prereq: "Levels 1 to 3, especially link strength (S2.7), source grading and circular reporting (S3.1), and the investigation file (S3.7)."
+    }
   }],
   modules: [
   {
@@ -861,6 +875,22 @@ Level 3 adds judgement: how far to trust a source, how to test competing explana
 | S3.7 | Capstone: an investigation file, from plan to finding | ✅ available |
 
 S3.2 adds one tool, GNU Wget (\`brew install wget\`), and says so at the top of its lab. Any later module that needs a new tool will do the same.
+
+#### Level 4 — Investigator
+
+Level 4 follows networks of actors: the companies, code, servers and accounts behind an activity, and the records that tie them together.
+
+| # | Topic | Status |
+|---|---|---|
+| S4.1 | Sanctions lists and company registers: what a listing proves | ✅ available |
+| — | Public code and repositories: what a commit's author field proves | planned |
+| — | Phishing infrastructure: pivoting on pages, icons and certificates | planned |
+| — | Threat-intelligence feeds: what an indicator proves, and when it goes stale | planned |
+| — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
+| — | Reproducible pipelines: collection you can run again | planned |
+| — | Capstone: an infrastructure attribution file | planned |
+
+S4.1 needs no new tools.
 
 Planned modules get their numbers when they ship. A number in this course always points at something you can open.`,
     tracker: ["Read what Cyber Scouts covers and what it never does", "Can name the three kinds of practice target", "Ran the tool check and my SHA-256 of /dev/null matched exactly"]
@@ -12526,6 +12556,810 @@ F5 in v1 (<) and v2 (>):
 
 </details>`,
     tracker: ["Wrote plan.md before any request: four hypotheses, each with a prediction, and a control", "Ran the lab: every item hashed, both known answers PASS, the control CLEAN, report check PASS, timestamp verified", "Showed that the /20 was split into two /21s with the origin unchanged, and which hypotheses that rejects", "Caught both circular drafts: a time confirmed by its own origin, and a republished post counted twice", "Did Drill 1: a parser that passes the old known answer and silently finds nothing", "Did Drills 2 and 3: a second collector's end time, and a v2 file that leaves v1's seal intact"]
+  }, {
+    id: "l4_roadmap",
+    level: 4,
+    num: "L4",
+    title: "Level 4 Roadmap — Investigator",
+    objective: "The map for this level: what you'll gain, what you'll be able to do by the end, and what you'll build. Skim it first. The real modules begin next.",
+    isRoadmap: true
+  }, {
+    id: "s4_1",
+    level: 4,
+    num: "S4.1",
+    title: "Sanctions Lists & Company Registers — What a Listing Proves, What a Register Proves, and Why Names Are Poor Keys",
+    objective: `Follow one company through two kinds of official record. Read the US Treasury's own sanctions record for Garantex Europe OU, then look up its registration number in Estonia's company register, and find that the company named on the list was renamed and deleted years ago. Grade the link between the two records, and test which names find the listing and which miss it. Read what UK Companies House did with the UK listing, and what an aggregator, OpenSanctions, adds and where it can mislead. Then read how three companies went onto the US list in 2018 for who owned them, not for what they did, and came off it in 2019 when the ownership changed, and tag every statement with S2.7's strengths.`,
+    theory: `#### What this module adds
+
+Level 4 follows networks of actors: the companies, accounts and servers that people use, and the records that tie them together. It starts with two kinds of official record that look as solid as records get. A **sanctions list** is a government saying, in law, that a person or company is designated. A **company register** is a government office recording who a company is, where it is and who runs it. Both are published by governments, and both are routinely misread.
+
+The lab follows one company through both kinds of record: **Garantex Europe OU**, the Estonian company behind the Garantex cryptocurrency exchange, named on the US, UK and EU lists. It asks what each record proves and how the records join, and then looks at what a name search finds and what it misses. On the way, the lab finds that the company named on the US list stopped existing under that name years ago.
+
+#### Three kinds of record
+
+| Record | Who makes it | What it proves | What it does not prove |
+|---|---|---|---|
+| **Sanctions listing** (OFAC's SDN List, the UK Sanctions List, the EU's list) | A government, as a legal act | That this government designated this subject, under this authority, from this date | Guilt; that the subject still exists under that name; that the identifiers are current |
+| **Company register entry** (Estonia's e-Business Register, UK Companies House) | A registrar, from what the company files | That the registrar *registered* something: a company, a name, a date, a deletion | That what the company filed is true |
+| **Aggregator entry** (OpenSanctions) | A third party that merges many lists | Where to look | Anything by itself: each statement is only as good as the source it came from |
+
+Two of those rows contain the word "proves" with a narrow meaning. A sanctions listing is a decision, not a finding of fact by a court. A register entry is mostly the company's own statement, with the registrar's acts (registered, renamed, deleted) as the only parts the registrar itself vouches for.
+
+#### What a sanctions listing proves
+
+A listing is a legal act. OFAC's record for Garantex Europe OU (item001) is entry 36025 on the **SDN List** ("Specially Designated Nationals and Blocked Persons"), published 2022-04-05 under the program \`RUSSIA-EO14024\`, with \`CYBER4\` added when OFAC re-designated it on 14 August 2025 (item003). The record carries identifiers: a business registration number, an establishment date, addresses, websites and 12 digital currency addresses.
+
+Read it for what it is:
+
+- **It is the government's statement, made on a date.** OFAC's own per-entity file starts with a warning that it "may represent historic sanctions list data" and "should not be used for active transaction screening". The current lists are the official ones.
+- **Its identifiers are as of the designation.** They are what the government knew when it acted. Nothing obliges anyone to update them when the company changes. The lab shows the cost: the US record still names GARANTEX EUROPE OU, with Estonian addresses, while the Estonian register says that company was renamed and then deleted on 20 March 2024.
+- **It is not a conviction.** Designation is an administrative act. People and companies can challenge it, and lists remove entries ("delisting").
+- **Absence proves very little.** Not being on a list means only that this list, on this date, does not name the subject under the names you tried. Under OFAC's **50 Percent Rule**, "the property and interests in property of entities directly or indirectly owned 50 percent or more in the aggregate by one or more blocked persons are considered blocked" (OFAC FAQ 401). Such an entity is blocked without appearing on any list. The rule "speaks only to ownership and not to control" (FAQ 398): control alone does not trigger it.
+
+#### Lists copy each other
+
+Three governments listing the same company looks like three confirmations. Often it is one decision, repeated.
+
+On 4 May 2022 the UK designated GARANTEX EUROPE OU (UK Sanctions List reference RUS1421). The UK's statement of reasons, as published in its financial sanctions notice, says the designation "is made as a designation by name under the urgent procedure. The relevant provision by reference to which the Minister considers that condition B is met is Executive Order 14024": the US order behind OFAC's listing a month earlier. The UK listing rests on the US one. In S3.1's terms, it is the same source counted twice, not corroboration. (The three wallet addresses on the UK notice are three of the twelve in OFAC's record.)
+
+Files copy each other's labels too. The EU's full sanctions file gives Garantex (EU.12747.39) the remark "(Date of UN designation: 2025-02-24)". The UN's consolidated list does not contain Garantex at all. Drill 1 shows the remark is a pattern in the file, not a statement about the UN: 5,668 EU entities carry it, while the whole UN list has 1,011 entries. A field's label is the file's claim about the field. Check it against the record it names.
+
+Since 28 January 2026 the UK Sanctions List has been "the only source for all UK sanctions designations"; the OFSI Consolidated List closed that day (gov.uk). Cite the current source.
+
+#### What a company register proves
+
+S1.4 set the rule: a register entry proves that the record said this, at this time, held by this authority, and a register records what was filed (its case was a minister put on the UK register as a director without his knowledge). This module adds one distinction that matters when you join a register to a list. A register holds two kinds of statement, and they deserve different weight.
+
+- **The registrar's own acts.** Registered on 18.11.2019, a name change, deleted on 20.03.2024. The registrar did these things itself, so the register is the primary record of them. A join between a list and a register should rest on these.
+- **What the company filed.** Addresses, officers, owners, accounts. The registrar records them. Companies House prints its position on every page of its service: "Companies House does not check the accuracy of the information filed". Garantex Europe OÜ's 2020 annual report, filed on 6 April 2022 (the day after the SDN entry was published), shows revenue of 0. That is the company's statement about itself, not the register's finding.
+
+Since S1.4 the UK law on false filing has two offences, not one. The Economic Crime and Corporate Transparency Act 2023 replaced section 1112 of the Companies Act 2006 from 4 March 2024 with a basic offence "without reasonable excuse" (s.1112) and an aggravated one for doing it "knowingly" (s.1112A). An offence deters; it does not verify.
+
+**Names change; numbers do not.** Estonia's register keeps the company under registry code 14850239 for its whole life. Its name now is Kihonzi Buzhaga OÜ, and the register lists "Garantex Europe OÜ" under "Invalid names". The free page does not say when the name changed, and a report must say so rather than guess. Its last articles of association took effect on 21 April 2022, but that is a different act, and a guess based on it would be a guess.
+
+#### Names are poor keys
+
+Screening means comparing names against lists. Names are poor keys: they change, are transliterated (Гарантекс, Garantex), are abbreviated, and are shared by unrelated companies.
+
+- **An exact or folded match** (lower case, accents removed, punctuation dropped) finds "Garantex Europe OÜ" on the US list and finds nothing for "Kihonzi Buzhaga OÜ", the same legal person.
+- **A fuzzy match** finds misspellings, but loosening it brings in strangers before it finds a renamed company. In Drill 2, a ratio of 0.7 or more catches "Garantecks Evrope". At 0.6 it also returns SBERBANK EUROPE AG and UMATEX GROUP EUROPE S.R.O. At no setting does it find Kihonzi Buzhaga.
+- **An identifier** joins what names cannot. Registry code 14850239 appears on both the US record and the Estonian one. That is the lab's strongest link.
+
+A name match is a **LEAD** (S2.7): a reason to compare identifiers, never a conclusion.
+
+#### Aggregators
+
+OpenSanctions merges sanctions lists, registers and other sources from many countries into one entity per subject. For Garantex Europe OU it shows 11 sanctioning sources and the alias Kihonzi Buzhaga OU, which no government list in this lab carries. It is the fastest way to find out where to look. It is not the record. The lab found three reasons why:
+
+- **Its ids move.** The entity id a search engine gave on 1 October 2026 now answers HTTP 307 and redirects to a different id, because entities are re-merged. A citation to an aggregator id can break; a government reference (OFAC 36025, UK RUS1421, EU.12747.39) does not.
+- **Its statements have different origins.** Each value says which dataset it came from, and some are labelled \`gpt-4o\`: extracted from press releases by a language model. Four on this entity's page.
+- **Its dates are its own.** Beside the US SDN source, the page prints 2023-04-20. OFAC published the entry on 2022-04-05. Read the aggregator's documentation before you use one of its dates as a designation date.
+
+Use the aggregator to find the government records, then cite those.
+
+#### What each kind of statement is worth
+
+| Statement | Tag (S2.7) | Why |
+|---|---|---|
+| OFAC's registration number matches the register's code, and the register keeps OFAC's name as a former name | **STRONG** | Two governments each recorded the same number and the same name |
+| Same date of establishment on both | **CONTEXT** | Places the link; many companies share a date |
+| "Kihonzi Buzhaga OÜ" gets no hit; "Garantex Europe" gets one | **LEAD** | A name test, in both directions |
+| Companies House disqualification, citing RUS1421 | **ONE-WAY** | It follows from the UK listing; it adds no new evidence about the company |
+| UK listing alongside the US listing | **ONE-WAY** | The UK relied on the US order (condition B) |
+| An aggregator's merged entity | **LEAD** | Shows where to look; cite the government record instead |
+
+#### Ethics
+
+- **Lists name people.** Three executives' records on the US list are linked to Garantex, and OpenSanctions links more. The lab counts them and reads no person's record. If a report must name a person, name them as the list does, cite the list, and say that a designation is not a conviction.
+- **No dealings.** Do not send funds to, buy from or contact a listed subject. Sanctions law applies to you whatever your reason.
+- **This is research, not compliance.** A screen you wrote for a lab is not a sanctions-compliance programme. Do not give anyone screening advice on the strength of it.
+- **Registers are about real people too.** Officers' addresses and dates of birth are on public registers so that companies can be held to account. Do not collect them for anything else.`,
+    lab: {
+      mac: `# LAB: what a sanctions listing proves, and what a company register proves (Apple Silicon)
+# ETHICS: the subject is a company, Garantex Europe OU, named on public government lists. The lab reads
+# no person's record. The people named on the lists appear only as a count; the lab does not look them up.
+# LIMITS: ten public pages and one set of headers, about 1.5 MB in all. No account and no key. No screening service is used:
+# the lab does its own name matching, so you can see exactly what a name match can and cannot do.
+# NO NEW TOOL: curl, openssl and python3 (standard library only), as in Level 3.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s4_1 && cd ~/scouts-case/s4_1 || exit 1
+rm -rf evidence scope.txt collection_log.tsv sanctions_read.py facts.txt report.md check_report.sh \\
+  SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.1 sanctions lists and company registers (Garantex Europe OU)
+question:     What does a sanctions listing prove about a company, and what does a company register prove?
+              A. the US listing: what does OFAC's own record say, and when was it published?
+              B. the register: what does Estonia's register say about the registration number on that listing?
+              C. the join: is the listed company the registered one, and how strong is that link?
+              D. the name screen: which names find the listing, and which miss it?
+              E. the UK: what did Companies House do with the UK listing?
+              F. the aggregator: what does OpenSanctions add, and where does each of its statements come from?
+              G. 2018-2019: what did a listing, and then a delisting, say about En+ and Rusal?
+authorised:   self (public government lists, public registers, public pages)
+in scope:     sanctionslistservice.ofac.treas.gov (1 record); home.treasury.gov (3 press releases);
+              ariregister.rik.ee (1 company page); find-and-update.company-information.service.gov.uk
+              (1 record, 2 searches); www.opensanctions.org (1 entity page); ofac.treasury.gov (1 notice)
+out of scope: the records of the people named on the lists; any paid screening or registry product;
+              any wallet address on the lists (S3.3 covers tracing)
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+get() {  # id url   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+CH=https://find-and-update.company-information.service.gov.uk
+# A. The US list: OFAC's own record for entity 36025, and the two Treasury announcements.
+get item001.xml https://sanctionslistservice.ofac.treas.gov/entities/36025
+get item002.html https://home.treasury.gov/news/press-releases/jy0701
+get item003.html https://home.treasury.gov/news/press-releases/sb0225
+# B. The register: Estonia's e-Business Register, looked up by the number on the US record.
+get item004.html https://ariregister.rik.ee/eng/company/14850239
+# E. Companies House: the disqualification record, and the same search under two names.
+get item005.html "$CH/disqualified-officers/corporate/jCMMVMNjxWu88HKFfxAjWVwqWKc"
+get item006.html "$CH/search/disqualified-officers?q=garantex+europe"
+get item007.html "$CH/search/disqualified-officers?q=kihonzi+buzhaga"
+# F. The aggregator: OpenSanctions' merged entity. The id a search engine gave on 1 October 2026 now
+#    redirects: keep the redirect itself (headers only) as evidence, then fetch the page it points to.
+OS=https://www.opensanctions.org
+curl -s --retry 5 --retry-all-errors -m 60 -A "$UA" -o /dev/null -D evidence/item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/"
+log item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/ (headers only)" "$(shasum -a 256 evidence/item008.txt | cut -d' ' -f1)"
+NEXT=$(grep -i '^location: /entities/' evidence/item008.txt | tr -d '\\r' | cut -d' ' -f2)
+get item009.html "$OS\${NEXT:-/entities/NK-XQyqxmZPMezqQiDeHoGQjf/}"
+# The case: OFAC's own notice of the 2019 deletions, and Treasury's notice to Congress (December 2018).
+get item010.html https://ofac.treasury.gov/recent-actions/20190127
+get item011.html https://home.treasury.gov/news/press-releases/sm576
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab"; exit 1; }
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+
+# 3. Read. Only the saved files are read; nothing below touches the network.
+cat > sanctions_read.py <<'PY'
+import re, html, unicodedata, sys
+def raw(n): return open("evidence/" + n, encoding="utf-8", errors="replace").read()
+def text(n):  # page text, one line per element, scripts and styles removed
+    t = re.sub(r"(?s)<(script|style)\\b.*?</\\1>", " ", raw(n))
+    return "\\n".join(l.strip() for l in html.unescape(re.sub(r"<[^>]+>", "\\n", t)).split("\\n") if l.strip())
+def flat(s): return re.sub(r"\\s+", " ", s)
+def after(t, label, n=1):  # the n lines that follow a label line, joined
+    L = t.split("\\n")
+    for i, l in enumerate(L):
+        if l == label: return " ".join(L[i + 1:i + 1 + n])
+    return "NOT FOUND"
+out = []
+def p(s=""): out.append(s)
+
+# A. OFAC's record. The XML is OFAC's own; read it, do not trust a summary of it.
+x = raw("item001.xml"); e = x[x.find('<entity id="36025"'):]
+p("A. OFAC record 36025 (item001)")
+p("   dataAsOf:         " + re.search(r"<dataAsOf>([^<]+)", x).group(1))
+p("   file's own warning: 'should not be used for active transaction screening' " +
+  ("present" if "should not be used for active transaction screening" in flat(x) else "ABSENT"))
+for m in re.finditer(r'<sanctionsList [^>]*datePublished="([^"]+)"[^>]*>([^<]+)<', e):
+    p("   list:             %s, published %s" % (m.group(2), m.group(1)))
+p("   programs:         " + ", ".join(sorted(re.findall(r"<sanctionsProgram [^>]*>([^<]+)<", e))))
+names = sorted(set(re.findall(r"<formattedFullName>([^<]+)<", e)))
+p("   names:            " + " | ".join(names))
+docs = [(re.search(r"<type[^>]*>([^<]+)<", d).group(1), re.search(r"<documentNumber>([^<]+)<", d).group(1),
+         re.search(r"<issuingCountry[^>]*>([^<]+)<", d).group(1)) for d in re.findall(r"(?s)<identityDocument .*?</identityDocument>", e)]
+for d in docs: p("   identity document: %s %s (%s)" % d)
+feats = []
+for f in re.findall(r"(?s)<feature .*?</feature>", e):
+    t = re.search(r"<type[^>]*>([^<]+)<", f).group(1); v = re.search(r"<value>([^<]*)<", f)
+    feats.append((t, v.group(1) if v else ""))
+p("   established date: " + "; ".join(v for t, v in feats if t == "Organization Established Date"))
+cur = {}
+for t, v in feats:
+    if t.startswith("Digital Currency Address - "): cur[t[27:]] = cur.get(t[27:], 0) + 1
+p("   digital currency addresses: %d (%s)" % (sum(cur.values()), ", ".join("%s %d" % kv for kv in sorted(cur.items()))))
+countries = re.findall(r"(?s)<address [^>]*>.*?<country[^>]*>([^<]+)<", e)
+p("   address countries: " + ", ".join("%s %d" % (c, countries.count(c)) for c in sorted(set(countries))))
+for n, rel in (("item002.html", "April 5, 2022"), ("item003.html", "re-designating the cryptocurrency exchange")):
+    p("   %s phrase %-48s %s" % (n[:7], '"%s"' % rel, "present" if rel in flat(text(n)) else "ABSENT"))
+for ph in ("originally registered in Estonia", "lost its Estonian license"):
+    p("   item003 phrase %-48s %s" % ('"%s"' % ph, "present" if ph in flat(text("item003.html")) else "ABSENT"))
+
+# B. The register.
+r = text("item004.html")
+p(); p("B. Estonian e-Business Register, code 14850239 (item004)")
+title = html.unescape(re.search(r"<title>([^<]+)", raw("item004.html")).group(1)).split("|")[0].strip()
+p("   name now:         " + title)
+p("   former names:     " + re.search(r"Invalid names: ([^\\n]+)", r).group(1).rstrip("."))
+p("   status:           " + after(r, "Status"))
+p("   registered:       " + after(r, "Registered"))
+p("   deleted:          " + re.search(r"\\nRegistered\\n[0-9.]+\\nDeleted\\n([0-9.]+)", r).group(1))
+ar = re.search(r"Annual reports.*?\\n(20\\d\\d)\\n(\\d\\d\\.\\d\\d\\.\\d{4})\\n([0-9.]+ - [0-9.]+)", r, re.S)
+p("   annual report:    year %s, submitted %s, period %s" % ar.groups())
+rev = re.search(r"Graph view\\n(20\\d\\d)\\nRevenue\\n([^\\n]+)", r)
+p("   revenue:          %s: %s" % rev.groups())
+aa = re.search(r"Articles of association.*?Status\\n(.*?)No active articles", r, re.S).group(1).split("\\n")
+eff = [aa[i] for i in range(0, len(aa) - 3, 5) if re.match(r"\\d\\d\\.\\d\\d\\.\\d{4}$", aa[i])]
+p("   articles of association, effective dates: " + ", ".join(eff))
+p('   "The history of beneficiaries of a deleted company is not displayed.": ' +
+  ("present" if "The history of beneficiaries of a deleted company is not displayed." in r else "ABSENT"))
+p("   date of the change of name on this page: " + ("shown" if re.search(r"name.{0,40}\\d\\d\\.\\d\\d\\.\\d{4}", r, re.I) else "NOT SHOWN"))
+
+# C. The join. Two records, two keys. Grade each key with S2.7's tags.
+p(); p("C. The join (A and B)")
+num = [n for t, n, c in docs if t == "Business Registration Number" and c == "Estonia"][0]
+code = re.search(r"Registry code\\n(\\d+)", r).group(1)
+ed = "; ".join(v for t, v in feats if t == "Organization Established Date")
+import datetime
+reg = datetime.datetime.strptime(after(r, "Registered"), "%d.%m.%Y").strftime("%d %b %Y")
+fold = lambda s: re.sub(r"[^a-z0-9 ]", "", unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower())
+former = re.search(r"Invalid names: ([^\\n]+)", r).group(1).rstrip(".")
+p("   registration number: OFAC %s, register %s -> %s" % (num, code, "SAME" if num == code else "DIFFERENT"))
+p("   date:                OFAC %s, register %s -> %s" % (ed, reg, "SAME" if ed == reg else "DIFFERENT"))
+p("   name:                OFAC %s, register now %s -> %s" % (names[-1], title, "SAME" if fold(names[-1]) == fold(title) else "DIFFERENT"))
+p("   register's former name equals OFAC's name: " + ("YES" if fold(former) == fold(names[-1]) else "NO"))
+
+# D. The name screen. The simplest honest matcher: fold case and accents, drop punctuation, compare.
+p(); p("D. Name screen against OFAC's names (item001), folded: lower case, no accents, no punctuation")
+for q in ("Garantex Europe OÜ", "GARANTEX", "Kihonzi Buzhaga OÜ"):
+    hit = [n for n in names if fold(n) == fold(q)]
+    p("   %-20s -> %s" % (q, "HIT " + hit[0] if hit else "no hit"))
+for n, q in (("item006", "garantex europe"), ("item007", "kihonzi buzhaga")):
+    t = raw(n + ".html")
+    res = re.findall(r'href="(/disqualified-officers/[^"]+)"', t)
+    p("   Companies House disqualified search %-18s -> %d result(s)" % ('"%s"' % q, len(res)))
+
+# E. Companies House.
+c = text("item005.html")
+p(); p("E. Companies House disqualification (item005)")
+p("   start date:       " + after(c, "Start date"))
+p("   UK list ref:      " + after(c, "UK Sanction List Reference"))
+p("   reason:           " + after(c, "Reason"))
+p('   banner "Companies House does not check the accuracy of the information filed": ' +
+  ("present" if "Companies House does not check the accuracy of the information filed" in c else "ABSENT"))
+
+# F. The aggregator.
+h8 = raw("item008.txt")
+p(); p("F. OpenSanctions (items 008-009)")
+p("   item008 first line: " + h8.split("\\n")[0].strip())
+loc = re.search(r"(?im)^location: (\\S+)", h8)
+p("   item008 redirects to: " + (loc.group(1) if loc else "NO REDIRECT"))
+o = text("item009.html")
+m = re.search(r"\\nSanctioned\\n(\\d+)\\nsources", o)
+p("   sources under 'Sanctioned': " + (m.group(1) if m else "NOT FOUND"))
+p("   statements whose method is labelled gpt-4o: %d" % o.split("\\n").count("gpt-4o"))
+p("   alias 'Kihonzi Buzhaga OU' listed: " + ("YES" if "Kihonzi Buzhaga OU" in o else "NO"))
+uk = re.search(r"UK sanctions relating to Russia\\n(\\d{4}-\\d\\d-\\d\\d)", o)
+p("   UK programme start date shown: " + (uk.group(1) if uk else "NOT FOUND"))
+
+# G. The case (read in the module): the phrases it relies on.
+p(); p("G. The case (items 010-011)")
+for n, ph in (("item010.html", "The following deletions have been made to OFAC's SDN List"),
+              ("item010.html", "EN+ GROUP PLC"), ("item010.html", "Registration ID 91061"),
+              ("item010.html", "UNITED COMPANY RUSAL PLC"), ("item010.html", "(Linked To: EN+ GROUP PLC)"),
+              ("item011.html", "not for the conduct of the companies themselves"),
+              ("item011.html", "Oleg Deripaska will remain sanctioned"),
+              ("item011.html", "OFAC designated Rusal for being owned or controlled by, directly or indirectly, En+"),
+              ("item011.html", "OFAC reserves the right to relist")):
+    p("   %s %-82s %s" % (n[:7], '"%s"' % ph, "present" if ph in flat(text(n)) else "ABSENT"))
+
+# H. One timeline from all of the above (dates as each record states them).
+p(); p("H. Timeline (each date as its own record states it)")
+iso = lambda d, f: datetime.datetime.strptime(d, f).strftime("%Y-%m-%d")
+T = [(iso(after(r, "Registered"), "%d.%m.%Y"), "item004", "registered in Estonia as no. 14850239"),
+     (iso(ed, "%d %b %Y"), "item001", "OFAC's 'Organization Established Date'"),
+     (re.search(r'datePublished="([^"]+)"', e).group(1), "item001", "SDN List entry published"),
+     (iso(ar.group(2), "%d.%m.%Y"), "item004", "2020 annual report submitted (revenue %s)" % rev.group(2)),
+     (iso(eff[0], "%d.%m.%Y"), "item004", "last articles of association take effect"),
+     (uk.group(1) if uk else "????-??-??", "item009", "UK programme start, as the aggregator shows it"),
+     (iso(re.search(r"\\nRegistered\\n[0-9.]+\\nDeleted\\n([0-9.]+)", r).group(1), "%d.%m.%Y"), "item004", "deleted from the register"),
+     (iso(after(c, "Start date"), "%d %B %Y"), "item005", "Companies House disqualification starts"),
+     (iso(re.search(r"Cyber Criminals (\\w+ \\d+, 20\\d\\d)", flat(text("item003.html"))).group(1), "%B %d, %Y"), "item003", "OFAC re-designates, adds CYBER4"),
+     (re.search(r"<dataAsOf>(\\d{4}-\\d\\d-\\d\\d)", x).group(1), "item001", "OFAC record still names " + names[-1])]
+for d, i, w in sorted(T): p("   %s  %s  %s" % (d, i, w))
+open("facts.txt", "w").write("\\n".join(out) + "\\n"); print("\\n".join(out))
+PY
+python3 sanctions_read.py || { echo "STOP: the reader failed - a page has changed its layout; read it by hand"; exit 1; }
+grep -q 'ABSENT\\|NOT FOUND\\|NO REDIRECT' facts.txt && echo "NOTE: a page has changed since this module was written - read the line marked above by hand"
+
+# 4. The report. Every finding carries one of S2.7's link tags and cites its items. The figures in it are
+#    typed by hand, so step 5 checks each one against facts.txt.
+cat > report.md <<'REPORT'
+# S4.1 Garantex Europe OU: what the listings and the register show
+
+Question: what does a sanctions listing prove about a company, and what does a company register prove?
+Analyst: analyst01. Sources: ten public pages and one set of headers, items 001-011 (collection_log.tsv).
+
+## Findings
+
+F1 [STRONG] (item001, item004) The company on the US list is the company in the Estonian register.
+OFAC's record gives business registration number 14850239 (Estonia), and the register's record 14850239
+keeps "Garantex Europe OÜ" as a former name. Each record holds the same pair of number and name, and each
+was made by a different government.
+F2 [CONTEXT] (item001, item004) Both records give the same start date: OFAC's "Organization Established
+Date" is 18 Nov 2019 and the register's "Registered" is 18.11.2019. A date places the link; it does not make it.
+F3 [CONTEXT] (item004, item001) The legal person was renamed Kihonzi Buzhaga OÜ and was deleted from the
+register on 20.03.2024. OFAC's record, as of the day of this run, still names GARANTEX EUROPE OU, with
+Estonian addresses. The register's free page does not show the date of the change of name.
+F4 [LEAD] (item001, item006, item007) A screen on the register's current name finds nothing. "Kihonzi
+Buzhaga OÜ" gives no hit against OFAC's names, and the Companies House disqualified search gives 0 results;
+"Garantex Europe" gives a hit and 1 result. Only the registration number (F1) joins the two names.
+F5 [ONE-WAY] (item005) Companies House disqualified the company from 9 April 2025, citing UK Sanctions
+List reference RUS1421 and section 3A of the Sanctions and Anti-Money Laundering Act 2018. It follows from
+the UK listing; it is not a separate finding about the company.
+F6 [ONE-WAY] (item004) The company filed its 2020 annual report on 06.04.2022, the day after the SDN entry
+was published, and it shows revenue 0. That is the company's own statement: the register records what
+was filed and does not check it (S4.1 theory). It is not evidence of what the exchange did in 2020.
+F7 [LEAD] (item008, item009) OpenSanctions joins 11 sanctioning sources and lists the alias Kihonzi
+Buzhaga OU, but its own id for the entity changed (item008: HTTP/2 307), and 4 of the statements on the
+page are labelled gpt-4o: machine-extracted. It shows where to look. Each claim in F1-F6 is cited to the
+government's own record instead.
+
+## Assessment
+
+Likely: the legal person behind the US listing was renamed and then deleted in Estonia, while the listing
+kept its old name (F1, F3). Confidence: high on the identity (two governments, one number), moderate on
+the sequence (the date of the change of name is not on the free page).
+Rejected: "the listing proves the company is still operating" (F3: the register deleted it in 2024).
+Still open: the date of the change of name (registry card or Official Announcements); who controlled the
+company at each date (the register hides beneficial owners of deleted companies); whether the UK listing
+was independent of the US one (S4.1 theory: it was not).
+REPORT
+
+# 5. Check the report: every finding tagged and cited, and every hand-typed figure found in facts.txt.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+R=report.md; bad=0
+[ -s facts.txt ] && [ -s "$R" ] || { echo "UNKNOWN: facts.txt or report.md is missing"; exit 2; }
+n=$(grep -cE '^F[0-9]+ \\[(STRONG|ONE-WAY|LEAD|CONTEXT)\\] \\(item[0-9]{3}' "$R")
+[ "$n" -eq "$(grep -cE '^F[0-9]+ ' "$R")" ] || { echo "FAIL a finding has no tag or no item"; bad=$((bad + 1)); }
+# A STRONG link needs two records made by different hands; an aggregator page cannot be one of them (S4.1).
+grep -E '^F[0-9]+ \\[STRONG\\]' "$R" | grep -qE 'item00[89]' && { echo "FAIL a STRONG finding rests on the aggregator"; bad=$((bad + 1)); }
+grep -q '^Rejected:' "$R" || { echo "FAIL the report does not name what it rejects"; bad=$((bad + 1)); }
+grep -q '^Still open:' "$R" || { echo "FAIL the report does not say what is still open"; bad=$((bad + 1)); }
+agree() { grep -qF -- "$2" facts.txt || { echo "$1 FAIL the report's figure is not in facts.txt: $2"; bad=$((bad + 1)); }; }
+agree F1 "registration number: OFAC 14850239, register 14850239 -> SAME"
+agree F1 "register's former name equals OFAC's name: YES"
+agree F2 "date:                OFAC 18 Nov 2019, register 18 Nov 2019 -> SAME"
+agree F3 "name now:         Kihonzi Buzhaga OÜ"
+agree F3 "deleted:          20.03.2024"
+agree F3 "OFAC record still names GARANTEX EUROPE OU"
+agree F3 "address countries: Estonia 2, Russia 3"
+agree F3 "date of the change of name on this page: NOT SHOWN"
+agree F4 "Kihonzi Buzhaga OÜ   -> no hit"
+agree F4 'Companies House disqualified search "kihonzi buzhaga"  -> 0 result(s)'
+agree F4 'Companies House disqualified search "garantex europe"  -> 1 result(s)'
+agree F5 "start date:       9 April 2025"
+agree F5 "UK list ref:      RUS1421"
+agree F6 "annual report:    year 2020, submitted 06.04.2022"
+agree F6 "revenue:          2020: 0"
+agree F6 "SDN List, published 2022-04-05"
+agree F7 "sources under 'Sanctioned': 11"
+agree F7 "item008 first line: HTTP/2 307"
+agree F7 "statements whose method is labelled gpt-4o: 4"
+agree F7 "alias 'Kihonzi Buzhaga OU' listed: YES"
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n tagged findings, every figure in facts.txt)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 6. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv sanctions_read.py facts.txt report.md check_report.sh evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H 'Content-Type: application/timestamp-query' \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null ||
+  { echo "STOP: the timestamp did not verify - a TSA can refuse with HTTP 200 (Status: Rejected); rerun this step"; exit 1; }
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It reads the saved pages in python3, seals with openssl, and checks its own
+# report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_1 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in keep(), inside the check_report.sh heredoc, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl and python3 3.9 or later (the lab was run with 3.9 and 3.11). On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3
+# The three drills use no shasum and run unchanged.`,
+      expected: {
+        mac: `\`\`\`text
+item001.xml 2026-10-01T08:20:46Z e440dc54e2bc
+item002.html 2026-10-01T08:20:47Z 4391fa7ece72
+item003.html 2026-10-01T08:20:48Z 4c4121d92d20
+item004.html 2026-10-01T08:20:49Z 2a3fe3bef77e
+item005.html 2026-10-01T08:20:51Z 29627b4fd455
+item006.html 2026-10-01T08:20:52Z 4ba8020c542d
+item007.html 2026-10-01T08:20:53Z 3658a55b0bfe
+item008.txt 2026-10-01T08:20:55Z f1e828c634bf
+item009.html 2026-10-01T08:20:56Z d77b216f9656
+item010.html 2026-10-01T08:20:57Z 5d35090fe53c
+item011.html 2026-10-01T08:20:58Z a1bea7b87bbe
+\`\`\`
+
+The collection log: your times will differ, and every line must end in a hash, never \`FAILED\`. Three hashes should match these: item005 to item007, the Companies House record and its two searches, were identical on every run while this module was written. The others change from run to run without any change in what they say. OFAC's file carries the time it was generated (\`dataAsOf\`), the register and the press-release pages carry session tokens, and item008 is a set of HTTP headers with the date in it.
+
+\`\`\`text
+A. OFAC record 36025 (item001)
+   dataAsOf:         2026-10-01T04:20:44.9030472-04:00
+   file's own warning: 'should not be used for active transaction screening' present
+   list:             SDN List, published 2022-04-05
+   programs:         CYBER4, RUSSIA-EO14024
+   names:            GARANTEX | GARANTEX EUROPE OU
+   identity document: Business Registration Number 14850239 (Estonia)
+   established date: 18 Nov 2019
+   digital currency addresses: 12 (ETH 7, TRX 3, USDT 1, XBT 1)
+   address countries: Estonia 2, Russia 3
+   item002 phrase "April 5, 2022"                                  present
+   item003 phrase "re-designating the cryptocurrency exchange"     present
+   item003 phrase "originally registered in Estonia"               present
+   item003 phrase "lost its Estonian license"                      present
+
+B. Estonian e-Business Register, code 14850239 (item004)
+   name now:         Kihonzi Buzhaga OÜ
+   former names:     Garantex Europe OÜ
+   status:           Deleted
+   registered:       18.11.2019
+   deleted:          20.03.2024
+   annual report:    year 2020, submitted 06.04.2022, period 18.11.2019 - 31.12.2020
+   revenue:          2020: 0
+   articles of association, effective dates: 21.04.2022, 18.02.2021, 13.07.2020, 18.11.2019
+   "The history of beneficiaries of a deleted company is not displayed.": present
+   date of the change of name on this page: NOT SHOWN
+
+C. The join (A and B)
+   registration number: OFAC 14850239, register 14850239 -> SAME
+   date:                OFAC 18 Nov 2019, register 18 Nov 2019 -> SAME
+   name:                OFAC GARANTEX EUROPE OU, register now Kihonzi Buzhaga OÜ -> DIFFERENT
+   register's former name equals OFAC's name: YES
+
+D. Name screen against OFAC's names (item001), folded: lower case, no accents, no punctuation
+   Garantex Europe OÜ   -> HIT GARANTEX EUROPE OU
+   GARANTEX             -> HIT GARANTEX
+   Kihonzi Buzhaga OÜ   -> no hit
+   Companies House disqualified search "garantex europe"  -> 1 result(s)
+   Companies House disqualified search "kihonzi buzhaga"  -> 0 result(s)
+
+E. Companies House disqualification (item005)
+   start date:       9 April 2025
+   UK list ref:      RUS1421
+   reason:           Sanctions and Anti-Money Laundering Act 2018 (Section 3A): Disqualification of persons designated under sanctions legislation
+   banner "Companies House does not check the accuracy of the information filed": present
+
+F. OpenSanctions (items 008-009)
+   item008 first line: HTTP/2 307
+   item008 redirects to: /entities/NK-ddgkduLoXLMdkW59mNmsKB/
+   sources under 'Sanctioned': 11
+   statements whose method is labelled gpt-4o: 4
+   alias 'Kihonzi Buzhaga OU' listed: YES
+   UK programme start date shown: 2022-05-04
+
+G. The case (items 010-011)
+   item010 "The following deletions have been made to OFAC's SDN List"                        present
+   item010 "EN+ GROUP PLC"                                                                    present
+   item010 "Registration ID 91061"                                                            present
+   item010 "UNITED COMPANY RUSAL PLC"                                                         present
+   item010 "(Linked To: EN+ GROUP PLC)"                                                       present
+   item011 "not for the conduct of the companies themselves"                                  present
+   item011 "Oleg Deripaska will remain sanctioned"                                            present
+   item011 "OFAC designated Rusal for being owned or controlled by, directly or indirectly, En+" present
+   item011 "OFAC reserves the right to relist"                                                present
+
+H. Timeline (each date as its own record states it)
+   2019-11-18  item001  OFAC's 'Organization Established Date'
+   2019-11-18  item004  registered in Estonia as no. 14850239
+   2022-04-05  item001  SDN List entry published
+   2022-04-06  item004  2020 annual report submitted (revenue 0)
+   2022-04-21  item004  last articles of association take effect
+   2022-05-04  item009  UK programme start, as the aggregator shows it
+   2024-03-20  item004  deleted from the register
+   2025-04-09  item005  Companies House disqualification starts
+   2025-08-14  item003  OFAC re-designates, adds CYBER4
+   2026-10-01  item001  OFAC record still names GARANTEX EUROPE OU
+report check: PASS (7 tagged findings, every figure in facts.txt)
+\`\`\`
+
+What to compare:
+
+- **A.** The list line must say \`SDN List, published 2022-04-05\`, and the identity document must be \`Business Registration Number 14850239 (Estonia)\`. If OFAC ever updates the name or the number, the join in C will show it.
+- **B.** \`name now: Kihonzi Buzhaga OÜ\`, the former name, and \`deleted: 20.03.2024\`. The change-of-name date must still say \`NOT SHOWN\`. If the register starts showing it, read it and add it to the report.
+- **C.** Number and date SAME, name DIFFERENT, former name YES: that is F1's STRONG link.
+- **D.** The current name must miss and the former name must hit, on both OFAC and Companies House.
+- **F.** OpenSanctions changes most often. Its id redirected (HTTP 307) on the day this module was written. If item008 shows \`200\` instead of \`307\`, or the counts differ, the lab prints a NOTE, and the report check fails on the figures that changed. Read the page and update your report: the aggregator moved, not the governments.
+- **G.** Every phrase must be \`present\`.
+- **H.** Ten dates, in order. The last one is the day of your own run.
+
+\`\`\`text
+Verification: OK
+Time stamp: Oct  1 08:21:00 2026 GMT
+sealed files: 17
+17
+\`\`\`
+
+The seal lists 17 files: the scope, the log, the reader, the facts, the report, its check script, and 11 evidence items. The timestamp line shows your own run's time. If the lab stops with "the timestamp did not verify", the TSA refused this request: run step 6 again.`
+      }
+    },
+    caseStudy: {
+      title: "2018–2019: listed for who owned them — En+, Rusal and the 50 percent line",
+      body: `**What happened.** On 6 April 2018 OFAC put three companies on the SDN List: En+ Group plc, UC Rusal plc and JSC EuroSibEnergo (ESE). En+ was the parent: it owned ESE outright and controlled Rusal. Treasury's notice to Congress later gave the reasons in one line each (lab item011): "OFAC designated En+ for being owned or controlled by, directly or indirectly, Oleg Deripaska and other entities he owns or controls. In that same action, OFAC designated Rusal for being owned or controlled by, directly or indirectly, En+. ESE, a wholly owned subsidiary of En+, was also designated."
+
+Nine months later the companies came off the list. On 19 December 2018 OFAC told Congress it would end the sanctions in 30 days. Treasury Secretary Steven Mnuchin explained why: "Treasury sanctioned these companies because of their ownership and control by sanctioned Russian oligarch Oleg Deripaska, not for the conduct of the companies themselves." On 27 January 2019 OFAC published the deletions (item010): "The following deletions have been made to OFAC's SDN List: EN+ GROUP PLC … Registration ID 91061 … UNITED COMPANY RUSAL PLC … (Linked To: EN+ GROUP PLC)."
+
+**What changed, in numbers.** Treasury's letter to Congress of 19 December 2018 (a PDF on ofac.treasury.gov, read for this module) gives them. Deripaska's stake in En+ "will be reduced from approximately 70 percent to 44.95 percent, and his stake cannot be increased in the future". He "will not be able to vote more than 35 percent of En+ shares". En+ would "continue to control Rusal through a 56.88 percent stake". Deripaska himself had "a 0.01 percent direct ownership interest in Rusal, and his involvement was not a basis for the designation of Rusal". He stayed on the list: "Oleg Deripaska will remain sanctioned" (item011). OFAC also "reserves the right to relist one or all of these companies should they fail to comply".
+
+**Tag each statement (S2.7).**
+
+| Statement | Tag | Why |
+|---|---|---|
+| The three companies were designated on 6 April 2018 and deleted on 27 January 2019 | **STRONG** for the acts | OFAC made both decisions and published both (items 010 and 011) |
+| They were listed for who owned them, not for what they did | **ONE-WAY** | Treasury's own account of its reasons. It is authoritative about why OFAC acted, and says nothing about the companies' conduct either way |
+| Rusal was listed through En+'s stake, not Deripaska's 0.01 percent | **ONE-WAY** | From the letter to Congress. Compare with the deletion notice: Rusal is "Linked To: EN+ GROUP PLC", not to Deripaska |
+| Deripaska's stake fell to 44.95 percent | **ONE-WAY** | The agreed outcome, as Treasury reported it on 19 December 2018. Whether it happened is for the company's own filings (S1.4) and OFAC's monitoring |
+| Deripaska remained listed | **STRONG** | His SDN entry (24283) was on the list on 1 October 2026, in the file Drill 2 downloads |
+
+**Why it matters for this module.**
+
+- **A listing records a legal basis, not a verdict.** Here the basis was ownership. The companies were not accused of anything they did. "On the SDN List" tells you that a government acted and under which authority. The reason is in the government's own announcement, so read it.
+- **The 50 Percent Rule works in both directions.** Ownership put Rusal on the list through a chain (Deripaska → En+ → Rusal), and moving one link below 50 percent took it off. A company can be blocked without being named, and unblocked without anything about its business changing.
+- **A deletion is also a record.** OFAC's notice of 27 January 2019 still carries En+'s Jersey registration ID, the addresses and the links. Deleted entries do not vanish. Keep the notice, because a later list will not show them.
+- **Delisting one subject clears no one else.** The companies left the list and the person stayed on it. An entity that was "sanctioned once" may be clean today, and its former owner may not be. Report the date of every status you state.
+- **Numbers in an announcement are claims about the future.** "Will be reduced", "cannot be increased" and "reserves the right to relist" describe an agreement. Check what happened in the companies' own filings and in later lists before you report it as fact.`
+    },
+    challenges: [{
+      q: `A supplier your organisation is about to pay is called "Kihonzi Buzhaga OÜ". The compliance screen your colleague ran says "no match on any sanctions list". Your manager asks whether that settles it. What do you check, in what order, and what do you write?`,
+      a: `**No. A name screen that finds nothing is a statement about names, not about the company.**
+
+1. **Get the identifier.** An Estonian company has a registry code. Look the name up in the e-Business Register and read the record, including "Invalid names" (former names).
+2. **Screen every name the company has had**, not just the current one. This one's former name is Garantex Europe OÜ, which is on the US, UK and EU lists.
+3. **Screen the identifier.** Search the lists for the registry code (14850239). The US record carries it as a business registration number.
+4. **Check the status.** The register says the company was deleted on 20.03.2024. A deleted company cannot be your supplier. Whoever is invoicing in its name needs a much closer look.
+5. **Write it down as the lab does:** the number match is STRONG (two governments recorded the same number and name); the clean name screen is a LEAD in the wrong direction, because it tested a name the lists never used.
+
+What you write: "The supplier's name does not appear on the lists, but the registry code it uses belongs to a company listed by the US (OFAC 36025) and the UK (RUS1421) under its former name, and deleted in Estonia in 2024. Do not pay; refer to compliance." Then stop: what to do next is compliance's decision, not yours.`
+    }, {
+      q: `A news site writes: "Garantex has been sanctioned by the US, the UK, the EU and the UN, a rare show of unity." You are asked to fact-check it before it is quoted. What do you check, and what could you write?`,
+      a: `**Check each government's own record. Three of the four check out, and one does not.**
+
+- **US:** OFAC's record 36025, SDN List, published 2022-04-05, re-designated 14 August 2025 (lab items 001 and 003). Confirmed.
+- **UK:** RUS1421, designated 4 May 2022. Confirmed. But the UK's statement of reasons says condition B was met "by reference to" US Executive Order 14024, under the urgent procedure. It is a decision that relies on the US one.
+- **EU:** EU.12747.39 in the EU's file, listed 2025-02-24. Confirmed, though its remark says "(Date of UN designation: 2025-02-24)".
+- **UN:** the UN's consolidated list has no Garantex at all (Drill 1). The EU's remark is a pattern in the EU's file, not a UN designation.
+
+What you could write: "Garantex is designated by the US (2022, re-designated 2025), the UK (2022, under an urgent procedure that relied on the US designation) and the EU (2025). It is not on the UN Security Council's consolidated list." "Unity" is the news site's word. The UK followed the US, and the UN did not act.`
+    }, {
+      q: `Your editor shows you an OpenSanctions page: "Look, 14 sources, it is on every list in the world. Just link to this page in the story." What do you say?`,
+      a: `**Use it to find the lists. Cite the lists.**
+
+- **Count what the sources are.** Of the 14, the lab's page groups 11 under "Sanctioned". The others include a US procurement exclusion, a Taiwan export-control list and the UK disqualified-directors register. These are different kinds of action, and some follow automatically from others (Companies House disqualified it *because* of RUS1421).
+- **Independence.** Several lists copy others: the UK relied on the US order, and the French and Belgian entries are the EU's own programme ("EU sanctions related to Ukraine"). Fourteen entries is not fourteen decisions.
+- **Provenance.** Some values on the page are labelled \`gpt-4o\`: extracted from press releases by a language model.
+- **Stability.** The page's id changed while this module was written (HTTP 307 to a new id). A link in a story can break, or end up on a different merged entity.
+
+What you say: "We cite OFAC's record 36025, the UK Sanctions List entry RUS1421 and the EU's EU.12747.39, with dates. OpenSanctions is how we found them; we can credit it as a research tool, but it is not the authority for any of them."`
+    }],
+    quiz: ["Name the three kinds of record in this module. Who makes each, and what does each prove?", "OFAC's per-entity file carries a warning. What does it say, and what does it mean for how you use the file?", "The US record still names GARANTEX EUROPE OU, with Estonian addresses. What does the Estonian register say about that company, and what does that teach about a listing's identifiers?", "Why is the link between OFAC's record and the Estonian register tagged STRONG, and why is the matching date only CONTEXT?", "What does the Estonian register's free page not show about the change of name, and what does the report say about it?", "Which names found the listing in the lab, and which missed it? What joins the names instead?", "In Drill 2, what did loosening the fuzzy match find, and what did it never find?", "State OFAC's 50 Percent Rule. Why does it make absence from a list weak evidence? Does control alone trigger it?", "What did the UK rely on when it listed Garantex on 4 May 2022, and what does that mean for counting the UK and US listings as corroboration?", "The EU's file says \"(Date of UN designation: 2025-02-24)\" for Garantex. What did Drill 1 show about that remark?", "What does Companies House print on every page of its service, and what are the only statements a register vouches for itself?", "Garantex Europe OÜ filed revenue of 0 for 2020. What does that statement prove, and what does it not?", "Why did Companies House disqualify Garantex Europe OU in April 2025, and why is that ONE-WAY rather than new evidence?", "Give three reasons the lab found for citing a government record rather than an OpenSanctions page.", "Why were En+, Rusal and EuroSibEnergo designated in 2018, according to Treasury? Why was Rusal listed, given that Deripaska owned 0.01 percent of it directly?", "What had to change for the three companies to be delisted, and who stayed on the list?", "OFAC's deletion notice of 27 January 2019 still carries En+'s registration ID. Why keep a deletion notice as evidence?", "Which statements in the En+ case are STRONG and which are ONE-WAY, and why is \"will be reduced to 44.95 percent\" not yet a fact?"],
+    workbench: `> **What this trains.** The lab joined one listing to one register entry and tested three names against one list. Here you check a list's own label against the list it names, test how far a fuzzy match can go, and compare a company with its successor.
+
+#### 🟢 Drill 1 — "Date of UN designation", checked against the UN ~5 min
+
+**Goal.** The EU's file says Garantex has a "Date of UN designation". Find out whether the UN listed it, and how often the EU's file says this.
+
+**Done when.** You can say what the remark is, and why a field's label is the file's claim about the field rather than a fact.
+
+<details><summary>Walkthrough</summary>
+
+This drill downloads about 5 MB: the EU file is 25 MB, but its server sends it compressed (2.4 MB). On a metered connection, read the output below instead of running it.
+
+\`\`\`bash
+cd ~/scouts-case/s4_1 && mkdir -p drill1 && cd drill1 || exit 1
+UA="CyberScoutsLab/1.0"
+# The EU's full CSV (about 25 MB) and the UN's consolidated list (about 2 MB). Both redirect: -L.
+curl -sfL --compressed --retry 3 -m 900 -A "$UA" -o eu.csv "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw" ||
+  { echo "STOP: the EU file did not download completely - run the drill again"; exit 1; }
+curl -sfL --compressed --retry 3 -m 300 -A "$UA" -o un.xml https://scsanctions.un.org/resources/xml/en/consolidated.xml ||
+  { echo "STOP: the UN file did not download completely - run the drill again"; exit 1; }
+python3 - <<'PY'
+import csv, re, hashlib
+for f in ("eu.csv", "un.xml"): print(hashlib.sha256(open(f, "rb").read()).hexdigest(), f)
+rows = list(csv.reader(open("eu.csv", encoding="utf-8-sig"), delimiter=";"))
+h = rows[0]; col = h.index
+first = {}
+for r in rows[1:]: first.setdefault(r[col("Entity_LogicalId")], r)
+print("EU file generated:", rows[1][0], "| entities:", len(first))
+said = [r for r in first.values() if "Date of UN designation" in r[col("Entity_Remark")]]
+unid = [r for r in first.values() if r[col("Entity_UnitedNationId")]]
+print("remark says 'Date of UN designation':", len(said))
+print("UN id field filled:                   ", len(unid))
+by = {}
+for r in said: by[r[col("Entity_Regulation_Programme")]] = by.get(r[col("Entity_Regulation_Programme")], 0) + 1
+print("of those, by EU programme (top 3):    ", ", ".join("%s %d" % kv for kv in sorted(by.items(), key=lambda t: -t[1])[:3]))
+g = [r for r in rows[1:] if r[col("NameAlias_WholeName")] == "Garantex"][0]
+print("Garantex:", g[col("Entity_EU_ReferenceNumber")], "| UN id: '%s'" % g[col("Entity_UnitedNationId")],
+      "| remark:", g[col("Entity_Remark")].split("\\\\n")[0], "| programme:", g[col("Entity_Regulation_Programme")])
+u = open("un.xml", encoding="utf-8").read()
+print("UN list generated:", re.search(r'dateGenerated="([^"]+)"', u).group(1),
+      "| entries:", len(re.findall(r"<INDIVIDUAL>|<ENTITY>", u)),
+      "| 'garantex' anywhere:", len(re.findall("garantex", u, re.I)))
+n = len(re.findall(r"<INDIVIDUAL>|<ENTITY>", u))
+print("so at least %d of the %d remarks cannot match an entry on today's UN list" % (len(said) - n, len(said)))
+PY
+\`\`\`
+
+It printed, on 1 October 2026 (the files change as lists change, so your counts may differ a little):
+
+\`\`\`text
+ba8fbd1b114e7b1a73a11004f440c397ec331b6892c683293d6ba848a59864ef eu.csv
+c08321270b3161382476dd0cb63f9d065490963f6fcaf2704c8dce4d535fa7e4 un.xml
+EU file generated: 22/09/2026 | entities: 6241
+remark says 'Date of UN designation': 5668
+UN id field filled:                    87
+of those, by EU programme (top 3):     UKR 2882, IRN 638, BLR 372
+Garantex: EU.12747.39 | UN id: '' | remark: (Date of UN designation: 2025-02-24) | programme: UKR
+UN list generated: 2026-09-30T23:00:03.103Z | entries: 1011 | 'garantex' anywhere: 0
+so at least 4657 of the 5668 remarks cannot match an entry on today's UN list
+\`\`\`
+
+- **The UN never listed Garantex.** The word does not occur anywhere in the UN's consolidated list, while the EU's remark gives a "Date of UN designation". The date in the remark is the EU's own listing date.
+- **The remark is a pattern, not a statement.** 5,668 EU entities carry it, 2,882 of them under the EU's Ukraine programme, and only 87 have the UN id field filled. The UN's whole list has 1,011 entries. Whatever the remark means in each case, at least 4,657 of them cannot match an entry on today's UN list.
+- **Some can be true.** An entity the UN listed and later removed can keep a genuine past UN date in the EU's file. So the drill does not say every remark is wrong. It says the remark proves nothing until you find the UN record it names.
+- **The lesson is general.** A column heading or a template phrase is the file's claim. S2.4 found the same with document metadata: the field says "author", but it holds what the software put there.
+
+</details>
+
+#### 🟡 Drill 2 — how far can a fuzzy match go? ~2 min
+
+**Goal.** Screen three names against every non-person entry on OFAC's SDN list, at five match thresholds, and see what each threshold finds.
+
+**Done when.** You can say what a looser match gains, what it costs, and what it never finds.
+
+<details><summary>Walkthrough</summary>
+
+This drill downloads about 6 MB. It prints only company and vessel names, never a person's.
+
+\`\`\`bash
+cd ~/scouts-case/s4_1 && mkdir -p drill2 && cd drill2 || exit 1
+# OFAC's whole SDN list as CSV (about 6 MB). It redirects to a signed download link: -L.
+curl -sfL --retry 3 -m 600 -A "CyberScoutsLab/1.0" -o sdn.csv \\
+  https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV || exit 1
+python3 - <<'PY'
+import csv, difflib, re, unicodedata
+fold = lambda s: re.sub(r"[^a-z0-9 ]", "", unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower())
+# Entities only: column 3 is "individual" for people. This drill never prints a person's name.
+names = [r[1] for r in csv.reader(open("sdn.csv", encoding="latin-1")) if len(r) > 3 and r[2].strip() != "individual"]
+print("SDN entries that are not individuals:", len(names))
+for q in ("Garantex Europe OU", "Kihonzi Buzhaga OU", "Garantecks Evrope"):
+    for cut in (1.0, 0.9, 0.8, 0.7, 0.6):
+        hits = [n for n in names if difflib.SequenceMatcher(None, fold(q), fold(n)).ratio() >= cut]
+        print("%-20s ratio >= %.1f: %4d hit(s)%s" % (q, cut, len(hits), "  e.g. " + "; ".join(hits[:3]) if hits else ""))
+# A plain substring search, as many quick screens do, against a whole-word search. Rusal was delisted in 2019.
+sub = [n for n in names if "rusal" in fold(n)]
+word = [n for n in names if re.search(r"\\brusal\\b", fold(n))]
+print("'rusal' as a substring: %d hit(s): %s" % (len(sub), "; ".join(sorted(set(sub))[:3])))
+print("'rusal' as a whole word: %d hit(s)" % len(word))
+PY
+\`\`\`
+
+It printed, on 1 October 2026:
+
+\`\`\`text
+SDN entries that are not individuals: 11887
+Garantex Europe OU   ratio >= 1.0:    1 hit(s)  e.g. GARANTEX EUROPE OU
+Garantex Europe OU   ratio >= 0.9:    1 hit(s)  e.g. GARANTEX EUROPE OU
+Garantex Europe OU   ratio >= 0.8:    1 hit(s)  e.g. GARANTEX EUROPE OU
+Garantex Europe OU   ratio >= 0.7:    1 hit(s)  e.g. GARANTEX EUROPE OU
+Garantex Europe OU   ratio >= 0.6:    3 hit(s)  e.g. SBERBANK EUROPE AG; GARANTEX EUROPE OU; UMATEX GROUP EUROPE S.R.O.
+Kihonzi Buzhaga OU   ratio >= 1.0:    0 hit(s)
+Kihonzi Buzhaga OU   ratio >= 0.9:    0 hit(s)
+Kihonzi Buzhaga OU   ratio >= 0.8:    0 hit(s)
+Kihonzi Buzhaga OU   ratio >= 0.7:    0 hit(s)
+Kihonzi Buzhaga OU   ratio >= 0.6:    0 hit(s)
+Garantecks Evrope    ratio >= 1.0:    0 hit(s)
+Garantecks Evrope    ratio >= 0.9:    0 hit(s)
+Garantecks Evrope    ratio >= 0.8:    0 hit(s)
+Garantecks Evrope    ratio >= 0.7:    1 hit(s)  e.g. GARANTEX EUROPE OU
+Garantecks Evrope    ratio >= 0.6:    3 hit(s)  e.g. LANDTEK DEVELOPERS; ARANEKS DOO; GARANTEX EUROPE OU
+'rusal' as a substring: 2 hit(s): HIERROS DE JERUSALEM S.A.; MUJAHIDIN SHURA COUNCIL IN THE ENVIRONS OF JERUSALEM
+'rusal' as a whole word: 0 hit(s)
+\`\`\`
+
+- **A misspelling is found, at a price.** "Garantecks Evrope" reaches GARANTEX EUROPE OU at 0.7. At 0.6 two strangers come with it. On a list of 11,887 names, every step down adds noise faster than it adds finds.
+- **A renamed company is never found.** "Kihonzi Buzhaga OU" scores below 0.6 against everything. No threshold turns a new name into the old one. Only the registry code (the lab's F1) does.
+- **Even the right name drifts.** At 0.6, the correct name brings SBERBANK EUROPE AG and UMATEX GROUP EUROPE S.R.O. with it. A screen tuned that loose sends people chasing banks that share the word "Europe".
+- **A substring is worse than a fuzzy match.** "rusal" inside a name finds two entries, and both are JERUSALEM. Rusal itself is not there: OFAC deleted it in 2019 (the case study). A whole-word search finds 0. A quick screen that says "2 hits for Rusal" is wrong twice: neither hit is Rusal, and Rusal is no longer listed.
+- **SDN.CSV is not the whole record.** Aliases ("a.k.a.") are in a separate file (ALT.CSV), so "GARANTEX" alone is not in this one. The lab used OFAC's per-entity XML, which holds both. Know which file your screen reads.
+
+</details>
+
+#### 🔴 Drill 3 — renamed, or replaced? ~1 min
+
+**Goal.** OFAC calls Grinex "Garantex's successor". Compare the two records and find what, if anything, joins them.
+
+**Done when.** You can say what kind of link "successor" is, and how it differs from the lab's F1.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_1 && mkdir -p drill3 && cd drill3 || exit 1
+UA="CyberScoutsLab/1.0"
+for id in 36025 55045; do
+  curl -sf --retry 3 -m 120 -A "$UA" -o "ofac_$id.xml" "https://sanctionslistservice.ofac.treas.gov/entities/$id" || exit 1
+done
+python3 - <<'PY'
+import re
+def rec(i):
+    x = open("ofac_%s.xml" % i, encoding="utf-8").read(); e = x[x.find('<entity id="%s"' % i):]
+    feats = {}
+    for f in re.findall(r"(?s)<feature .*?</feature>", e):
+        t = re.search(r"<type[^>]*>([^<]+)<", f).group(1); v = re.search(r"<value>([^<]*)<", f)
+        feats.setdefault(t, []).append(v.group(1) if v else "")
+    docs = [(re.search(r"<type[^>]*>([^<]+)<", d).group(1), re.search(r"<documentNumber>([^<]+)<", d).group(1),
+            re.search(r"<issuingCountry[^>]*>([^<]+)<", d).group(1)) for d in re.findall(r"(?s)<identityDocument .*?</identityDocument>", e)]
+    return {
+      "name": re.search(r"<formattedFullName>([^<]+)<", e).group(1),
+      "published": re.search(r'datePublished="([^"]+)"', e).group(1),
+      "programs": ", ".join(sorted(re.findall(r"<sanctionsProgram [^>]*>([^<]+)<", e))),
+      "established": "; ".join(feats.get("Organization Established Date", ["-"])),
+      "identity documents": docs,
+      "websites": ", ".join(feats.get("Website", [])) or "none",
+      "addresses": set(a for t, v in feats.items() if t.startswith("Digital Currency Address") for a in v),
+    }
+a, b = rec("36025"), rec("55045")
+for k in ("name", "published", "programs", "established", "websites"):
+    print("%-21s %-32s | %s" % (k, a[k], b[k]))
+for side, r in (("Garantex", a), ("Grinex", b)):
+    for doc in r["identity documents"]: print("%-21s %s %s (%s)" % ((side + " document",) + doc))
+print("%-21s %-32s | %s" % ("digital addresses", len(a["addresses"]), len(b["addresses"])))
+print("addresses in both records:", len(a["addresses"] & b["addresses"]))
+num = lambda r: set(n for t, n, c in r["identity documents"])
+print("identity document number in both records:", "YES" if num(a) & num(b) else "NO")
+print("what joins them on the list: a 'successor' statement made by OFAC (item003), not an identifier")
+PY
+\`\`\`
+
+It printed, on 1 October 2026:
+
+\`\`\`text
+name                  GARANTEX EUROPE OU               | GRINEX
+published             2022-04-05                       | 2025-08-14
+programs              CYBER4, RUSSIA-EO14024           | CYBER4
+established           18 Nov 2019                      | 23 Dec 2024
+websites              garantex.io, garantex.org        | none
+Garantex document     Business Registration Number 14850239 (Estonia)
+Grinex document       Registration Number 311748 3301 OOO (Kyrgyzstan)
+Grinex document       Tax ID No. 02312202410120 (Kyrgyzstan)
+digital addresses     12                               | 7
+addresses in both records: 0
+identity document number in both records: NO
+what joins them on the list: a 'successor' statement made by OFAC (item003), not an identifier
+\`\`\`
+
+- **Nothing on the two records joins them.** Different country, different registration numbers, a company established five years later, and none of the 19 digital addresses in common. A screen of identifiers, which caught Kihonzi Buzhaga, does not catch Grinex.
+- **"Successor" is OFAC's statement.** It is in the Treasury press release (lab item003): Garantex "moved its customer base and funds to its successor exchange, Grinex". That is a ONE-WAY link, made by the designating government. It is supported by the investigation Treasury describes, but not by anything in the two records.
+- **Two different problems.** A renamed company is the same legal person under a new name: the register joins them (F1, STRONG). A successor is a new legal person doing the old one's business: only someone's investigation joins them. Report them differently.
+- **This is why designations come in groups.** OFAC listed Grinex by name on 14 August 2025 rather than relying on its link to Garantex. A screen that only knew Garantex's identifiers would have missed it.
+
+</details>`,
+    tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Joined a sanctions record to a company register by identifier, and graded the link", "Found that the listed company had been renamed and deleted, and wrote what the register does not show", "Showed that a name screen on the current name misses the listing, and why", "Did Drill 1: checked a list's \"UN designation\" label against the UN's own list", "Did Drills 2 and 3: tested fuzzy matching at five thresholds, and compared a company with its successor"]
   }]
 };
 
