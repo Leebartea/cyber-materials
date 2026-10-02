@@ -317,7 +317,26 @@ through standards and CVE ids, which Batches 1–7 already covered. So the
 |---|---|---|---|---|---|
 | 76 | M4.2 | "a repeatable methodology and the **industry-standard** tooling" (the Next-step line into 4.3) | `CONVENTION` | **Terminal: no source can settle it.** No third party is named, so there is nothing to look up. This is the same boundary as rank row 38: a claim can be checked only if it names who says so. The tooling it points to (Burp Suite, the PortSwigger Academy track) is named and handled in 4.3. The Guardians course's Batch 8 found its defect in a *named* paper, which is where attribution defects live. | — |
 
+## Batch 9 — Mac paste behaviour (2026-10-02)
+
+**2 rows, 2 defects, both `FIXED`.** The Guardians/Scouts zsh-comment fix
+(Guardians row 223, guard A121) reads only `lab.mac`, a field this course does not
+have, so the same defect stayed here. Both rows were run by pasting into
+`zsh -i` with an empty `ZDOTDIR` on macOS 27 — never as a script, where comments
+always work.
+
+| # | Module | Claim | Status | Evidence | Re-check |
+|---|---|---|---|---|---|
+| 77 | M0.0 | the first Mac command, `uname -m   # "arm64" or "aarch64" = ARM64;  "x86_64" = Intel/AMD`, prints the architecture | `FIXED` | zsh leaves `INTERACTIVE_COMMENTS` off, so the pasted note became arguments: the output was `usage: uname [-amnoprsv]` and, after the `;`, `zsh: command not found: x86_64`. Every later block with a `# note` (most of the course) had the same exposure. M0.0 now opens with `setopt interactivecomments` plus an idempotent `~/.zshrc` append, before the first note; re-run, the line printed `arm64`. | stable |
+| 78 | M2.4, M3.4, M8.2 | `pip install flask flask-cors` / `flask python-magic` / `flask flask-talisman flask-limiter` install the Flask examples' dependencies | `FIXED` | none of the three blocks created a venv. Homebrew ships no bare `pip`, and its `pip3` refuses with `externally-managed-environment` (PEP 668). Each block now starts with `python3 -m venv .venv && source .venv/bin/activate` (Windows equivalent in a note), as the course's other Flask blocks already did. `EXECUTED` after the fix, in `zsh -i`: all packages installed and imported under Homebrew Python 3.14.8 and Apple's `/usr/bin/python3` 3.9.6 (`python-magic` imports only once `brew install libmagic` has run, which the block already lists). | stable |
+
 ## Fixes applied in this pass
+
+**Batch 9 (2026-10-02) — 2 defects, rows 77–78.** Guarded by `A122`
+(`check_appsec_shell_blocks`): the first shell block carrying a `# note` must come
+after the `setopt interactivecomments` block, and no `pip install` may run in a
+shell block before a venv is created or activated. Run against the pre-fix file,
+A122 reported all four sites.
 
 **Batch 8 (2026-09-23) — no defects.** One candidate, adjudicated `CONVENTION`
 (row 76). The Guardians-side guards `A85`/`A86` were checked against this course

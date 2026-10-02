@@ -1671,6 +1671,40 @@ def check_zsh_comments(curricula):
     else:
         ok("labs: zsh comments", f"{courses} courses: the first Mac lab turns on zsh interactivecomments")
 
+
+# ── 6i. AppSec: the same two Mac defects, in a course with no lab.mac field ──
+# Caught (AppSec ledger Batch 9, rows 77–78), pasted into `zsh -i` with an empty ZDOTDIR on macOS 27:
+#  - M0.0's first command, `uname -m   # "arm64" or …`, printed `usage: uname` and
+#    `zsh: command not found: x86_64` — A121's defect, unseen because A121 reads only lab.mac.
+#  - three Flask blocks (CORS, uploads, hardening) ran `pip install` with no venv: Homebrew ships
+#    no `pip`, and its `pip3` refuses with externally-managed-environment (PEP 668).
+SHELL_FENCE = re.compile(r"```(?:bash|sh|zsh)\n(.*?)```", re.S)
+
+
+def check_appsec_shell_blocks(cur):
+    """A122: AppSec turns on interactivecomments before its first # note, and never pip-installs outside a venv."""
+    hits, blocks = [], 0
+    mods = cur.get("modules", [])
+    fences = [(m, b) for m in mods for b in SHELL_FENCE.findall(m.get("body") or "")]  # course order
+    noted = next((i for i, (_, b) in enumerate(fences) if re.search(r"(^|\s)#", b)), None)
+    setopt = next((i for i, (_, b) in enumerate(fences)
+                   if b.split("\n")[0] == "setopt interactivecomments" and "~/.zshrc" in b), None)
+    if noted is not None and (setopt is None or setopt > noted):
+        hits.append(f"appsec {fences[noted][0].get('num')}: # note pasted before interactivecomments is on")
+    for m in mods:
+        for b in SHELL_FENCE.findall(m.get("body") or ""):
+            blocks += 1
+            venv = False
+            for line in b.split("\n"):
+                code = re.sub(r"(^|\s)#.*$", "", line)
+                venv = venv or bool(re.search(r"\bvenv\b|\bactivate\b", code))
+                if re.search(r"(?<![\w./-])pip3?\s+install\b", code) and not venv:
+                    hits.append(f"appsec {m.get('num')}: pip install outside a venv")
+    if hits:
+        warn("appsec: shell blocks", "A122: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("appsec: shell blocks", f"{blocks} shell blocks: interactivecomments set first, every pip install in a venv")
+
 # RFC 2606 / RFC 6761 reserved names plus the course's fictional phishing/C2 domains.
 # These are supposed not to resolve — that is the point of using them in examples.
 FICTIONAL = re.compile(r"\.(example|invalid|test|local)(\b|/)|apple-verification|evil-c2", re.I)
@@ -1903,6 +1937,8 @@ def main():
     check_lab_self_checks({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_mac_python_installs({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_zsh_comments({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    if "appsec" in curricula:
+        check_appsec_shell_blocks(curricula["appsec"])
 
     if not args.no_net:
         check_urls(sources)

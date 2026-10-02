@@ -1064,6 +1064,15 @@ This course is one half of a two-course path:
     objective: "Build your cross-platform AppSec lab before writing a single line of code. Every future module depends on these tools being installed and working. Takes 30–60 minutes on a fresh machine; skip any step you've already completed.",
     body: `> **Start here before any module.** Every lab, every tool, every command in this course assumes you've worked through this section. It works on macOS, Windows, and Linux — the tools are the same everywhere, only the install commands differ.
 
+### macOS first: make pasted notes harmless
+
+Most commands in this course end with a \`# note\`. macOS Terminal runs **zsh**, which by default does *not* treat a pasted \`#\` as the start of a comment: it hands the note to the command as extra words, so the very next block's \`uname -m   # "arm64" …\` prints \`usage: uname\` instead of \`arm64\`. Paste these two lines once — the first fixes this window, the second every new one. Linux bash and PowerShell need nothing.
+
+\`\`\`bash
+setopt interactivecomments
+grep -qx 'setopt interactivecomments' ~/.zshrc 2>/dev/null || echo 'setopt interactivecomments' >> ~/.zshrc
+\`\`\`
+
 ### Your machine architecture
 
 The one thing worth knowing first: whether your CPU is **x86-64 (Intel/AMD)** or **ARM64 (Apple Silicon, Snapdragon, AWS Graviton)**. A handful of older Docker images are x86-only and need emulation on ARM64.
@@ -7310,6 +7319,7 @@ app.run(port=3000)
 \`\`\`
 
 \`\`\`bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: py -m venv .venv; .venv\\Scripts\\activate
 pip install flask flask-cors
 python3 cors_victim.py
 # 'open' launches your browser on macOS — Linux: xdg-open · Windows: start (or just paste the URL)
@@ -8774,6 +8784,7 @@ Multer's \`req.file.mimetype\` becomes Flask's \`file.content_type\` — and it 
 #   Debian/Ubuntu: sudo apt install -y libmagic1
 #   Fedora/RHEL:   sudo dnf install -y file-libs
 #   Windows: pip install python-magic-bin   (bundles the DLL — use this instead of python-magic)
+python3 -m venv .venv && source .venv/bin/activate   # Windows: py -m venv .venv; .venv\\Scripts\\activate
 pip install flask python-magic
 # On Windows, replace python-magic with python-magic-bin in the line above.
 \`\`\`
@@ -17737,6 +17748,7 @@ Set \`NODE_ENV=production\` so the framework switches to production behavior, ru
 \`helmet\` is the Express convention for "set all the security headers sensibly." In Flask the direct counterpart is **flask-talisman**: it sets HSTS, \`nosniff\`, \`Referrer-Policy\`, frame-options, and a CSP in one wrapper — and supports the same **per-request CSP nonce** pattern, the only way CSP is real XSS defense.
 
 \`\`\`bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: py -m venv .venv; .venv\\Scripts\\activate
 pip install flask flask-talisman flask-limiter
 \`\`\`
 
