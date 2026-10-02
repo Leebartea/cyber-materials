@@ -10594,9 +10594,11 @@ Measure-Command { Expand-Archive backup-offsite\\prod-snapshot.zip restore -Forc
 icacls backup-offsite\\prod-snapshot.zip /remove:d "$env:USERNAME"   # release before cleanup`,
       linux: `# LAB: Prove a backup works — 3-2-1, RPO, RTO, and the restore test
 # ETHICS: throwaway files in your own home folder only.
-# Same story as macOS, with GNU tools. The immutable bit here is chattr +i, which
-# needs root (unlike macOS chflags) and is NOT supported on tmpfs or overlayfs —
-# so run this on a normal ext4/xfs home directory, not inside a container.
+# Same story as macOS, with GNU tools. The immutable bit here is chattr +i, which needs root (unlike
+# macOS chflags). It also needs the CAP_LINUX_IMMUTABLE capability, which a default Docker container does
+# not have: there chattr prints "Operation not permitted while setting flags" and the lab cannot show the
+# lock. A normal home directory is the safe place to run it. (Checked on Linux 6.18: ext4, tmpfs and a
+# container's overlayfs root all accept +i once the capability is present.)
 mkdir -p ~/cyber-journal/m23-5-bcdr && cd ~/cyber-journal/m23-5-bcdr
 rm -rf work && mkdir work && cd work
 
@@ -11580,8 +11582,11 @@ echo "What are the top 5 indicators of a phishing email?" | ollama run llama3.2
 echo 'Analyze this log entry for security concerns: 127.0.0.1 - - [10/Jun/2025:03:14:15] "GET /../../../etc/passwd HTTP/1.1" 404 512' | ollama run llama3.2`,
       linux: `# AI security lab — Linux
 
+# ⚠️ Not executed for this edition (ollama.com was unreachable); only the STOP line below was run.
 # 1. Install Ollama for local AI (no data leaves your machine):
 curl -fsSL https://ollama.com/install.sh | sh
+# curl -f alone is not a stop: sh still runs on the empty download and exits 0, and the lines below fail later.
+command -v ollama >/dev/null || { echo "STOP: ollama is not installed (the download failed or the installer did not finish). Do not run the lines below."; exit 1; }
 ollama pull llama3.2
 echo "Explain prompt injection attacks in 3 sentences" | ollama run llama3.2
 
