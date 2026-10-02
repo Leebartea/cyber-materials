@@ -1579,7 +1579,8 @@ def check_windows_escapes(name, src):
 #    with every run. The search must drop COMMAND= lines.
 #  - `python3 -m http.server` listens on every interface and serves the folder it starts in; a lab that wants
 #    a localhost stand-in must pass --bind 127.0.0.1.
-# Only lab.linux and lab.windows are checked; the Mac strings are not edited by the same pass.
+# Since Guardians ledger Batch 15 (rows 222 and 224) lab.mac is checked too: M16 and M26 ran the same
+# self-matching search in the Kali VM, and M25 started an unbound server from the Mac lab.
 LOG_SELF_MATCH = re.compile(r"""sudo\s+grep\s+["']Failed password["']\s+\S*auth\.log""")
 HTTP_SERVER = re.compile(r"-m\s+http\.server\b")
 HTTP_LOOPBACK = re.compile(r"(?:--bind|-b)\s+127\.0\.0\.1\b")
@@ -1593,7 +1594,7 @@ def check_lab_self_checks(curricula):
             lab = m.get("lab")
             if not isinstance(lab, dict) or lab.get("kind") == "paper":
                 continue
-            for osname in ("linux", "windows"):
+            for osname in ("mac", "linux", "windows"):
                 text = lab.get(osname)
                 if not isinstance(text, str):
                     continue
@@ -1606,8 +1607,69 @@ def check_lab_self_checks(curricula):
     if hits:
         warn("labs: self-checks", "A119: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
     else:
-        ok("labs: self-checks", f"{labs} Linux/Windows labs: no self-matching log search, no unbound http.server")
+        ok("labs: self-checks", f"{labs} Mac/Linux/Windows labs: no self-matching log search, no unbound http.server")
 
+
+# ── 6g. a Mac lab's Python installs work under Homebrew's Python ────────────
+# Caught (Guardians ledger Batch 15, rows 217–221), each run on macOS 27 with Homebrew's Python 3.14:
+#  - `pip3 install --user …` (M0) and `python3 -m pip install --user bcrypt` (M3) stop with
+#    "error: externally-managed-environment": Homebrew marks its Python EXTERNALLY-MANAGED (PEP 668).
+#  - a bare `pipx run pip-audit` (M19) audits pipx's own throwaway environment and prints
+#    "No known vulnerabilities found", exit 0, beside a requirements.txt with 37 known vulnerabilities.
+#  - `pipx install prowler` (M25) under pipx's default Python 3.14 quietly resolves to prowler 3.11.3 (2023):
+#    every 4.x/5.x release requires Python < 3.14. The install must name its Python.
+MAC_PIP_USER = re.compile(r"(?<![\w./-])(?:pip3?|python3?\s+-m\s+pip)\s+install\b[^\n|;&]*--user\b")
+MAC_PIP_AUDIT = re.compile(r"\bpipx\s+run\b[^\n|;&]*\bpip-audit\b")
+MAC_PROWLER = re.compile(r"\bpipx\s+install\b[^\n|;&]*\bprowler\b")
+
+
+def check_mac_python_installs(curricula):
+    """A120: lab.mac never pip-installs --user, runs pip-audit without -r, or installs prowler on pipx's default Python."""
+    hits, labs = [], 0
+    for name, cur in curricula.items():
+        for m in cur.get("modules", []):
+            lab = m.get("lab")
+            if not isinstance(lab, dict) or not isinstance(lab.get("mac"), str):
+                continue
+            labs += 1
+            tag = f"{name} {m.get('num') or m.get('id')}"
+            for line in _runnable_lines(lab["mac"]).split("\n"):
+                code = re.sub(r"\s#.*$", "", line)
+                if MAC_PIP_USER.search(code):
+                    hits.append(f"{tag}: pip install --user")
+                if MAC_PIP_AUDIT.search(code) and not re.search(r"\s-r\s", code):
+                    hits.append(f"{tag}: pip-audit without -r")
+                if MAC_PROWLER.search(code) and "--python" not in code:
+                    hits.append(f"{tag}: prowler on pipx's default Python")
+    if hits:
+        warn("labs: mac python installs", "A120: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("labs: mac python installs", f"{labs} Mac labs: no pip --user, no bare pip-audit, prowler pinned to a Python")
+
+
+# ── 6h. pasted `# notes` are comments in the learner's zsh ──────────────────
+# Caught (Guardians ledger Batch 15, row 223): zsh, the macOS login shell, leaves INTERACTIVE_COMMENTS off.
+# Pasted into Terminal, `echo hi   # note here` printed `hi # note here` and a whole-line `# …` printed
+# `zsh: command not found: #` (macOS 27, ZDOTDIR empty so only /etc/zshrc loads). Every earlier Mac check ran
+# the labs as zsh scripts, where comments always work, so none could see it. The first Mac lab of a course must
+# turn the option on and append it to ~/.zshrc; later labs then inherit it.
+def check_zsh_comments(curricula):
+    """A121: a course whose Mac labs carry # notes turns on interactivecomments in its first Mac lab."""
+    hits, courses = [], 0
+    for name, cur in curricula.items():
+        macs = [(m, m["lab"]["mac"]) for m in cur.get("modules", [])
+                if isinstance(m.get("lab"), dict) and isinstance(m["lab"].get("mac"), str)]
+        if not macs or not any(re.search(r"(^|\s)#", t) for _, t in macs):
+            continue
+        courses += 1
+        first, text = macs[0]
+        lines = _runnable_lines(text).split("\n")
+        if "setopt interactivecomments" not in lines[:2] or not any("~/.zshrc" in l for l in lines[:3]):
+            hits.append(f"{name} {first.get('num') or first.get('id')}: first Mac lab does not set interactivecomments")
+    if hits:
+        warn("labs: zsh comments", "A121: " + "; ".join(hits))
+    else:
+        ok("labs: zsh comments", f"{courses} courses: the first Mac lab turns on zsh interactivecomments")
 
 # RFC 2606 / RFC 6761 reserved names plus the course's fictional phishing/C2 domains.
 # These are supposed not to resolve — that is the point of using them in examples.
@@ -1839,6 +1901,8 @@ def main():
     check_linux_pip({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_windows_ps7({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_lab_self_checks({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    check_mac_python_installs({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    check_zsh_comments({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
 
     if not args.no_net:
         check_urls(sources)
