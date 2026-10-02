@@ -7,7 +7,7 @@ links. It cannot prove anything here is *true*. That is what this file is for.
 
 - **Course file:** `cyber-guardians/cyber_guardians_app.html` (45 modules + 3 roadmaps)
 - **Candidates extracted by:** `python3 tools/claims_extract.py guardians --json out.json`
-- **Last pass:** 2026-10-02 (Batch 14 — Linux sweep completion, round 5: rows 174 onward; Batch 13 — Linux gaps closed by running the Linux form: 23 modules, rows 142–173, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
+- **Last pass:** 2026-10-02 (Batch 14 — Linux sweep completion and a Windows parse check, round 5: 43 rows, 174–216, guards A117–A119; Batch 13 — Linux gaps closed by running the Linux form: 23 modules, rows 142–173, guard A116; Batch 12 — Linux variants: static review of all 45 labs, one note fixed (M11.5), rows 139–141, guard A115; Batch 11 — M22.7 build pass: 16 rows, 6 defects caught before publication, none shipped; Batch 10 built M23.7; no `PENDING` rows remain)
 
 ## How to use it
 
@@ -468,7 +468,7 @@ Round 3 found Linux gaps it could only list; round 4 closes them by running the 
 
 ## Batch 14 — Linux sweep completion, round 5 (cloud session, branch cloud/r5)
 
-Round 4 said it had not run every Guardians `lab.linux` block. Round 5 ran each one that rows 139–173 do not record, in module order, plus the parts round 4 left out. The handover's "TESTED" is this ledger's `EXECUTED`. The sandbox is an Ubuntu 24.04 container (Linux x86_64 6.18, bash 5.2.21, Python 3.11.15 as `python3` and 3.12.3 as `python3.12`, Node 22.22.0) with no systemd as PID 1 and root as the working user. This round it reached the Ubuntu archive, packages.microsoft.com, pypi.org, raw.githubusercontent.com, the Go module proxy, and Docker Hub through a `dockerd` started by hand (anonymous pulls were rate-limited to HTTP 429 at times). Where a lab needed a machine with nothing installed (no `sudo`, no rsyslog) it ran in an Ubuntu 24.04 root file system built with `debootstrap --variant=minbase` from the archive and imported into Docker. No `lab.mac` string was touched. macOS was not available: nothing here is a claim about macOS.
+Round 4 said it had not run every Guardians `lab.linux` block. Round 5 ran each one that rows 139–173 do not record, in module order, plus the parts round 4 left out. The handover's "TESTED" is this ledger's `EXECUTED`. The sandbox is an Ubuntu 24.04 container (Linux x86_64 6.18, bash 5.2.21, Python 3.11.15 as `python3` and 3.12.3 as `python3.12`, Node 22.22.0) with no systemd as PID 1 and root as the working user. This round it reached the Ubuntu archive, packages.microsoft.com, pypi.org, raw.githubusercontent.com, the Go module proxy, and Docker Hub through a `dockerd` started by hand (anonymous pulls were rate-limited to HTTP 429 at times). Where a lab needed a machine with nothing installed (no `sudo`, no rsyslog) it ran in an Ubuntu 24.04 root file system built with `debootstrap --variant=minbase` from the archive and imported into Docker. The second half of the round parsed every `lab.windows` string of both courses under PowerShell 7.6.6 (rows 206–215); no Windows PowerShell 5.1 and no Windows machine was available, so a pass there is not proof for 5.1. Scouts was not edited, and the Scouts Linux runs of round 4's blocked labs were not attempted: every host those labs fetch was still unreachable. No `lab.mac` string was touched. macOS was not available: nothing here is a claim about macOS.
 
 | # | Module | Claim | Status | Evidence | Re-check |
 |---|---|---|---|---|---|
@@ -513,10 +513,55 @@ Round 4 said it had not run every Guardians `lab.linux` block. Round 5 ran each 
 | 212 | M21 | The Windows block's WSL half told the learner `pip install pwntools`, which stops on Ubuntu 24.04 with `error: externally-managed-environment` (re-run here: `/usr/bin/python3.12 -m pip install --user pwntools`, `/usr/lib/python3.12/EXTERNALLY-MANAGED` present; row 163 found the same). It now says `sudo apt install gdb python3-pwntools` (candidates gdb 15.1-1ubuntu1~24.04.1 and python3-pwntools 4.12.0-1; row 163 imported the same package) | `EXECUTED` | pip error re-run here | stable |
 | 213 | M28 | The Windows block's backslashes were eaten by the template literal: the source held single backslashes, so the page showed `$HOMECyberGuardians`, then a carriage return, then `eports…` (`\C` dropped, `\r` a carriage return, `\c` dropped: 5 hits, source lines 13011–13013). The source now has `\\`, so the page shows `"$HOME\CyberGuardians\reports"`. The tab also said "with the same template" and gave none; it now carries the template as a here-string piped to `Set-Content -Encoding utf8`. Rehearsed under PowerShell 7.6.6 with `/` separators, the block created a 31-line, 1014-byte file byte-identical to the Mac heredoc body. A scan of all 64 `windows:` literals for rewritten backslashes finds no other damage in either course | `EXECUTED` | run here; the Windows paths themselves were not | stable |
 | 214 | M29 | Same gap as row 196 on the Windows tab: `git commit` on a machine with no git identity stops with `Author identity unknown`, and the page explains it only in `expected.mac`. The two `git config --global` lines were added. Verified with git 2.43.0 on Linux only; Git for Windows was not run | `EXECUTED` | Linux git | ⚠️ UNVERIFIED (Windows) |
-| 215 | M1, M3 | The neutral PowerShell lines run under 7.6.6: M1's `Out-File`, `Get-FileHash`, `-replace`, `Set-Content` sequence prints two different SHA-256 values and `Out-File` wrote UTF-8 (`65 10` for `A` and a newline on Linux); M3's `[IO.MemoryStream]::new([byte[]][char[]]"hello")` with `Get-FileHash -InputStream` prints `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824`, the value the Mac page shows. Every other Windows block uses Windows-only cmdlets, paths, the registry or `curl.exe` and was not run | `EXECUTED` | run here | ⚠️ 5.1's `Out-File` encoding differs from 7's if the documentation is right; not observed |
+| 215 | M1, M3 | The neutral PowerShell lines run under 7.6.6: M1's `Out-File`, `Get-FileHash`, `-replace`, `Set-Content` sequence prints two different SHA-256 values and `Out-File` wrote UTF-8 (`65 10` for `A` and a newline on Linux); M3's `[IO.MemoryStream]::new([byte[]][char[]]"hello")` with `Get-FileHash -InputStream` prints `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824`, the value the Mac page shows. Every other Windows block uses Windows-only cmdlets, paths, the registry or `curl.exe` and was not run | `EXECUTED` | run here | ⚠️ UNVERIFIED (Windows 5.1): whether 5.1's `Out-File` writes the same bytes as 7's |
 | 216 | all labs | Guards `A117`, `A118` and `A119` (`tools/guardrail.py`) report PASS on this tree (62 Windows labs; 39 + 25 + 0 `windows:` literals; 130 Linux and Windows labs) and fire on the base commit `32b17d8`: A117 on M0, M19 and M25 (`&&`), A118 on M28 (five hits: `\C`, `\r`, `\C`, `\r`, `\c`), A119 on M16 (both log searches) and on M25 (Linux and Windows `http.server`). A117 checks only constructs that are PowerShell 7 syntax by definition (`&&`, `\|\|`, `??`, `-Parallel`); the Scouts strings that use `-SkipHttpErrorCheck` and `[…]::HashData(` are reported, not guarded, because the local session is editing Scouts. A119 does not look at `lab.mac`, which has the same two patterns. The gate's baseline is now 49 passed, 0 warnings, 1 failure (the two github.com roots) | `EXECUTED` | each guard run against the pre-fix file and this tree | stable |
 
 ## Fixes applied in this pass
+
+**Batch 14 (2026-10-02) — the rest of the Linux sweep and a Windows parse check; defects in what the Linux and Windows text claimed, and three guards.**
+
+Linux (rows 174–205):
+
+1. **M3's Linux lab ran `john --format=raw-md5`, which Ubuntu's `john` does not have.** It stops with
+   `Unknown ciphertext format name requested`. The lab now uses hashcat (already in M0's list) and apt's
+   `python3-bcrypt` for the timing the page's closing paragraph compares.
+2. **M5's note named a settings panel "Privacy"; Ubuntu 24.04's is "Privacy & Security".**
+3. **M11's Linux block tailed an `auth.log` that exists only with rsyslog, and forced `--platform linux/arm64`
+   on an x86-64 machine,** where the real Kali image ends `exec format error`.
+4. **M16's log search listed its own `sudo` entry.** Run as written, the offenders table gained a
+   `COMMAND=/usr/bin/grep` row that grew with every run. M26's note had the same line behind a
+   `2>/dev/null` that also hid a missing log.
+5. **M23.5's note blamed tmpfs and overlayfs for what is a missing capability.** `chattr +i` works on tmpfs
+   here, and works on overlayfs once `CAP_LINUX_IMMUTABLE` is granted.
+6. **M24.5's `curl … | sh` had no stop.** A failed download exits 0 and the lab carried on to `command not found`.
+7. **M25's `http.server` line failed every time (curl ran before the server was up, 30 of 30) and, without
+   `--bind`, served the starting folder to every interface.** `prowler` is now pinned (5.44.0, wheel hash
+   checked) and its install was run.
+8. **M26's "Same as macOS" hid a missing `/usr/share/dict/words`** (`apt install wamerican`).
+9. **M6.5's Part C cannot finish without device-mapper, and its final `0` appeared anyway.** A STOP line now
+   fires after a failed `open`.
+10. **M17, M28 and M29's Linux blocks had dropped things the Mac block has:** the isolation check, the
+    template ("the same template", with none), and the git identity the page explains only in `expected.mac`.
+11. **M19's `trivy fs .` had no install step.** It now builds with the same Go as nuclei (run end to end,
+    database download included).
+12. **M8's silences** (`ufw`, `lsblk`) now say what they mean.
+
+Windows (rows 206–215, run under PowerShell 7.6.6 only):
+
+13. **M0, M19 and M25 chained with `&&`,** which Windows PowerShell 5.1 does not parse.
+14. **M7's `"$env:USERNAME:F"` expands to an empty string** (the parser reads one variable, `env:USERNAME:F`).
+15. **M6.5's Part B search depends on `Out-File`'s default encoding:** under 7 the page's `-Encoding unicode`
+    finds nothing.
+16. **M28's Windows block had lost its backslashes** (`$HOMECyberGuardians`, a carriage return, `eports`)
+    and gave no template. M29's lacked the git identity; M21's WSL half still said `pip install pwntools`;
+    M25's server was unbound; M0 named the winget id `Nmap.Nmap`, which M12 does not use and for which no
+    manifest turned up in the winget repository's versions scanned (`Insecure.Nmap` has them).
+
+Guards `A117` (Windows PowerShell-7-only operators), `A118` (backslashes in `windows:` literals) and `A119`
+(a log search that matches its own `sudo` entry; an unbound `http.server`) each fire on the base commit and are
+clear on this tree (row 216). The gate's baseline is 49 passed, 0 warnings, 1 failure. Not verified, so not
+changed: `lab.mac`'s own copies of the M16, M25 and M26 lines; M0's `snap` lines (the store and systemd are
+both missing here); `nuclei -update-templates` (GitHub's API is blocked); anything on Windows 5.1.
 
 **Batch 13 (2026-10-01) — Linux gaps closed by running the Linux form; nine defects in what the Linux text claimed, and the drills that existed only for macOS now have a run Linux form.**
 
