@@ -2337,11 +2337,23 @@ $s=[IO.MemoryStream]::new([byte[]][char[]]"hello"); Get-FileHash -InputStream $s
 # Check your email at https://haveibeenpwned.com`,
       linux: `mkdir -p ~/cyber-journal/m3-pw && cd ~/cyber-journal/m3-pw
 echo -n "hello" | sha256sum; echo -n "hello!" | sha256sum
-sudo apt install -y john
+# Ubuntu's apt \`john\` (1.9.0) has no raw-md5 format: \`john --format=raw-md5 ...\` stops with
+# "Unknown ciphertext format name requested". hashcat, installed in Module 0, cracks the same hashes.
+sudo apt install -y hashcat
 printf '%s\\n' "$(echo -n 'password' | md5sum | cut -d' ' -f1)" > myhashes.txt
 printf '%s\\n' password iloveyou letmein > words.txt
-john --format=raw-md5 --wordlist=words.txt myhashes.txt
-john --format=raw-md5 --show myhashes.txt`,
+hashcat -m 0 -a 0 myhashes.txt words.txt
+hashcat -m 0 --show myhashes.txt
+# Run the first hashcat line a second time and it prints "INFO: All hashes found as potfile and/or empty
+# entries! Use --show to display them." The answer is already stored; the second line prints it.
+
+# Part C's timing on Linux: pip would be refused here (externally-managed-environment), apt's package works.
+sudo apt install -y python3-bcrypt
+python3 - <<'PY'
+import bcrypt, time
+t=time.time(); bcrypt.hashpw(b"password", bcrypt.gensalt(rounds=12))
+print("one bcrypt hash (cost 12): %.3f s" % (time.time()-t))
+PY`,
       expected: {
         mac: `\`\`\`text
 $ echo -n "hello"  | shasum -a 256
@@ -2866,7 +2878,7 @@ defaults read /var/db/locationd/clients.plist 2>/dev/null | grep -i Bundle || \\
       windows: `# Same Firefox hardening. Walk Settings > Privacy & Security.
 # Inspect cookie flags:
 curl.exe -sI https://github.com | findstr /i "set-cookie"`,
-      linux: `# Same Firefox hardening. Ubuntu: gnome-control-center > Privacy
+      linux: `# Same Firefox hardening. Ubuntu: Settings > Privacy & Security (or run: gnome-control-center privacy)
 curl -sI https://github.com | grep -i "set-cookie"`,
       expected: {
         mac: `\`\`\`text
