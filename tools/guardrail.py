@@ -1506,6 +1506,109 @@ def check_linux_pip(curricula):
         ok("labs: linux pip", f"{labs} Linux labs: none runs pip install against the system Python")
 
 
+# ── 6d. lab.windows uses only syntax the PowerShell that ships with Windows parses ──
+# Caught (Guardians ledger Batch 14, row 207): M0, M19 and M25 chained commands with `&&`
+# (`git --version && python --version`, `scoop install nuclei && nuclei -update-templates`). The pipeline-chain
+# operators `&&` / `||`, the null-coalescing `??` and ForEach-Object `-Parallel` are PowerShell 7 syntax;
+# Windows PowerShell 5.1 stops at them. A pass under pwsh 7 proves nothing about 5.1, so the gate only looks
+# for the constructs that are 7-only by definition. Whole-line comments and quoted strings are blanked first
+# (a `||` inside a string is data), and `kind: paper` labs are prose.
+WIN_PS7 = re.compile(r"&&|\|\||\?\?|\s-Parallel\b")
+
+
+def _ps_runnable(text):
+    out = []
+    for line in (text or "").split("\n"):
+        if line.lstrip().startswith("#"):
+            continue
+        line = re.sub(r'"(?:`.|[^"`])*"|\'[^\']*\'', '""', line)
+        out.append(re.sub(r"\s#.*$", "", line))
+    return "\n".join(out)
+
+
+def check_windows_ps7(curricula):
+    """A117: no lab.windows uses a PowerShell-7-only operator (&&, ||, ??, -Parallel)."""
+    hits, labs = [], 0
+    for name, cur in curricula.items():
+        for m in cur.get("modules", []):
+            lab = m.get("lab")
+            if not isinstance(lab, dict) or lab.get("kind") == "paper" or not isinstance(lab.get("windows"), str):
+                continue
+            labs += 1
+            found = WIN_PS7.search(_ps_runnable(lab["windows"]))
+            if found:
+                hits.append(f"{name} {m.get('num') or m.get('id')}: `{found.group(0).strip()}`")
+    if hits:
+        warn("labs: windows ps7-only", "A117: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("labs: windows ps7-only", f"{labs} Windows labs: none uses &&, ||, ?? or -Parallel")
+
+
+# ── 6e. a `windows:` template literal keeps its backslashes ─────────────────
+# Caught (Guardians ledger Batch 14, row 213): M28's Windows block was written with single backslashes
+# (`"$HOME\CyberGuardians\reports"`). Inside a JavaScript template literal `\C` loses its backslash and `\r` is a
+# carriage return, so the page showed `$HOMECyberGuardians`, a line break and `eports`. Every Windows path in
+# the source needs `\\`. The check reads the raw source, because the evaluated string no longer shows the damage.
+def check_windows_escapes(name, src):
+    """A118: no `windows:` template literal holds a backslash the template literal rewrites."""
+    hits, literals, i = [], 0, 0
+    while True:
+        j = src.find("windows: `", i)
+        if j < 0:
+            break
+        k = start = j + len("windows: `")
+        while k < len(src) and src[k] != "`":
+            if src[k] == "\\":
+                if src[k + 1 : k + 2] not in ("\\", "`", "$"):
+                    hits.append(f"line {src[:k].count(chr(10)) + 1}: `\\{src[k + 1 : k + 2]}`")
+                k += 2
+                continue
+            k += 1
+        literals += 1
+        i = k + 1
+    if hits:
+        warn(f"{name}: windows backslashes", "A118: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok(f"{name}: windows backslashes", f"{literals} windows literals: every backslash is escaped")
+
+
+# ── 6f. a Linux or Windows lab's own commands do not defeat its check ───────
+# Caught (Guardians ledger Batch 14, rows 182 and 193–194):
+#  - `sudo grep "Failed password" /var/log/auth.log` writes its own sudo entry to auth.log, and that entry
+#    contains the words searched for, so the offenders table gained a COMMAND=/usr/bin/grep row that grew
+#    with every run. The search must drop COMMAND= lines.
+#  - `python3 -m http.server` listens on every interface and serves the folder it starts in; a lab that wants
+#    a localhost stand-in must pass --bind 127.0.0.1.
+# Only lab.linux and lab.windows are checked; the Mac strings are not edited by the same pass.
+LOG_SELF_MATCH = re.compile(r"""sudo\s+grep\s+["']Failed password["']\s+\S*auth\.log""")
+HTTP_SERVER = re.compile(r"-m\s+http\.server\b")
+HTTP_LOOPBACK = re.compile(r"(?:--bind|-b)\s+127\.0\.0\.1\b")
+
+
+def check_lab_self_checks(curricula):
+    """A119: log searches drop sudo's own entry; `http.server` is bound to loopback."""
+    hits, labs = [], 0
+    for name, cur in curricula.items():
+        for m in cur.get("modules", []):
+            lab = m.get("lab")
+            if not isinstance(lab, dict) or lab.get("kind") == "paper":
+                continue
+            for osname in ("linux", "windows"):
+                text = lab.get(osname)
+                if not isinstance(text, str):
+                    continue
+                labs += 1
+                for line in _runnable_lines(text).split("\n"):
+                    if LOG_SELF_MATCH.search(line) and "COMMAND=" not in line:
+                        hits.append(f"{name} {m.get('num') or m.get('id')} {osname}: log search matches sudo's own entry")
+                    if HTTP_SERVER.search(line) and not HTTP_LOOPBACK.search(line):
+                        hits.append(f"{name} {m.get('num') or m.get('id')} {osname}: http.server not bound to 127.0.0.1")
+    if hits:
+        warn("labs: self-checks", "A119: " + "; ".join(hits[:6]) + (f" (+{len(hits) - 6} more)" if len(hits) > 6 else ""))
+    else:
+        ok("labs: self-checks", f"{labs} Linux/Windows labs: no self-matching log search, no unbound http.server")
+
+
 # RFC 2606 / RFC 6761 reserved names plus the course's fictional phishing/C2 domains.
 # These are supposed not to resolve — that is the point of using them in examples.
 FICTIONAL = re.compile(r"\.(example|invalid|test|local)(\b|/)|apple-verification|evil-c2", re.I)
@@ -1721,6 +1824,7 @@ def main():
         check_rg_equivalence(name, src)
         check_attack_ids(name, src)
         check_claims_ledger(name, src)
+        check_windows_escapes(name, src)
         cur = load_curriculum(name, src)
         if cur:
             curricula[name] = cur
@@ -1733,6 +1837,8 @@ def main():
     check_attack_table_rot(sources)
     check_linux_notes({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_linux_pip({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    check_windows_ps7({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    check_lab_self_checks({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
 
     if not args.no_net:
         check_urls(sources)
