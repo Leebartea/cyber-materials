@@ -7412,7 +7412,11 @@ touch engagement-report.md scope-and-rules.md && code .
 nmap -sV -p- 192.168.56.20 | tee recon.txt`,
       windows: `New-Item -ItemType Directory -Path "$HOME\\cyber-journal\\level-2-capstone"
 cd $HOME\\cyber-journal\\level-2-capstone; code .`,
-      linux: `mkdir -p ~/cyber-journal/level-2-capstone && cd ~/cyber-journal/level-2-capstone
+      linux: `# Kick off the engagement (confirm isolation FIRST)
+# On the target VM:  ping -c 2 8.8.8.8   -> MUST FAIL (no internet = isolated)
+mkdir -p ~/cyber-journal/level-2-capstone && cd ~/cyber-journal/level-2-capstone
+touch engagement-report.md scope-and-rules.md
+# Recon (Module 12) against your OWNED lab target:
 nmap -sV -p- 192.168.56.20 | tee recon.txt && code .`,
       expected: {
         mac: `\`\`\`text
@@ -13003,7 +13007,39 @@ New-Item -Path "$HOME\CyberGuardians\reports" -ItemType Directory -Force
 # Create career-roadmap.md with the same template in VS Code:
 code "$HOME\CyberGuardians\reports\career-roadmap.md"`,
       linux: `mkdir -p ~/CyberGuardians/reports
-# Create career-roadmap.md with the same template:
+cat > ~/CyberGuardians/reports/career-roadmap.md << 'PLAN'
+# My Cyber Career Roadmap
+
+## My chosen specialization and why
+Specialization: ...
+Why it energizes me: ...
+How my Cyber Guardians modules prepare me for it: ...
+
+## 90-day action plan (starting today)
+Week 1-4:   [Cert study / specific modules / CTF rooms]
+Week 5-8:   [Build one public artefact — what exactly?]
+Week 9-12:  [Complete cert or finish portfolio piece]
+
+## My certification roadmap
+Cert 1: [name, cost, study plan, target date]
+Cert 2: [name, cost, study plan, target date]
+Cert 3: [name, cost, study plan, target date]
+
+## My portfolio inventory (what I'll have public by month 3)
+- GitHub repo: [name + what it shows]
+- Blog/writeup: [topic of first post]
+- CTF profile: [platform + current rank]
+- Other: [any CVE, bug bounty finding, open source contribution]
+
+## Communities I'm joining this month
+1. [Discord/forum + why]
+2. [local ISSA chapter / BSides event]
+
+## First job target
+Role title: ...
+Company type: [startup / enterprise / government / consultancy]
+Target application date: ...
+PLAN
 code ~/CyberGuardians/reports/career-roadmap.md`,
       expected: {
         mac: `\`\`\`text
@@ -13096,6 +13132,10 @@ git add . ; git commit -m "Begin capstone"`,
       linux: `mkdir -p ~/cyber-journal/final-capstone && cd $_
 git init
 echo "# My Cyber Guardians Capstone" > README.md
+# A new machine has no git identity: without the next two lines the commit stops with
+# "Author identity unknown" (exit 128). Use your own name and e-mail.
+git config --global user.name "Your Name"
+git config --global user.email "you@example.org"
 git add . && git commit -m "Begin capstone"`,
       expected: {
         mac: `\`\`\`text
