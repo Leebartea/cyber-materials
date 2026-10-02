@@ -4593,8 +4593,12 @@ systemctl --type=service --state=running       # what's running, and should it b
 # (on ARM Windows use the arm64 image). Then run the same apt + audit commands inside Kali.`,
       linux: `# Already on Linux? Audit yourself:
 sudo find / -perm -4000 -type f 2>/dev/null; sudo -l; sudo tail /var/log/auth.log
-# Or run Kali tooling in Docker (arm64 image on Apple Silicon):
-docker run --platform linux/arm64 -it kalilinux/kali-rolling /bin/bash`,
+# auth.log is written by rsyslog. Where rsyslog is not installed (the Ubuntu 24.04 container image this was
+# run on) tail prints "tail: cannot open '/var/log/auth.log' for reading: No such file or directory".
+# With rsyslog installed and running (sudo apt install -y rsyslog) the file lists the sudo commands.
+# Or run Kali tooling in Docker. No --platform flag: forcing an arm64 image on an x86-64 PC (the Mac
+# block's Apple Silicon choice) ends in "exec format error" where no arm64 emulation is installed.
+docker run -it kalilinux/kali-rolling /bin/bash`,
       expected: {
         mac: `\`\`\`text
 kali@kali:~$ whoami
@@ -6915,8 +6919,13 @@ sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | u
       windows: `# Failed logons are Event ID 4625
 Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625} -MaxEvents 20 |
   Select-Object TimeCreated, @{N='User';E={$_.Properties[5].Value}}, @{N='IP';E={$_.Properties[19].Value}}`,
-      linux: `sudo grep "Failed password" /var/log/auth.log | tail -20
-sudo grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head`,
+      linux: `# auth.log is written by rsyslog. Where it is not installed (the Ubuntu 24.04 container image this was run
+# on) grep prints "grep: /var/log/auth.log: No such file or directory"; with rsyslog installed and running
+# (sudo apt install -y rsyslog) the file exists.
+# sudo logs each command it runs to auth.log, and that line contains the words you are searching for.
+# Without the grep -v, every run adds a false COMMAND=/usr/bin/grep hit, and it climbs the offenders table.
+sudo grep "Failed password" /var/log/auth.log | grep -v COMMAND= | tail -20
+sudo grep "Failed password" /var/log/auth.log | grep -v COMMAND= | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head`,
       expected: {
         mac: `\`\`\`text
 $ log show --predicate 'process == "loginwindow"' --last 24h | head -40
