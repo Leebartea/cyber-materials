@@ -990,7 +990,11 @@ A matching hash proves **integrity**: the file is byte-for-byte what was collect
 
 The adversary version of this work is ATT&CK's **Reconnaissance** tactic, TA0043 — for example **T1593** (Search Open Websites/Domains) and **T1589** (Gather Victim Identity Information). Defenders study it for the same reason you do: to see their organisation the way an attacker's first week does. The difference between you and that attacker is the scope record, not the technique.`,
     lab: {
-      mac: `# LAB: open a case file, collect one item, and prove it has not changed (Apple Silicon)
+      mac: `setopt interactivecomments
+grep -qx 'setopt interactivecomments' ~/.zshrc 2>/dev/null || echo 'setopt interactivecomments' >> ~/.zshrc
+# The two lines above matter: without them zsh (the Mac's shell) treats a pasted "# note" as part
+# of the command, and ANALYST=analyst01 below would never be set. They fix it now and in every new Terminal.
+# LAB: open a case file, collect one item, and prove it has not changed (Apple Silicon)
 # ETHICS: the only request below goes to Verisign's public RDAP service - the .com
 # registry. It lands in Verisign's log, not in example.com's. example.com is reserved
 # by IANA for documentation (RFC 2606), so it is a lawful target anywhere.
