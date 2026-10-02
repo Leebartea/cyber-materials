@@ -3428,6 +3428,9 @@ strings lab.img | grep CANARY                     # still there after "deletion"
 rm -f safe.img && dd if=/dev/zero of=safe.img bs=1M count=32 status=none
 printf 'correct-horse-battery-staple' | sudo cryptsetup luksFormat safe.img -
 printf 'correct-horse-battery-staple' | sudo cryptsetup open safe.img m65safe -
+# Opening needs device-mapper in the kernel. Where it is missing (a container, for one) this stops with
+# "Cannot initialize device-mapper. Is dm_mod kernel module loaded?" and every line below still runs.
+sudo cryptsetup status m65safe >/dev/null || echo "STOP: m65safe did not open (see the error above). The 0 printed below would then mean nothing was ever written, not that encryption worked."
 sudo mkfs.ext4 -q /dev/mapper/m65safe && sudo mount /dev/mapper/m65safe mnt
 echo "CANARY-PATIENT-RECORD-7781" | sudo tee mnt/notes.txt > /dev/null
 sync && sudo umount mnt && sudo cryptsetup close m65safe
@@ -3946,7 +3949,9 @@ New-Item level-1-capstone-audit.md -ItemType File; code level-1-capstone-audit.m
 Get-MpComputerStatus | Select-Object AntivirusEnabled, RealTimeProtectionEnabled
 (Get-BitLockerVolume -MountPoint C).ProtectionStatus`,
       linux: `cd ~/cyber-journal && touch level-1-capstone-audit.md && code level-1-capstone-audit.md
-sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS evidence`,
+sudo ufw status; lsblk -o NAME,FSTYPE | grep -i crypt   # firewall + LUKS evidence
+# "Status: inactive" is ufw installed but not switched on (Module 6): a finding. "ufw: command not found" means
+# it is not installed (sudo apt install -y ufw). If lsblk prints nothing, no line contained "crypt": no LUKS volume was listed.`,
       expected: {
         mac: `\`\`\`text
 $ fdesetup status
@@ -8276,7 +8281,13 @@ pipx run --spec pip-audit==2.10.1 pip-audit -r requirements.txt    # YOUR projec
 #    and exit status 1. Without -r it audits pipx's own throwaway environment, not your project.
 
 npm audit --audit-level=high
-trivy fs .`,
+
+# trivy's own install routes (apt repository, install script, release downloads) were unreachable when this
+# was written, but it builds with the same Go as nuclei. v0.75.0 asks for a newer Go than Ubuntu's, so the
+# first build downloads go1.27.1 by itself: about five minutes, a 340 MB binary and about 6 GB of Go caches
+# (go clean -cache -modcache frees them and keeps the binary). trivy --version then prints "Version: dev".
+go install -v github.com/aquasecurity/trivy/cmd/trivy@v0.75.0
+trivy fs .                        # the first run downloads its vulnerability database (about 120 MB)`,
       expected: {
         mac: `\`\`\`text
 $ nuclei -u http://192.168.56.20
