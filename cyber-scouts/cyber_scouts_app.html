@@ -885,7 +885,7 @@ Level 4 follows networks of actors: the companies, code, servers and accounts be
 | S4.1 | Sanctions lists and company registers: what a listing proves | ✅ available |
 | S4.2 | Public code and repositories: what a commit's author field proves | ✅ available |
 | S4.3 | Phishing infrastructure: what a shared icon or TLS fingerprint proves | ✅ available |
-| — | Threat-intelligence feeds: what an indicator proves, and when it goes stale | planned |
+| S4.4 | Threat-intelligence feeds: what an indicator proves, and when it goes stale | ✅ available |
 | — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
 | S4.6 | Reproducible pipelines: rerun it and get the same bytes, and what "the same" proves | ✅ available |
 | — | Capstone: an infrastructure attribution file | planned |
@@ -14882,6 +14882,691 @@ link only on LEAD-SHARED values:
 
 </details>`,
     tracker: ["Ran the lab: both public files matched their pinned hashes, the known-answer test passed, and I read the whole output", "Computed a favicon hash myself and saw that one bit, a re-saved copy and the base64 convention each change it", "Decoded the README's example JARM value and explained 000, the 30 and the 32, and what 62 zeros can mean", "Classified twelve synthetic hosts into four outcomes and explained why UNKNOWN exists", "Did Drills 1 and 2: changed one bit of an icon, and moved the rarity threshold to see hosts change sides", "Did Drill 3: linked hosts on every shared value and on rare ones only, and wrote what each cluster does and does not show"]
+  }, {
+    id: "s4_4",
+    level: 4,
+    num: "S4.4",
+    title: "Threat-Intel Feeds & Indicator Decay — What a Feed Entry Proves, How Fast It Goes Stale, and What an Empty List Means",
+    objective: `Read two free threat-intelligence feeds from abuse.ch without touching anything they list. Find what each field of an entry proves, measure from the feed's own dates how fast its servers went quiet, count the addresses listed more than once, and find a feed whose provider says it is empty while its file is not. Then grade a match by date, choose how long a blocklist should keep an entry, and test whether a finding rests on one reporter.`,
+    theory: `#### What this module adds
+
+S4.3 pivoted from one phishing page to other servers that shared a value with it. This module reads the other half of that work: the public lists that security teams load into firewalls and mail filters. A **threat-intelligence feed** is a list of **indicators of compromise** (IOCs): addresses, web addresses, domain names and file hashes that someone has seen in an attack. Blocklists are built from feeds, and so are many of the alerts that start an investigation.
+
+The lab reads two free feeds from **abuse.ch**, which runs them with its partner Spamhaus: **Feodo Tracker** (servers that control botnets) and **URLhaus** (web addresses that hand out malware). It asks three questions of each: what does an entry prove, how long does it stay true, and what does an empty list mean?
+
+#### An indicator is a statement with a date
+
+An entry on a feed says: *this tracker saw this value doing this, between these dates.* Each part of that sentence matters.
+
+| Field (Feodo Tracker's names) | Who wrote it | What it proves | What it does not prove |
+|---|---|---|---|
+| \`dst_ip\`, \`dst_port\` | The tracker | That the tracker saw a botnet's control traffic go to this address and port | Who owns the address now; that every connection to it is malicious |
+| \`malware\` | The tracker's analysts or its tools | Which family the tracker put this server under | That the family's operators run it (a server can be rented by several groups) |
+| \`first_seen_utc\` | The tracker | When the tracker first saw it | When the server started |
+| \`last_online\` | The tracker | The last day the tracker saw it answer | That it went down that day; that it is down now |
+| \`c2_status\` | The tracker | The tracker's status at its last check | The status today, unless you know when that check was |
+| The file's \`Last updated\` line | The tracker's export script | Whatever the script puts there (the lab finds out what) | That anyone looked at the entries on that date |
+
+URLhaus uses the same shape: \`dateadded\`, \`url_status\`, \`last_online\`, a threat type, tags, and the name of the person who reported the URL. A **reporter** is a source in S3.1's sense: when one reporter sends a third of a feed, a third of the feed rests on one pair of eyes.
+
+#### Why indicators decay
+
+In 2013 the analyst David J. Bianco drew the **Pyramid of Pain**: indicator types ranked by how much it costs an attacker when a defender blocks them. File hashes and IP addresses sit at the bottom. Bianco wrote that "any reasonably advanced adversary can change IP addresses whenever it suits them, with very little effort". A file hash never changes meaning, but the attacker can make a new one by changing one byte. Domain names cost a little more, because they must be registered and paid for. Tools sit higher, and at the apex Bianco put the attacker's tactics, techniques and procedures: how they work, which is the most expensive thing to change.
+
+So an address on a feed is evidence for a short time. The lab measures how short from Feodo Tracker's own dates. On the day this module was written, the median server on its full list was last seen online **5 days** after it was first seen, and 90% within 124 days. URLhaus showed the same shape over hours: about two thirds of the URLs added in the last day were marked online, and about one in twenty of those added a week or more ago.
+
+After that, the address goes back into a hosting company's pool and is given to the next customer. Feodo Tracker warns about this on its own blocklist page. It offers an "aggressive" list of every server it has ever seen, and says it "definitely will cause false positives" because "IP addresses are being re-used/recycled". The lab counts the addresses listed more than once, and those listed under two different malware families.
+
+#### What a match proves
+
+A security team's log shows a connection to an address on a feed. Grade the match before anyone acts on it:
+
+| Verdict | When | What it supports |
+|---|---|---|
+| **IN-WINDOW** | The connection falls between the entry's first and last dates, or within a few days after | A lead worth investigating. Look at the host that made the connection |
+| **AFTER-WINDOW** | The connection is weeks or months after the last date | Little. The address may now belong to someone else. Find newer evidence before saying anything |
+| **BEFORE-LISTING** | The connection is before the first date | A question, not an answer: the tracker had not seen it yet, or the address was used by someone else before |
+| **NOT-LISTED** | The value is not on the feed | Only that this feed does not list it. Absence from one list is not a clean bill of health |
+
+The date of the connection is half of every verdict. A match with no date is UNKNOWN.
+
+#### What an empty feed means
+
+Feodo Tracker's FAQ says its datasets "are currently empty", and gives the reason as "various successful takedowns conducted by Law Enforcement Agencies". That is the provider's explanation of its own data, and it is a ONE-WAY statement in S2.7's terms. Three explanations can produce the same empty list:
+
+1. **The servers are gone.** A takedown removed them (the case study reads the record of one).
+2. **The servers moved.** The operators changed malware, or hosting, or protocol, and the tracker no longer recognises them.
+3. **The tracker's view changed.** It stopped watching a family, or lost the source that showed it the servers.
+
+The feed alone cannot tell these apart. The lab finds a case of the third kind's shape: one family stops gaining entries on the list long before the law-enforcement operation that named it.
+
+The lab also finds that the provider's page and the provider's file disagree. The FAQ says the datasets are empty, while the recommended list still has rows in it. Report both, and say which is which.
+
+#### Hard rules for working with feeds
+
+- **Never open a URL from a malware feed, and never connect to an address from one.** The lab reads the files as text. It does not resolve, ping or download anything they list.
+- **Never publish an old feed entry as "malicious".** It may now belong to someone innocent. The lab prints counts, not addresses.
+- **Keep to the provider's terms.** abuse.ch's pages set the terms of use, ask that a dump is fetched no more than every 5 minutes, and require a free Auth-Key for the URLhaus API. The lab makes one request per file.
+- **A feed is not a verdict.** It is a tip from a named source, with a date. As in S3.1, grade the source and look for a second one that did not copy the first.`,
+    lab: {
+      mac: `# LAB: what a threat-intel feed entry proves, how fast it goes stale, and what an "empty" feed means (Apple Silicon)
+# ETHICS: the lab reads two public feeds about criminal servers and never contacts one. It opens no URL and
+# no address from either feed, prints no address from them, and prints no reporter's name: a feed's servers
+# are rented and recycled, so an old entry can now belong to someone who has done nothing.
+# LIMITS: four public pages, three feed files and one set of headers, about 0.7 MB in all (the feeds are
+# sent compressed). No account and no key. abuse.ch asks that a dump is not fetched more than every 5 minutes.
+# NO NEW TOOL: curl, openssl and python3 (standard library only), as in Level 3.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s4_4 && cd ~/scouts-case/s4_4 || exit 1
+rm -rf evidence scope.txt collection_log.tsv feeds_read.py facts.txt report.md check_report.sh \\
+  SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem freetsa_tsa.crt && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.4 threat-intel feeds and how indicators decay (abuse.ch Feodo Tracker and URLhaus)
+question:     What does an entry on a blocklist prove, how long does it stay true, and what does an empty list mean?
+              A. the provider's own words: what do the feed's pages say the lists contain?
+              B. the clocks: which dates does a feed carry, and what does each one date?
+              C. decay: how long did the listed servers stay up, by the feed's own first and last dates?
+              D. reuse: how many addresses were listed more than once, or under more than one family?
+              E. silence: when did each family stop gaining new servers on the list?
+              F. a live feed: how does the share still online change with an entry's age?
+authorised:   self (public feeds and public pages; abuse.ch's terms of use)
+in scope:     feodotracker.abuse.ch (2 files, 1 set of headers, 2 pages); urlhaus.abuse.ch (1 file, 1 page)
+out of scope: every address and URL inside the feeds (never opened, resolved or printed); the abuse.ch API
+              (it needs an Auth-Key); any paid feed; the names of the people who report to the feeds
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+get() {  # id url [seconds]   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m "\${3:-120}" -A "$UA" -o "evidence/$1" "$2"
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+FT=https://feodotracker.abuse.ch
+# A-E. Feodo Tracker: the recommended list, the "aggressive" list of every server it has seen, and its own pages.
+get item001.csv $FT/downloads/ipblocklist.csv
+get item002.csv $FT/downloads/ipblocklist_aggressive.csv 600  # 0.6 MB, sent compressed; abuse.ch can be slow
+get item003.html $FT/faq/
+get item004.html $FT/blocklist/
+# F. URLhaus: the dump of recent malware URLs, and the page that documents its downloads.
+get item005.csv https://urlhaus.abuse.ch/downloads/csv_recent/ 600  # 3 MB, sent as about 0.45 MB
+get item006.html https://urlhaus.abuse.ch/api/
+# B. The server's own date for the recommended list: headers only.
+curl -sfI --retry 3 -m 60 -A "$UA" -o evidence/item007.txt $FT/downloads/ipblocklist.csv
+if [ -s evidence/item007.txt ]; then log item007.txt "$FT/downloads/ipblocklist.csv (HEAD)" "$(shasum -a 256 evidence/item007.txt | cut -d' ' -f1)"
+else rm -f evidence/item007.txt; log item007.txt "$FT/downloads/ipblocklist.csv (HEAD)" FAILED; fi
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+grep -q 'item005.*FAILED$' collection_log.tsv && echo "NOTE: URLhaus refused the keyless dump. Its API page documents the same file behind a free Auth-Key - see the walkthrough"
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab"; exit 1; }
+
+# 3. Read. Only the saved files are read; nothing below touches the network.
+cat > feeds_read.py <<'PY'
+import csv, datetime as dt, html, io, re, statistics
+from collections import Counter, defaultdict
+E = "evidence/"
+out = open("facts.txt", "w", encoding="utf-8")
+def p(s=""): print(s); out.write(s + "\\n")
+def text(f):
+    t = open(E + f, encoding="utf-8", errors="replace").read()
+    t = re.sub(r"(?is)<(s(?:cript|tyle))\\b.*?</\\1\\s*>", " ", t)   # drop scripts and styles
+    return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", t)))
+def says(f, phrase): return "YES" if phrase.lower() in text(f).lower() else "NO"
+def feed(f):
+    lines = open(E + f, encoding="utf-8").read().splitlines()
+    head = [l for l in lines if l.startswith("#")]
+    rows = list(csv.reader(l for l in lines if l and not l.startswith("#")))
+    return head, rows
+def day(s): return dt.datetime.strptime(s[:10], "%Y-%m-%d").date()
+today = dt.datetime.now(dt.timezone.utc).date()
+
+p("A. What the provider says (Feodo Tracker's FAQ and blocklist page, URLhaus's API page)")
+p("   item003 FAQ: datasets 'currently empty': " + says("item003.html", "datasets are currently empty"))
+p("   item003 FAQ gives the reason as takedowns by law enforcement: " + says("item003.html", "takedowns conducted by Law Enforcement"))
+p("   item004 recommended list 'only contains active botnet C&C servers or such that have been active in the past hours': "
+  + says("item004.html", "only contains active botnet C&C servers or such that have been active in the past hours"))
+p("   item004 lists are 'generated every 5 minutes': " + says("item004.html", "generated every 5 minutes"))
+p("   item004 warns the aggressive list 'definitely will cause false positives': " + says("item004.html", "definitely will cause false positives"))
+p("   item006 URLhaus API: Auth-Key 'Required': " + says("item006.html", "Obtain an Auth-Key ( Required )"))
+
+h1, r1 = feed("item001.csv")
+h2, r2 = feed("item002.csv")
+col = r1[0]; r1 = r1[1:]; r2 = r2[1:]
+assert col == ["first_seen_utc", "dst_ip", "dst_port", "c2_status", "last_online", "malware"], col
+upd = next((re.search(r"Last updated: (\\S+ \\S+)", l).group(1) for l in h1 if "Last updated" in l), "NOT FOUND")
+lm = next((l.split(":", 1)[1].strip() for l in open(E + "item007.txt", encoding="latin-1") if l.lower().startswith("last-modified")), "NOT FOUND")
+p()
+p("B. The clocks on the recommended list (item001, item007)")
+p("   rows on the recommended list: %d" % len(r1))
+p("   rows marked c2_status online: %d" % sum(r[3] == "online" for r in r1))
+newest_last = max((r[4] for r in r1 if r[4]), default="")
+p("   header 'Last updated':        " + upd)
+p("   newest first_seen in the file: " + max((r[0] for r in r1), default="NONE"))
+p("   newest last_online in the file: " + (newest_last or "NONE"))
+p("   HTTP Last-Modified (item007): " + lm)
+p("   this run's date (UTC):        " + today.isoformat())
+if newest_last: p("   days since the newest last_online: %d" % (today - day(newest_last)).days)
+p("   header date equals newest first_seen: " + ("YES" if upd == max((r[0] for r in r1), default="") else "NO"))
+
+p()
+p("C. How long the servers on the aggressive list stayed up, by Feodo's own dates (item002)")
+p("   entries: %d   marked online: %d" % (len(r2), sum(r[3] == "online" for r in r2)))
+life = [(day(r[4]) - day(r[0])).days for r in r2 if r[4]]
+p("   entries with no last_online: %d" % (len(r2) - len(life)))
+q = sorted(life)
+pick = lambda f: q[int(len(q) * f)]
+p("   days from first_seen to last_online: median %d, 75%% within %d, 90%% within %d, 99%% within %d"
+  % (statistics.median(q), pick(.75), pick(.90), pick(.99)))
+p("   share last online within 7 days of first_seen: %.0f%%" % (100 * sum(x <= 7 for x in q) / len(q)))
+p("   share last online within 30 days of first_seen: %.0f%%" % (100 * sum(x <= 30 for x in q) / len(q)))
+p("   by family (entries): " + ", ".join("%s %d" % kv for kv in Counter(r[5] for r in r2).most_common(5)))
+
+p()
+p("D. Addresses listed more than once (item002); no address is printed")
+by = defaultdict(list)
+for r in r2: by[r[1]].append(r)
+multi = {k: v for k, v in by.items() if len(v) > 1}
+p("   distinct addresses: %d" % len(by))
+p("   addresses listed more than once: %d" % len(multi))
+p("   ...under two or more malware families: %d" % sum(len({x[5] for x in v}) > 1 for v in multi.values()))
+
+p()
+p("E. When each family stopped gaining new servers on the list (item002, by first_seen month)")
+months = defaultdict(Counter)
+for r in r2: months[r[5]][r[0][:7]] += 1
+for fam in ("QakBot", "Pikabot", "BumbleBee", "Emotet"):
+    m = months[fam]
+    p("   %-9s last month with 10+ new servers: %s   last month with any: %s"
+      % (fam, max((k for k, v in m.items() if v >= 10), default="NONE"), max(m, default="NONE")))
+q8 = months["QakBot"]
+p("   QakBot new servers by month: " + ", ".join("%s %d" % (k, q8.get(k, 0)) for k in ("2023-06", "2023-07", "2023-08", "2023-09", "2023-10")))
+
+p()
+p("F. A live feed: URLhaus recent URLs (item005); no URL and no reporter is printed")
+h5, r5 = feed("item005.csv")
+dump = next((re.search(r"Last updated: (\\S+ \\S+)", l).group(1) for l in h5 if "Last updated" in l), "NOT FOUND")
+p("   dump 'Last updated': " + dump)
+p("   rows: %d" % len(r5))
+ts = lambda s: dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+ref = ts(dump) if dump != "NOT FOUND" else max(ts(r[1]) for r in r5)
+p("   oldest dateadded: %s (%d days before the dump)" % (min(r[1] for r in r5), (ref - min(ts(r[1]) for r in r5)).days))
+buckets = (("under 1 day ago", 0, 1), ("1-7 days ago", 1, 7), ("7-30 days ago", 7, 31))
+share = []
+for name, lo, hi in buckets:
+    g = [r for r in r5 if lo <= (ref - ts(r[1])).total_seconds() / 86400 < hi]
+    s = 100 * sum(r[3] == "online" for r in g) / len(g) if g else float("nan")
+    share.append(s)
+    p("   added %-15s: %5d URLs, %5.1f%% marked online" % (name, len(g), s))
+p("   online share falls with age: " + ("YES" if share[0] > share[1] > share[2] else "NO"))
+on = [r for r in r5 if r[3] == "online"]
+p("   online rows whose last_online is within 24 h of the dump: %d of %d" % (sum((ref - ts(r[4])).total_seconds() < 86400 for r in on if r[4]), len(on)))
+p("   offline rows never seen online (no last_online): %d" % sum(1 for r in r5 if r[3] == "offline" and not r[4]))
+ipl = sum(bool(re.match(r"https?://\\d+\\.\\d+\\.\\d+\\.\\d+[:/]", r[2])) for r in r5)
+p("   URLs on a bare IPv4 address: %.0f%%" % (100 * ipl / len(r5)))
+rep = Counter(r[8] for r in r5)
+p("   reporters: %d; the largest single reporter added %.0f%% of rows" % (len(rep), 100 * rep.most_common(1)[0][1] / len(r5)))
+out.close()
+PY
+python3 feeds_read.py || { echo "STOP: the reader failed - a file has changed its layout; read it by hand"; exit 1; }
+grep -qE 'NOT FOUND|: NO$' facts.txt && echo "NOTE: a page or a file has changed since this module was written - read the line marked above by hand"
+
+# 4. The report. Every finding carries one of S2.7's link tags and cites its items. The figures in it are
+#    typed by hand, so step 5 checks each one against facts.txt.
+cat > report.md <<'REPORT'
+# S4.4 Two abuse.ch feeds: what an entry proves, how fast it decays, and what "empty" means
+
+Question: what does an entry on a blocklist prove, how long does it stay true, and what does an empty list mean?
+Analyst: analyst01. Sources: two feed pages, two feed pages' files, one URLhaus file and page, one set of headers,
+items 001-007 (collection_log.tsv).
+
+## Findings
+
+F1 [ONE-WAY] (item003, item001) Feodo Tracker's FAQ says its datasets are "currently empty", and gives
+takedowns by law enforcement as the reason. Its recommended list still holds 5 rows, 1 of them marked online.
+The provider's page and the provider's file disagree. Both are the provider's own statements.
+F2 [CONTEXT] (item001, item004, item007) The recommended list carries three dates, and none of them says
+when an entry was last checked. Its header date is the newest first_seen in the file, the server's
+Last-Modified is a later day, and the blocklist page says the lists are generated every 5 minutes.
+F3 [ONE-WAY] (item002) By Feodo's own first and last dates, the median server on the aggressive list was
+last seen online 5 days after it was first seen, and 90% within 124 days. That is Feodo's view of each
+server, from where it looked. It is not a measurement made by this lab.
+F4 [LEAD] (item002, item004) 290 addresses are listed more than once, and 81 under two or more malware
+families. That fits Feodo's own warning that addresses are re-used and recycled; it also fits one hosting
+company rented by several groups. The list cannot say which.
+F5 [LEAD] (item002) QakBot gained 213 new servers on the list in August 2023, then 0 in September. A
+takedown is one explanation (the case study reads the record of one); the feed alone cannot tell a
+takedown from a change in what the tracker could see.
+F6 [CONTEXT] (item002) BumbleBee's last month with any new server on the list is 2023-06, and Pikabot's
+is 2024-05. A family's last entry on one feed dates the feed's view, not the family's end.
+F7 [ONE-WAY] (item005, item006) On URLhaus, the share of URLs marked online falls with age: most URLs
+added in the last day are marked online, and few added a week or more ago are. The status is URLhaus's
+own, and its API page says an Auth-Key is required for the documented downloads.
+
+## Assessment
+
+Likely: an indicator from these feeds is evidence about a server for days, not years (F3, F7), and a
+match against an old entry says little about the address today (F4).
+Confidence: high that entries decay quickly (two feeds, one provider, the same shape); low on any
+single entry, because the lab checks no server itself.
+Rejected: "an empty or frozen feed means the threat is gone" (F1, F6: the feed's view ends, not the activity).
+Still open: when Feodo Tracker last checked each entry; how URLhaus decides that a URL is online; whether the
+servers in F4 changed hands or were shared.
+REPORT
+
+# 5. Check the report: every finding tagged and cited, and every hand-typed figure found in facts.txt.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+R=report.md; bad=0
+[ -s facts.txt ] && [ -s "$R" ] || { echo "UNKNOWN: facts.txt or report.md is missing"; exit 2; }
+n=$(grep -cE '^F[0-9]+ \\[(STRONG|ONE-WAY|LEAD|CONTEXT)\\] \\(item[0-9]{3}' "$R")
+[ "$n" -eq "$(grep -cE '^F[0-9]+ ' "$R")" ] || { echo "FAIL a finding has no tag or no item"; bad=$((bad + 1)); }
+# STRONG needs two records made by different hands. Every item here comes from one provider (S4.4).
+grep -qE '^F[0-9]+ \\[STRONG\\]' "$R" && { echo "FAIL a STRONG finding rests on one provider's records"; bad=$((bad + 1)); }
+grep -q '^Rejected:' "$R" || { echo "FAIL the report does not name what it rejects"; bad=$((bad + 1)); }
+grep -q '^Still open:' "$R" || { echo "FAIL the report does not say what is still open"; bad=$((bad + 1)); }
+agree() { grep -qF -- "$2" facts.txt || { echo "$1 FAIL the report's figure is not in facts.txt: $2"; bad=$((bad + 1)); }; }
+agree F1 "datasets 'currently empty': YES"
+agree F1 "takedowns by law enforcement: YES"
+agree F1 "rows on the recommended list: 5"
+agree F1 "rows marked c2_status online: 1"
+agree F2 "header date equals newest first_seen: YES"
+agree F2 "generated every 5 minutes': YES"
+agree F3 "median 5, 75% within 29, 90% within 124"
+agree F4 "addresses listed more than once: 290"
+agree F4 "under two or more malware families: 81"
+agree F4 "definitely will cause false positives': YES"
+agree F5 "2023-08 213, 2023-09 0"
+agree F6 "BumbleBee last month with 10+ new servers: 2023-05   last month with any: 2023-06"
+agree F6 "Pikabot   last month with 10+ new servers: 2024-03   last month with any: 2024-05"
+agree F7 "online share falls with age: YES"
+agree F7 "Auth-Key 'Required': YES"
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n tagged findings, every figure in facts.txt)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 6. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv feeds_read.py facts.txt report.md check_report.sh evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H "Content-Type: application/timestamp-query" \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null ||
+  { echo "STOP: the timestamp did not verify - a TSA can refuse with HTTP 200 (Status: Rejected); rerun this step"; exit 1; }
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It reads the saved pages in python3, seals with openssl, and checks its own
+# report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_4 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in get(), in the item007 line, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl and python3 3.9 or later. On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3
+# The three drills use no shasum and run unchanged.
+# Not run on Linux when this module was written (it was run on macOS with python3 3.9 and 3.11).`,
+      expected: {
+        mac: `\`\`\`text
+item001.csv 2026-10-03T14:07:16Z ed47be907fae
+item002.csv 2026-10-03T14:07:22Z b59f25c77645
+item003.html 2026-10-03T14:07:26Z 9ad3f384b5be
+item004.html 2026-10-03T14:07:30Z 54d57597908e
+item005.csv 2026-10-03T14:07:34Z 85bc3c2c9ea4
+item006.html 2026-10-03T14:07:38Z d66248b4d9b3
+item007.txt 2026-10-03T14:07:42Z f350295be57c
+A. What the provider says (Feodo Tracker's FAQ and blocklist page, URLhaus's API page)
+   item003 FAQ: datasets 'currently empty': YES
+   item003 FAQ gives the reason as takedowns by law enforcement: YES
+   item004 recommended list 'only contains active botnet C&C servers or such that have been active in the past hours': YES
+   item004 lists are 'generated every 5 minutes': YES
+   item004 warns the aggressive list 'definitely will cause false positives': YES
+   item006 URLhaus API: Auth-Key 'Required': YES
+
+B. The clocks on the recommended list (item001, item007)
+   rows on the recommended list: 5
+   rows marked c2_status online: 1
+   header 'Last updated':        2026-03-04 14:28:39
+   newest first_seen in the file: 2026-03-04 14:28:39
+   newest last_online in the file: 2026-03-12
+   HTTP Last-Modified (item007): Tue, 30 Jun 2026 04:53:05 GMT
+   this run's date (UTC):        2026-10-03
+   days since the newest last_online: 205
+   header date equals newest first_seen: YES
+
+C. How long the servers on the aggressive list stayed up, by Feodo's own dates (item002)
+   entries: 7980   marked online: 1
+   entries with no last_online: 163
+   days from first_seen to last_online: median 5, 75% within 29, 90% within 124, 99% within 413
+   share last online within 7 days of first_seen: 57%
+   share last online within 30 days of first_seen: 76%
+   by family (entries): QakBot 4700, BumbleBee 847, TrickBot 648, Emotet 642, Dridex 562
+
+D. Addresses listed more than once (item002); no address is printed
+   distinct addresses: 7607
+   addresses listed more than once: 290
+   ...under two or more malware families: 81
+
+E. When each family stopped gaining new servers on the list (item002, by first_seen month)
+   QakBot    last month with 10+ new servers: 2024-01   last month with any: 2026-03
+   Pikabot   last month with 10+ new servers: 2024-03   last month with any: 2024-05
+   BumbleBee last month with 10+ new servers: 2023-05   last month with any: 2023-06
+   Emotet    last month with 10+ new servers: 2023-03   last month with any: 2023-03
+   QakBot new servers by month: 2023-06 394, 2023-07 280, 2023-08 213, 2023-09 0, 2023-10 2
+
+F. A live feed: URLhaus recent URLs (item005); no URL and no reporter is printed
+   dump 'Last updated': 2026-10-03 13:48:29
+   rows: 15889
+   oldest dateadded: 2026-09-03 00:00:13 (30 days before the dump)
+   added under 1 day ago:   779 URLs,  65.7% marked online
+   added 1-7 days ago   :  3735 URLs,  22.7% marked online
+   added 7-30 days ago  : 11375 URLs,   5.0% marked online
+   online share falls with age: YES
+   online rows whose last_online is within 24 h of the dump: 1930 of 1930
+   offline rows never seen online (no last_online): 1528
+   URLs on a bare IPv4 address: 90%
+   reporters: 96; the largest single reporter added 30% of rows
+report check: PASS (7 tagged findings, every figure in facts.txt)
+\`\`\`
+
+What to compare:
+
+- **Collection.** Seven items, no FAILED line. abuse.ch can be slow: on the day this was written, the aggressive list took 25 minutes through the lab's retries. The lab waits up to 10 minutes per attempt for the two feed files. If item005 fails and the NOTE about an Auth-Key appears, URLhaus has stopped serving the keyless dump: get a free Auth-Key from the abuse.ch Authentication Portal, which the API page (item006) links to, and download the recent dump from the address that page gives.
+- **A.** Every line must say \`YES\`. A \`NO\` means a page has been reworded: read it, and if the meaning changed, change the report.
+- **B.** \`rows on the recommended list: 5\` and \`header date equals newest first_seen: YES\`. The days since the newest \`last_online\` grow by one each day. If abuse.ch empties the file, as its FAQ says it already is, the rows fall to 0, the report check fails on F1, and F1 should say so.
+- **C-E.** These come from the aggressive list, whose newest entry is from March 2026. They should match exactly while abuse.ch leaves the list as it is.
+- **F.** URLhaus changes every few minutes, so every count differs. What must hold: the oldest entry about 30 days before the dump, \`online share falls with age: YES\`, and most of the online rows checked within 24 hours.
+
+\`\`\`text
+Verification: OK
+Time stamp: Oct  3 14:07:50 2026 GMT
+sealed files: 13
+13
+\`\`\`
+
+The seal lists 13 files: the scope, the log, the reader, the facts, the report, its check script, and 7 evidence items. The timestamp line shows your own run's time. If the lab stops with "the timestamp did not verify", the TSA refused this request: run step 6 again.`
+      }
+    },
+    caseStudy: {
+      title: "August 2023: a takedown, as the feed saw it — QakBot on Feodo Tracker",
+      body: `**What happened.** On Tuesday 29 August 2023 the US Department of Justice announced "a multinational operation involving actions in the United States, France, Germany, the Netherlands, the United Kingdom, Romania, and Latvia to disrupt the botnet and malware known as Qakbot and take down its infrastructure". The FBI had gained access to the botnet's servers and found "over 700,000 computers worldwide, including more than 200,000 in the United States, that appear to have been infected". It then redirected the botnet's traffic "to and through servers controlled by the FBI", which told infected computers to download a file "created by law enforcement that would uninstall the Qakbot malware". The release also announced the seizure of about $8.6 million in cryptocurrency.
+
+**What the feed shows.** Feodo Tracker tracked QakBot's control servers. Its full list (the lab's item002) gives the month in which it first saw each server:
+
+| Month | New QakBot servers on Feodo Tracker's list |
+|---|---|
+| June 2023 | 394 |
+| July 2023 | 280 |
+| August 2023 | 213 |
+| September 2023 | 0 |
+| October 2023 | 2 |
+
+The line falls to zero in the month after the announcement.
+
+**What came after.** On 22 May 2025 the Justice Department announced an indictment of the man it says led the group behind QakBot. An indictment is an accusation, not a conviction. The release says that "after the disruption and takedown of the Qakbot botnet", the defendant and his co-conspirators "continued their criminal activities", using "alternative methods". Feodo Tracker's list goes on gaining a few QakBot servers each year: the lab finds QakBot's last month with any new server well after 2023.
+
+**Tag each statement (S2.7).**
+
+- *The FBI took over QakBot's servers in August 2023.* ONE-WAY: the government that did it says so, in a press release. It is the best source for what the FBI did, and the only one here.
+- *Feodo Tracker saw no new QakBot servers in September 2023.* ONE-WAY: the tracker's own data, as exported today.
+- *The takedown caused the drop.* LEAD. Two records made by different hands, the press release and the feed, agree on the timing. That supports the explanation. It does not exclude the other two from the theory: the operators could have moved, or the tracker could have lost sight of them, in the same month.
+- *QakBot is gone.* REJECTED. The 2025 release says the group carried on, and the feed keeps listing a few servers. Feodo Tracker's FAQ says its datasets are empty because of takedowns. That is the provider's summary, and its own file does not quite agree with it (lab F1).
+
+**Why it matters for this module.**
+
+1. **A feed records what its tracker could see.** The drop in September 2023 is real in the data. What it means needs a second record.
+2. **Takedowns change feeds, and feeds go quiet.** A blocklist full of QakBot servers from July 2023 was out of date within weeks. A match against one of them in 2026 is AFTER-WINDOW at best.
+3. **"Empty" is a claim with an author.** The FAQ's explanation may well be right. Report it as the provider's explanation, next to the data that does and does not support it.
+
+**Sources read for this module.** US Department of Justice, Office of Public Affairs, "Qakbot Malware Disrupted in International Cyber Takedown", 29 August 2023 (justice.gov, now in its archives section). US Department of Justice, "Leader of Qakbot Malware Conspiracy Indicted for Involvement in Global Ransomware Scheme", 22 May 2025. Feodo Tracker's FAQ and its aggressive list, read 3 October 2026. The individual named in the 2025 release is not named here: the module needs the claim, not the person.`
+    },
+    challenges: [{
+      q: `A colleague finds that your school's network connected to an address on Feodo Tracker's aggressive list, and drafts: "A school computer contacted a QakBot command server. It is infected." What do you check before that sentence goes anywhere?`,
+      a: `**The date of the connection, against the entry's dates. Then the computer itself.**
+
+1. **Get both dates.** When did the connection happen? What are the entry's \`first_seen_utc\` and \`last_online\`? If the connection is months after \`last_online\`, the verdict is AFTER-WINDOW. The address has probably been given to someone else since. Feodo Tracker itself says the aggressive list "definitely will cause false positives".
+2. **Check the address for other entries.** The lab found 81 addresses listed under two or more families. A recycled address can carry several stories.
+3. **If it is IN-WINDOW, it is a lead, not a diagnosis.** Look at the computer: what process made the connection, and what else it did. An infection is shown on the machine, not on a list.
+4. **Rewrite the sentence.** "On [date], a school computer connected to an address that Feodo Tracker listed as a QakBot server from [date] to [date] (IN-WINDOW). The computer is being examined." Or, if it is AFTER-WINDOW: "The address was listed in 2023; the match is too old to suggest anything by itself."
+
+Never publish the address as "malicious" on the strength of an old entry. Its current user may have done nothing.`
+    },
+{
+      q: `A vendor's slide says: "Feodo Tracker's blocklist is empty, so the botnets it tracked are gone. Remove it from the firewall." What is right in that, and what is not?`,
+      a: `**The provider does say the datasets are empty, and gives takedowns as the reason. "Gone" is more than that shows.**
+
+- **Quote the provider exactly.** Feodo Tracker's FAQ says the datasets "are currently empty thanks to various successful takedowns". That is the provider's ONE-WAY explanation of its own data.
+- **Read the file too.** On the day the lab ran, the "empty" recommended list still had 5 rows, one marked online, last seen online 205 days earlier. The page and the file disagree. Report both.
+- **An empty list has three explanations.** The servers are gone, they moved somewhere the tracker cannot see, or the tracker's view changed. The lab found BumbleBee stopping on the list in June 2023, eleven months before Europol's Operation Endgame named it. For QakBot, the Justice Department said in 2025 that the group "continued their criminal activities" after the 2023 takedown, and the feed kept listing a few servers.
+- **The firewall decision is separate.** An empty list blocks nothing, so removing it changes little. What matters is what replaces it. abuse.ch's FAQ itself points readers to another provider's list.`
+    },
+{
+      q: `Your report says "URLhaus shows most malware URLs stop working within days" and cites the lab. A reviewer asks: "Whose measurement is that, and could one source have produced it?" How do you answer?`,
+      a: `**It is URLhaus's measurement, not yours, and you checked that it does not rest on one reporter.**
+
+1. **Name the measurer.** \`url_status\` and \`last_online\` are URLhaus's own records. Its free pages do not say how it checks a URL, and the lab never contacted one. Tag the finding ONE-WAY.
+2. **Say what it measures.** The share marked online falls with the age of the entry: about two thirds of URLs added in the last day, about one in twenty of those added a week or more ago. That is decay as URLhaus sees it.
+3. **Test the source's weight (Drill 3).** The largest reporter sent 30% of the dump. Without it, the curve keeps the same shape. That is S3.1's test for a source counted many times.
+4. **Name a second, independent measure.** Feodo Tracker is run by the same organisation, so it is not independent of URLhaus, even though its dates show the same fast decay. An independent check needs a feed from another organisation, or your own observation of servers you are allowed to test.`
+    }],
+    quiz: ["What is an indicator of compromise? Give four kinds, and say which kind a feed entry in this module is.", "Name four fields of a Feodo Tracker entry. For each, say who wrote it and one thing it does not prove.", "In the Pyramid of Pain, why are IP addresses near the bottom? Quote or paraphrase Bianco's reason.", "The lab found the median server on Feodo Tracker's full list was last seen online 5 days after it was first seen. Whose measurement is that, and what does it not include?", "Name the four verdicts for a match against a feed, plus the fifth for a match with no date. What does NOT-LISTED tell you, and what does it not?", "Why does Feodo Tracker say its aggressive list \"definitely will cause false positives\"? What did the lab count that fits that warning?", "Feodo Tracker's FAQ says its datasets are empty. Give three explanations an empty feed can have, and say which one the FAQ gives.", "The recommended list's header says \"Last updated\". What did the lab find that date to be, and what other two dates did it find?", "QakBot's new servers on the feed fell from 213 in August 2023 to 0 in September. What does the feed alone prove about why? What second record does the case study add, and how is the finding tagged?", "Why does the lab print counts and never addresses, URLs or reporters' names?", "A blocklist keeps each entry for a year after first seen. Using Drill 2, what is gained and what is lost?", "Why can no finding in this lab's report be tagged STRONG?"],
+    workbench: `> **What this trains.** The lab read two feeds and measured how fast their entries go stale. Here you grade a match the way an analyst must before anyone blocks or accuses, choose how long a blocklist should keep an entry, and test how much of a feed rests on one reporter. No drill uses the network: Drill 1 brings its own made-up feed, and Drills 2 and 3 read the files the lab saved.
+
+#### 🟢 Drill 1 — a match on a feed, graded by date ~2 min
+
+**Goal.** A firewall log shows connections to addresses on a feed. Grade each one IN-WINDOW, AFTER-WINDOW, BEFORE-LISTING, NOT-LISTED or UNKNOWN.
+
+**Done when.** You can say why the same address gets two different verdicts, and what a NOT-LISTED verdict does not tell you.
+
+<details><summary>Walkthrough</summary>
+
+The feed is made up, in Feodo Tracker's format. Its addresses come from the three ranges that RFC 5737 sets aside for documentation, so the drill points at nobody's server.
+
+\`\`\`bash
+cd ~/scouts-case/s4_4 && mkdir -p drill1 && cd drill1 || exit 1
+# A made-up feed in Feodo Tracker's format. The addresses are from the ranges RFC 5737 reserves for
+# documentation, so none of them is anyone's server.
+cat > feed.csv <<'FEED'
+"first_seen_utc","dst_ip","dst_port","c2_status","last_online","malware"
+"2023-06-02 08:11:40","192.0.2.10","443","offline","2023-06-09","QakBot"
+"2023-07-15 19:02:13","192.0.2.20","443","offline","2023-08-24","QakBot"
+"2024-02-20 03:30:00","198.51.100.7","8080","offline","2024-03-01","Pikabot"
+"2022-11-03 12:00:00","203.0.113.5","443","offline","2022-11-04","Emotet"
+"2023-04-10 06:45:00","203.0.113.5","2222","offline","2023-04-30","QakBot"
+FEED
+# Seven connections from a firewall log, as (date, address). One has no date.
+cat > sightings.tsv <<'LOG'
+2023-06-05	192.0.2.10
+2023-08-28	192.0.2.20
+2026-09-30	192.0.2.20
+2024-01-15	198.51.100.7
+2023-04-20	203.0.113.5
+-	192.0.2.10
+2026-09-30	198.51.100.99
+LOG
+python3 - <<'PY'
+import csv, datetime as dt
+GRACE = 7   # days after last_online that still count as IN-WINDOW
+d = lambda s: dt.date.fromisoformat(s[:10])
+feed = {}
+for r in csv.DictReader(open("feed.csv")): feed.setdefault(r["dst_ip"], []).append(r)
+for line in open("sightings.tsv"):
+    when, ip = line.split()
+    rows = feed.get(ip, [])
+    if not rows: v, why = "NOT-LISTED", "not on this feed - which is all it shows"
+    elif when == "-": v, why = "UNKNOWN", "no date on the sighting"
+    else:
+        w = d(when); best = None
+        for r in rows:
+            f, l = d(r["first_seen_utc"]), d(r["last_online"])
+            if f <= w <= l + dt.timedelta(days=GRACE): best = ("IN-WINDOW", "%s seen %s to %s" % (r["malware"], f, l)); break
+            if w > l: best = best or ("AFTER-WINDOW", "%d days after %s was last seen" % ((w - l).days, r["malware"]))
+            elif w < f: best = best or ("BEFORE-LISTING", "%d days before %s was first seen" % ((f - w).days, r["malware"]))
+        v, why = best
+    print("%-10s %-14s %-15s %s" % (when, ip, v, why))
+print("entries per address: " + ", ".join("%s %d" % (k, len(v)) for k, v in feed.items() if len(v) > 1))
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+2023-06-05 192.0.2.10     IN-WINDOW       QakBot seen 2023-06-02 to 2023-06-09
+2023-08-28 192.0.2.20     IN-WINDOW       QakBot seen 2023-07-15 to 2023-08-24
+2026-09-30 192.0.2.20     AFTER-WINDOW    1133 days after QakBot was last seen
+2024-01-15 198.51.100.7   BEFORE-LISTING  36 days before Pikabot was first seen
+2023-04-20 203.0.113.5    IN-WINDOW       QakBot seen 2023-04-10 to 2023-04-30
+-          192.0.2.10     UNKNOWN         no date on the sighting
+2026-09-30 198.51.100.99  NOT-LISTED      not on this feed - which is all it shows
+entries per address: 203.0.113.5 2
+\`\`\`
+
+- **The date decides.** 192.0.2.20 is IN-WINDOW on 28 August 2023, four days after the tracker last saw it, and AFTER-WINDOW on 30 September 2026. Same address, same feed, opposite meanings. The drill counts up to 7 days after \`last_online\` as IN-WINDOW, because a tracker sees a server only when it looks. That grace period is a choice: write it down in your report.
+- **BEFORE-LISTING is a question.** The connection to 198.51.100.7 came 36 days before the tracker first saw the address. The server may have been running unseen, or the address may have belonged to someone else. Look for other evidence from that date.
+- **One address, two families.** 203.0.113.5 is listed under Emotet in 2022 and under QakBot in 2023. The sighting falls in the QakBot window, so that is the entry that counts. The lab found 81 addresses like this on the real list.
+- **UNKNOWN and NOT-LISTED are honest answers.** A sighting with no date cannot be graded. An address that is not on the feed is not on this feed, and that is all. It is not a sign that the address is safe.
+
+</details>
+
+#### 🟡 Drill 2 — how long should a blocklist keep an entry? ~1 min
+
+**Goal.** Use Feodo Tracker's own dates to see how long servers stayed up, family by family, and what that means for a blocklist that keeps each entry for a fixed time.
+
+**Done when.** You can state the trade-off in one sentence with two numbers in it.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_4 || exit 1
+# Reads the lab's saved copy of the aggressive list (item002). No network.
+python3 - <<'PY'
+import csv
+from collections import defaultdict
+import datetime as dt
+day = lambda s: dt.date(int(s[:4]), int(s[5:7]), int(s[8:10]))
+rows = list(csv.reader(l for l in open("evidence/item002.csv") if not l.startswith("#")))[1:]
+life = defaultdict(list)
+for r in rows:
+    if r[4]: life[r[5]].append((day(r[4]) - day(r[0])).days)
+print("share of servers still seen at least N days after first seen (Feodo Tracker's own dates)")
+print("%-10s %6s %7s %7s %7s %7s" % ("family", "n", ">=1", ">=7", ">=30", ">=90"))
+for fam in sorted(life, key=lambda f: -len(life[f]))[:6]:
+    x = life[fam]; n = len(x)
+    print("%-10s %6d" % (fam, n) + "".join(" %6.0f%%" % (100 * sum(v >= k for v in x) / n) for k in (1, 7, 30, 90)))
+allx = [v for x in life.values() for v in x]
+print("a blocklist keeps each entry K days after first seen. The trade-off, over all families:")
+print("%5s  %-32s  %s" % ("K", "servers still seen after K days", "share of blocked days spent on a server already gone"))
+for keep in (7, 30, 90, 365):
+    late = 100 * sum(v > keep for v in allx) / len(allx)
+    dead = 100 * sum(max(0, keep - v) for v in allx) / (keep * len(allx))
+    print("%5d  %31.0f%%  %.0f%%" % (keep, late, dead))
+PY
+\`\`\`
+
+It printed (from the aggressive list as it stood on 3 October 2026; its newest entry is from March 2026, so your numbers should match unless abuse.ch changes the list):
+
+\`\`\`text
+share of servers still seen at least N days after first seen (Feodo Tracker's own dates)
+family          n     >=1     >=7    >=30    >=90
+QakBot       4700     78%     41%     21%     11%
+BumbleBee     847     47%     32%     14%      2%
+Emotet        618     95%     57%     39%     25%
+Dridex        558     98%     81%     57%     36%
+TrickBot      519     97%     82%     52%     29%
+Pikabot       291     84%     16%      7%      1%
+a blocklist keeps each entry K days after first seen. The trade-off, over all families:
+    K  servers still seen after K days   share of blocked days spent on a server already gone
+    7                               43%  43%
+   30                               24%  62%
+   90                               13%  75%
+  365                                1%  90%
+\`\`\`
+
+- **Families differ.** Dridex and TrickBot servers lasted. 81% and 82% were still seen a week after first seen. Pikabot's were short-lived: 16% lasted a week. One retention time does not fit every family.
+- **The trade-off.** Keep entries 7 days, and 43% of servers are still being seen when their entries are dropped. Keep them a year, and 90% of the days spent blocking go on servers the tracker had already stopped seeing. Those addresses may by then belong to someone else, and blocking them is the false positive Feodo Tracker warns about.
+- **The numbers are the tracker's view.** "Seen" means seen by Feodo Tracker. A server it stopped watching counts as gone in this table, whatever it really did.
+- **This is why feeds offer two lists.** The recommended list is the short-retention choice. The aggressive list is the keep-everything choice. Pick one knowing what each costs.
+
+</details>
+
+#### 🔴 Drill 3 — how much of a feed is one reporter? ~1 min
+
+**Goal.** As in S3.1, a source counted many times is still one source. Find how much of URLhaus's recent dump comes from its largest reporters, and whether the lab's decay result depends on them.
+
+**Done when.** You can say whether finding F7 survives without the largest reporter, and why the reporters are numbered rather than named.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_4 || exit 1
+# Reads the lab's saved URLhaus dump (item005). No network. Reporters are numbered by size, not named.
+python3 - <<'PY'
+import csv, datetime as dt
+from collections import Counter
+lines = open("evidence/item005.csv", encoding="utf-8").read().splitlines()
+rows = list(csv.reader(l for l in lines if l and not l.startswith("#")))
+ts = lambda s: dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+ref = max(ts(r[1]) for r in rows)
+rank = {name: "R%d" % (i + 1) for i, (name, _) in enumerate(Counter(r[8] for r in rows).most_common())}
+def curve(rs):
+    out = []
+    for lo, hi in ((0, 1), (1, 7), (7, 31)):
+        g = [r for r in rs if lo <= (ref - ts(r[1])).total_seconds() / 86400 < hi]
+        out.append("%5.1f%%" % (100 * sum(r[3] == "online" for r in g) / len(g)) if g else "    - ")
+    return "  ".join(out)
+print("%-8s %6s %6s   online if added: <1 day  1-7 days  7-30 days   bare-IP URLs" % ("reporter", "rows", "share"))
+c = Counter(rank[r[8]] for r in rows)
+for rk, n in c.most_common(4):
+    rs = [r for r in rows if rank[r[8]] == rk]
+    ip = sum(r[2].split("/")[2].replace(".", "").split(":")[0].isdigit() for r in rs)
+    print("%-8s %6d %5.0f%%   %s   %5.0f%%" % (rk, n, 100 * n / len(rows), curve(rs), 100 * ip / n))
+print("%-8s %6d %5s   %s" % ("all", len(rows), "100%", curve(rows)))
+print("%-8s %6d %5s   %s" % ("not R1", sum(rank[r[8]] != "R1" for r in rows), "", curve([r for r in rows if rank[r[8]] != "R1"])))
+PY
+\`\`\`
+
+It printed, on 3 October 2026 (URLhaus changes every few minutes, so your counts will differ):
+
+\`\`\`text
+reporter   rows  share   online if added: <1 day  1-7 days  7-30 days   bare-IP URLs
+R1         4736    30%    69.8%   18.2%    3.1%     100%
+R2         2576    16%    63.1%   19.9%    1.1%     100%
+R3         2426    15%       -     8.3%    1.7%      99%
+R4         1513    10%    60.0%   36.9%    7.7%      91%
+all       15889  100%    65.7%   22.7%    5.0%
+not R1    11153          62.2%   28.5%    5.5%
+\`\`\`
+
+- **Four reporters sent seven rows in ten.** The largest sent 30% of the dump. If that reporter's tooling had a fault, a third of the feed would share it.
+- **The decay holds without them.** Drop R1 and the online share still falls from about 62% (under a day) to about 5% (7-30 days). F7 does not rest on one reporter. That is the check S3.1 asks for: a finding that survives the loss of its biggest source is stronger.
+- **Reporters see different things.** The top two reported only URLs on bare IP addresses, while the fourth also reported some on domain names. What a feed contains follows whoever reports most.
+- **Numbered, not named.** The reporters are public handles on URLhaus. This drill needs to know their share, not who they are, so it does not print them.
+
+</details>`,
+    tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Read each field of a feed entry and said who wrote it and what it proves", "Found three different dates on one feed file, and what each one dates", "Measured indicator decay from a feed's own first and last dates", "Found a provider's page and its file disagreeing, and reported both", "Graded matches against a feed by date (Drill 1)", "Chose a blocklist retention time and stated its trade-off (Drill 2)", "Tested whether a finding rests on one reporter (Drill 3)"]
   }, {
     id: "s4_6",
     level: 4,
