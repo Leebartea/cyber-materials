@@ -1015,7 +1015,7 @@ sntp -t 3 time.apple.com 2>/dev/null | awk '{for(i=2;i<NF;i++) if($i=="+/-") pri
 # 3. Collect one item and log it: id, UTC time, who, where from, SHA-256.
 URL="https://rdap.verisign.com/com/v1/domain/example.com"
 T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-curl -s -o evidence/item001.json "$URL"
+curl -sf -o evidence/item001.json "$URL" || { echo "STOP: the download failed, so there is nothing to log - check your connection and run the lab again"; exit 1; }
 H=$(shasum -a 256 evidence/item001.json | cut -d' ' -f1)
 printf "item001\\t%s\\t%s\\t%s\\t%s\\n" "$T" "$ANALYST" "$URL" "$H" >> collection_log.tsv
 shasum -a 256 evidence/item001.json > evidence/SHA256SUMS
@@ -1282,7 +1282,7 @@ SCOPE
 collect() {
   local T H
   T=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  curl -sL -o "evidence/$1.json" "$2"
+  curl -sfL -o "evidence/$1.json" "$2" || { echo "STOP: $1 failed, so nothing was logged for it - check your connection and run the lab again"; exit 1; }
   H=$(shasum -a 256 "evidence/$1.json" | cut -d' ' -f1)
   printf "%s\\t%s\\t%s\\t%s\\t%s\\n" "$1" "$T" "$ANALYST" "$2" "$H" >> collection_log.tsv
 }
@@ -2315,7 +2315,7 @@ jq -r '"breaches recorded against adobe.com: \\(length) (\\(map(.Name) | join(",
 #    command line: it stays in your shell history. The example below is famous for being weak.
 PW='P@ssw0rd'
 H=$(printf %s "$PW" | shasum -a 1 | cut -d' ' -f1 | tr a-f A-F)
-echo "SHA-1, computed on this Mac: $H"
+echo "SHA-1, computed on this computer: $H"
 echo "all that is sent to the API: \${H:0:5}"
 collect range "https://api.pwnedpasswords.com/range/\${H:0:5}" txt -H "Add-Padding: true"
 tr -d '\\r' < evidence/range.txt | awk -F: -v s="\${H:5}" '{n++} $2 == 0 {z++} $1 == s {hit = $2}
@@ -2382,7 +2382,7 @@ breaches in the catalogue: 1038
 Adobe (adobe.com): breach date 2013-10-04, added 2013-12-04, verified true
   152445165 addresses | data classes: Email addresses, Password hints, Passwords, Usernames
 breaches recorded against adobe.com: 1 (Adobe)
-SHA-1, computed on this Mac: 21BD12DC183F740EE76F27B78EB39C8AD972A757
+SHA-1, computed on this computer: 21BD12DC183F740EE76F27B78EB39C8AD972A757
 all that is sent to the API: 21BD1
 rows returned: 1976, of which padding (count 0): 51
 this suffix: seen 6421042 times
@@ -8729,7 +8729,7 @@ tampered copy: block digest MISMATCH
 
 Your times, hashes and the IANA page's dates will differ. Every WARC has new record IDs and dates, so its SHA-256 changes each run, and IANA revises its page. These should match exactly:
 
-- **The known answers.**
+- **The known answers' \`/plain\` and \`/chunked\` rows.** The two gzip rows hash bytes made by your \`python3\`, and the gzip header's last byte names the system that wrote it. On a Mac, Python 3.11 and 3.12 print \`sha1:2FAV3TQB...\` as the page does; Apple's \`/usr/bin/python3\` (3.9.6) and Python 3.13 or later print \`sha1:Q2JFDQML...\`. The checker compares the tool with *your* known answers, so the validation table is the same either way.
 - **The validation table.**
 - **The summary line** (if your Wget is 1.25.0).
 - **\`DIFFERS\`** for both real pages, if the servers still send them chunked.
@@ -12760,8 +12760,9 @@ get item007.html "$CH/search/disqualified-officers?q=kihonzi+buzhaga"
 # F. The aggregator: OpenSanctions' merged entity. The id a search engine gave on 1 October 2026 now
 #    redirects: keep the redirect itself (headers only) as evidence, then fetch the page it points to.
 OS=https://www.opensanctions.org
-curl -s --retry 5 --retry-all-errors -m 60 -A "$UA" -o /dev/null -D evidence/item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/"
-log item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/ (headers only)" "$(shasum -a 256 evidence/item008.txt | cut -d' ' -f1)"
+if curl -s --retry 5 --retry-all-errors -m 60 -A "$UA" -o /dev/null -D evidence/item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/" && [ -s evidence/item008.txt ]; then
+  log item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/ (headers only)" "$(shasum -a 256 evidence/item008.txt | cut -d' ' -f1)"
+else rm -f evidence/item008.txt; log item008.txt "$OS/entities/NK-XQyqxmZPMezqQiDeHoGQjf/ (headers only)" FAILED; fi
 NEXT=$(grep -i '^location: /entities/' evidence/item008.txt | tr -d '\\r' | cut -d' ' -f2)
 get item009.html "$OS\${NEXT:-/entities/NK-XQyqxmZPMezqQiDeHoGQjf/}"
 # The case: OFAC's own notice of the 2019 deletions, and Treasury's notice to Congress (December 2018).

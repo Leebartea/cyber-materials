@@ -1672,6 +1672,26 @@ def check_zsh_comments(curricula):
         ok("labs: zsh comments", f"{courses} courses: the first Mac lab turns on zsh interactivecomments")
 
 
+def check_curl_failures(cur):
+    """A123: a Scouts Mac lab never saves a download without noticing that it failed.
+    Caught (Scouts ledger Batch 29): S1.1 and S1.2 ran `curl -s -o evidence/...` with no -f and no
+    status check, so a failed fetch was hashed and logged as an evidence item and the lab carried on."""
+    hits, n = [], 0
+    for m in cur.get("modules", []):
+        lab = m.get("lab")
+        if not isinstance(lab, dict) or not isinstance(lab.get("mac"), str):
+            continue
+        for line in _runnable_lines(lab["mac"]).split("\n"):
+            if re.search(r"\bcurl\b", line) and re.search(r"\s-[a-zA-Z]*o\b", line):
+                n += 1
+                if not re.search(r"\s-[a-zA-Z]*f|http_code|\|\||^\s*if\s+curl\b", line):
+                    hits.append(f"{m.get('id')}: {line.strip()[:70]}")
+    if hits:
+        warn("labs: curl failures", "A123: curl saves a file with no -f, status check or || STOP: " + "; ".join(hits))
+    else:
+        ok("labs: curl failures", f"scouts: {n} Mac curl downloads, each stops or logs on failure")
+
+
 # ── 6i. AppSec: the same two Mac defects, in a course with no lab.mac field ──
 # Caught (AppSec ledger Batch 9, rows 77–78), pasted into `zsh -i` with an empty ZDOTDIR on macOS 27:
 #  - M0.0's first command, `uname -m   # "arm64" or …`, printed `usage: uname` and
@@ -1937,6 +1957,8 @@ def main():
     check_lab_self_checks({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_mac_python_installs({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
     check_zsh_comments({k: v for k, v in curricula.items() if k in ("scouts", "guardians")})
+    if "scouts" in curricula:
+        check_curl_failures(curricula["scouts"])
     if "appsec" in curricula:
         check_appsec_shell_blocks(curricula["appsec"])
 
