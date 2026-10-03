@@ -886,7 +886,7 @@ Level 4 follows networks of actors: the companies, code, servers and accounts be
 | S4.2 | Public code and repositories: what a commit's author field proves | ✅ available |
 | S4.3 | Phishing infrastructure: what a shared icon or TLS fingerprint proves | ✅ available |
 | S4.4 | Threat-intelligence feeds: what an indicator proves, and when it goes stale | ✅ available |
-| — | Coordinated behaviour: accounts, clusters and platform takedown reports | planned |
+| S4.5 | Coordinated behaviour: accounts, clusters and platform takedown reports | ✅ available |
 | S4.6 | Reproducible pipelines: rerun it and get the same bytes, and what "the same" proves | ✅ available |
 | — | Capstone: an infrastructure attribution file | planned |
 
@@ -15567,6 +15567,799 @@ not R1    11153          62.2%   28.5%    5.5%
 
 </details>`,
     tracker: ["Ran the lab: every item hashed, no FAILED line, report check PASS, timestamp verified", "Read each field of a feed entry and said who wrote it and what it proves", "Found three different dates on one feed file, and what each one dates", "Measured indicator decay from a feed's own first and last dates", "Found a provider's page and its file disagreeing, and reported both", "Graded matches against a feed by date (Drill 1)", "Chose a blocklist retention time and stated its trade-off (Drill 2)", "Tested whether a finding rests on one reporter (Drill 3)"]
+  }, {
+    id: "s4_5",
+    level: 4,
+    num: "S4.5",
+    title: "Coordinated Behaviour — What Shared Timing, Text and Links Prove, What a Takedown Report Proves, and Why Coordinated Is Not Fake",
+    objective: `Read two takedown reports for what they rest on, then test a made-up forum for accounts that act together. Measure three traces (timing, text and rare links) against a shuffled null with a stated false-positive rate, sort pairs into four verdicts, and open the answer key last. Then move alpha, the time window and the null, test whether two signals are really one, and write a claim ladder that stops where an outsider's evidence stops.`,
+    theory: `#### What this module adds
+
+S4.3 and S4.4 followed servers. This module follows accounts. An **influence operation** uses many accounts to make a message look more popular, more local or more independent than it is. Platforms remove such networks and publish **takedown reports**. Researchers and journalists then quote those reports, and sometimes try to find a network themselves from public posts.
+
+The module asks two questions that are easy to blur. **Are these accounts acting together?** That is coordination, and an outsider can measure some of it. **Are these accounts fake?** That is a question about identity, and the records that answer it are held by the platform.
+
+#### Coordinated is not the same as fake
+
+Meta's policy defines **Coordinated Inauthentic Behavior (CIB)** as "particularly sophisticated forms of Inauthentic Behavior where false identities are central to the operation". Its takedown reports say: "we focus on behavior, not content — no matter who's behind them, what they post or whether they're foreign or domestic."
+
+Two things follow:
+
+- **Coordination alone is not the offence.** A charity's supporters, a band's fans and a shop with its owner all act together. Meta's definition needs false identities as well.
+- **Content is not the test.** An opinion you dislike is not evidence of a network, and an opinion you share is not evidence against one.
+
+The method paper this module uses says the same about its own results. Pacheco and colleagues (ICWSM 2021) find coordinated accounts "regardless of their automated/organic nature or malicious/benign intent", and they say their method "does not characterize the coordination as malicious or benign".
+
+#### Three traces an outsider can see
+
+Accounts that act together leave **behavioural traces** in public posts:
+
+| Trace | What is shared | The innocent look-alike |
+|---|---|---|
+| **Timing** | Posting in the same short window, again and again | A news event: thousands post within minutes, once |
+| **Text** | The same words, after removing case and punctuation | A template: a charity asks its supporters to copy its words |
+| **Links** | The same rare website | A popular site that nearly everyone links to |
+
+Pacheco and colleagues give the third look-alike in their own words: accounts sharing the same memes "are not necessarily suspicious if those memes are very popular". So the lab counts a link only if fewer than one account in five uses its website. They also show that the width of "the same time" is a choice. They used 30-minute windows, and wrote that longer windows, such as a day, "produce many false positive matches". The lab uses 10 minutes, and Drill 2 changes it.
+
+#### More than chance: the shuffled null
+
+Two accounts that post 30 times each in a fortnight will share a 10-minute window now and then by chance. The question is never "do they overlap?" but "do they overlap **more than chance would give**?"
+
+To measure chance, the lab uses a **permutation test**. Penn State's statistics course puts it simply: "mix up the labels". The lab keeps every post and shuffles which account wrote it, 20 times, with a fixed seed. Each account keeps its number of posts. That gives a **null**: the overlaps you get when nobody is coordinating. A pair's overlap counts only if it reaches a value the null almost never reaches.
+
+**alpha** is how rare "almost never" must be. At alpha 0.001, at most one null pair in a thousand may reach the threshold. The lab prints the number of pairs that chance alone would put over each threshold, so every result comes with its own false-positive rate.
+
+That number matters because the lab makes many tests. 60 accounts give 1,770 pairs. The same Penn State course warns that if you run 10,000 tests where nothing is going on, "we expect about 5% of the tests (i.e. about 500) to have p < 0.05". A rule that sounds strict for one pair is loose for 1,770.
+
+#### Four verdicts for a pair of accounts
+
+| Verdict | When | What it supports |
+|---|---|---|
+| **COORDINATED-LEAD** | Two or more of the three traces are above their thresholds | A lead: these accounts probably act together. It says nothing about who runs them, or whether they are fake |
+| **SINGLE-SIGNAL** | One trace is above its threshold | A question. One trace has an innocent explanation more often than not |
+| **COINCIDENCE-LIKELY** | The accounts overlap, but no more than chance gives | Nothing. Most pairs in any busy forum land here |
+| **UNKNOWN** | One of the accounts has too few posts to test (fewer than 10 in the lab) | Nothing either way. A new or quiet member of a network hides here |
+
+"Two independent signals" means two traces that do not come from the same posts. If every campaign post carries both a campaign text and a campaign link, the text and the link are closer to one signal than two. Drill 3 measures this.
+
+#### What a takedown report proves
+
+A platform holds records that outsiders cannot see: how its accounts were set up and which of them are linked. Meta's Moldova report, for example, gives the network's ad spending and the currency it was paid in. When a platform says a network is fake, it says so from records like these, and it does not publish them. The Moldova report gives counts and a list of threat indicators, and warns that "the mere sharing of these operations' links or engaging with them by online users would be insufficient to attribute accounts to a given campaign without corroborating evidence."
+
+So in S2.7's terms, a takedown report is **ONE-WAY**: a named organisation's statement about its own platform. It is valuable, and it can be wrong. An outsider can test only what the report publishes, and two reports from different organisations about the same network are worth more than one.
+
+**A conflict of interest, declared.** This course was written with the help of an AI assistant made by Anthropic, and the case study quotes Anthropic's report about the misuse of its own assistant. That report is a vendor's statement about its own product, and the lab checks only that the report says what the module says it says. Read it as ONE-WAY, and set it beside Meta's report, which comes from a different organisation about a different operation.
+
+#### Hard rules for this work
+
+- **No account creation, ever.** No sock puppets, no fake profiles, no "research accounts" that pose as someone else.
+- **No contact.** Do not follow, message, reply to or report the accounts you study, and do not join their groups.
+- **Aggregates, not people.** Report counts and patterns. Never publish the handle or name of a private person as "part of a network": a COORDINATED-LEAD can be a bakery.
+- **No unmasking.** Finding out who runs an account is not this module's work, and it is how innocent people get named.
+- **Work on made-up data first.** The lab's forum is generated from a seed. Real platform data has terms of use and real people in it.`,
+    lab: {
+      mac: `# LAB: coordinated behaviour - what shared timing, shared text and shared links prove, and what they never prove (Apple Silicon)
+# ETHICS: the lab studies a MADE-UP forum. Its 60 accounts and their posts are generated on this Mac from a
+# seed: no real account is read, followed, created or contacted, and no real person is named. It also reads
+# two public reports about influence operations and three method pages, and names no person from them.
+# LIMITS: five public pages, about 0.9 MB in all. No account, no key, no platform API, no scraping.
+# NO NEW TOOL: curl, openssl and python3 (standard library only), as in Level 3.
+ANALYST=analyst01                      # a role name, not your real name
+UA="CyberScoutsLab/1.0"
+mkdir -p ~/scouts-case/s4_5 && cd ~/scouts-case/s4_5 || exit 1
+rm -rf evidence scope.txt collection_log.tsv rng.py gen.py read_sources.py coord.py rerun.tsv rerun_key.txt \\
+  facts.txt report.md check_report.sh SEAL.sha256 SEAL.tsq SEAL.tsr timestamp_log.tsv freetsa_cacert.pem \\
+  freetsa_tsa.crt __pycache__ && mkdir evidence
+
+# 1. The question and the scope, written before the first request.
+cat > scope.txt <<'SCOPE'
+case:         S4.5 coordinated behaviour: what a takedown report proves, and what an outsider can test
+question:     When several accounts act together, what shows it, and what would show that they are fake?
+              A. the reports: what do a model maker's report and a platform's takedown report say, and on whose data?
+              B. the method: what do the method pages say coordination is, and how is "more than chance" measured?
+              C. the data: in a made-up forum with a planted network, which pairs of accounts share more than chance?
+              D. the look-alikes: what do a news event, a charity's template, a popular link and a bakery look like?
+authorised:   self (public pages; a dataset generated on this Mac)
+in scope:     www.anthropic.com (1 page); about.fb.com (1 page); arxiv.org (1 page); online.stat.psu.edu (2 pages)
+out of scope: every real account, post and link named in the reports (never opened); any platform's API;
+              account creation of any kind; naming or unmasking anyone
+SCOPE
+
+# 2. Collect. Every response is saved and hashed before anything reads it.
+log() { printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" "$2" "$3" >> collection_log.tsv; }
+get() {  # id url   (200 only)
+  curl -sf --compressed --retry 5 --retry-all-errors --retry-delay 3 -m 120 -A "$UA" -o "evidence/$1" "$2"
+  if [ -s "evidence/$1" ]; then log "$1" "$2" "$(shasum -a 256 "evidence/$1" | cut -d' ' -f1)"
+  else rm -f "evidence/$1"; log "$1" "$2" FAILED; fi
+}
+# A. A model maker's report about its own product, and a platform's report about its own takedown.
+get item001.html https://www.anthropic.com/news/detecting-and-countering-malicious-uses-of-claude-march-2025
+get item002.html https://about.fb.com/news/2024/10/taking-action-against-coordinated-inauthentic-behavior-in-moldova/
+# B. A peer-reviewed method for finding coordination, and a university's lessons on permutation tests and many tests.
+get item003.html https://arxiv.org/html/2001.05658v2
+get item004.html https://online.stat.psu.edu/stat555/node/35/
+get item005.html https://online.stat.psu.edu/stat555/node/56/
+grep -q 'FAILED$' collection_log.tsv && { echo "STOP: a FAILED line in the log - rerun the lab"; exit 1; }
+
+# 3. Make the data: a made-up forum, from a seed. Every Python 3 must make the same file, so the random numbers
+#    come from splitmix64, written out below, and are checked against its published known answers first.
+cat > rng.py <<'PY'
+# splitmix64, written out so that every Python 3 gives the same numbers from the same seed.
+M = (1 << 64) - 1
+class Rng:
+    def __init__(s, seed): s.x = seed & M
+    def u64(s):
+        s.x = (s.x + 0x9E3779B97F4A7C15) & M
+        z = s.x
+        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & M
+        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & M
+        return z ^ (z >> 31)
+    def below(s, n): return s.u64() % n
+    def pick(s, seq): return seq[s.below(len(seq))]
+    def chance(s, pct): return s.below(100) < pct
+    def shuffle(s, a):
+        for i in range(len(a) - 1, 0, -1):
+            j = s.below(i + 1); a[i], a[j] = a[j], a[i]
+PY
+cat > gen.py <<'PY'
+import datetime as dt, sys
+# A made-up forum: 60 fictional accounts, two weeks of posts. One hidden network, three innocent look-alikes.
+from rng import Rng
+r = Rng(int(sys.argv[1]))      # usage: python3 gen.py SEED POSTS ANSWER_KEY
+T0 = dt.datetime(2026, 3, 2)
+WORDS = ("bus late again today rain market bread school match goal team park dog walk coffee "
+         "library book exam lunch train bike road repair music concert garden plants weekend "
+         "film cinema queue shop price cheap new old friend family birthday cake holiday beach "
+         "cold warm sunny cloud power cut water bill phone broken fixed great awful funny quiet "
+         "busy street lights night morning noon early tired happy").split()
+DOMAINS = ["news.example"] * 12 + ["sport.example"] * 4 + ["weather.example"] * 3 + ["video.example"] * 4 + \\
+          ["recipes.example", "maps.example", "shop.example", "music.example", "photos.example", "jobs.example"]
+HOURS = [7, 8, 8, 9, 12, 12, 13, 16, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 23]
+CAMPAIGN = ["the council is hiding the real numbers", "ask why the new road money went missing",
+            "nobody voted for this plan", "share before they delete it", "the official story does not add up",
+            "they think we will not notice"]
+SITES = ["daily-truth.example", "real-voice.example", "the-facts.example"]
+accts = ["acct%02d" % i for i in range(1, 61)]
+order = accts[:]; r.shuffle(order)
+net = sorted(order[:8])                        # the hidden network
+late = net[-1]                                  # one member joined late: only a few posts
+new = sorted(order[8:11])                       # three ordinary new accounts: only a few posts
+walk = sorted(order[11:25])                     # a charity's supporters post its two template messages
+posts = []
+def post(a, minute, text, link):
+    posts.append((T0 + dt.timedelta(minutes=minute), a, text, link))
+def chatter():
+    return " ".join(r.pick(WORDS) for _ in range(5 + r.below(6)))
+def ordinary(a, n):
+    for _ in range(n):
+        m = r.below(14) * 1440 + r.pick(HOURS) * 60 + r.below(60)
+        link = ""
+        if r.chance(40):
+            d = r.pick(DOMAINS) if r.chance(90) else "blog%s.example" % a[-2:]
+            link = "https://%s/%d" % (d, r.below(9000) + 1000)
+        post(a, m, chatter(), link)
+for a in accts:
+    n = 4 + r.below(5) if a in new or a == late else 20 + r.below(26)
+    ordinary(a, n if a not in net or a == late else 10 + r.below(5))
+# The network: 22 moments; most members post a reworded campaign line within 8 minutes, often with a link.
+for _ in range(22):
+    m0 = r.below(14) * 1440 + r.pick(HOURS) * 60 + r.below(50)
+    line = r.pick(CAMPAIGN)
+    for a in net:
+        if a == late or not r.chance(70): continue
+        w = line.split()
+        text = " ".join(w).upper() + "!!" if r.chance(30) else (w[0].capitalize() + " " + " ".join(w[1:]) + ".")
+        link = "https://%s/p/%d" % (r.pick(SITES), r.below(900) + 100) if r.chance(80) else ""
+        post(a, m0 + r.below(9), text, link)
+for _ in range(2):                              # the late member: two campaign posts, at its own times
+    post(late, r.below(14) * 1440 + r.pick(HOURS) * 60 + r.below(60), r.pick(CAMPAIGN), "https://%s/p/%d" % (r.pick(SITES), r.below(900) + 100))
+# Look-alike 1: two news events; many ordinary accounts post about each within 20 minutes.
+for day, hour, n, topic in ((5, 18, 30, "storm flood river road closed"), (10, 20, 25, "final match goal win cup")):
+    who = [a for a in accts if a not in net]; r.shuffle(who)
+    for a in who[:n]:
+        tw = topic.split(); r.shuffle(tw)
+        post(a, day * 1440 + hour * 60 + r.below(20), " ".join(tw[:3]) + " " + chatter(), "https://news.example/%d" % (r.below(9000) + 1000))
+# Look-alike 2: a charity's four template posts, copied word for word by its supporters on their own days.
+for text in ("Join the Walk for Water this Saturday! #WalkForWater", "Only 3 days to the Walk for Water! #WalkForWater",
+             "See you at the park gate at 10 for the Walk for Water #WalkForWater", "Thank you walkers - we raised the money! #WalkForWater"):
+    for a in walk:
+        post(a, r.below(14) * 1440 + r.pick(HOURS) * 60 + r.below(60), text, "https://walkforwater.example/")
+# Look-alike 4: a bakery's account re-posts its owner's posts within minutes. Coordinated, and nobody is hiding.
+owner, shop = sorted(order[25:27])
+for _ in range(12):
+    m = r.below(14) * 1440 + r.pick(HOURS) * 60 + r.below(50)
+    post(owner, m, chatter(), "https://bakery.example/%d" % (r.below(90) + 10))
+    post(shop, m + 2 + r.below(6), "From the bakery: " + chatter(), "https://bakery-orders.example/" if r.chance(50) else "https://bakery.example/")
+# Look-alike 3 is already in the data: news.example, the link nearly everyone shares.
+posts.sort()
+with open(sys.argv[2], "w", encoding="utf-8", newline="\\n") as f:
+    f.write("time_utc\\taccount\\ttext\\tlink\\n")
+    for t, a, text, link in posts:
+        f.write("%s\\t%s\\t%s\\t%s\\n" % (t.strftime("%Y-%m-%dT%H:%MZ"), a, text, link))
+with open(sys.argv[3], "w", encoding="utf-8", newline="\\n") as f:   # only a made-up dataset can have one
+    f.write("network\\t%s\\nlate\\t%s\\nnew\\t%s\\nwalk\\t%s\\nbakery\\t%s %s\\n" % (" ".join(net), late, " ".join(new), " ".join(walk), owner, shop))
+PY
+python3 -c 'from rng import Rng; r = Rng(1234567); assert [r.u64() for _ in range(3)] == [6457827717110365317, 3203168211198807973, 9817491932198370423]' ||
+  { echo "STOP: splitmix64 does not give its known answers - rng.py was damaged in the paste"; exit 1; }
+python3 gen.py 4505 evidence/item006.tsv evidence/item007.txt && python3 gen.py 4505 rerun.tsv rerun_key.txt || { echo "STOP: gen.py failed"; exit 1; }
+cmp -s evidence/item006.tsv rerun.tsv && cmp -s evidence/item007.txt rerun_key.txt && echo "rerun: identical" ||
+  { echo "STOP: two runs from one seed differ"; exit 1; }
+[ "$(shasum -a 256 evidence/item006.tsv | cut -d' ' -f1)" = 4158a4fc50c012cf4b4dda6e8043ac94a9ce920c7c7a36800be307bbc86e2ff8 ] ||
+  { echo "STOP: the dataset is not the one this module was written from - gen.py was changed in the paste"; exit 1; }
+log item006.tsv "generated: gen.py seed 4505 (posts)" "$(shasum -a 256 evidence/item006.tsv | cut -d' ' -f1)"
+log item007.txt "generated: gen.py seed 4505 (answer key; opened last)" "$(shasum -a 256 evidence/item007.txt | cut -d' ' -f1)"
+cut -f1,2,5 collection_log.tsv | awk -F'\\t' '{print $1, $2, substr($3, 1, 12)}'
+
+# 4. Read. Only the saved files are read; nothing below touches the network.
+cat > read_sources.py <<'PY'
+import html, re
+def text(f):
+    s = open("evidence/" + f, encoding="utf-8", errors="replace").read()
+    s = html.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"(?is)<(script|style)\\b.*?</\\1>", " ", s)))
+    for a, b in (("\\u2019", "'"), ("\\u2018", "'"), ("\\u201c", '"'), ("\\u201d", '"'), ("\\u00a0", " ")): s = s.replace(a, b)
+    return " ".join(s.split()).lower()
+def says(f, label, phrase): print("   %s %s: %s" % (f[:7], label, "YES" if phrase.lower() in text(f) else "NO"))
+print("A. What the two reports say, and on whose data (item001 Anthropic, item002 Meta)")
+says("item001.html", "dated 'Apr 23, 2025'", "Apr 23, 2025")
+says("item001.html", "an 'influence-as-a-service' operation", "influence-as-a-service")
+says("item001.html", "'over a hundred social media bot accounts'", "over a hundred social media bot accounts")
+says("item001.html", "'engaged with tens of thousands of authentic social media accounts'", "engaged with tens of thousands of authentic social media accounts")
+says("item001.html", "'No content achieved viral status'", "No content achieved viral status")
+says("item001.html", "state link: 'we have not confirmed this attribution'", "we have not confirmed this attribution")
+says("item001.html", "found with its own tools, 'Clio and hierarchical summarization'", "Clio and hierarchical summarization")
+says("item002.html", "dated 'October 11, 2024'", "October 11, 2024")
+says("item002.html", "'7 Facebook accounts, 23 Pages, 1 Group and 20 Instagram accounts'", "7 Facebook accounts, 23 Pages, 1 Group and 20 Instagram accounts")
+says("item002.html", "'fake accounts are central to the operation'", "fake accounts are central to the operation")
+says("item002.html", "'we focus on behavior, not content'", "we focus on behavior, not content")
+says("item002.html", "found by 'internal investigation'", "internal investigation")
+says("item002.html", "sharing its links alone 'would be insufficient to attribute accounts'", "would be insufficient to attribute accounts to a given campaign without corroborating evidence")
+print()
+print("B. What the method pages say (item003 Pacheco et al., ICWSM 2021; item004-005 Penn State STAT 555)")
+says("item003.html", "finds coordination 'regardless of ... malicious/benign intent'", "regardless of their automated/organic nature or malicious/benign intent")
+says("item003.html", "shared memes 'not necessarily suspicious if those memes are very popular'", "not necessarily suspicious if those memes are very popular")
+says("item003.html", "'does not characterize the coordination as malicious or benign'", "does not characterize the coordination as malicious or benign")
+says("item003.html", "'we use 30-minute time intervals'", "we use 30-minute time intervals")
+says("item004.html", "a permutation test: 'mix up the labels'", "mix up the labels")
+says("item005.html", "10,000 tests with no real effect: 'we expect about 5% of the tests'", "we expect about 5% of the tests")
+PY
+cat > coord.py <<'PY'
+import hashlib, os, re, sys
+from collections import Counter, defaultdict
+from itertools import combinations
+from rng import Rng
+# usage: python3 coord.py POSTS [ANSWER_KEY]   knobs for the drills: ALPHA, WINDOW (minutes), NULL (labels|hour), SIGNALS
+ALPHA = float(os.environ.get("ALPHA", "0.001"))
+NULL = os.environ.get("NULL", "labels")
+USE = os.environ.get("SIGNALS", "TCL")
+WINDOW = int(os.environ.get("WINDOW", "10"))
+MIN_POSTS, RUNS = 10, 20
+rows = [l.rstrip("\\n").split("\\t") for l in open(sys.argv[1], encoding="utf-8")][1:]
+def minute(t): return (int(t[8:10]) - 2) * 1440 + int(t[11:13]) * 60 + int(t[14:16])
+def norm(text):  # lower case; letters, digits and # only; one space between words
+    return hashlib.sha256(" ".join(re.sub(r"[^a-z0-9# ]", " ", text.lower()).split()).encode()).hexdigest()[:12]
+posts = [(minute(t), a, norm(x), l.split("/")[2] if l else "") for t, a, x, l in rows]
+accts = sorted({x[1] for x in posts})
+n_posts = Counter(x[1] for x in posts)
+def scores(ps):
+    T, C, L, df = defaultdict(set), defaultdict(set), defaultdict(set), defaultdict(set)
+    for m, a, h, d in ps:
+        T[a].add(m // WINDOW); C[a].add(h)
+        if d: L[a].add(d); df[d].add(a)
+    rare = {d for d, s in df.items() if len(s) < len(accts) / 5}  # a link counts only if under 1 in 5 accounts use it
+    return {(a, b): (len(T[a] & T[b]), len(C[a] & C[b]), len(L[a] & L[b] & rare)) for a, b in combinations(accts, 2)}
+obs = scores(posts)
+print("   posts: %d   accounts: %d   pairs of accounts: %d" % (len(posts), len(accts), len(obs)))
+print("   accounts with fewer than %d posts: %d" % (MIN_POSTS, sum(n_posts[a] < MIN_POSTS for a in accts)))
+print("   null for timing: %s   runs: %d (seeded)   alpha: %g   window: %d min   signals: %s" % (NULL, RUNS, ALPHA, WINDOW, USE))
+r = Rng(2001)
+null = ([], [], [])
+for _ in range(RUNS):
+    who = [x[1] for x in posts]; r.shuffle(who)   # shuffle which account wrote each post; each keeps its count
+    fake = scores([(m, w, h, d) for (m, _, h, d), w in zip(posts, who)])
+    if NULL == "hour":                             # timing only: keep each post's author, day and hour; redraw the minute
+        hour = scores([(m - m % 60 + r.below(60), a, h, d) for m, a, h, d in posts])
+        fake = {k: (hour[k][0],) + v[1:] for k, v in fake.items()}
+    for v in fake.values():
+        for i in range(3): null[i].append(v[i])
+names = ("timing", "text", "rare link")
+on = [s in USE for s in "TCL"]
+thr = []
+for i in range(3):
+    k = 1
+    while sum(v >= k for v in null[i]) / len(null[i]) > ALPHA: k += 1
+    thr.append(k)
+    if on[i]:
+        print("   %-9s threshold >= %d   expected chance pairs: %.1f   observed pairs at or above: %d"
+              % (names[i], k, sum(v >= k for v in null[i]) / RUNS, sum(v[i] >= k for v in obs.values())))
+print("   naive rule 'posted in the same %d minutes at least once': %d pairs" % (WINDOW, sum(v[0] >= 1 for v in obs.values())))
+def verdict(a, b, v):
+    if n_posts[a] < MIN_POSTS or n_posts[b] < MIN_POSTS: return "UNKNOWN"
+    hits = sum(on[i] and v[i] >= thr[i] for i in range(3))
+    if hits >= 2: return "COORDINATED-LEAD"
+    if hits == 1: return "SINGLE-SIGNAL"
+    return "COINCIDENCE-LIKELY" if any(v) else "NO-SHARED-TRACE"
+V = {k: verdict(*k, v) for k, v in obs.items()}
+KINDS = ("COORDINATED-LEAD", "SINGLE-SIGNAL", "COINCIDENCE-LIKELY", "UNKNOWN", "NO-SHARED-TRACE")
+print("   verdicts: " + ", ".join("%s %d" % (k, Counter(V.values())[k]) for k in KINDS))
+one = Counter(names[i] for k, v in obs.items() if V[k] == "SINGLE-SIGNAL" for i in range(3) if on[i] and v[i] >= thr[i])
+print("   single-signal pairs by signal: " + ", ".join("%s %d" % (names[i], one[names[i]]) for i in range(3) if on[i]))
+parent = {a: a for a in accts}
+def root(a):
+    while parent[a] != a: a = parent[a]
+    return a
+for (a, b), v in V.items():
+    if v == "COORDINATED-LEAD": parent[root(a)] = root(b)
+gs = defaultdict(list)
+for a in accts: gs[root(a)].append(a)
+big = sorted((g for g in gs.values() if len(g) > 1), key=len, reverse=True)
+print("   groups joined by COORDINATED-LEAD pairs: %d   sizes: %s" % (len(big), " ".join(str(len(g)) for g in big) or "none"))
+if len(sys.argv) > 2:    # only a made-up dataset has an answer key; it is opened after the verdicts
+    key = dict(l.rstrip("\\n").split("\\t") for l in open(sys.argv[2], encoding="utf-8"))
+    net, late, walk, bak = key["network"].split(), key["late"], key["walk"].split(), tuple(key["bakery"].split())
+    inner = [k for k in obs if k[0] in net and k[1] in net and late not in k]
+    print("   answer key: network members %d, with %d+ posts %d" % (len(net), MIN_POSTS, sum(n_posts[a] >= MIN_POSTS for a in net)))
+    print("   network pairs marked COORDINATED-LEAD: %d of %d" % (sum(V[k] == "COORDINATED-LEAD" for k in inner), len(inner)))
+    print("   pairs with the late member: " + ", ".join("%s %d" % kv for kv in sorted(Counter(V[k] for k in obs if late in k and k[0] in net and k[1] in net).items())))
+    print("   pairs outside the network marked COORDINATED-LEAD: %d" % sum(V[k] == "COORDINATED-LEAD" for k in obs if not (k[0] in net and k[1] in net)))
+    print("   bakery pair: %s (timing %d, text %d, rare link %d)" % ((V[bak],) + obs[bak]))
+    wp = [k for k in obs if k[0] in walk and k[1] in walk]
+    print("   charity pairs: %d; " % len(wp) + ", ".join("%s %d" % kv for kv in sorted(Counter(V[k] for k in wp).items()))
+          + "; most texts shared %d (text threshold %d)" % (max(obs[k][1] for k in wp), thr[1]))
+    print("   pairs outside the network flagged by the naive rule: %d" % sum(obs[k][0] >= 1 for k in obs if not (k[0] in net and k[1] in net)))
+PY
+{ python3 read_sources.py && echo &&
+  echo "C. The made-up forum (item006): which pairs of accounts share more than chance?" &&
+  python3 coord.py evidence/item006.tsv evidence/item007.txt; } > facts.txt ||
+  { echo "STOP: the reader failed - a file has changed its layout; read it by hand"; exit 1; }
+cat facts.txt
+grep -qE ': NO$' facts.txt && echo "NOTE: a page has changed since this module was written - read the line marked NO by hand"
+
+# 5. The report. Every finding carries one of S2.7's link tags and cites its items. The figures in it are
+#    typed by hand, so step 6 checks each one against facts.txt.
+cat > report.md <<'REPORT'
+# S4.5 Coordinated behaviour: two takedown reports, one method, and a made-up forum
+
+Question: when several accounts act together, what shows it, and what would show that they are fake?
+Analyst: analyst01. Sources: a model maker's report, a platform's takedown report, a method paper, two
+statistics lessons, and a dataset generated from seed 4505; items 001-007 (collection_log.tsv).
+
+## Findings
+
+F1 [ONE-WAY] (item001) Anthropic reports an "influence-as-a-service" operation that ran over a hundred bot
+accounts and engaged with tens of thousands of authentic accounts; no content went viral, and the state link is
+not confirmed. Anthropic found it in its own records of its own product. Anthropic also makes the assistant
+that helped write this course: this is a vendor's statement about its own service, and nothing here checks it.
+F2 [ONE-WAY] (item002) Meta reports removing 7 Facebook accounts, 23 Pages, 1 Group and 20 Instagram accounts,
+found by an internal investigation. It says it focuses on behavior, not content, and that sharing an
+operation's links would be insufficient to attribute an account without corroborating evidence.
+F3 [CONTEXT] (item003, item004, item005) The method finds coordination regardless of intent, discounts shared
+items that are very popular, and cannot say whether coordination is malicious. A permutation test mixes up the
+labels to see what chance alone produces; with many tests, some pass by chance.
+F4 [LEAD] (item006) In the made-up forum, 21 pairs pass two of three signals against a shuffled-label null at
+alpha 0.001, and join into one group of 7 accounts. At that alpha the null expects at most 1 chance pair per signal.
+F5 [CONTEXT] (item006) The naive rule "posted in the same 10 minutes at least once" flags 1194 of 1770 pairs.
+F6 [LEAD] (item006) One pair passes one signal only (timing). One signal is a question, not a finding.
+F7 [CONTEXT] (item006, item007) The answer key, opened last: all 21 network pairs found, no pair outside the
+network marked COORDINATED-LEAD, one network member missed, and the single-signal pair is a bakery and its owner.
+
+## Assessment
+
+Likely: the 7 accounts in F4 act together (three signals, measured against chance). Nothing in the data says
+whether they are fake: that needs records only the platform holds (F2, F3).
+Confidence: high that the group is coordinated; none on who runs it or why.
+Rejected: "accounts that post at the same time are a network" (F5); "coordinated means fake" (F6, F7: the bakery).
+Still open: whether F1's figures would survive a second source; who controls the 7 accounts; why one member
+was missed.
+REPORT
+
+# 6. Check the report: every finding tagged and cited, and every hand-typed figure found in facts.txt.
+cat > check_report.sh <<'CHECK'
+#!/bin/bash
+R=report.md; bad=0
+[ -s facts.txt ] && [ -s "$R" ] || { echo "UNKNOWN: facts.txt or report.md is missing"; exit 2; }
+n=$(grep -cE '^F[0-9]+ \\[(STRONG|ONE-WAY|LEAD|CONTEXT)\\] \\(item[0-9]{3}' "$R")
+[ "$n" -eq "$(grep -cE '^F[0-9]+ ' "$R")" ] || { echo "FAIL a finding has no tag or no item"; bad=$((bad + 1)); }
+# STRONG needs records made by different hands. Who controls an account is in the platform's records, not here.
+grep -qE '^F[0-9]+ \\[STRONG\\]' "$R" && { echo "FAIL a STRONG finding: no outsider holds the record that would make one"; bad=$((bad + 1)); }
+grep -q '^Rejected:' "$R" || { echo "FAIL the report does not name what it rejects"; bad=$((bad + 1)); }
+grep -q '^Still open:' "$R" || { echo "FAIL the report does not say what is still open"; bad=$((bad + 1)); }
+grep -qi 'also makes the assistant' "$R" || { echo "FAIL F1 does not declare the conflict of interest"; bad=$((bad + 1)); }
+agree() { grep -qF -- "$2" facts.txt || { echo "$1 FAIL the report's figure is not in facts.txt: $2"; bad=$((bad + 1)); }; }
+agree F1 "'over a hundred social media bot accounts': YES"
+agree F1 "'engaged with tens of thousands of authentic social media accounts': YES"
+agree F1 "'No content achieved viral status': YES"
+agree F1 "we have not confirmed this attribution': YES"
+agree F1 "'Clio and hierarchical summarization': YES"
+agree F2 "20 Instagram accounts': YES"
+agree F2 "found by 'internal investigation': YES"
+agree F2 "'we focus on behavior, not content': YES"
+agree F2 "'would be insufficient to attribute accounts': YES"
+agree F3 "malicious/benign intent': YES"
+agree F3 "'not necessarily suspicious if those memes are very popular': YES"
+agree F3 "'does not characterize the coordination as malicious or benign': YES"
+agree F3 "'mix up the labels': YES"
+agree F3 "'we expect about 5% of the tests': YES"
+agree F4 "null for timing: labels   runs: 20 (seeded)   alpha: 0.001"
+agree F4 "verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 1,"
+agree F4 "groups joined by COORDINATED-LEAD pairs: 1   sizes: 7"
+agree F4 "timing    threshold >= 7   expected chance pairs: 1.0"
+agree F5 "naive rule 'posted in the same 10 minutes at least once': 1194 pairs"
+agree F5 "pairs of accounts: 1770"
+agree F6 "single-signal pairs by signal: timing 1, text 0, rare link 0"
+agree F7 "network pairs marked COORDINATED-LEAD: 21 of 21"
+agree F7 "pairs outside the network marked COORDINATED-LEAD: 0"
+agree F7 "pairs with the late member: COINCIDENCE-LIKELY 7"
+agree F7 "bakery pair: SINGLE-SIGNAL"
+[ "$bad" -eq 0 ] && echo "report check: PASS ($n tagged findings, every figure in facts.txt)" || { echo "report check: FAIL - problems: $bad"; exit 1; }
+CHECK
+chmod +x check_report.sh && ./check_report.sh || exit 1
+
+# 7. Seal, and bind the seal to a time outside this Mac (RFC 3161, as in S3.2). Only the SHA-256
+#    of SEAL.sha256 leaves this Mac.
+shasum -a 256 scope.txt collection_log.tsv rng.py gen.py read_sources.py coord.py facts.txt report.md check_report.sh evidence/* > SEAL.sha256
+openssl ts -query -data SEAL.sha256 -sha256 -cert -no_nonce -out SEAL.tsq 2>/dev/null
+curl -sf --retry 3 --retry-all-errors -m 60 -A "$UA" -H "Content-Type: application/timestamp-query" \\
+  --data-binary @SEAL.tsq -o SEAL.tsr https://freetsa.org/tsr || { echo "STOP: no timestamp - retry this step"; exit 1; }
+printf '%s\\t%s\\t%s\\thttps://freetsa.org/tsr\\t%s\\n' SEAL.tsr "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ANALYST" \\
+  "$(shasum -a 256 SEAL.tsr | cut -d' ' -f1)" > timestamp_log.tsv
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_cacert.pem https://freetsa.org/files/cacert.pem
+curl -sf --retry 3 -m 60 -A "$UA" -o freetsa_tsa.crt https://freetsa.org/files/tsa.crt
+[ "$(shasum -a 256 freetsa_cacert.pem | cut -d' ' -f1)" = 2151b61137ffa86bf664691ba67e7da0b19f98c758e3d228d5d8ebf27e044438 ] &&
+[ "$(shasum -a 256 freetsa_tsa.crt | cut -d' ' -f1)" = 8bfb0305bb64e2571ca507552ef3245cb1c2fee8728e0ff8689225081ea13467 ] ||
+  { echo "STOP: FreeTSA's certificates do not match the pinned hashes (S3.2)"; exit 1; }
+openssl ts -verify -in SEAL.tsr -data SEAL.sha256 -CAfile freetsa_cacert.pem -untrusted freetsa_tsa.crt 2>/dev/null ||
+  { echo "STOP: the timestamp did not verify - a TSA can refuse with HTTP 200 (Status: Rejected); rerun this step"; exit 1; }
+openssl ts -reply -in SEAL.tsr -text 2>/dev/null | grep -E '^Time stamp:'
+echo "sealed files: $(wc -l < SEAL.sha256 | tr -d ' ')"; shasum -a 256 -c SEAL.sha256 | grep -c ': OK$'`,
+      windows: `# Windows: run this lab in WSL (Ubuntu), using the Linux variant. There is no native PowerShell port.
+#
+# Why: the lab is a bash script. It reads the saved pages in python3, seals with openssl, and checks its own
+# report with another bash script.
+# A PowerShell port would be different code with results nobody has seen. A lab
+# whose documented result has not been seen to happen is not taught here.
+#
+# One-time setup, in PowerShell run as administrator (Windows 10 version 2004 / build 19041 or
+# later, or Windows 11). Microsoft's docs: this installs WSL with Ubuntu by default. Then restart.
+wsl --install
+#
+# After the restart, open Ubuntu from the Start menu, create your Linux user, then:
+#   sudo apt update && sudo apt install -y curl openssl python3
+# Save the macOS lab as lab.sh inside Ubuntu, convert it and run it:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# The case folder is ~/scouts-case/s4_5 inside Ubuntu. The three drills run unchanged there.
+# Not run on Windows when this module was written: compare your output with the macOS one.`,
+      linux: `# Same as macOS except for one macOS-only tool: shasum.
+#   sha256sum FILE           instead of  shasum -a 256 FILE
+# Change it everywhere: in get(), in the dataset check and log lines, and in the seal step.
+# One command does all of them:
+#   sed 's/shasum -a 256/sha256sum/g' lab.sh > lab_linux.sh && bash lab_linux.sh
+# Tools: curl, openssl and python3 3.9 or later. On Debian or Ubuntu:
+#   sudo apt install -y curl openssl python3
+# The three drills use no shasum and run unchanged.
+# Not run on Linux when this module was written (it was run on macOS with python3 3.9.6, 3.11, 3.12, 3.13 and 3.14).`,
+      expected: {
+        mac: `\`\`\`text
+rerun: identical
+item001.html 2026-10-03T14:51:20Z 67bd677d1181
+item002.html 2026-10-03T14:51:22Z df0d9ec1a5d8
+item003.html 2026-10-03T14:51:23Z 5bf98936689a
+item004.html 2026-10-03T14:51:28Z 2301f806bfdf
+item005.html 2026-10-03T14:51:29Z fb8f59fb56f8
+item006.tsv 2026-10-03T14:51:29Z 4158a4fc50c0
+item007.txt 2026-10-03T14:51:29Z 97f60272715f
+A. What the two reports say, and on whose data (item001 Anthropic, item002 Meta)
+   item001 dated 'Apr 23, 2025': YES
+   item001 an 'influence-as-a-service' operation: YES
+   item001 'over a hundred social media bot accounts': YES
+   item001 'engaged with tens of thousands of authentic social media accounts': YES
+   item001 'No content achieved viral status': YES
+   item001 state link: 'we have not confirmed this attribution': YES
+   item001 found with its own tools, 'Clio and hierarchical summarization': YES
+   item002 dated 'October 11, 2024': YES
+   item002 '7 Facebook accounts, 23 Pages, 1 Group and 20 Instagram accounts': YES
+   item002 'fake accounts are central to the operation': YES
+   item002 'we focus on behavior, not content': YES
+   item002 found by 'internal investigation': YES
+   item002 sharing its links alone 'would be insufficient to attribute accounts': YES
+
+B. What the method pages say (item003 Pacheco et al., ICWSM 2021; item004-005 Penn State STAT 555)
+   item003 finds coordination 'regardless of ... malicious/benign intent': YES
+   item003 shared memes 'not necessarily suspicious if those memes are very popular': YES
+   item003 'does not characterize the coordination as malicious or benign': YES
+   item003 'we use 30-minute time intervals': YES
+   item004 a permutation test: 'mix up the labels': YES
+   item005 10,000 tests with no real effect: 'we expect about 5% of the tests': YES
+
+C. The made-up forum (item006): which pairs of accounts share more than chance?
+   posts: 1959   accounts: 60   pairs of accounts: 1770
+   accounts with fewer than 10 posts: 3
+   null for timing: labels   runs: 20 (seeded)   alpha: 0.001   window: 10 min   signals: TCL
+   timing    threshold >= 7   expected chance pairs: 1.0   observed pairs at or above: 17
+   text      threshold >= 5   expected chance pairs: 0.6   observed pairs at or above: 21
+   rare link threshold >= 3   expected chance pairs: 0.1   observed pairs at or above: 21
+   naive rule 'posted in the same 10 minutes at least once': 1194 pairs
+   verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 1, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+   single-signal pairs by signal: timing 1, text 0, rare link 0
+   groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+   answer key: network members 8, with 10+ posts 8
+   network pairs marked COORDINATED-LEAD: 21 of 21
+   pairs with the late member: COINCIDENCE-LIKELY 7
+   pairs outside the network marked COORDINATED-LEAD: 0
+   bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+   charity pairs: 91; COINCIDENCE-LIKELY 91; most texts shared 4 (text threshold 5)
+   pairs outside the network flagged by the naive rule: 1172
+report check: PASS (7 tagged findings, every figure in facts.txt)
+\`\`\`
+
+What to compare:
+
+- **Collection.** Seven items, no FAILED line, and \`rerun: identical\` first. The five page hashes are your own: Anthropic's page changes on every fetch (two fetches a minute apart gave two hashes), so its hash will differ even when its words do not. Items 006 and 007 are generated, so their hashes must be exactly \`4158a4fc50c0\` and \`97f60272715f\`. If they differ, the lab stops before reading anything.
+- **A and B.** Every line must say \`YES\`. A \`NO\` means a page has been reworded or moved: read it, and if the meaning changed, change the report.
+- **C.** Every line must match exactly, on any Mac and any Python 3 from 3.9. The data, the shuffles and the thresholds all come from splitmix64 with fixed seeds, and the lab checks splitmix64 against its published known answers before it starts. This output was produced by Apple's \`/usr/bin/python3\` 3.9.6, and Pythons 3.11 to 3.14 give it byte for byte.
+
+\`\`\`text
+Verification: OK
+Time stamp: Oct  3 14:51:30 2026 GMT
+sealed files: 16
+16
+\`\`\`
+
+The seal lists 16 files: the scope, the log, the four scripts, the facts, the report, its check script, and 7 evidence items. The timestamp line shows your own run's time. If the lab stops with "the timestamp did not verify", the TSA refused this request: run step 7 again.`
+      }
+    },
+    caseStudy: {
+      title: "Two takedown reports, read for what they rest on — Meta on Moldova (2024) and Anthropic on its own product (2025)",
+      body: `Two organisations published reports about influence operations they had stopped. Read side by side, they show what a report like this can give an outsider, and what it cannot.
+
+**Meta, 11 October 2024: a network targeting Moldova.** Meta says it removed "7 Facebook accounts, 23 Pages, 1 Group and 20 Instagram accounts" for coordinated inauthentic behavior. The network ran about a dozen made-up Russian-language news brands across several services. Meta lists the evidence it saw: accounts that "went through significant name changes over time", profile photos "likely created using generative adversarial networks (GAN)", and followers mostly outside Moldova, "which suggests the use of inauthentic engagement tactics". It found the network through "our internal investigation", and says the network was removed "before they were able to build authentic audiences". The report ends with threat indicators, and a warning: sharing the operation's links "would be insufficient to attribute accounts to a given campaign without corroborating evidence".
+
+**Anthropic, 23 April 2025: an "influence-as-a-service" operation.** Anthropic's report, titled for March 2025, says an actor used its Claude models to run "over a hundred social media bot accounts" on X and Facebook. Each account had a persona with its own political alignment, and Claude was used to decide whether an account should "like, share, comment on, or ignore" a post. Anthropic says the operation "engaged with tens of thousands of authentic social media accounts", that "No content achieved viral status", and that the narratives fit what it would expect from state-affiliated campaigns, "however we have not confirmed this attribution". It found the activity in its own records, using tools it names as "Clio and hierarchical summarization", and banned the accounts.
+
+**What each report rests on.** Neither report gives an outsider data to check its counts. Meta saw its own platform: accounts, Pages, followers and ad spending. Anthropic saw its own product: how the actor used Claude. It describes no records from inside X or Facebook. Its "over a hundred" accounts are what the actor's use of Claude showed it. The report's web page does not say whether X or Meta removed them. Anthropic's full report is a PDF that this module did not read. Each report is ONE-WAY in S2.7's terms. Each is a named organisation's account of its own records.
+
+**The conflict of interest.** Anthropic makes the AI assistant that helped write this course. Its report is about misuse of its own product, so it is a vendor speaking about itself. That does not make it wrong. It does mean this course cannot treat it as an independent check of anything, and must not quote Anthropic as the only voice on the subject. Meta's report is here for that reason: a second organisation, about a different operation.
+
+**Why it matters for this module.** Meta's report and the method paper make the same point in different words. Acting together is something you can measure. Being fake is something only the record-holder can show. An outsider who finds a COORDINATED-LEAD in public posts has found where to look. A platform's report that names the same accounts would be the second, independent record that S3.1 asks for. Only a platform can publish that record.
+
+*Sources: Meta, "Taking Action Against Coordinated Inauthentic Behavior in Moldova", about.fb.com, 11 October 2024. Meta Transparency Center, "Inauthentic Behavior" policy (change log to 12 December 2025). Anthropic, "Detecting and countering malicious uses of Claude: March 2025", anthropic.com, 23 April 2025. Pacheco et al., "Uncovering Coordinated Networks on Social Media: Methods and Case Studies", ICWSM 2021 (arXiv:2001.05658).*`
+    },
+    challenges: [{
+      q: `A classmate scrapes replies under a politician's post and finds 40 accounts that posted "This is a disgrace!!" within the same hour. They want to publish the 40 handles as "a bot network". What do you say?`,
+      a: `**Not yet, and probably never with the handles.**
+
+1. **One trace, once.** Same words in the same hour, on one occasion, is the shape of a news event or a template, not of a network. The lab's charity shared four identical texts per pair and still did not pass at alpha 0.001.
+2. **No null, no rate.** How often do unrelated accounts write "This is a disgrace" under a political post? Without a shuffled null there is no way to say that 40 is surprising.
+3. **Look for a second trace that is independent.** Repeated timing across many days, and rare links, measured against chance. If the text and the link come from the same posts, they count as one (Drill 3).
+4. **Even a COORDINATED-LEAD is not "bots".** Coordination is not automation, and it is not fakeness. Pacheco and colleagues say their method cannot tell malicious from benign, and Meta's definition of CIB needs false identities.
+5. **Never publish private people's handles as a network.** The lab's bakery would be on that list. Report counts and the method, and if you believe it is an operation, report it to the platform, which holds the records that can settle it.`
+    },
+{
+      q: `A news article says: "According to Anthropic, a foreign state ran over a hundred bot accounts using Claude." What is wrong with the sentence, and how would you rewrite it?`,
+      a: `**It adds a state, drops the source's caveat, and hides a conflict of interest.**
+
+- **The state is not in the report.** Anthropic says the narratives are "consistent with what we expect from state affiliated campaigns, however we have not confirmed this attribution". The article turned a caveat into a claim.
+- **Whose numbers?** "Over a hundred" accounts is Anthropic's count from its own records of how Claude was used. It is ONE-WAY: no outsider can check it, and the report's web page does not say whether X or Meta removed the accounts.
+- **Who is speaking?** A company describing misuse of its own product. That is not a reason to disbelieve it, but readers should know it.
+- **A fair rewrite:** "Anthropic, which makes Claude, says it banned an actor who used Claude to run over a hundred bot accounts on X and Facebook for paying clients. It says the operation's narratives fit state-backed campaigns but that it has not confirmed any state link." `
+    },
+{
+      q: `Your analysis finds a group of 9 accounts as COORDINATED-LEAD on timing and text at alpha 0.001. Your editor asks: "So they're fake?" Answer in three sentences, then say what would change your answer.`,
+      a: `**Three sentences:** "These 9 accounts post the same texts at the same times far more often than chance would give, at a false-positive rate we set before looking. That shows they probably act together. It does not show who runs them, or whether they are fake: a campaign group, a fan club or one person running several open accounts would look the same."
+
+**What would change it:**
+
+1. **An independent record about identity.** A platform's takedown report naming these accounts, or the accounts' own admission. Only the platform can see how the accounts were set up and how they are linked.
+2. **Signals that are not the same posts.** If the timing and text both come from the same campaign posts, check a third trace that comes from somewhere else (Drill 3).
+3. **A test of the settings.** Show the result at the next alpha either side, and with a second null (Drills 1 and 2). If the group only exists at one setting, say so.
+
+Until then, the finding is a LEAD, and the 9 handles stay out of the story.`
+    }],
+    quiz: ["In Meta's definition, what turns coordinated behaviour into Coordinated Inauthentic Behavior? Quote or paraphrase the policy.", "Name the three behavioural traces the lab measures. For each, give the innocent look-alike that the lab plants.", "What is a permutation test? Describe the lab's null in one sentence, and say what each account keeps when the labels are shuffled.", "What does alpha 0.001 mean in the lab? What number does the lab print next to each threshold, and why does it matter?", "The lab tests 1,770 pairs. Why does a rule that sounds strict for one pair become loose for 1,770? Use Penn State's 10,000-test example.", "Name the four verdicts for a pair of accounts. What does UNKNOWN hide, and what did the lab's answer key show about the late member?", "The naive rule \"posted in the same 10 minutes at least once\" flagged 1,194 of 1,770 pairs. What did the shuffled null flag, and why the difference?", "Why is the lab's bakery pair important? What verdict did it get at alpha 0.001, and on which signal?", "What did Drill 3 show about the text and link signals? What does S3.1 call this?", "Meta's Moldova report warns about using its links to attribute accounts. What does it say, and what does it mean for an outsider's analysis?", "State the conflict of interest in this module's case study. How should a reader treat Anthropic's report, and why is Meta's report there?", "Why can no finding in this lab's report be tagged STRONG?"],
+    workbench: `> **What this trains.** The lab found one group in a made-up forum and checked it against the answer key. Here you move the dials the lab fixed: how rare "more than chance" must be, how wide "the same time" is, and how many signals a pair must pass. Each drill reruns the lab's own \`coord.py\` on the lab's own data, so run the lab first.
+
+#### 🟢 Drill 1 — move alpha, watch the look-alikes flip ~1 min
+
+**Goal.** Run the lab's analysis at four values of alpha, from loose (0.05) to strict (0.0001). Watch what happens to the network, the charity and the bakery.
+
+**Done when.** You can say which alpha you would report, and what you lose by going one step looser or one step stricter.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_5 && [ -s coord.py ] && [ -s evidence/item006.tsv ] || { echo "STOP: run the lab first"; exit 1; }
+# The lab's analysis at four alphas: the share of the null that may sit at or above each threshold.
+for A in 0.05 0.01 0.001 0.0001; do
+  echo "== alpha $A"
+  ALPHA=$A python3 coord.py evidence/item006.tsv evidence/item007.txt |
+    grep -E 'threshold|verdicts|single-signal|groups joined|outside the network marked|bakery|charity' | sed 's/^   //'
+done
+\`\`\`
+
+It printed:
+
+\`\`\`text
+== alpha 0.05
+timing    threshold >= 4   expected chance pairs: 84.5   observed pairs at or above: 103
+text      threshold >= 3   expected chance pairs: 39.6   observed pairs at or above: 112
+rare link threshold >= 2   expected chance pairs: 2.1   observed pairs at or above: 21
+verdicts: COORDINATED-LEAD 32, SINGLE-SIGNAL 151, COINCIDENCE-LIKELY 974, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 71, text 80, rare link 0
+groups joined by COORDINATED-LEAD pairs: 2   sizes: 11 7
+pairs outside the network marked COORDINATED-LEAD: 11
+bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+charity pairs: 91; COORDINATED-LEAD 11, SINGLE-SIGNAL 80; most texts shared 4 (text threshold 3)
+== alpha 0.01
+timing    threshold >= 6   expected chance pairs: 5.0   observed pairs at or above: 24
+text      threshold >= 4   expected chance pairs: 4.8   observed pairs at or above: 112
+rare link threshold >= 2   expected chance pairs: 2.1   observed pairs at or above: 21
+verdicts: COORDINATED-LEAD 22, SINGLE-SIGNAL 93, COINCIDENCE-LIKELY 1042, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 3, text 90, rare link 0
+groups joined by COORDINATED-LEAD pairs: 2   sizes: 7 2
+pairs outside the network marked COORDINATED-LEAD: 1
+bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+charity pairs: 91; COORDINATED-LEAD 1, SINGLE-SIGNAL 90; most texts shared 4 (text threshold 4)
+== alpha 0.001
+timing    threshold >= 7   expected chance pairs: 1.0   observed pairs at or above: 17
+text      threshold >= 5   expected chance pairs: 0.6   observed pairs at or above: 21
+rare link threshold >= 3   expected chance pairs: 0.1   observed pairs at or above: 21
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 1, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 1, text 0, rare link 0
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+pairs outside the network marked COORDINATED-LEAD: 0
+bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+charity pairs: 91; COINCIDENCE-LIKELY 91; most texts shared 4 (text threshold 5)
+== alpha 0.0001
+timing    threshold >= 8   expected chance pairs: 0.1   observed pairs at or above: 11
+text      threshold >= 6   expected chance pairs: 0.0   observed pairs at or above: 3
+rare link threshold >= 3   expected chance pairs: 0.1   observed pairs at or above: 21
+verdicts: COORDINATED-LEAD 12, SINGLE-SIGNAL 9, COINCIDENCE-LIKELY 1136, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 0, text 0, rare link 9
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+pairs outside the network marked COORDINATED-LEAD: 0
+bakery pair: COINCIDENCE-LIKELY (timing 7, text 0, rare link 1)
+charity pairs: 91; COINCIDENCE-LIKELY 91; most texts shared 4 (text threshold 6)
+\`\`\`
+
+- **Loose is wrong in a convincing way.** At alpha 0.05 the null expects 84.5 pairs over the timing threshold and 39.6 over the text threshold, by chance alone. The method then finds two groups: the real network of 7, and a "network" of 11 that is the charity's supporters, who copied its posts as the charity asked. A report written at this alpha would name eleven innocent accounts.
+- **0.01 is better, not good.** One charity pair still passes two signals and forms a group of 2.
+- **0.001 is the lab's choice.** The network, and nothing else, at two or more signals. The bakery stays SINGLE-SIGNAL on timing.
+- **Strict loses things too.** At 0.0001 the bakery disappears, which is right. But only 12 of the network's 21 pairs still pass two signals. The group of 7 stays joined only because the remaining pairs link every member. The rare-link signal now carries the rest alone.
+- **No alpha is "the true one".** Pick it before you look, report it with the expected number of chance pairs, and show what changes at the next value either side. In real data there is no answer key to tell you which alpha was right.
+
+</details>
+
+#### 🟡 Drill 2 — how wide is "the same time", and what is chance? ~1 min
+
+**Goal.** Rerun with timing windows of 10 minutes, 30 minutes and one day. Then keep the 10-minute window and change the null for timing: keep each post's hour and redraw only its minute.
+
+**Done when.** You can explain why the naive rule gets worse as the window grows while the shuffled-null result barely moves, and what the second null assumes.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_5 && [ -s coord.py ] && [ -s evidence/item006.tsv ] || { echo "STOP: run the lab first"; exit 1; }
+# Two choices made before any result: how wide "the same time" is, and what chance is allowed to keep.
+for W in 10 30 1440; do
+  echo "== window $W minutes, null: shuffle the authors"
+  WINDOW=$W python3 coord.py evidence/item006.tsv evidence/item007.txt |
+    grep -E 'timing +threshold|naive|verdicts|groups joined|bakery' | sed 's/^   //'
+done
+echo "== window 10 minutes, null for timing: keep each post's hour, redraw its minute"
+NULL=hour python3 coord.py evidence/item006.tsv evidence/item007.txt |
+  grep -E 'timing +threshold|verdicts|groups joined|bakery' | sed 's/^   //'
+\`\`\`
+
+It printed:
+
+\`\`\`text
+== window 10 minutes, null: shuffle the authors
+timing    threshold >= 7   expected chance pairs: 1.0   observed pairs at or above: 17
+naive rule 'posted in the same 10 minutes at least once': 1194 pairs
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 1, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+pairs outside the network flagged by the naive rule: 1172
+== window 30 minutes, null: shuffle the authors
+timing    threshold >= 12   expected chance pairs: 0.7   observed pairs at or above: 8
+naive rule 'posted in the same 30 minutes at least once': 1628 pairs
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 2, COINCIDENCE-LIKELY 1482, UNKNOWN 174, NO-SHARED-TRACE 91
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+bakery pair: SINGLE-SIGNAL (timing 17, text 0, rare link 1)
+pairs outside the network flagged by the naive rule: 1602
+== window 1440 minutes, null: shuffle the authors
+timing    threshold >= 15   expected chance pairs: 0.0   observed pairs at or above: 0
+naive rule 'posted in the same 1440 minutes at least once': 1770 pairs
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 0, COINCIDENCE-LIKELY 1575, UNKNOWN 174, NO-SHARED-TRACE 0
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+bakery pair: COINCIDENCE-LIKELY (timing 14, text 0, rare link 1)
+pairs outside the network flagged by the naive rule: 1742
+== window 10 minutes, null for timing: keep each post's hour, redraw its minute
+timing    threshold >= 7   expected chance pairs: 1.6   observed pairs at or above: 17
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 1, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+bakery pair: SINGLE-SIGNAL (timing 7, text 0, rare link 1)
+\`\`\`
+
+- **The naive rule drowns.** "Posted in the same window at least once" flags 1,194 pairs at 10 minutes, 1,628 at 30, and all 1,770 at one day. That is Pacheco and colleagues' warning about daily windows, measured.
+- **The null keeps up.** The timing threshold rises with the window (7, then 12, then 15 shared windows). At one day, 15 is more than the 14 days in the data, so timing can never pass. The network is still found, but only by text and links. A window that wide removes a signal without saying so.
+- **The bakery moves.** It shares 7 ten-minute windows, 17 thirty-minute windows and 14 days with its owner. It is SINGLE-SIGNAL at 10 and 30 minutes and COINCIDENCE-LIKELY at one day. Its verdict depends on a setting, not on what the bakery did.
+- **A null is a claim about chance.** "Shuffle the authors" says chance is anyone posting anything. "Keep the hour, redraw the minute" says chance includes everyone's habit of posting in the evening. Here both give a timing threshold of 7, but the second expects 1.6 chance pairs instead of 1.0. Name the null in the report: a different null is a different test.
+
+</details>
+
+#### 🔴 Drill 3 — are the signals independent? ~1 min
+
+**Goal.** Drop one signal at a time, so a pair must pass both of the two that are left. Then count how often the network's text and link come from the same post.
+
+**Done when.** You can say which two of the three signals are really one, and write the claim ladder for the group of 7.
+
+<details><summary>Walkthrough</summary>
+
+\`\`\`bash
+cd ~/scouts-case/s4_5 && [ -s coord.py ] && [ -s evidence/item006.tsv ] || { echo "STOP: run the lab first"; exit 1; }
+# Drop one signal at a time. A pair now needs both of the two that are left.
+for S in TC TL CL; do
+  echo "== signals $S (T timing, C text, L rare link)"
+  SIGNALS=$S python3 coord.py evidence/item006.tsv evidence/item007.txt |
+    grep -E 'verdicts|single-signal|groups joined|network pairs marked|outside the network marked' | sed 's/^   //'
+done
+# Do the text signal and the link signal come from different posts? Count the network's posts.
+python3 - <<'PY'
+import re
+from collections import defaultdict
+rows = [l.rstrip("\\n").split("\\t") for l in open("evidence/item006.tsv", encoding="utf-8")][1:]
+key = dict(l.rstrip("\\n").split("\\t") for l in open("evidence/item007.txt", encoding="utf-8"))
+net = key["network"].split()
+norm = lambda t: " ".join(re.sub(r"[^a-z0-9# ]", " ", t.lower()).split())
+who = defaultdict(set)
+for r in rows:
+    if r[1] in net: who[norm(r[2])].add(r[1])
+shared = {t for t, s in who.items() if len(s) >= 3}            # a text that 3 or more members posted
+mine = [r for r in rows if r[1] in net]
+txt = [r for r in mine if norm(r[2]) in shared]
+print("network posts: %d; with a shared text: %d; of those, with a link: %d" % (len(mine), len(txt), sum(bool(r[3]) for r in txt)))
+outside = {r[3].split("/")[2] for r in rows if r[3] and r[1] not in net}
+own = [r for r in mine if r[3] and r[3].split("/")[2] not in outside]   # a link to a site no outsider used
+print("network posts linking to a site no outsider used: %d; of those, with a shared text: %d" % (len(own), sum(norm(r[2]) in shared for r in own)))
+PY
+\`\`\`
+
+It printed:
+
+\`\`\`text
+== signals TC (T timing, C text, L rare link)
+verdicts: COORDINATED-LEAD 16, SINGLE-SIGNAL 6, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 1, text 5
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+network pairs marked COORDINATED-LEAD: 16 of 21
+pairs outside the network marked COORDINATED-LEAD: 0
+== signals TL (T timing, C text, L rare link)
+verdicts: COORDINATED-LEAD 16, SINGLE-SIGNAL 6, COINCIDENCE-LIKELY 1135, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: timing 1, rare link 5
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+network pairs marked COORDINATED-LEAD: 16 of 21
+pairs outside the network marked COORDINATED-LEAD: 0
+== signals CL (T timing, C text, L rare link)
+verdicts: COORDINATED-LEAD 21, SINGLE-SIGNAL 0, COINCIDENCE-LIKELY 1136, UNKNOWN 174, NO-SHARED-TRACE 439
+single-signal pairs by signal: text 0, rare link 0
+groups joined by COORDINATED-LEAD pairs: 1   sizes: 7
+network pairs marked COORDINATED-LEAD: 21 of 21
+pairs outside the network marked COORDINATED-LEAD: 0
+network posts: 205; with a shared text: 112; of those, with a link: 80
+network posts linking to a site no outsider used: 87; of those, with a shared text: 80
+\`\`\`
+
+- **Text and link together find everything.** Without timing, text and links still mark all 21 network pairs. Timing with either one finds 16. That looks like strength, until the last two lines.
+- **They come from the same posts.** 80 of the 87 network posts that link to a site no outsider used also carry a shared text. The campaign posted a line and a link together, so "same text" and "same link" largely count the same posts twice. Two signals from one source are what S3.1 calls a source counted twice. Timing is the more independent check, because it comes from when the posts were made, not from what they say.
+- **The claim ladder for the group of 7:**
+  - *What the data shows:* seven accounts posted the same normalised texts and linked to the same rare websites far more than a shuffled null allows (alpha 0.001), and most pairs also posted within the same 10 minutes more than chance gives.
+  - *Two other explanations:* a real group of people who agreed to post together (a campaign is not always fake); or one person running seven accounts openly, as a shop and its owner do.
+  - *What would raise it:* a record made by someone else. A platform's report that names the same accounts would be one. An outsider cannot obtain it, which is why the report check refuses STRONG.
+- **The one the method missed.** The late member made only two campaign posts, at its own times. Every signal needs repeats, so a quiet member is invisible. Absence from the group is not innocence.
+
+</details>`,
+    tracker: ["Ran the lab: splitmix64 known answers, rerun identical, report check PASS, timestamp verified", "Said what Meta's CIB definition adds to coordination, and why content is not the test", "Read two takedown reports for what each rests on, and declared the conflict of interest", "Measured three traces against a shuffled null with a stated false-positive rate", "Sorted pairs into four verdicts and opened the answer key only after them", "Moved alpha and watched the look-alikes flip (Drill 1)", "Changed the time window and the null, and named the null in the report (Drill 2)", "Tested whether two signals were one, and wrote the claim ladder (Drill 3)"]
   }, {
     id: "s4_6",
     level: 4,
