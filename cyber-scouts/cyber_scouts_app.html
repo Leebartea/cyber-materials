@@ -12912,7 +12912,7 @@ for d, i, w in sorted(T): p("   %s  %s  %s" % (d, i, w))
 open("facts.txt", "w").write("\\n".join(out) + "\\n"); print("\\n".join(out))
 PY
 python3 sanctions_read.py || { echo "STOP: the reader failed - a page has changed its layout; read it by hand"; exit 1; }
-grep -q 'ABSENT\\|NOT FOUND\\|NO REDIRECT' facts.txt && echo "NOTE: a page has changed since this module was written - read the line marked above by hand"
+grep -qE 'ABSENT|NOT FOUND|NO REDIRECT' facts.txt && echo "NOTE: a page has changed since this module was written - read the line marked above by hand"
 
 # 4. The report. Every finding carries one of S2.7's link tags and cites its items. The figures in it are
 #    typed by hand, so step 5 checks each one against facts.txt.
